@@ -1,8 +1,11 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-24): bot Codexa odczytuje login wybranej instancji przez
+lokalne RPC i używa nietrwałego magazynu we własnym procesie.
+
 Aktualizacja (2026-11-24): w web/desktop wiersz workera otwiera jego ustawienia z podziałem na zakładki.
 
-Aktualizacja (2026-11-23) włącza **Use CLI home** domyślnie dla wbudowanej instancji `codex/native` z logowaniem urządzenia na Windowsie, macOS i Linuksie.
+Aktualizacja (2026-11-23) włącza **Use CLI home** domyślnie dla wątków wbudowanej instancji `codex/native` z logowaniem urządzenia na Windowsie, macOS i Linuksie.
 
 Aktualizacja (2026-11-22): katalog konektorów wątku wynika z dostępu jego projektu.
 
@@ -574,16 +577,15 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 ### 9.4. Na workerze
 
 - Profile są identyfikowane parą (dostawca, id): duplikat tej pary jest błędem krytycznym; `native` worker dodaje sam tylko dla dostawców, których konfiguracja nie wymienia. Wyłączona zaślepka nie jest dalej walidowana. Profil dla obu dostawców (konfiguracja lokalna albo starsza; także `native` dodany przez workera) jest rozbijany na instancję per dostawca i tak sprawdzany i raportowany: wyłączony Claude nie wyłącza strony Codexa.
-- **Środowisko uruchomienia instancji** (`hasOwnRuntime`): własny plik wykonywalny, `home_path` (katalog CLI właściciela urządzenia, z którego dowiązywane jest logowanie), `shadow_home_path` (izolowany katalog harnessu; dotąd zawsze `<data_dir>/codex-home` / `claude-home`), argumenty uruchomienia, `own_login`. Instancja z `home_path` albo `own_login` bez `shadow_home_path` dostaje własny katalog `<data_dir>/homes/<harness>-<id>` (dwa logowania nie dzielą katalogu).
+- **Środowisko uruchomienia instancji** (`hasOwnRuntime`): własny plik wykonywalny, `home_path` (katalog CLI właściciela urządzenia wybrany jako źródło logowania), `shadow_home_path` (izolowany katalog harnessu), argumenty uruchomienia, `own_login`. Instancja z `home_path` albo `own_login` bez `shadow_home_path` dostaje własny katalog `<data_dir>/homes/<harness>-<id>` (dwa logowania nie dzielą katalogu).
   - Codex: każda instancja ma własny `codex app-server`: `<binary> app-server … <launch_args>`, `CODEX_HOME` = jej katalog. Wątki instancji z własnym katalogiem żyją w nim (jawna zmiana katalogu instancji z wątkami = ich sesje zostają w starym). Odczyt podczas rekoncyliacji i ograniczenia kompresji opisuje [adapter Codexa](codex-adapter.md#kompresja-historii-na-dysku).
   - Claude: per zapytanie `pathToClaudeCodeExecutable`, `CLAUDE_CONFIG_DIR` w `env` i `extraArgs` (z `--flag wartość`); pomocnicze funkcje SDK (`forkSession`, `getSessionMessages`) czytają katalog z procesu, więc wywołania idą po kolei z ustawionym `CLAUDE_CONFIG_DIR` katalogu instancji.
 - **Ochrona loginu Claude/Codex:** prywatny shadow home nie może wskazywać katalogu źródła logowania ani rzeczywistego domu CLI urządzenia, także przez dowiązania, przy własnym źródle loginu, wyłączonym logowaniu urządzenia lub własnym loginie. Błąd systemu plików wyłącza tylko daną instancję. Przygotowanie runtime'u sprawdza ścieżki ponownie; istniejący własny plik loginu nie jest usuwany ani zastępowany. Tryb współdzielonych sesji Claude wybiera osobny katalog sesji i nigdy nie przekazuje go do przygotowania prywatnego home.
   Niestandardowe źródło logowania nie wyłącza ochrony rzeczywistego domu CLI urządzenia.
   Błąd kanonizacji ścieżki oznacza niedostępność sprawdzanej instancji i nie przerywa
   zastosowania konfiguracji pozostałych instancji. Hardlink loginu jest zarządzany
-  tylko wtedy, gdy jego urządzenie i i-węzeł odpowiadają znanemu plikowi logowania
-  urządzenia; sam licznik dowiązań nie wystarcza. Hardlink do innego pliku pozostaje
-  chroniony jak własny login.
+  tylko wtedy, gdy jego urządzenie i i-węzeł odpowiadają znanemu plikowi logowania.
+  Hardlink do innego pliku pozostaje chroniony jak własny login.
 - **Raport per instancja** (`ConfigApplied.profiles`): `version` (wersja jej pliku wykonywalnego albo dostawcy), `auth` i `authenticated`: endpoint — „endpoint key”; native — login w katalogu (Codex `auth.json`: „ChatGPT” albo „OpenAI API key”, czytany tylko kształt; Claude `.credentials.json`: „Claude account”; na macOS Claude trzyma login w pęku kluczy: nieznane), albo klucz w zmiennych (`ANTHROPIC_API_KEY` itd.). W trybie Codexa **Use CLI home** brak pliku `auth.json` pozwala CLI sprawdzić także login z systemowego magazynu poświadczeń. Native bez logowania, brak CLI albo plik wykonywalny, który się nie uruchamia, robią instancję niedostępną z powodem (`not signed in`, `no Codex login on this device`, `… not found or not runnable`) — bez wpisu w `issues`.
 - `InstanceOnWorker.kind` to rodzaj połączenia z tego raportu, także dla wbudowanej instancji `native`
   używającej proxy. Pełny status trafia również do `Worker.provider_instances.status` w overview,
@@ -645,7 +647,16 @@ a oba przed wartością domyślną. Proxy, własny login instancji i wyłączeni
 logowania urządzenia zachowują prywatny katalog. Worker bez capability
 `codex_cli_home_v1` stosuje swój dotychczasowy domyślny tryb. Jawny wybór
 **Use CLI home** dla aktywnego logowania urządzenia wymaga aktualizacji takiego workera.
-Szczegóły historii, importu i botów opisuje [adapter Codexa](codex-adapter.md#korzystanie-z-katalogu-cli).
+Szczegóły historii, importu i generatora tytułów opisuje [adapter Codexa](codex-adapter.md#korzystanie-z-katalogu-cli).
+
+Bot ma prywatny katalog rozmowy w obu trybach. Dla **Device login** i **Own login**
+pracuje z kluczem API albo tokenem dostępu ChatGPT pobranym z krótkotrwałego
+app-servera uruchomionego z konfiguracją wybranej instancji. Worker odmawia
+przekazania loginu, jeśli efektywne adresy docelowe instancji i bota się różnią
+lub konfiguracja zawiera nieobsługiwane wymagania zarządzane. W trybie
+**Isolated** z logowaniem urządzenia źródłowy app-server nadal korzysta z dowiązań.
+Przy **Use CLI home** bot może użyć obsługiwanego loginu CLI bez tworzenia
+dowiązań. Proxy korzysta z klucza endpointu. [Logowanie harnessów](bots-harness.md#logowanie-harnessów).
 
 ### Konfiguracja użytkownika Claude
 
@@ -771,14 +782,25 @@ Patrz [agent-environment.md](agent-environment.md#marketplace-i-pluginy--protok�
 
 ### 9.5. Logowanie z aplikacji
 
-Codex ma logowanie w API app-servera: `account/login/start` z `chatgptDeviceCode` zwraca adres i jednorazowy kod. `StartProviderLogin` (instancja Codexa `native`; z `own_login` worker z capability `codex_device_login` uruchamia krótko żyjący `codex app-server` z `CODEX_HOME` = katalog instancji; bez `own_login`, czyli na logowaniu urządzenia, worker z capability `codex_device_login_linked` uruchamia go z `CODEX_HOME` = dom CLI urządzenia, jak `codex login` w terminalu, bez zarządzanych pluginów w tym katalogu); UI pokazuje kod i link („Continue with ChatGPT”), użytkownik potwierdza w dowolnej przeglądarce, Codex zapisuje `auth.json` w katalogu instancji, worker po `account/login/completed` (najwyżej 15 min) wysyła nowy `ConfigApplied` („Authenticated · ChatGPT”), a proces Codexa instancji startuje ponownie, gdy jest bezczynny (nowy login zamiast zapamiętanej odmowy). Tokeny nie opuszczają katalogu Codexa. Login odrzucony w turze: [provider-accounts.md](provider-accounts.md#login-odrzucony-w-turze); „Sign in” pod takim błędem tury najpierw mówi, który komputer zmienia (przy logowaniu urządzenia: konto Codex CLI tego komputera, jak `codex login`), a dopiero „Continue with ChatGPT” je uruchamia.
+`StartProviderLogin` uruchamia krótkotrwały `codex app-server` dla instancji
+`native`. Przy `own_login` i capability `codex_device_login` ustawia `CODEX_HOME`
+na katalog tej instancji. Przy logowaniu urządzenia i capability
+`codex_device_login_linked` ustawia go na dom CLI, tak jak `codex login` w terminalu.
+Proces logowania korzysta z tego katalogu bez zarządzanych pluginów. Metoda
+`account/login/start` z `chatgptDeviceCode` zwraca adres i jednorazowy kod. UI
+pokazuje kod i link „Continue with ChatGPT”, a użytkownik potwierdza w przeglądarce.
+Codex zapisuje poświadczenia w wybranym magazynie, a worker po
+`account/login/completed` (najwyżej 15 min) wysyła nowy `ConfigApplied`
+(„Authenticated · ChatGPT”). Proces wątków instancji startuje ponownie, gdy jest
+bezczynny, aby użyć nowego loginu. „Sign in” pod błędem tury najpierw wskazuje
+komputer, na którym zmieni się login. [Login odrzucony w turze](provider-accounts.md#login-odrzucony-w-turze).
 
 Logowanie zastępuje login CLI na komputerze workera, więc `StartProviderLogin` wymaga ścisłej własności: `workers.owner_user_id` równe wołającemu. Worker platformowy (`owner_user_id IS NULL`), widoczny dla wielu właścicieli w `ListWorkers`, jest odrzucany. Metody nie ma w `SERVED` ani `WORKER_SETTINGS` (remote-policy): połączony komputer jej nie wywoła, a dom odrzuca ją także przy bezpośrednim wywołaniu przez link. Jedno logowanie na instancję naraz: gateway łączy równoczesne starty tego samego właściciela i celu, worker zwraca kod trwającego logowania zamiast uruchamiać drugi proces. Wynik ostatniego logowania worker raportuje w `ProviderAccountStatus.login_id` i `login_outcome` (`pending`, `signed_in`, `failed`); `StartProviderLoginResponse.login_id` wskazuje, na które logowanie czeka klient, więc kod znika dopiero po jego zakończeniu lub błędzie, a nie po dowolnym nowym odczycie konta. Claude Code nie ma logowania w API SDK: instancja Claude używa logowania urządzenia (`claude login` w swoim katalogu CLI), klucza w zmiennych albo endpointu.
 
 Pomoc **Sign in** w stanie konta korzysta z `ProviderAccountStatus.login_dir` i `login_executable`,
 wyznaczonych przez workera z efektywnej konfiguracji instancji i jego nadpisań. Dla własnego logowania
-to faktyczny izolowany dom; dla logowania urządzenia to źródłowy dom CLI, z którego dowiązywane jest
-logowanie. Polecenie ustawia `CLAUDE_CONFIG_DIR`, `CODEX_HOME` lub `GROK_HOME` i cytuje ścieżki
+to faktyczny izolowany dom. Dla logowania urządzenia jest to źródłowy dom CLI.
+Polecenie ustawia `CLAUDE_CONFIG_DIR`, `CODEX_HOME` lub `GROK_HOME` i cytuje ścieżki
 dla systemu workera (Windows: PowerShell). Nie wykonuje polecenia ani nie przenosi plików logowania.
 Starszy worker bez tych pól wymaga odświeżenia/aktualizacji zamiast niepoprawnego polecenia bez katalogu.
 Odzyskanie po dawnym nadpisaniu przy linkowaniu: [linked-computers.md](linked-computers.md#odzyskanie-konfiguracji-po-nadpisaniu-przy-linkowaniu).

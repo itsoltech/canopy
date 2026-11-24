@@ -20,6 +20,8 @@ import { codexThreadCommands } from "./thread-commands.ts";
 import { verifiedSandbox } from "./sandbox-profile.ts";
 import type { RewindThread } from "@canopy/contracts";
 import { codexProjectSecretProtection } from "./project-secret-protection.ts";
+import { profileBotLogin, type CodexBotLogin, type CodexBotLoginScope } from "./profile-auth.ts";
+import type { CodexBotAuthRoute } from "./bot-auth-route.ts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
 
@@ -46,6 +48,8 @@ export class CodexThreads extends Context.Service<
   CodexThreads,
   {
     readAccount(): Effect.Effect<{ email: string; plan: string } | undefined, CodexThreadError>;
+    /** Reads credentials from this instance's app-server for a local isolated bot. */
+    botLogin(destination: CodexBotAuthRoute, scope?: CodexBotLoginScope): Effect.Effect<CodexBotLogin, Error>;
     /** Creates the Codex thread (new or fork) and records thread_ready. Returns the Codex thread id. */
     create(spec: ThreadSpec, fork?: ForkSpec): Effect.Effect<string, CodexThreadError>;
     rewind(request: RewindThread): Effect.Effect<{ providerThreadId?: string }, CodexThreadError>;
@@ -118,6 +122,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
   Effect.gen(function* () {
     const codex = yield* CodexAppServer;
     const journal = yield* Journal;
+    const botLogin = yield* profileBotLogin(options);
 
     const projectSecrets = yield* Effect.acquireRelease(
       Effect.try(() => codexProjectSecretProtection(options.launch, codex.userAgent)).pipe(
@@ -211,6 +216,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
 
     return CodexThreads.of({
       readAccount: usage.readAccount,
+      botLogin,
       ...codexThreadCommands(ctx, sessions, turnSettings),
       listModels: catalog.listModels,
       listMentionCatalog: catalog.listMentionCatalog,

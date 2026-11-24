@@ -12,6 +12,7 @@ import { HttpMcp, httpTools } from "./instance-mcp.ts";
 import { Schema } from "effect";
 import { turnError } from "../../../apps/worker/src/providers/codex/fixtures/provider-errors.ts";
 import { codexLimits } from "./provider-usage.ts";
+import { instanceCodexLogin } from "./instance-codex-login.ts";
 
 let usagePercent = 20;
 
@@ -48,6 +49,8 @@ const providers = new Map<string, string>();
 const currentProvider =
   process.argv.flatMap((arg) => /^model_provider="([a-z0-9_-]+)"$/.exec(arg)?.[1] ?? []).at(-1) ?? "openai";
 
+const ephemeralAuth = process.argv.includes('cli_auth_credentials_store="ephemeral"');
+
 const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
 const instructions = new Map<string, string>();
 const catalogs = new Map<string, string[]>();
@@ -55,6 +58,7 @@ const workspaces = new Map<string, { cwd: string; server: typeof HttpMcp.Type | 
 const interrupted = new Set<string>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
+const login = instanceCodexLogin(home, send);
 
 async function turn(
   id: number,
@@ -82,6 +86,12 @@ async function turn(
         message: `This chat uses ${providers.get(threadId)}, but your current provider is ${text === "FAIL:provider-switch" ? "other" : currentProvider}. Switch to ${providers.get(threadId)} to continue.`,
       },
     });
+
+    return;
+  }
+
+  if (login && !(await login.authorizeTurn(text))) {
+    send({ id, error: { code: -32000, message: "Missing matching isolated login" } });
 
     return;
   }
@@ -247,7 +257,19 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (request.id === undefined) continue;
   const { id, params } = request;
 
+  if (login?.handle(id, request.method, request.result ?? params ?? {})) continue;
+
   if (request.method === "initialize") send({ id, result: { userAgent: "instance-fixture" } });
+  else if (request.method === "config/read")
+    send({
+      id,
+      result: {
+        config: { model_provider: currentProvider, ...(ephemeralAuth && { cli_auth_credentials_store: "ephemeral" }) },
+        origins: {},
+        layers: null,
+      },
+    });
+  else if (request.method === "configRequirements/read") send({ id, result: { requirements: null } });
   else if (request.method === "account/rateLimits/read")
     send({
       id,

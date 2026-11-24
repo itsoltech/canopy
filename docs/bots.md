@@ -1,5 +1,8 @@
 # Boty
 
+Status (2026-11-24): natywne boty Codexa używają aktualnego loginu wybranej instancji
+w nietrwałym magazynie procesu tury. [Logowanie harnessów](bots-harness.md#logowanie-harnessów).
+
 Status (2026-11-24): prywatna tura właściciela i zaplanowane wystąpienie jego rutyny
 mogą wysłać wiadomość do lokalnego wątku o innym zakresie po jednorazowej zgodzie.
 Dostępność w kanałach określa [promocja wydań](release.md).
@@ -844,9 +847,10 @@ z reduced motion; mobilny dialog korzysta ze wspólnego ruchu dolnego panelu.
 ## 1. Decyzja o wykonaniu
 
 Runtime bota to **oficjalny harness na przypiętym workerze**. Wszystkie trzy
-rodziny providerów obsługują instancje `native` i proxy. Login jest udostępniany do
-izolowanego home na workerze zgodnie z konfiguracją instancji. Proxy trafia do oficjalnego
-CLI, a nie klienta HTTP Canopy. Nie uruchamiamy harnessów na hoście gateway.
+rodziny providerów obsługują instancje `native` i proxy. Harness korzysta z loginu
+wybranej instancji. Przy natywnym logowaniu Codexa poświadczenia trafiają przez
+lokalne RPC do pamięci izolowanego procesu bota. Proxy trafia do oficjalnego CLI, a nie klienta HTTP Canopy.
+Nie uruchamiamy harnessów na hoście gateway.
 
 Bez zapisanego workera pierwsza tura w lokalnym gatewayu desktopu preferuje jego
 worker obsługujący instancję. Gateway serwerowy wybiera pierwszy dostępny worker

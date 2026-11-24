@@ -4,7 +4,7 @@ import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { Schema } from "effect";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { grokBus } from "../providers/grok/bus.ts";
 import { resolveProfiles } from "../providers/profiles.ts";
@@ -58,7 +58,7 @@ function userEnvironment(home: string) {
   };
 }
 
-test("bot isolation keeps only the selected login and rebuilds pre-isolation sessions", () => {
+test("bot isolation keeps Codex credentials out of the home and rebuilds pre-isolation sessions", () => {
   const user = userEnvironment(temp("canopy-bot-login-"));
 
   for (const provider of [Provider.CLAUDE, Provider.CODEX]) {
@@ -75,18 +75,13 @@ test("bot isolation keeps only the selected login and rebuilds pre-isolation ses
 
     const options = { dataDir: temp("canopy-bot-login-data-"), sourceHome, linkLogin: true };
     const session = botSession(input, options);
+    expect(readdirSync(session.home)).toEqual([]);
 
     if (provider === Provider.CLAUDE) {
-      expect(readdirSync(session.home)).toEqual([]);
       expect(session.secureStorageDir).toBe(sourceHome);
       expect(botSession(input, { ...options, secureStorageDir: "" }).secureStorageDir).toBe("");
       const isolated = botSession(input, { ...options, linkLogin: false });
       expect(isolated.secureStorageDir).toBe(isolated.home);
-    } else {
-      expect(readdirSync(session.home).sort()).toEqual([login, "auth.lock"]);
-
-      for (const file of [login, "auth.lock"])
-        expect(readlinkSync(join(session.home, file))).toBe(join(sourceHome, file));
     }
 
     for (const configuration of [

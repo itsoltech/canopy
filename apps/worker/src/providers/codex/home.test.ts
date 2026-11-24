@@ -207,16 +207,16 @@ describe("prepareCodexHome", () => {
     expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
   });
 
-  test.skipIf(process.getuid?.() === 0)("keeps a bot's live hard link if Windows denies the replacement", () => {
+  test.skipIf(process.getuid?.() === 0)("keeps a thread's live hard link if Windows denies the replacement", () => {
     const dataDir = mkdtempSync(join(base, "denied-migration-"));
     const deviceHome = device(true);
     const source = join(deviceHome, "auth.json");
-    const path = join(dataDir, "bots", "bot", botSessionInstanceKey(Provider.CODEX, "native"), "home");
+    const path = join(dataDir, "codex-home");
     const target = join(path, "auth.json");
 
     const config = {
       codex: { enabled: true, linkDeviceLogin: true },
-      profiles: [{ config: { id: "native", kind: "native" as const } }],
+      profiles: [{ config: { id: "isolated", kind: "native" as const } }],
     };
 
     mkdirSync(path, { recursive: true });
@@ -247,11 +247,11 @@ describe("prepareCodexHome", () => {
     expect(statSync(source).nlink).toBe(1);
   });
 
-  test("keeps the active hard link when the bot's shared write lock cannot be installed", () => {
+  test("keeps the active hard link when the thread's shared write lock cannot be installed", () => {
     const dataDir = mkdtempSync(join(base, "blocked-migration-"));
     const deviceHome = device(true);
     const source = join(deviceHome, "auth.json");
-    const path = join(dataDir, "bots", "bot", botSessionInstanceKey(Provider.CODEX, "native"), "home");
+    const path = join(dataDir, "codex-home");
     const target = join(path, "auth.json");
     const lock = join(path, "auth.lock");
     mkdirSync(path, { recursive: true });
@@ -259,7 +259,7 @@ describe("prepareCodexHome", () => {
     writeFileSync(lock, "independent file");
 
     migrateCodexLogins(
-      { codex: { enabled: true, linkDeviceLogin: true }, profiles: [{ config: { id: "native", kind: "native" } }] },
+      { codex: { enabled: true, linkDeviceLogin: true }, profiles: [{ config: { id: "isolated", kind: "native" } }] },
       dataDir,
       deviceHome,
       "win32",
@@ -293,7 +293,7 @@ describe("prepareCodexHome", () => {
     expect(readFileSync(join(dataDir, "previous-login"), "utf8")).toBe('{"tokens":{}}');
   });
 
-  test("migrates inactive homes and keeps device and independent logins intact", () => {
+  test("detaches known bot links and keeps the thread login migration intact", () => {
     const dataDir = mkdtempSync(join(base, "inactive-"));
     const sourceHome = device(true);
     const source = join(sourceHome, "auth.json");
@@ -302,7 +302,7 @@ describe("prepareCodexHome", () => {
     const ownKey = botSessionInstanceKey(Provider.CODEX, "own");
     const botHome = join(dataDir, "bots", "bot", "conversations", "conversation", nativeKey, "home");
     const privateBot = join(dataDir, "bots", "bot", ownKey, "home");
-    const inactive = join(dataDir, "bots", "bot", "inactive", "home");
+    const inactive = join(dataDir, "bots", "bot", botSessionInstanceKey(Provider.CODEX, "inactive"), "home");
     const custom = mkdtempSync(join(base, "custom-shadow-"));
     const worktree = join(dataDir, "worktrees", "project");
 
@@ -314,6 +314,8 @@ describe("prepareCodexHome", () => {
     linkSync(source, join(custom, "auth.json"));
     linkSync(source, join(inactive, "auth.json"));
     linkSync(ownAuth, join(privateBot, "auth.json"));
+    symlinkSync(join(sourceHome, "auth.lock"), join(botHome, "auth.lock"), "file");
+    writeFileSync(join(privateBot, "auth.lock"), "private-lock");
     const aliasedSource = join(dataDir, "homes", "codex-source-alias");
     symlinkSync(sourceHome, aliasedSource, "junction");
 
@@ -332,17 +334,54 @@ describe("prepareCodexHome", () => {
       "win32",
     );
 
-    for (const home of [botHome, privateBot, custom]) {
-      expect(lstatSync(join(home, "auth.json")).isSymbolicLink()).toBe(true);
-      expect(lstatSync(join(home, "auth.lock")).isSymbolicLink()).toBe(true);
-    }
-
-    expect(lstatSync(join(inactive, "auth.json"), { throwIfNoEntry: false })).toBeUndefined();
+    expect(readdirSync(botHome)).toEqual([]);
+    expect(readdirSync(inactive)).toEqual([]);
+    expect(readdirSync(privateBot)).toEqual(["auth.lock"]);
+    expect(readFileSync(join(privateBot, "auth.lock"), "utf8")).toBe("private-lock");
+    expect(lstatSync(join(custom, "auth.json")).isSymbolicLink()).toBe(true);
+    expect(lstatSync(join(custom, "auth.lock")).isSymbolicLink()).toBe(true);
     expect(statSync(source).nlink).toBe(1);
     expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
     expect(statSync(ownAuth).nlink).toBe(1);
     expect(readFileSync(ownAuth, "utf8")).toBe("own-login");
     expect(readFileSync(join(worktree, "auth.json"), "utf8")).toBe("project-file");
+  });
+
+  test("cleans inactive bot symlinks without a current device credential file", () => {
+    const dataDir = mkdtempSync(join(base, "inactive-symlinks-"));
+    const sourceHome = device(false);
+    const ownHome = join(dataDir, "homes", "codex-removed");
+    const ownLogin = join(ownHome, "auth.json");
+    const bot = join(dataDir, "bots", "bot");
+    const native = join(bot, botSessionInstanceKey(Provider.CODEX, "native"), "home");
+    const removed = join(bot, botSessionInstanceKey(Provider.CODEX, "removed"), "home");
+    const unrelated = join(dataDir, "unrelated-login");
+    const external = device(true);
+    const linked = join(bot, botSessionInstanceKey(Provider.CODEX, "junction"), "home");
+
+    for (const home of [ownHome, native, removed, join(linked, "..")]) mkdirSync(home, { recursive: true });
+    writeFileSync(ownLogin, "fixture-own-login");
+    writeFileSync(unrelated, "fixture-unrelated-login");
+    symlinkSync(join(sourceHome, "auth.json"), join(native, "auth.json"), "file");
+    symlinkSync(join(sourceHome, "auth.lock"), join(native, "auth.lock"), "file");
+    symlinkSync(ownLogin, join(removed, "auth.json"), "file");
+    linkSync(unrelated, join(removed, "auth.lock"));
+    symlinkSync(join(sourceHome, "auth.lock"), join(external, "auth.lock"), "file");
+    symlinkSync(external, linked, "junction");
+
+    migrateCodexLogins(
+      { codex: { enabled: true, linkDeviceLogin: false }, profiles: [] },
+      dataDir,
+      sourceHome,
+      "linux",
+    );
+
+    expect(readdirSync(native)).toEqual([]);
+    expect(readdirSync(removed)).toEqual(["auth.lock"]);
+    expect(statSync(unrelated).nlink).toBe(2);
+    expect(readFileSync(ownLogin, "utf8")).toBe("fixture-own-login");
+    expect(lstatSync(join(external, "auth.lock")).isSymbolicLink()).toBe(true);
+    expect(readFileSync(join(external, "auth.json"), "utf8")).toBe('{"tokens":{}}');
   });
 
   test("refuses to use the device home as the shadow home", () => {

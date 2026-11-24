@@ -1,4 +1,11 @@
-import type { InitializeParams, ServerNotification, ServerRequest, v2 } from "@canopy/codex-protocol";
+import type {
+  GetAuthStatusParams,
+  GetAuthStatusResponse,
+  InitializeParams,
+  ServerNotification,
+  ServerRequest,
+  v2,
+} from "@canopy/codex-protocol";
 import { Context, Effect, Layer, Option, Predicate, PubSub, Schema, Stream } from "effect";
 import { governBunSpawn, windowsCommand, startWorkload } from "@canopy/process-governor";
 import type { JsonValue } from "@canopy/domain";
@@ -25,6 +32,7 @@ export class CodexAppServerStartupError extends Schema.TaggedError<CodexAppServe
 
 /** Requests the adapter uses, with their params and results (bindings from the pinned Codex version). */
 export interface CodexMethods {
+  getAuthStatus: { params: GetAuthStatusParams; result: GetAuthStatusResponse };
   "account/rateLimits/read": { params: v2.GetAccountRateLimitsParams; result: v2.GetAccountRateLimitsResponse };
   "mcpServerStatus/list": { params: v2.ListMcpServerStatusParams; result: v2.ListMcpServerStatusResponse };
   "account/read": { params: v2.GetAccountParams; result: v2.GetAccountResponse };
@@ -71,6 +79,7 @@ export type ServerRequestHandler = (request: RequestWithoutId<ServerRequest>) =>
 export interface CodexAppServerOptions {
   readonly launch: CodexAppServerLaunch;
   readonly onServerRequest: ServerRequestHandler;
+  readonly processKind?: "probe";
   readonly clientName?: string;
   readonly clientVersion: string;
 }
@@ -104,7 +113,7 @@ export class CodexAppServer extends Context.Service<
             try: () => {
               const command = windowsCommand(options.launch.command, options.launch.env);
 
-              return governBunSpawn("harness", () =>
+              return governBunSpawn(options.processKind ?? "harness", () =>
                 startWorkload(
                   command.argv,
                   (argv) =>
@@ -174,7 +183,12 @@ export class CodexAppServer extends Context.Service<
             catch: (error) =>
               new CodexAppServerError({
                 method,
-                message: error instanceof Error ? error.message : String(error),
+                message:
+                  method === "getAuthStatus"
+                    ? "Codex could not read authentication status."
+                    : error instanceof Error
+                      ? error.message
+                      : String(error),
                 ...(error instanceof RpcError && { code: error.code }),
               }),
           });

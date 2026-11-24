@@ -1,7 +1,9 @@
 # Adapter Codex (app-server)
 
-Aktualizacja (2026-11-24): migracja logowania na Windows zachowuje istniejące
-dowiązanie, gdy nie można utworzyć dowiązania symbolicznego loginu lub jego blokady.
+Aktualizacja (2026-11-24): boty używają bieżącego loginu instancji przez RPC
+i nietrwały magazyn poświadczeń. Migracja logowania instancji izolowanych na
+Windowsie zachowuje dotychczasowe powiązanie przy odmowie utworzenia dowiązania
+symbolicznego do loginu lub jego blokady.
 
 Aktualizacja (2026-11-24): adapter chroni granty sekretów projektu w
 zweryfikowanych sesjach CLIProxyAPI przez HTTP. Po oznaczonej turze następna
@@ -9,13 +11,10 @@ tura zachowuje wątek Canopy i otwiera nową sesję Codexa z instrukcjami
 odzyskiwania, także po restarcie workera.
 
 Aktualizacja (2026-11-23): worker przywraca zapis historii Codexa potrzebny do
-forka po archiwizacji. Na Windowsie migruje twarde dowiązania logowania Codexa,
-również w katalogach zapisanych rozmów botów. Na Windowsie, macOS i Linuksie
-odtwarza powiązanie zarządzanego katalogu z bieżącym loginem i współdzieli blokadę zapisu CLI.
+forka po archiwizacji.
 Wątki wbudowanej instancji `codex/native` z logowaniem urządzenia domyślnie
 korzystają z loginu i konfiguracji CLI bez dowiązań na wszystkich trzech systemach.
-Błąd dowiązania w trybie izolacji
-trafia do statusu konta i do wątku.
+Błąd dowiązania w trybie izolacji trafia do statusu konta i do wątku.
 
 Aktualizacja (2026-11-22): nazwany profil offline używa osobnego identyfikatora
 uprawnień w Codexie. Adapter porównuje politykę przy starcie i przy wznowieniu.
@@ -429,10 +428,19 @@ Import w trybie **Use CLI home** zachowuje historię z możliwością kontynuacj
 w nowym wątku. Natywne kopie z wcześniejszych importów pozostają w katalogu prywatnym. Dla takich
 wątków należy wybrać **Isolated**, aby kontynuować pracę na zaimportowanej kopii.
 
-Boty oraz generator tytułów nadal uruchamiają Codexa w wydzielonych katalogach.
-Przy logowaniu natywnym wymagają dostępnego loginu plikowego oraz możliwości
-utworzenia dowiązań. Osobny login instancji i połączenia proxy używają
-prywatnego katalogu instancji.
+Bot uruchamia Codexa z prywatnym `CODEX_HOME` rozmowy. Worker pobiera obsługiwane
+poświadczenia z magazynu wybranej instancji przez lokalne RPC i przekazuje je do
+pamięci procesu tury po sprawdzeniu efektywnych adresów docelowych obu procesów
+i obsługi wymagań zarządzanych. Przy **Use CLI home** źródłowa instancja otwiera
+magazyn CLI bez dowiązań.
+Przy **Isolated** z logowaniem urządzenia źródłowa instancja nadal wymaga
+dowiązań do plików terminala. **Own login** korzysta z własnego magazynu instancji.
+Zasady odświeżania i migracji katalogów botów opisuje [logowanie harnessów](bots-harness.md#logowanie-harnessów).
+
+Generator tytułów uruchamia osobny app-server z tymczasowym `CODEX_HOME`. Do użycia
+plikowego loginu natywnego przygotowuje dowiązania do loginu instancji i jego blokady,
+również gdy zwykłe wątki używają **Use CLI home**. Połączenie CLIProxyAPI
+korzysta z klucza endpointu.
 
 ### Konfiguracja izolacji
 
@@ -455,7 +463,7 @@ wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
    Codex może
    atomowo zastąpić plik źródłowy podczas zapisu logowania lub odświeżenia.
    Przy wczytaniu konfiguracji na Windowsie worker rozpoznaje twarde dowiązania
-   także w nieaktywnych katalogach instancji i botów. Jeśli konfiguracja nadal
+   także w nieaktywnych katalogach instancji. Jeśli konfiguracja nadal
    wskazuje to samo źródło, worker zachowuje istniejący plik do czasu przygotowania
    dowiązań symbolicznych loginu i jego blokady. Odmowa utworzenia dowiązania
    pozostawia poprzednie powiązanie, ale izolowany Codex zgłasza błąd, ponieważ

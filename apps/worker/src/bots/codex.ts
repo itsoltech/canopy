@@ -11,6 +11,7 @@ import { CodexConsumedUsage } from "../providers/codex/consumed-usage.ts";
 import { isolatedHomeEnvironment } from "../providers/home.ts";
 import { verifyCodexBotTier } from "./codex-service-tier.ts";
 import { codexBotEvents } from "./codex-events.ts";
+import { codexBotAuth } from "./codex-auth.ts";
 
 async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
   const { input, session } = ctx;
@@ -26,7 +27,15 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
     [],
   );
 
-  const base = { ...launch, env: { ...launch.env, ...isolatedHomeEnvironment(session.home, launch.env) } };
+  const env: NodeJS.ProcessEnv = { ...launch.env, ...isolatedHomeEnvironment(session.home, launch.env) };
+
+  if (ctx.profile.kind === "native" && session.linkLogin) {
+    // The selected profile resolves environment credentials too. Only its approved RPC result enters the bot.
+    for (const key of Object.keys(env))
+      if (["CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_API_KEY"].includes(key.toUpperCase())) delete env[key];
+  }
+
+  const base = { ...launch, env };
   const catalog = join(session.home, "bot-model.json");
   const entry = await codexModelEntry(base, input.model);
   writeFileSync(catalog, JSON.stringify(codexBotCatalog(input.model, input.effort, entry)), { mode: 0o600 });
@@ -39,7 +48,7 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
       "-c",
       `web_search=${JSON.stringify(input.webAccess ? "live" : "disabled")}`,
       "-c",
-      'cli_auth_credentials_store="file"',
+      'cli_auth_credentials_store="ephemeral"',
       "-c",
       "skills.include_instructions=false",
       "-c",
@@ -87,9 +96,11 @@ async function imageInput(ctx: BotHarnessContext, resumed: boolean) {
 /** Dedicated official app-server; the bot catalog keeps the model's limits and removes every local tool. */
 function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
   const { input, session } = ctx;
+  const auth = codexBotAuth(ctx);
 
   const program = Effect.gen(function* () {
     const server = yield* CodexAppServer;
+    yield* auth.login(server);
     yield* verifyCodexBotTier(server, input.model, input.serviceTier);
     const done = yield* Deferred.make<void, Error>();
     yield* Effect.forkScoped(
@@ -176,9 +187,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
       CodexAppServer.layer({
         launch,
         clientVersion: ctx.clientVersion,
-        onServerRequest: async () => {
-          throw new Error("Bots have no native tools or interactions");
-        },
+        onServerRequest: auth.onServerRequest,
       }),
     ),
     Effect.scoped,

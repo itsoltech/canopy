@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { Schema } from "effect";
 import { Provider, type RunBotTurn } from "@canopy/contracts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
-import { prepareCodexHome } from "../providers/codex/home.ts";
+import { deviceCodexHome } from "../providers/codex/home.ts";
+import { cleanLegacyCodexBotLogin } from "../providers/codex/legacy-login.ts";
+import { providerHomeProblem } from "../providers/home-paths.ts";
 import { BotWorkspace } from "./workspace.ts";
 
 const SavedSession = Schema.Struct({
@@ -30,11 +32,16 @@ function directory(parent: string, name: string): string {
   return path;
 }
 
-/** No project path or device settings; only this instance's login enters the isolated home. */
+/** A durable, isolated bot home with no project path or device settings. */
 export function botSession(
   input: RunBotTurn,
-  options: { dataDir: string; sourceHome: string; linkLogin: boolean; secureStorageDir?: string },
-  platform = process.platform,
+  options: {
+    dataDir: string;
+    sourceHome: string;
+    linkLogin: boolean;
+    secureStorageDir?: string;
+    protectedCodexHomes?: readonly string[];
+  },
 ) {
   if (!ID.test(input.botId) || !ID.test(input.turnId) || (input.conversationId && !ID.test(input.conversationId)))
     throw new Error("Invalid bot, turn or conversation id");
@@ -91,12 +98,11 @@ export function botSession(
       : undefined;
 
   if (input.provider === Provider.CODEX) {
-    const codex = prepareCodexHome(
-      { dataDir: options.dataDir, path: home, linkDeviceLogin: options.linkLogin, deviceCodexHome: options.sourceHome },
-      platform,
-    );
+    const deviceHome = deviceCodexHome(process.env);
+    const problem = providerHomeProblem(home, options.sourceHome || deviceHome, deviceHome);
 
-    if (codex.linkFailed) throw new Error(codex.problem);
+    if (problem) throw new Error(problem);
+    cleanLegacyCodexBotLogin(home, [options.sourceHome, deviceHome, ...(options.protectedCodexHomes ?? [])]);
   }
 
   const pending = new Set<string>();

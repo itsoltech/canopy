@@ -196,7 +196,7 @@ function replaceLogin(staged: string, target: string, suffix?: string): void {
   }
 }
 
-function archiveLogin(path: string, suffix: string): string {
+export function archiveLogin(path: string, suffix: string): string {
   const backup = `${path}.canopy-backup-${suffix}`;
   renameSync(path, backup);
 
