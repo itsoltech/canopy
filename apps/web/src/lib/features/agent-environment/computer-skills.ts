@@ -16,16 +16,12 @@ export interface ComputerSkill {
   overlappingAgents: string[];
 }
 
-export const skillSections = ["Needs attention", "Local skills", "Assigned skills"] as const;
-
-export type SkillSection = (typeof skillSections)[number];
-
 export const needsAttention = (file: EnvironmentSkillStatus) => file.status === "drift" || file.status === "error";
 
-export function skillSection(group: ComputerSkill): SkillSection {
-  if (group.files.some(needsAttention) || group.overlappingAgents.length) return "Needs attention";
+function groupOrder(group: ComputerSkill) {
+  if (group.files.some(needsAttention) || group.overlappingAgents.length) return 0;
 
-  return group.skillId ? "Assigned skills" : "Local skills";
+  return group.skillId ? 2 : 1;
 }
 
 function priority(file: EnvironmentSkillStatus) {
@@ -110,25 +106,30 @@ export function computerSkills(files: readonly EnvironmentSkillStatus[], library
     group.overlappingAgents = overlappingAgents(group.files);
   }
 
-  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...groups.values()].sort((a, b) => groupOrder(a) - groupOrder(b) || a.name.localeCompare(b.name));
 }
 
-export function skillLocation(scope: string) {
-  if (scope === "device") return "Personal CLI";
+export function skillLocation(file: EnvironmentSkillStatus) {
+  const agent = agentLabel(file.harness);
 
-  if (scope === "platform") return "Canopy sessions";
+  if (file.scope === "device") return `${agent} CLI`;
 
-  return "Skill locations";
+  if (file.scope === "platform") return `${agent} in Canopy`;
+
+  return agent || "Skill locations";
 }
 
-export function locationSummary(files: readonly EnvironmentSkillStatus[]) {
-  return ["device", "platform"]
-    .flatMap((scope) => {
-      const harnesses = new Set(files.flatMap((f) => (f.scope === scope ? [agentLabel(f.harness)] : [])));
+export function groupStatus(group: ComputerSkill) {
+  const first = group.files[0]!;
 
-      return harnesses.size ? [`${skillLocation(scope)} · ${[...harnesses].sort().join(", ")}`] : [];
-    })
-    .join(" / ");
+  if (first.status === "error") return first.harness ? `${skillLocation(first)} sync failed` : "Sync failed";
+
+  if (first.status === "drift")
+    return first.owned ? `Edited in ${skillLocation(first)}` : `Conflict in ${skillLocation(first)}`;
+
+  if (group.overlappingAgents.length) return `Multiple ${group.overlappingAgents.join(", ")} CLI locations`;
+
+  return group.membership || fileState(first);
 }
 
 export function agentLabel(harness: string) {
@@ -182,14 +183,6 @@ export function fileState(file: EnvironmentSkillStatus) {
 }
 
 export function skillProblem(file: EnvironmentSkillStatus) {
-  if (file.status === "drift") {
-    if (file.owned) return "Review the local changes and choose which version to use.";
-
-    return canArchive(file)
-      ? "Keep the local copy or archive it to make room for the library skill."
-      : "Keep the local copy or move it out of this directory on the computer.";
-  }
-
   if (/local link occupies/iu.test(file.detail))
     return canArchive(file)
       ? "A local link blocks installation. Archive the link to install the library version."

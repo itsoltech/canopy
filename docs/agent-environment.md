@@ -17,7 +17,7 @@ Plugins i Computers, kompaktowe wiersze, menu akcji i tryb zaznaczania skilli.
 Aktualizacja (2026-11-24): import Git z `--skill` lub podaną ścieżką skilla
 pobiera tylko metadane potrzebne do wyboru i pliki wybranych skilli, gdy serwer
 Git obsługuje filtrowanie obiektów.
-Aktualizacja (2026-11-24): zakładka **Computers** w web/desktop pokazuje lokalne skille
+Aktualizacja (2026-11-24): zakładka **Computers** w web/desktop pokazuje status każdego skilla na wspólnej liście, wyróżnia konflikty
 i pozwala odłożyć wybraną kopię do archiwum na komputerze.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
@@ -76,13 +76,14 @@ wszystkie komputery, wybrane workery albo tagi. Licznik przypisań obejmuje tak�
 komputery offline; nie jest potwierdzeniem zapisu plików.
 
 W web/desktop zakładka **Computers** zaczyna się od wyboru komputera i listy skilli.
-Wiersze grupują instalacje tego samego skilla i rozróżniają sesje Canopy oraz CLI
-urządzenia. Własność kopii i obecność jej nazwy w bibliotece to osobne informacje.
+Na początku listy są skille z konfliktem, błędem, lokalnymi zmianami lub powieloną
+lokalizacją. Rozwinięcie nazwy pokazuje ścieżki w CLI i sesjach Canopy oraz akcje
+dla konkretnej kopii. Menu przypisanego skilla pozwala go wyłączyć na tym komputerze.
+**Not in library** oznacza lokalny skill bez odpowiednika o tej nazwie w bibliotece.
 Podgląd instrukcji, pluginy i tagi mają osobne sekcje. Z komputera obsługiwanego
 przez bieżący gateway można otworzyć formularz dodawania lokalnego skilla. W nim
 użytkownik wybiera folder lub ZIP i przegląda pliki przed zapisaniem w bibliotece.
-Wiersz przypisanego elementu pokazuje **Error**, gdy raport zawiera problem
-dotyczący tego skilla, pluginu lub harnessu instrukcji. Błąd wyznaczenia celów
+Wiersz przypisanego pluginu lub harnessu instrukcji pokazuje **Error**, gdy raport zawiera problem. Błąd wyznaczenia celów
 dla całej kategorii dotyczy wszystkich jej wierszy na tym komputerze.
 **Synced** wymaga aktualnego raportu zastosowania. Wiersz bez potwierdzenia
 pozostaje w stanie **Syncing**, m.in. przy błędzie kompozycji lub gdy komputer

@@ -15,8 +15,6 @@
     archiveLocation,
     canArchive,
     computerSkills,
-    skillSection,
-    skillSections,
     type SkillLibraryEntry,
   } from "./computer-skills.ts";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
@@ -179,7 +177,7 @@
 </script>
 
 <section class={["grid min-w-0 gap-4", className]} aria-label="Skills on this computer">
-  <h3 class="text-base font-semibold">Skills on this computer</h3>
+  <h3 class="text-base font-semibold">Skills</h3>
   {#if !worker.skillsSupported && worker.supported}
     <Alert tone="warning">Update the worker on this computer to sync skills.</Alert>
   {:else if worker.skillsSupported && worker.online && !worker.compositionError}
@@ -210,38 +208,32 @@
       </Disclosure>
     </div>
   {/if}
-  {#each skillSections as section (section)}
-    {@const rows = groups.filter((group) => skillSection(group) === section)}
-    {#if rows.length}
-      <section class="grid min-w-0 gap-1 text-base sm:text-sm" aria-label={section}>
-        <h4 class="font-medium">{section} <span class="ml-1 text-muted tabular-nums">{rows.length}</span></h4>
-        <div class="divide-y divide-divider border-t border-divider">
-          {#each rows as group (group.key)}
-            {@const skill = environment?.snapshot.skills.find((s) => s.id === group.skillId)}
-            <ComputerSkillRow
-              {group}
-              busy={blocked}
-              waitingTarget={archivePending ? lastArchive?.targetId : undefined}
-              onadd={onadd ? () => onadd?.(group.name) : undefined}
-              onarchive={environment || onarchive ? (file) => confirmFile(group.name, file, "archive") : undefined}
-              onresolve={environment
-                ? (file, action) => {
-                    if (action === "overwrite") confirmFile(group.name, file, action);
-                    else void resolve(file, action);
-                  }
-                : undefined}
-              ondisable={skill && worker.skillIds.includes(skill.id)
-                ? () => {
-                    decision = { action: "disable", skill, name: skill.name, revision, workerId: worker.workerId };
-                    confirming = true;
-                  }
-                : undefined}
-            />
-          {/each}
-        </div>
-      </section>
-    {/if}
-  {/each}
+  {#if groups.length}
+    <div class="divide-y divide-divider border-y border-divider text-base sm:text-sm">
+      {#each groups as group (group.key)}
+        {@const skill = environment?.snapshot.skills.find((s) => s.id === group.skillId)}
+        <ComputerSkillRow
+          {group}
+          busy={blocked}
+          waitingTarget={archivePending ? lastArchive?.targetId : undefined}
+          onadd={onadd ? () => onadd?.(group.name) : undefined}
+          onarchive={environment || onarchive ? (file) => confirmFile(group.name, file, "archive") : undefined}
+          onresolve={environment
+            ? (file, action) => {
+                if (action === "overwrite") confirmFile(group.name, file, action);
+                else void resolve(file, action);
+              }
+            : undefined}
+          ondisable={skill && worker.skillIds.includes(skill.id)
+            ? () => {
+                decision = { action: "disable", skill, name: skill.name, revision, workerId: worker.workerId };
+                confirming = true;
+              }
+            : undefined}
+        />
+      {/each}
+    </div>
+  {/if}
   {#if !groups.length && worker.report && !pending && worker.skillsSupported && !worker.compositionError}
     <p class="text-sm text-muted">
       {worker.skillIds.length

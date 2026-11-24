@@ -1,19 +1,12 @@
 <script lang="ts">
   import type { EnvironmentSkillStatus } from "@canopy/contracts";
-  import Button from "#lib/shared/ui/Button.svelte";
-  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import SkillDiff from "./SkillDiff.svelte";
-  import {
-    agentLabel,
-    canArchive,
-    fileState,
-    locationSummary,
-    needsAttention,
-    skillLocation,
-    skillProblem,
-    type ComputerSkill,
-  } from "./computer-skills.ts";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
+  import ComputerSkillLocation from "./ComputerSkillLocation.svelte";
+  import { groupStatus, needsAttention, type ComputerSkill } from "./computer-skills.ts";
 
   let {
     group,
@@ -33,125 +26,70 @@
     onadd?: (() => void) | undefined;
   } = $props();
 
-  const addToLibrary = $derived(group.missingFromLibrary ? onadd : undefined);
-  const addFromSingleCopy = $derived(group.files.length === 1 && addToLibrary);
-  const locations = $derived(locationSummary(group.files));
+  let open = $state(false);
+  const add = $derived(group.missingFromLibrary ? onadd : undefined);
   const first = $derived(group.files[0]!);
-  const synced = $derived(needsAttention(first) ? group.files.filter((file) => file.status === "applied") : []);
-  const main = $derived(synced.length ? group.files.filter((file) => file.status !== "applied") : group.files);
 
-  const stateLabel = $derived(
-    waitingTarget && first.targetId === waitingTarget
-      ? "Archiving copy…"
-      : needsAttention(first) || first.status === "kept"
-        ? fileState(first)
-        : group.overlappingAgents.length
-          ? "Name in multiple directories"
-          : group.membership,
-  );
+  // Keep every actionable copy visible. Collapse only a long tail of healthy installations.
+  const visible = $derived(group.files.filter((file, index) => index < 3 || file.status !== "applied"));
+  const extra = $derived(group.files.filter((file, index) => index >= 3 && file.status === "applied"));
+  const status = $derived(waitingTarget && waitingTarget === first.targetId ? "Archiving copy…" : groupStatus(group));
 </script>
 
-<Disclosure align="center" class="min-w-0" summaryClass="py-3">
-  {#snippet summary()}
-    <span class="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-      <span class="min-w-0 font-medium wrap-anywhere">{group.name}</span>
-      {#if stateLabel}
-        <span
-          class={[
-            "text-sm wrap-anywhere",
-            first.status === "error" && first.targetId !== waitingTarget
-              ? "text-rose-700 dark:text-rose-400"
-              : first.status === "drift" && first.targetId !== waitingTarget
+<div class="relative min-w-0">
+  <Disclosure bind:open align="center" summaryClass="min-h-10 py-1.5 pr-10">
+    {#snippet summary()}
+      <span class="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+        <span class="font-medium wrap-anywhere">{group.name}</span>
+        {#if !open || !needsAttention(first) || !first.path}<span
+            class={[
+              "text-sm wrap-anywhere",
+              needsAttention(first) && waitingTarget !== first.targetId
                 ? "text-amber-700 dark:text-amber-400"
                 : "text-muted",
-          ]}>{stateLabel}</span
-        >
+            ]}>{status}</span
+          >{/if}
+      </span>
+    {/snippet}
+    <div class="grid min-w-0 gap-3 pt-1 pb-4 pl-5">
+      {#if group.overlappingAgents.length && (needsAttention(first) || status !== groupStatus(group))}
+        <p class="text-sm">{group.overlappingAgents.join(", ")} can find this name in multiple CLI directories.</p>
       {/if}
-    </span>
-    {#if locations}<span class="mt-0.5 block text-sm text-muted">{locations}</span>{/if}
-  {/snippet}
-  <div class="grid min-w-0 gap-2 pb-3 pl-5">
-    {#if group.overlappingAgents.length}
-      <p class="text-sm">
-        {group.overlappingAgents.join(", ")} can find this name in more than one personal CLI directory.
-      </p>
-    {/if}
-    {#if group.membership && group.membership !== stateLabel}
-      <p class="text-sm text-muted">{group.membership}</p>
-    {/if}
-    {#each main as file}{@render location(file)}{/each}
-    {#if synced.length || ondisable || (addToLibrary && !addFromSingleCopy)}
-      <div class="flex flex-wrap items-start gap-x-3 gap-y-1">
-        {#if synced.length}
-          <Disclosure align="center" class="min-w-0 flex-1 basis-40" summaryClass="min-h-8">
-            {#snippet summary()}<span class="text-sm"
-                >Show {synced.length === 1 ? "1 synced location" : `${synced.length} synced locations`}</span
-              >{/snippet}
-            <div class="grid min-w-0 gap-2 pt-1">
-              {#each synced as file}{@render location(file)}{/each}
-            </div>
-          </Disclosure>
-        {/if}
-        {#if ondisable}
-          <Button size="sm" variant="ghost" disabled={busy} onclick={ondisable}>Disable on this computer</Button>
-        {:else if addToLibrary && !addFromSingleCopy}
-          <Button size="sm" onclick={addToLibrary}>Add to library</Button>
-        {/if}
-      </div>
-    {/if}
-  </div>
-</Disclosure>
-
-{#snippet location(file: EnvironmentSkillStatus)}
-  {@const waiting = !!waitingTarget && file.targetId === waitingTarget}
-  {@const archiveUnavailable = file.status === "local" && !file.archiveToken && !!file.detail}
-  <div class="grid min-w-0 gap-2 border-l border-divider pl-3">
-    {#if file.path}
-      <p class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span class="font-medium">{skillLocation(file.scope)} · {agentLabel(file.harness)}</span>
-        <span class="text-sm text-muted"
-          >{waiting ? "Archiving copy…" : fileState(file)}{file.status !== "local" && file.localLink
-            ? " · Local link"
-            : ""}{file.version ? ` · Assigned v${file.version}` : ""}</span
-        >
-      </p>
-      <p class="font-mono text-sm leading-5 wrap-anywhere select-text">{file.path}</p>
-    {/if}
-    {#if !waiting && archiveUnavailable}
-      <p class="text-sm">Canopy can’t archive this copy. {skillProblem(file)}</p>
-    {:else if !waiting && needsAttention(file)}
-      <p class="text-sm text-pretty">{skillProblem(file)}</p>
-    {:else if file.status === "kept"}
-      <p class="text-sm text-muted">Canopy keeps this copy until the local files or assignment change.</p>
-    {/if}
-    {#if !waiting && (file.status === "error" || archiveUnavailable) && file.detail}
-      <Disclosure>
-        {#snippet summary()}<span class="text-sm text-muted">Show worker details</span>{/snippet}
-        <div class="flex min-w-0 items-start gap-2 pt-2">
-          <p class="min-w-0 flex-1 text-sm wrap-anywhere select-text">{file.detail}</p>
-          <CopyButton text={file.detail} label="Copy worker details" />
-        </div>
-      </Disclosure>
-    {/if}
-    {#if !waiting && file.owned && (file.status === "drift" || file.status === "kept")}
-      <SkillDiff
-        {file}
-        expected={file.desiredFiles}
-        {busy}
-        onresolve={onresolve ? (action) => onresolve?.(file, action) : undefined}
-      />
-    {:else if !waiting && !file.owned && (addFromSingleCopy || (file.status === "drift" && onresolve) || (canArchive(file) && onarchive))}
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {#if addFromSingleCopy}
-          <Button size="sm" onclick={addFromSingleCopy}>Add to library</Button>
-        {/if}
-        {#if file.status === "drift" && onresolve}
-          <Button size="sm" disabled={busy} onclick={() => onresolve?.(file, "keep")}>Keep local copy</Button>
-        {/if}
-        {#if canArchive(file) && onarchive}
-          <Button size="sm" disabled={busy} onclick={() => onarchive?.(file)}>Archive local copy</Button>
-        {/if}
-      </div>
-    {/if}
-  </div>
-{/snippet}
+      {#if group.membership && group.membership !== status}<p class="text-sm text-muted">{group.membership}</p>{/if}
+      {#each visible as file (file.targetId)}
+        <ComputerSkillLocation
+          {file}
+          {busy}
+          {onresolve}
+          {onarchive}
+          onadd={group.files.length === 1 ? add : undefined}
+          waiting={waitingTarget === file.targetId}
+        />
+      {/each}
+      {#if extra.length}
+        <Disclosure>
+          {#snippet summary()}<span class="text-sm text-muted"
+              >{extra.length} more {extra.length === 1 ? "location" : "locations"}</span
+            >{/snippet}
+          <div class="grid min-w-0 gap-3 pt-2">
+            {#each extra as file (file.targetId)}<ComputerSkillLocation {file} {busy} />{/each}
+          </div>
+        </Disclosure>
+      {/if}
+      {#if add && group.files.length > 1}<div><Button size="sm" onclick={add}>Add to library</Button></div>{/if}
+    </div>
+  </Disclosure>
+  {#if ondisable}
+    <div class="absolute top-0 right-0 flex min-h-10 items-center">
+      <DropdownMenu label={`Actions for ${group.name}`} placement="bottom-end">
+        {#snippet trigger(props)}<IconButton
+            icon="ellipsis-horizontal"
+            label={`Actions for ${group.name}`}
+            size="sm"
+            {...props}
+          />{/snippet}
+        <MenuItem icon="no-symbol" disabled={busy} onselect={ondisable}>Disable on this computer</MenuItem>
+      </DropdownMenu>
+    </div>
+  {/if}
+</div>
