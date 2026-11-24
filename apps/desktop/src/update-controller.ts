@@ -36,6 +36,7 @@ interface Options {
   changed(): void;
   checking?(): void;
   downloaded(): void;
+  failed?(phase: DesktopUpdateStatus["phase"], error?: Error): void;
   beforeInstall?(): void;
 }
 
@@ -288,6 +289,7 @@ export class UpdateController {
             break;
           }
 
+          this.options.failed?.(this.state.phase, error instanceof Error ? error : undefined);
           this.settle(
             "",
             attempt.signal.aborted && error instanceof Error ? error.message : "Update failed. Check again to retry.",
@@ -300,7 +302,8 @@ export class UpdateController {
           this.cancelDownload = undefined;
         }
       }
-    } catch {
+    } catch (error) {
+      this.options.failed?.(this.state.phase, error instanceof Error ? error : undefined);
       this.settle("", "Update failed. Check again to retry.");
     } finally {
       this.updater.allowDowngrade = false;

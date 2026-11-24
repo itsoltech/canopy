@@ -11,6 +11,8 @@ import { UpdateController } from "./update-controller.ts";
 import { UpdateSettings } from "./update-settings.ts";
 import { UpdateCheckSettings } from "./update-check-settings.ts";
 import { UpdateCheckTimer, nextUpdateCheck } from "@canopy/domain/update-checks";
+import type { Logs } from "./runtime/log.ts";
+import { updateErrorCode, updateLogger } from "./update-diagnostics.ts";
 import { valid } from "semver";
 
 declare const CANOPY_DESKTOP_REVISION: string | undefined;
@@ -51,30 +53,48 @@ export class DesktopUpdates {
 
   constructor(
     private readonly changed: () => void,
-    private readonly restart: () => void,
+    private readonly logs: Logs,
   ) {}
+
+  private installOnQuit = false;
+  get installing() {
+    return this.installOnQuit;
+  }
+  private readonly log = (message: string) => {
+    try {
+      this.logs.write("desktop", `app update ${message}`);
+    } catch {
+      // A full disk must not prevent quitting or handling an update failure.
+    }
+  };
+  readonly requestQuit = (source: "tray" | "menu" | "last-window" | "SIGTERM" | "SIGINT" | "updater") => {
+    this.log(`quit requested source=${source}`);
+    app.quit();
+  };
 
   private get control() {
     if (!this.controller) {
       const settings = new UpdateSettings(app.getPath("userData"));
-      this.updater.logger = null;
+      this.updater.logger = updateLogger(this.log);
       this.controller = new UpdateController(this.updater, {
         version: app.getVersion(),
         buildChannel: this.identity.updateChannel,
         channel: settings.read(this.identity.updateChannel),
         recover: () => {
           this.updater = createAppUpdater(true);
-          this.updater.logger = null;
+          this.updater.logger = updateLogger(this.log);
 
           return this.updater;
         },
         save: (channel) => settings.write(channel),
         prepare: (channel, signal, refresh) => this.prepare(channel, signal, refresh),
         changed: this.changed,
+        failed: (phase, error) => this.log(`attempt failed phase=${phase} code=${updateErrorCode(error)}`),
         checking: () => this.schedule.save(this.schedule.minutes, Date.now()),
         beforeInstall: () => checkAppUpdateInstall(this.stagedUpdater),
         downloaded: () => {
           this.stagedUpdater = this.updater;
+          this.log(`ready target=${this.control.status().stagedVersion}`);
           void this.notifyUpdateReady();
         },
       });
@@ -183,7 +203,9 @@ export class DesktopUpdates {
     return (await this.control.prepareInstall()) ? this.status() : undefined;
   }
   restartPrepared() {
-    if (this.status().phase === "downloaded" && !this.status().changingChannel) this.restart();
+    if (this.status().phase !== "downloaded" || this.status().changingChannel) return;
+    this.installOnQuit = true;
+    this.requestQuit("updater");
   }
 
   item(): MenuItemConstructorOptions {
@@ -240,6 +262,12 @@ export class DesktopUpdates {
   }
 
   stop() {
+    const state = this.controller?.status();
+
+    if (state)
+      this.log(
+        `shutdown mode=${this.installing ? "install" : "quit"} phase=${state.phase} current=${state.version} target=${state.updateVersion ?? "none"} progress=${state.progress ?? "unknown"}`,
+      );
     this.enabled = false;
     this.timer.stop();
     clearTimeout(this.wakeTimer);
@@ -252,7 +280,8 @@ export class DesktopUpdates {
 
     // Squirrel validates and stages the macOS ZIP after this call. Services have
     // already stopped; recover to the current version if that final step fails.
-    const failed = () => {
+    const failed = (error?: Error) => {
+      this.log(`install failed code=${updateErrorCode(error)}`);
       dialog.showErrorBox(
         "Update could not be installed",
         `${this.identity.productName} will restart using the current version. Retry the update from the application menu.`,
@@ -265,9 +294,9 @@ export class DesktopUpdates {
 
     try {
       installAppUpdate(this.stagedUpdater);
-    } catch {
+    } catch (error) {
       this.stagedUpdater.removeListener("error", failed);
-      failed();
+      failed(error instanceof Error ? error : undefined);
     }
   }
 

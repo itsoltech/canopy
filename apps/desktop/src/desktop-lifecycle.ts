@@ -35,14 +35,15 @@ export function registerDesktopLifecycle(
   quitting: () => boolean,
   showMain: () => void,
   enrollment: (link: string) => void,
+  requestQuit: (source: "last-window" | "SIGTERM" | "SIGINT") => void,
 ) {
   registerSecondInstance(scheme, quitting, (link) => (link ? enrollment(link) : showMain()));
   app.on("open-url", (event, url) => {
     event.preventDefault();
     enrollment(url);
   });
-  app.on("window-all-closed", () => !quitting() && process.platform !== "darwin" && app.quit());
+  app.on("window-all-closed", () => !quitting() && process.platform !== "darwin" && requestQuit("last-window"));
   app.on("activate", showMain);
-  process.on("SIGTERM", () => app.quit());
-  process.on("SIGINT", () => app.quit());
+  process.on("SIGTERM", () => requestQuit("SIGTERM"));
+  process.on("SIGINT", () => requestQuit("SIGINT"));
 }

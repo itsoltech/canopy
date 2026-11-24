@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell, type Tray } from "electron";
+import { BrowserWindow, Menu, shell, type Tray } from "electron";
 import type { DesktopStatus } from "@canopy/ui/desktop";
 import type { DesktopUpdates } from "./updates.ts";
 import type { QuitGuard } from "./quit-guard.ts";
@@ -59,7 +59,7 @@ export function updateDesktopMenus(options: MenuOptions) {
       ...settingsMenu(openAppSettings, openSettings),
       updates.item(),
       { type: "separator" },
-      { label: `Quit ${productName}`, click: () => app.quit() },
+      { label: `Quit ${productName}`, click: () => updates.requestQuit("tray") },
     ]),
   );
 
@@ -72,7 +72,7 @@ export function updateDesktopMenus(options: MenuOptions) {
 
         if (!BrowserWindow.getFocusedWindow() && quitGuard.mode !== "immediately") showMain();
         quitGuard.accelerator(BrowserWindow.getFocusedWindow(), repeat);
-      } else app.quit();
+      } else updates.requestQuit("menu");
     },
   };
 

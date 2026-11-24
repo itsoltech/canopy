@@ -63,14 +63,8 @@ let setupOrigin = "";
 let status = initialStatus();
 let quitting = false;
 let stopped = false;
-let installingUpdate = false;
 let stopPower = () => {};
 let startupError = "";
-
-const updates = new DesktopUpdates(broadcast, () => {
-  installingUpdate = true;
-  app.quit();
-});
 
 let remoteUpdate: RemoteAppUpdate | undefined;
 
@@ -81,6 +75,7 @@ const enrollmentReady = new Set<number>();
 const { iconPath, runtime } = desktopResourcePaths();
 
 const logs = new Logs(join(app.getPath("userData"), "logs"));
+const updates = new DesktopUpdates(broadcast, logs);
 const startupFailed = startupFailure(logs, () => quitting);
 const history = desktopHistory();
 const configurationLock = new ConfigurationLock();
@@ -254,7 +249,7 @@ function enrollment(link: string) {
   });
 }
 
-registerDesktopLifecycle(identity.scheme, () => quitting, showMain, enrollment);
+registerDesktopLifecycle(identity.scheme, () => quitting, showMain, enrollment, updates.requestQuit);
 
 app.on("before-quit", (event) => {
   if (stopped) return;
@@ -277,20 +272,20 @@ app.on("before-quit", (event) => {
   shutdownWindow = shutdownDesktop({
     controller,
     controllerExited,
-    installingUpdate,
+    installingUpdate: updates.installing,
     iconPath,
     tray,
     announce: async () => {
       await rpc("presence", {
-        state: installingUpdate ? "updating" : "shutting_down",
-        targetVersion: installingUpdate ? updates.status().updateVersion : undefined,
+        state: updates.installing ? "updating" : "shutting_down",
+        targetVersion: updates.installing ? updates.status().updateVersion : undefined,
       });
     },
     finish: (target) => {
       stopped = true;
       target?.destroy();
 
-      if (installingUpdate) updates.install();
+      if (updates.installing) updates.install();
       else {
         relaunchAfterQuit();
         app.quit();
@@ -374,7 +369,7 @@ function registerIpc() {
     origin: setupOrigin,
     rpc,
     authorize,
-    avoidRestart: () => configurationLock.active || installingUpdate || !!remoteUpdate?.active,
+    avoidRestart: () => configurationLock.active || updates.installing || !!remoteUpdate?.active,
     onSwitch: async (client) => {
       previews.closeAll();
       await history.clear();
