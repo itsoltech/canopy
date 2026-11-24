@@ -1,6 +1,7 @@
 import type { ui } from "@canopy/contracts";
 import { dayKey } from "@canopy/domain/format";
 import { orderThreadTurns } from "@canopy/domain/history-pages";
+import { isProgressPhase } from "@canopy/domain/work-fold";
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
 /** An item with the items nested under it (subagent work has `parent_item_id`). */
@@ -35,7 +36,7 @@ export type TimelineRow =
       readonly steer: boolean;
     }
   | { readonly kind: "notice"; readonly key: string; readonly notice: TimelineNotice }
-  /** `answer`: the text of the turn's last agent message (what "Copy answer" copies); "" without one. */
+  /** `answer`: the text that "Copy answer" copies, or "" with no answer. */
   | {
       readonly kind: "turn-end";
       readonly key: string;
@@ -148,7 +149,9 @@ export function buildTimeline(
   for (const element of elements) {
     const content = "node" in element ? element.node.entry.item.content : undefined;
 
-    if (content?.case === "agentMessage" && content.value.text.trim()) answers.set(element.turnId, content.value.text);
+    if (content?.case !== "agentMessage" || !content.value.text.trim()) continue;
+    const progress = turnById.get(element.turnId)?.status === "completed" && isProgressPhase(content.value.phase);
+    answers.set(element.turnId, progress ? "" : content.value.text);
   }
 
   const rows: TimelineRow[] = [];

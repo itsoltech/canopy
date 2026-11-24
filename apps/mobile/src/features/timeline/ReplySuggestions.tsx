@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { splitReplySuggestions } from "@canopy/domain/reply-suggestions";
+import { isProgressPhase } from "@canopy/domain/work-fold";
 import { Button } from "../../ui/Button";
 import { turnReplySource } from "../threads/reply-suggestions";
 
@@ -36,7 +37,15 @@ export function useTurnReplySuggestions(turn: ui.Turn, entries: readonly ui.Time
 
   const parsed = useMemo(() => splitReplySuggestions(raw), [raw]);
 
-  const last = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item;
+  const message = entries.findLast((entry) => entry.item?.content.case === "agentMessage")?.item;
+
+  const progress =
+    turn.status === "completed" &&
+    message?.content.case === "agentMessage" &&
+    isProgressPhase(message.content.value.phase);
+
+  const last = progress ? undefined : message;
+
   const answerText = source ? parsed.text : last?.content.case === "agentMessage" ? last.content.value.text : "";
 
   return { context, itemId, answerText, answerItemId: itemId ?? last?.itemId ?? "", ...parsed };

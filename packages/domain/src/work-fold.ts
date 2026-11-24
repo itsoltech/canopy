@@ -41,10 +41,15 @@ export function turnProgress(status: string): TurnProgress {
 /** A visible row of a turn's body for `answerIndex`: an agent message's phase ("" without one), or `undefined` for other work. */
 export type BodyPhase = string | undefined;
 
+export function isProgressPhase(phase: BodyPhase): boolean {
+  return phase === "commentary" || phase === "partial_answer";
+}
+
 /**
  * Index of the agent message shown outside the fold, or -1 (docs/timeline-folding.md).
  *
- * - An ended turn shows its last message: a completed turn always, others only if no work followed it.
+ * - A completed turn shows its last message if its phase allows it to be an answer.
+ *   An interrupted or failed turn only shows its last message if no work followed it.
  * - A live turn shows a message marked `final_answer` (Codex from its first delta, Claude when the
  *   message ends its turn) once nothing followed it.
  * - A live, unmarked message leaves the work only while the fold is open: a collapsed fold keeps it
@@ -55,8 +60,11 @@ export function answerIndex(body: readonly BodyPhase[], status: TurnProgress, op
 
   if (at < 0 || (status !== "completed" && at !== body.length - 1)) return -1;
 
-  if (status !== "live") return at;
   const phase = body[at];
+
+  if (status === "completed") return isProgressPhase(phase) ? -1 : at;
+
+  if (status === "ended") return at;
 
   return phase === "final_answer" || (!phase && open) ? at : -1;
 }

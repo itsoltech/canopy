@@ -19,9 +19,8 @@ import { isReplyResult } from "./reply-items.ts";
  * - A running turn keeps commentary in its work. An unmarked latest message stays outside only while
  *   the fold is open, until more work arrives; a collapsed fold keeps it until it is marked final or the
  *   turn ends (`answerIndex`). The stable answer slot can shrink without removing a virtual row.
- * - The final message is the turn's last agent message. A turn that did not complete (interrupted,
- *   failed) keeps it only when nothing came after it; otherwise its footer (status, reason, Continue)
- *   is the end the reader sees.
+ * - A completed turn keeps messages marked as progress in its work. An interrupted or failed turn
+ *   shows its last message when nothing came after it; otherwise its footer is the end the reader sees.
  * - Even message-only turns retain the header and the answer slot at completion.
  * - A message marked final that more work follows stays shown: the work after it forms the turn's next
  *   segment (`workSegments`). Every steer also starts a segment, above its fold and answer slot (`fold`: the
