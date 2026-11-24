@@ -78,7 +78,7 @@
     onretry?: (() => void) | undefined;
     onchangemodel?: (() => void) | undefined;
     onchangeworker?: (() => void) | undefined;
-    onreact?: ((message: ChatMessageView) => void) | undefined;
+    onreact?: ((messageId: string, emoji: string, active: boolean) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
     history?: ChatHistory | undefined;
     loading: boolean;
@@ -297,7 +297,7 @@
           gutter={conversation.kind !== "direct"}
           {bots}
           replyToName={row.message.replyTo ? nameOf(row.message.replyTo.senderId) : undefined}
-          onreact={watching ? undefined : onreact}
+          onreact={conversation.kind === "direct" && !row.mine && row.message.reactions ? onreact : undefined}
           onreply={watching ? undefined : onreply}
         />
       </div>

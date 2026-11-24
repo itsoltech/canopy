@@ -345,7 +345,12 @@ export class BotsRuntime {
       }),
     );
 
-    const steer = input.steer;
+    this.dispatchInput(input.steer);
+
+    return input.id;
+  }
+  dispatchInput(steer?: BotSteerDelivery) {
+    const deliver = this.#options.deliverSteer;
 
     if (deliver && steer)
       void deliver(steer)
@@ -354,8 +359,6 @@ export class BotsRuntime {
         })
         .catch(() => this.#options.log?.("bots: live update delivery is unconfirmed"));
     void this.tick().catch(() => undefined);
-
-    return input.id;
   }
   async abortInterrupted() {
     const active = [...this.#active.values()];

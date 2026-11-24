@@ -1,5 +1,4 @@
-import { botMemoryTools } from "./memory.ts";
-import type { MemoryAccess } from "../memory/tools.ts";
+import { botMemoryTools, type BotMemoryAccess } from "./memory.ts";
 import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
 import { botThreadConnectionEnabled } from "../store/module-access.ts";
 import type { BotRuntimeOptions } from "./runtime.ts";
@@ -48,9 +47,9 @@ export async function currentBotTools(
   options: BotRuntimeOptions,
   config: bots.BotConfiguration,
   turn: BotTurn,
-  memory: MemoryAccess,
+  memory: BotMemoryAccess,
 ): Promise<ToolSpec[]> {
-  if (turn.handoff_configuration) return [];
+  if (turn.handoff_configuration || turn.reaction_input) return [];
 
   const threadConnection = await options.runtime.runPromise(botThreadConnectionEnabled(options.userId));
 
@@ -59,6 +58,7 @@ export async function currentBotTools(
   const platform = catalog.filter(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
+      (tool.name !== "react_to_message" || memory.ownerInput) &&
       (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
@@ -88,7 +88,7 @@ export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject =
 
   if (
     tool.source === "platform" &&
-    ["create_routine", "update_routine", "delete_routine", "message_user"].includes(tool.name)
+    ["create_routine", "update_routine", "delete_routine", "message_user", "react_to_message"].includes(tool.name)
   )
     return false;
 

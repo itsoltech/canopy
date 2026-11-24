@@ -236,8 +236,8 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               memoryContext: input.memoryContext ?? "",
               // Each relay gets an isolated provider home and workspace, including on older conversation-aware workers.
               conversationId: input.isolatedInput ? turn.id : (turn.conversation_id ?? ""),
-              webAccess: !turn.handoff_configuration && (input.configuration.webAccess ?? true),
-              files: !turn.handoff_configuration && (input.configuration.files ?? true),
+              webAccess: !turn.handoff_configuration && !turn.reaction_input && (input.configuration.webAccess ?? true),
+              files: !turn.handoff_configuration && !turn.reaction_input && (input.configuration.files ?? true),
               ...images,
               tools: harnessTools(input.tools),
             },

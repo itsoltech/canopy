@@ -25,24 +25,27 @@ test.skipIf(!dockerAvailable)(
       expect(retry).toEqual(accepted);
 
       const attached = await eventually(
-        () => f.query<{ turn_id: string }>("SELECT turn_id FROM bot_messages WHERE text = $1", [request.text]),
+        () =>
+          f.query<{ id: string; turn_id: string }>("SELECT id, turn_id FROM bot_messages WHERE text = $1", [
+            request.text,
+          ]),
         (rows) => rows[0]?.turn_id === original.turnId,
       );
 
-      expect(attached).toEqual([{ turn_id: original.turnId }]);
+      expect(attached).toHaveLength(1);
       expect(
         f
           .records()
           .filter((record) => record.event === "turn/steer")
           .map((record) => record.session),
       ).toEqual([session]);
-      expect(f.inputs().at(-1)?.parts[0]?.text).toBe(request.text);
+      expect(f.inputs().at(-1)?.parts[0]?.text).toBe(`Owner message ID: ${attached[0]!.id}\n\n${request.text}`);
 
       const unconfirmed = "FIXTURE_UNCONFIRMED_BOT_STEER";
       const queued = await f.send(bot.id, unconfirmed);
       await eventually(
         async () => f.inputs().at(-1)?.parts[0]?.text,
-        (text) => text === unconfirmed,
+        (text) => !!text?.endsWith(`\n\n${unconfirmed}`),
       );
 
       await f.release("chat-steer");

@@ -149,6 +149,9 @@ export async function turnInstructions(
   config: bots.BotConfiguration,
   clock: () => Date,
 ): Promise<string> {
+  if (turn.reaction_input)
+    return "You have received private feedback on a message in your conversation. Read the reaction notification silently. No further action is needed.";
+
   const timezone =
     (await ctx.options.runtime.runPromise(SettingsStore.use((s) => s.user(ctx.options.userId)))).timezone || "UTC";
 

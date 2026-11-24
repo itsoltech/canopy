@@ -51,11 +51,11 @@ export function botModuleTransition(sql: SqlClient.SqlClient, owner: string, ena
     yield* sql`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text)
       SELECT gen_random_uuid(),t.bot_id,t.id,'answer',t.bot_id::text,'user','message',h.text
       FROM bot_turns t JOIN bot_harness_turns h ON h.turn_id=t.id WHERE t.id=ANY(${turns}::uuid[])
-      AND t.routine_id IS NULL AND t.conversation_id IS NULL AND t.handoff_configuration IS NULL AND h.text<>''
+      AND NOT t.reaction_input AND t.routine_id IS NULL AND t.conversation_id IS NULL AND t.handoff_configuration IS NULL AND h.text<>''
       ON CONFLICT(turn_id,message_key) DO NOTHING`;
     yield* sql`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text)
       SELECT gen_random_uuid(),bot_id,id,'stopped','self','user','event',${reason} FROM bot_turns
-      WHERE id=ANY(${turns}::uuid[]) AND routine_id IS NULL AND conversation_id IS NULL
+      WHERE id=ANY(${turns}::uuid[]) AND NOT reaction_input AND routine_id IS NULL AND conversation_id IS NULL
       AND handoff_configuration IS NULL ON CONFLICT(turn_id,message_key) DO NOTHING`;
     yield* sql`UPDATE bot_approvals SET status='expired', answered_at=now()
       WHERE turn_id=ANY(${turns}::uuid[]) AND status='pending'`;

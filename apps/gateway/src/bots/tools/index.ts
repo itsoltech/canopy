@@ -5,6 +5,7 @@ import { threadTools } from "./threads.ts";
 import { scheduleTools } from "./schedules.ts";
 import { settingsTools } from "./settings.ts";
 import { createBotTool } from "./create-bot.ts";
+import { reactToMessage } from "./reactions.ts";
 import { routineTools } from "./routines.ts";
 import { attachmentTools } from "./attachments.ts";
 import { workspaceTools } from "./workspace.ts";
@@ -29,6 +30,7 @@ export const areaTools = [
   ...scheduleTools,
   ...settingsTools,
   createBotTool,
+  reactToMessage,
   ...routineTools,
   ...messengerTools,
 ];

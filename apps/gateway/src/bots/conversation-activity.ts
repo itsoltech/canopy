@@ -70,7 +70,7 @@ export function conversationActivity(sql: SqlClient.SqlClient, bot: BotRow) {
         ${activeConversationSource(sql, bot.id, sql`t.conversation_id`)}) slack ON t.conversation_id IS NOT NULL
       LEFT JOIN bot_harness_turns h ON h.turn_id=t.id AND h.bot_id=t.bot_id AND t.status='running'
         AND t.routine_id IS NULL AND t.conversation_id IS NULL
-      WHERE t.bot_id=${bot.id}::uuid AND t.handoff_configuration IS NULL AND t.status IN ('queued','running','waiting')
+      WHERE t.bot_id=${bot.id}::uuid AND t.handoff_configuration IS NULL AND NOT t.reaction_input AND t.status IN ('queued','running','waiting')
         AND (t.conversation_id IS NULL OR slack.channel_id IS NOT NULL)
         AND ${ownerModule(sql, bot.owner_user_id, "bots")}
       ORDER BY CASE t.status WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 ELSE 2 END,t.created_at,t.id LIMIT 1`;
