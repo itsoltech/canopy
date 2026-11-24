@@ -3,9 +3,8 @@
   import type { ui } from "@canopy/contracts";
   import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { needsYou } from "#lib/features/threads/activity.ts";
+  import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
   import { threadDraftPresence } from "#lib/features/drafts/presence.svelte.ts";
-  import { lingeringResult } from "#lib/features/threads/result.svelte.ts";
   import ThreadHoverCard from "#lib/features/threads/ThreadHoverCard.svelte";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import { anchorOnly } from "#lib/shared/ui/Popover.svelte";
@@ -54,7 +53,6 @@
     children: Snippet;
   } = $props();
 
-  const result = lingeringResult(() => thread);
   const draft = threadDraftPresence(() => thread.id);
   const overview = useOverview();
   const ordering = useSidebarOrder();
@@ -144,7 +142,7 @@
             })}
             href="/threads/{thread.id}"
             aria-current={current ? "page" : undefined}
-            data-result={snoozed ? undefined : result.current}
+            data-result={snoozed ? undefined : unseenResult(thread)}
             data-unread={(!snoozed && thread.markedUnread) || undefined}
             data-draft={(!snoozed && !current && !away && !needsAttention && draft.current) || undefined}
             class={[

@@ -17,6 +17,9 @@ otwiera sekcję Workspaces wybranego projektu. Dla „No project” otwiera Sett
 
 Status (2026-11-24): w web i desktopie lokalny wątek można przeciągnąć do Pinned przy każdym sposobie sortowania.
 
+Status (2026-11-24): web i desktop zgłaszają odczyt, gdy wczytany koniec rozmowy
+jest widoczny. Sidebar aktualizuje etykietę po zmianie w overview.
+
 Status (2026-11-23): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu GitHub w kompozytorze nowego i istniejącego wątku.
 
 Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
@@ -2234,7 +2237,7 @@ Pliki dołączone do wiadomości (obrazy, zrzuty ekranu, tekst, kod, PDF, archiw
 | `UploadAttachment` | `{name, data}` → `Attachment` (`id`, `name`, `mime_type`, `kind`, `size_bytes`, `width`, `height`, `sha256`, `has_thumbnail`). Typ z treści (`sniff`, `packages/domain`), nie z nazwy ani typu przeglądarki. Odrzuca (`InvalidArgument` z powodem): pusty plik, ponad limit, program (ELF, PE, Mach-O, rozszerzenia `.exe`/`.dll`/...). PNG, JPEG, WebP: zapisane obrócone według EXIF i bez metadanych (EXIF, GPS, XMP), JPEG/WebP ponownie kodowane (jakość 92), PNG bezstratnie; GIF bez zmian; HEIC/HEIF, AVIF, TIFF → JPEG/PNG, jeśli libvips je dekoduje (HEIC zwykle nie: zostaje plikiem `image/heic`); obrazy dostają miniaturę WebP (512 px). Limit pikseli 100 Mpx. SVG i HTML to zawsze `kind = file` |
 | `GetAttachment` | `{attachment_id, thumbnail}` → bajty i typ; tylko właściciel (cudzy = `NotFound`) |
 | `GetThreadBlob` | `{thread_id, sha256}` → obraz, wynik komendy/narzędzia/zadania albo diff z transkryptu; tylko właściciel, tylko blob wskazany przez wątek z tego samego drzewa (`thread_blobs`), do 8 MiB |
-| `MarkThreadSeen` | `{thread_id, up_to_seq}` → użytkownik widział wątek do zdarzenia (strona wątku: ostatnia wiadomość na ekranie przez chwilę, karta widoczna); znacznik `thread_reads.seen_seq` tylko rośnie (najwyżej do `Thread.last_seq`). `Thread.unseen_result` = wynik ostatniej zakończonej tury za znacznikiem (`completed` / `failed` / `interrupted`, pusty = widziane); zmiana idzie do wszystkich urządzeń przez `OverviewUpdate.thread` |
+| `MarkThreadSeen` | `{thread_id, up_to_seq}` → użytkownik widział wątek do zdarzenia. W web i desktop koniec zsynchronizowanej rozmowy musi być widoczny. Mobile czeka dodatkowo sekundę. Znacznik `thread_reads.seen_seq` tylko rośnie (najwyżej do `Thread.last_seq`). `Thread.unseen_result` = wynik ostatniej zakończonej tury za znacznikiem (`completed` / `failed` / `interrupted`, pusty = widziane). Zmiana idzie do wszystkich urządzeń przez `OverviewUpdate.thread`. |
 | `SendMessage.attachment_ids`, `CreateThread.initial_attachment_ids` (110) | załączniki wiadomości. Każdy tylko raz, tylko własne; zapis wiadomości i powiązanie plików są atomowe. Wiadomość może nie mieć tekstu; `delivery = STEER` dostarcza pliki przed wejściem do trwającej tury. Starszy worker lub odmowa harnessu oznacza kolejkę z powodem |
 | `Steer.attachments` (243), `SendMessageResponse.delivery_note` (244) | pliki steera do pokazania w UI; opcjonalna informacja o kolejce przy wysłaniu do starszego domu połączonego komputera |
 | `Turn.attachments` (110) | pliki wiadomości (bez ścieżek); UI pokazuje je zamiast notatki |
