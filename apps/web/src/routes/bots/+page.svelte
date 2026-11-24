@@ -4,7 +4,7 @@
   import TopBar from "#lib/features/navigation/TopBar.svelte";
   import { onMount, untrack } from "svelte";
   import { goto } from "$app/navigation";
-  import { page } from "$app/state";
+  import { navigating, page } from "$app/state";
   import { create } from "@bufbuild/protobuf";
   import { bots, ui } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
@@ -13,20 +13,24 @@
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { botWizardInstances } from "#lib/features/bots/live.ts";
+  import { takeLastOpenedBot } from "#lib/features/bots/last-opened.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import CreateBotWizard, { type CreateBotDraft } from "#lib/features/bots/wizard/CreateBotWizard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
 
   const LOAD_ERROR = "Could not load bots and provider instances. Try again.";
   let instances = $state.raw<ui.ProviderInstance[]>([]);
-  let existing = $state.raw<bots.Bot[]>([]);
+  let existing = $state.raw<bots.ListBotsResponse>();
   let open = $state(false);
+  let restore = $state(true);
   let loaded = $state(false);
   let error = $state("");
   let loading = $state(true);
   let request = 0;
   const overview = useOverview();
   const catalogs = useModelCatalog();
+  const capabilities = useGatewayCapabilities();
 
   const availableInstances = $derived([
     ...new Map(
@@ -63,14 +67,28 @@
       .join(",")}`,
   );
 
+  const creatingFromLink = $derived(page.url.searchParams.get("create") === "1");
+
   $effect(() => {
-    if (page.url.searchParams.get("create") !== "1") return;
-    // SvelteKit's shallow replaceState updates page.state, not page.url. Reading that
-    // state in this effect used to retrigger it forever while create=1 remained set.
-    untrack(() => {
-      openWizard();
-      void goto("/bots", { replace: true, reset: false });
-    });
+    if (creatingFromLink) untrack(openWizard);
+  });
+
+  $effect(() => {
+    if (page.url.search || page.url.hash || page.shallow || page.state.skipBotRestore) restore = false;
+    const scope = capabilities?.clientPreferencesScope;
+
+    if (!restore || !scope || loading || navigating.to) return;
+    restore = false;
+
+    const id = takeLastOpenedBot(scope);
+    const bot = existing?.bots.find((candidate) => candidate.id === id && !candidate.archived);
+
+    if (!existing || !bot) return;
+
+    if ([...existing.unavailableComputers, ...existing.refreshingComputers].some((home) => home.nodeId === bot.nodeId))
+      return;
+
+    untrack(() => void goto(`/bots/${bot.id}`, { replace: true }));
   });
 
   async function refresh() {
@@ -80,14 +98,21 @@
 
     try {
       // Model catalogs stay current through the overview stream (AppShell); only the wizard's lists are read.
-      const [providers, list] = await Promise.all([
+      const [providers, list] = await Promise.allSettled([
         requestJson("GET", "/api/providers"),
-        requestJson("GET", "/api/bots"),
+        requestJson("GET", "/api/bots").then((value) => decode(bots.ListBotsResponseSchema, value)),
       ]);
 
       if (current !== request) return;
-      instances = decode(ui.ListProviderInstancesResponseSchema, providers).instances;
-      existing = decode(bots.ListBotsResponseSchema, list).bots;
+      existing = list.status === "fulfilled" ? list.value : undefined;
+
+      if (providers.status === "rejected" || list.status === "rejected") {
+        error = LOAD_ERROR;
+
+        return;
+      }
+
+      instances = decode(ui.ListProviderInstancesResponseSchema, providers.value).instances;
       loaded = true;
     } catch {
       if (current === request) error = LOAD_ERROR;
@@ -97,8 +122,16 @@
   }
 
   function openWizard() {
+    restore = false;
     open = true;
     void refresh();
+  }
+
+  function setWizardOpen(value: boolean) {
+    open = value;
+
+    if (!value && creatingFromLink)
+      void goto("/bots", { replace: true, reset: false, state: { skipBotRestore: true } });
   }
 
   onMount(() => {
@@ -186,11 +219,11 @@
   </CenteredContent>
 </div>
 <CreateBotWizard
-  bind:open
+  bind:open={() => open, setWizardOpen}
   instances={options}
   {loading}
   loadError={error}
   onreload={() => void refresh()}
-  existingNames={existing.map((b) => b.configuration?.name ?? "")}
+  existingNames={existing?.bots.map((b) => b.configuration?.name ?? "") ?? []}
   {oncreate}
 />

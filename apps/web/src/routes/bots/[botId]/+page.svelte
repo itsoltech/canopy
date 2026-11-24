@@ -37,6 +37,7 @@
   import MovedBotNotice from "#lib/features/bots/components/MovedBotNotice.svelte";
   import { nodeRef, splitId } from "@canopy/domain/computers";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import { rememberOpenedBot } from "#lib/features/bots/last-opened.ts";
 
   let { data }: PageProps = $props();
   const settings = useSettings();
@@ -47,6 +48,12 @@
   const catalogs = useModelCatalog();
   const history = watchBot(() => data.bot.id);
   const emptySnapshot = create(bots.BotConversationSchema);
+
+  $effect(() => {
+    const scope = capabilities?.clientPreferencesScope;
+
+    if (scope) rememberOpenedBot(scope, data.bot.id);
+  });
 
   let snapshot = $derived.by(() => {
     const current = history.snapshot ?? emptySnapshot;
