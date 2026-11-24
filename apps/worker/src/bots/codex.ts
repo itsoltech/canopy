@@ -116,7 +116,7 @@ function codexBotProgram(ctx: BotHarnessContext, launch: CodexAppServerLaunch) {
 
     const resumed = session.id
       ? yield* server
-          .request("thread/resume", { threadId: session.id, ...params })
+          .request("thread/resume", { threadId: session.id, ...params, excludeTurns: true })
           .pipe(
             Effect.catch((error) =>
               /no rollout found|not found|session missing/i.test(error.message)

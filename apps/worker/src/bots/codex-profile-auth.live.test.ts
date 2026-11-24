@@ -40,7 +40,9 @@ function safeFailure(error: Error): string {
     [/os error 206|filename.*too long|path.*too long/i, "path length"],
     [/os error 32|os error 33|sharing violation|locked|busy/i, "file busy"],
     [/os error 5|permission|access.*denied/i, "file permission"],
+    [/sqlite|database|persisted history/i, "history store"],
     [/rollout|transcript|session.*file/i, "rollout"],
+    [/error resuming thread/i, "thread restore"],
     [/app-server disconnected|transport.*closed|closed.*pipe/i, "closed transport"],
     [/sandbox/i, "sandbox"],
     [/not found|no such file|os error [23]\b/i, "missing file"],
@@ -48,9 +50,10 @@ function safeFailure(error: Error): string {
   ] as const;
 
   const code = error instanceof CodexAppServerError ? error.code : undefined;
+  const osCode = /os error (\d{1,4})\b/i.exec(error.message)?.[1];
   const matched = reason.find(([pattern]) => pattern.test(error.message))?.[1] ?? "unclassified";
 
-  return `${kind}, ${matched}${code === undefined ? "" : `, RPC ${code}`}`;
+  return `${kind}, ${matched}${code === undefined ? "" : `, RPC ${code}`}${osCode ? `, OS ${osCode}` : ""}`;
 }
 
 function fictionalLogin() {

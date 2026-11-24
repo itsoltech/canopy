@@ -268,6 +268,7 @@ jobs:
             '0.164.0' = 'urWPhwh9YavuoAPIkmVYKBTtd5OtGVL4Ki0Fb28dhK/Mz6Pt4LSy+gbRrZFz5+RXrw9ubvXuXDCcd8beYcWhDg=='
             '0.172.0' = '48pULjlTwpBZ/TfbOnpnmloHaTQAYELbaiKHEX7qmrtLFIcnPigaNN3omyetPdAuvrRXrmNFRlKfvQme19ZmRA=='
           }
+          $failed = $false
           foreach ($version in $checksums.Keys) {
             $directory = Join-Path $env:RUNNER_TEMP "codex-profile-auth-$version"
             New-Item -ItemType Directory -Path $directory | Out-Null
@@ -281,9 +282,11 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             $env:CANOPY_LIVE_CODEX_BIN = Join-Path $directory 'package/vendor/x86_64-pc-windows-msvc/bin/codex.exe'
             $env:CANOPY_LIVE_CODEX_EXPECT_VERSION = $version
+            Write-Host "Testing Codex $version"
             bun test ./apps/worker/src/bots/codex-profile-auth.live.test.ts
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
           }
+          if ($failed) { exit 1 }
       - name: Codex device login recovery
         run: bun test ./apps/worker/src/providers/codex/home.test.ts ./apps/worker/src/bots/codex-login.test.ts
       - name: Default Codex CLI home after upgrade
