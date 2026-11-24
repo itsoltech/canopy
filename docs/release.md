@@ -1,6 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
+Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
+Desktop jest pakowany w Release, a instalator Windows jest testowany na runnerze, który go zbudował.
 Desktop, gateway i worker mają osobne cele wydania dla macOS Intel i Apple Silicon.
 Nightly, beta i stable wymagają sukcesu Push CI przed buildem, tagowaniem, podpisywaniem i publikacją.
 Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
@@ -15,9 +17,8 @@ Pakowanie macOS i test natywny CI kompilują ikony na `macos-26` lub `macos-26-i
 GitHub Pages udostępnia film demonstracyjny Canopy w formatach 16:9 i 4:5 oraz kadry startowe obu wersji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
-Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
-CI testuje pakiet Desktop z tej samej rewizji co jego runtime.
-Smoke Desktop po aktualizacji przez instalator Windows sprawdza, czy BFF
+Test integracyjny parowania czeka na zapis trasy Network access przed restartem workera.
+Smoke Windows po aktualizacji przez instalator sprawdza, czy BFF
 podaje ikonę sidebara Nightly bez kompresji oraz z Brotli i gzip.
 Release przekazuje klucz automatyzacji repozytorium do wywoływanego workflow Back-merge.
 Manifesty i indeksy obrazów OCI podają SHA wydawanych źródeł także przy wznowieniu z innej gałęzi.
@@ -30,7 +31,7 @@ i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i w
 odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
 wpływ na czas CI wymaga pomiaru kolejnych przebiegów. Kod sprawdza rewizję
 Release przed checkoutem źródeł, a podpisywanie i publikacja działają na artefaktach
-w środowiskach chronionych. CI wykonuje smoke na paczkach testowych bez sekretów podpisu.
+w środowiskach chronionych. Push CI wykonuje smoke binariów i obrazów bez sekretów podpisu.
 Konfigurację środowisk utrzymuje maintainer.
 
 Jedna wersja dla wszystkich aplikacji (gateway, worker, web, desktop, mobile, relay push). Wersję wyznacza
@@ -316,20 +317,18 @@ z zakresem wybranym według zmienionych plików. W pełnym przebiegu działają 
 
 - `static` sprawdza `gen:check`, typy, lint, format i podział plików testowych. Przy pushu sprawdza też tytuł scalonego commita przez commitlint.
 - Osiem jobów `tests` uruchamia własne `check:tmp`, generuje raporty JUnit i mierzy czas poszczególnych plików.
-- `builds` kompiluje web i binaria. `native` sprawdza działanie na macOS i Windows.
+- `builds` kompiluje web i binaria. W Push CI `push-native` uruchamia testy źródłowe na macOS i Windows równolegle z kompilacją.
 
-Push CI uruchamia też `artifact-smoke.yml` dla tego samego SHA.
+Push CI uruchamia smoke artefaktów dla tego samego SHA.
 
-- **Binaria.** Na linux-x64, linux-arm64, darwin-arm64, darwin-x64 i windows-x64 smoke sprawdza `--version`
-  gatewaya i workera, eksport obrazu w `canopy-worker self-check` i wersję zwracaną przez
+- **Binaria.** `binary-smoke.yml` pobiera artefakt z `builds`. Na linux-x64, linux-arm64, darwin-arm64,
+  darwin-x64 i windows-x64 smoke sprawdza `--version` gatewaya i workera, eksport obrazu
+  w `canopy-worker self-check` i wersję zwracaną przez
   `/api/health` wbudowanego web. System przydziela wolny port na `127.0.0.1`.
   Na linux-x64 test uruchamia również cały gateway z supervisorem i PostgreSQL.
-- **Obrazy.** Na linux/amd64 test startuje obraz gatewaya z PostgreSQL i sprawdza dostęp do web.
+- **Obrazy.** `artifact-smoke.yml` buduje własne obrazy równolegle z `builds`.
+  Na linux/amd64 test startuje obraz gatewaya z PostgreSQL i sprawdza dostęp do web.
   Relay musi odpowiedzieć przez HTTPS i odrzucić żądanie bez poświadczeń.
-- **Desktop.** CI pakuje runtime Linuxa i macOS do katalogu i uruchamia testy integracyjne
-  sidecarów z pobieranym PostgreSQL. Test parowania czeka na zapis trasy Network access przed
-  restartem workera. Na Windows CI instaluje testowy NSIS i sprawdza aktualizację oraz działanie
-  zainstalowanych usług. Release buduje później paczki dystrybucyjne z wersją i kanałem z planu.
 
 Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych części.
 W pełnym przebiegu pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
@@ -373,8 +372,9 @@ Nowy push do PR anuluje jego poprzedni przebieg, łącznie z shardami. Przebiegi
 po pushu na chronioną gałąź są niezależne. Bun, cache pakietów i zamrożoną instalację
 zapewnia wspólna akcja `.github/actions/setup-bun`.
 
-W pełnym CI PR-a job `builds` kompiluje też workera na darwin-arm64, darwin-x64 i windows-x64, a `native` uruchamia
-`canopy-worker self-check` na macOS i Windows. Eksport obrazów woła natywne API każdego
+W pełnym CI PR-a job `builds` kompiluje też workera na darwin-arm64, darwin-x64 i windows-x64.
+`native` pobiera binaria i uruchamia `canopy-worker self-check` na macOS i Windows
+na tych samych runnerach co natywne testy źródłowe. Eksport obrazów woła natywne API każdego
 systemu przez `bun:ffi` (otwarcie, metadane, odczyt, ścieżka, zamknięcie), więc tylko binarka
 na danym systemie to sprawdza; testy na Linuksie tego nie wykryją.
 
@@ -400,7 +400,7 @@ Pełne CI ostatnich PR-ów przed zmianą trwało około 11–12 minut
 ([przykładowy przebieg](https://github.com/itsoltech/canopy/actions/runs/43827887639));
 statyczne checki i buildy kończyły się po około 2–3 minutach od startu jobów.
 Szacunek 5–7 minut dla pełnego CI na PR zakładał osiem shardów i dostępne od razu runnery.
-Po pushu do tego czasu dochodzi pakowanie i smoke artefaktów.
+Po pushu ten zestaw obejmuje też smoke binariów i obrazów uruchamiane równolegle z testami.
 
 `check:tmp` zarządza jednym PostgreSQL 17 na przebieg/shard i usuwa kontener po zakończeniu
 procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemodyfikowalny,
@@ -438,7 +438,7 @@ i publikacja wymagają sukcesu zarówno tego przebiegu, jak i jego zbiorczego jo
 Brak przebiegu, nieudane lub pominięte wymagane sprawdzenia, niepełne dane albo błąd API
 blokują wydanie. Historyczny SHA bez wyniku Push CI również nie przechodzi tej bramki.
 Przebieg PR-a i pominięty zestaw testów na gałęzi docelowej promocji
-nie zastępują pierwotnego wyniku. Release nie powtarza testów ani smoke.
+nie zastępują pierwotnego wyniku. Release korzysta z tego wyniku i sprawdza własny instalator Windows.
 
 Push przez deploy key uruchamia Release, dlatego Promote i Back-merge do `next` nie wykonują
 dodatkowego dispatchu. Back-merge do `dev` nadal dispatchuje Release z `expected_sha` commita merge.
@@ -573,6 +573,10 @@ błąd kompilacji kończy job od razu. Przed ponowną próbą usuwa cały katalo
 `apps/desktop/release/<kanał>`, zachowując runtime i cache pobrań. Linux ma jedną próbę.
 Anulowanie nie jest ponawiane; po ostatnim błędzie job zachowuje kod wyjścia pakowania.
 Po udanym pakowaniu Release sprawdza podpisy przed przekazaniem plików do publikacji.
+Job Windows uruchamia smoke po weryfikacji podpisu i przed wysłaniem artefaktu.
+Sprawdza instalację, aktualizację przy działającym procesie Bun, wersje sidecarów i deinstalację.
+Testy źródłowe, w tym kontrola ikony BFF, wymagają zgodności rewizji checkoutu z runtime.
+Przy wznowieniu wydania ze starszej rewizji smoke nadal sprawdza instalator i wersje sidecarów.
 Ta sama akcja działa w ręcznym `desktop-windows.yml`; lokalne polecenia `package:*`
 zachowują pojedynczą próbę.
 
@@ -596,7 +600,7 @@ flowchart LR
 | `checks` (Verified CI) | Dla zaplanowanego wydania sprawdza wcześniejszy wynik CI po pushu na chronioną gałąź. |
 | `binaries` | Buduje web i osadza go w binariach gatewaya. Kompiluje binaria gatewaya i workera dla wszystkich celów. |
 | `images-build` | Buduje archiwa OCI dla amd64 i arm64 z SBOM i proweniencją. |
-| `desktop-build`, `desktop` | Budują runtime desktopu i pakują go dla wybranych platform. Podpisy i notaryzacja wymagają udanej bramki CI. |
+| `desktop-build`, `desktop` | Budują runtime, pakują go dla wybranych platform i sprawdzają instalator Windows przed wysłaniem artefaktu. Podpisy i notaryzacja wymagają udanej bramki CI. |
 | `release` | Po sukcesie Verified CI rezerwuje wersję, wysyła tag oraz notes i tworzy ukryty draft. |
 | `images` | Kopiuje archiwa OCI do GHCR pod niezmiennym tagiem wydania. |
 | `publish-server` | Wgrywa binaria, `checksums.txt` i `manifest.json` na draft. |
@@ -910,9 +914,11 @@ Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
 
 1. Sprawdź raport `package-sizes-darwin-<arch>.json` obu paczek, brak `app.asar.unpacked` i node_modules w asar,
    jeden Bun, brak PG/CLI w app i zgodność architektury Mach-O z paczką. Framework Electron zostaje.
-   W CI po pushu test spakowanego runtime pobiera prawdziwy pakiet PG z lokalnego rejestru
-   HTTP. Pakiet jest weryfikowany, odchudzany, podpisywany
-   ad-hoc i używany do rzeczywistego enrollment/startu/stopu i recovery bazy.
+   Test integracyjny spakowanego runtime można uruchomić, wskazując katalog
+   `Contents/Resources/runtime` przez `CANOPY_DESKTOP_RUNTIME` i wykonując
+   `bun test apps/desktop/test/runtime.integration.test.ts` z katalogu repozytorium.
+   Test pobiera pakiet PG z lokalnego rejestru HTTP i sprawdza enrollment,
+   start, stop oraz recovery bazy.
 2. Na czystych Macach Intel i Apple Silicon **bez Xcode/CLT** pobierz notarized dmg/zip w przeglądarce
    z quarantine i uruchom normalnie z Findera. Pierwszy local ma pokazać postęp,
    pobrać przypięty npm PG i uruchomić usługi bez obchodzenia Gatekeepera. Nie używaj

@@ -1,0 +1,98 @@
+name: Native checks
+
+on:
+  workflow_call:
+    inputs:
+      check-binaries:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.4.5
+
+jobs:
+  native:
+    name: Native checks (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, runner: macos-26 }
+          - { target: darwin-x64, runner: macos-26-intel }
+          - { target: windows-x64, runner: windows-2025, suffix: .exe }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Decode the small Dev app icon representations with macOS
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          iconset="$RUNNER_TEMP/canopy-development.iconset"
+          iconutil -c iconset -o "$iconset" apps/web/static/channels/development/icon.icns
+          for size in 16 32; do
+            test -s "$iconset/icon_${size}x${size}.png"
+            test -s "$iconset/icon_${size}x${size}@2x.png"
+          done
+      - uses: ./.github/actions/setup-bun
+      - name: Resolve the installed Canopy bundle name and artwork with macOS
+        if: runner.os == 'macOS'
+        run: bun test ./apps/desktop/test/packaging.test.ts -t 'macOS packaging'
+      - name: OAuth address fallback on macOS
+        if: runner.os == 'macOS'
+        run: bun test ./tests/integration/connector-oauth-egress.test.ts
+      - name: Read verified directory entries on macOS
+        if: runner.os == 'macOS'
+        run: bun test ./tests/integration/thread-directory-race.test.ts
+      - name: Reject missing or replaced desktop sidebar icons on Windows
+        if: matrix.target == 'windows-x64'
+        run: bun test ./apps/desktop/test/packaging.test.ts -t 'packaging preserves the built sidebar icon'
+      - name: Windows CLI launcher argument round-trip
+        if: matrix.target == 'windows-x64'
+        run: bun test ./packages/process-governor/src/windows-command.test.ts
+      - name: Codex device login recovery
+        run: bun test ./apps/worker/src/providers/codex/home.test.ts ./apps/worker/src/bots/codex-login.test.ts
+      - name: Default Codex CLI home after upgrade
+        run: bun test ./apps/worker/src/config/user-configuration.test.ts -t "built-in Codex device login"
+      - name: Windows worktree checkout and cleanup
+        if: matrix.target == 'windows-x64'
+        run: bun test ./apps/worker/src/git/failed-worktree-cleanup.test.ts ./tests/integration/worktree-creation-failure.test.ts
+      - uses: actions/download-artifact@v5
+        if: inputs.check-binaries
+        with:
+          name: native-binaries
+      - name: Open, stat, read and export an image through the pinned native calls
+        if: inputs.check-binaries
+        shell: bash
+        env:
+          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
+        run: |
+          binary="./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}"
+          chmod +x "$binary"
+          "$binary" --version
+          "$binary" self-check
+      # A reduced environment once prevented the embedded web from listening on Windows.
+      - name: Embedded web answers with the build version
+        if: inputs.check-binaries && matrix.target == 'windows-x64'
+        shell: bash
+        env:
+          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
+          CANOPY_WEB_PORT: "39231"
+        run: |
+          binary="./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}"
+          chmod +x "$binary"
+          expected="$("$binary" --version | tr -d '\r')"
+          CANOPY_UI_SERVICE_TOKEN="ci-$RANDOM-$RANDOM-0123456789abcdef0123456789" "$binary" web &
+          web=$!
+          health=""
+          for _ in $(seq 1 120); do
+            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
+            [ -n "$health" ] && break
+            sleep 0.5
+          done
+          echo "$health"
+          kill "$web" || true
+          grep -q "\"version\":\"$expected\"" <<<"$health"
