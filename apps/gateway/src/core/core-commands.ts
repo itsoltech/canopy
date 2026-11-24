@@ -386,6 +386,7 @@ async function prepareThreadTools(core: GatewayCore, workerId: string, command: 
 
   if (!spec) return;
   const thread = await coreRun(core, (s) => s.thread(spec.threadId));
+  spec.projectSecretsConfigured = thread.project_secrets_configured ?? false;
   spec.connectorTools = await core.connectors.tools(thread.owner_user_id, { projectId: thread.project_id, workerId });
   spec.localMcpTools = await core.agentTools.readyTools(workerId);
   spec.agentToolDefaults = (await coreSettings(core, (s) => s.user(thread.owner_user_id))).agentToolDefaults;

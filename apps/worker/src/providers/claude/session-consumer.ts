@@ -11,6 +11,7 @@ import type { sessionOutput } from "./session-output.ts";
 import type { sessionTurns } from "./session-turns.ts";
 import { sessionCompletion } from "./session-completion.ts";
 import { userItem, callKey } from "./session-io.ts";
+import { threadSecretOutputGuard } from "../../runtime/thread-secrets.ts";
 
 const STEER_GRACE_MS = 60_000;
 
@@ -49,6 +50,9 @@ export async function consumeSession(
 
       if (!next || next.done) break;
       const message = next.value;
+
+      if (message.type === "system" && message.subtype === "init")
+        session.secretHooks.version(message.claude_code_version);
 
       if (ctx.usage.observe(message, session.query))
         await record(threadId, {
@@ -139,10 +143,13 @@ export async function consumeSession(
       await settleFromTranscript({
         outcome: TurnOutcome.FAILED,
         source: TurnEndSource.HARNESS,
-        reason: `harness process exited: ${error instanceof Error ? error.message : String(error)}`,
+        reason: threadSecretOutputGuard(threadId).redact(
+          `harness process exited: ${error instanceof Error ? error.message : String(error)}`,
+        ),
         errorCode: "process_exit",
       });
   } finally {
+    session.secretHooks.close();
     session.input.close();
 
     if (session.closeTimer) clearTimeout(session.closeTimer);

@@ -18,7 +18,7 @@ async function callTool(core: GatewayCore, connection: WorkerConnection, call: A
 
   if (!call.cancelled && call.connectorAccountId) return core.connectors.handle(call, workerId);
 
-  return core.bus.handle(call, workerId);
+  return core.bus.handle(call, workerId, connection);
 }
 
 /** Run tool calls concurrently with ingest and track them even when a worker reconnects. */

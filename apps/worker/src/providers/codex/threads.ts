@@ -1,4 +1,5 @@
 import { GoalDirective, type ForkSpec, type ThreadSpec, type UserInput } from "@canopy/contracts";
+import type { v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, Stream } from "effect";
 import { decodeJson, jsonObject, jsonString } from "../json.ts";
 import { Journal } from "../../journal/index.ts";
@@ -18,6 +19,7 @@ import { codexUsage } from "../usage-limits.ts";
 import { codexThreadCommands } from "./thread-commands.ts";
 import { verifiedSandbox } from "./sandbox-profile.ts";
 import type { RewindThread } from "@canopy/contracts";
+import { codexProjectSecretProtection } from "./project-secret-protection.ts";
 
 export { CodexThreadError, type CodexThreadsOptions, type InteractionInit } from "./thread-types.ts";
 
@@ -117,6 +119,13 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     const codex = yield* CodexAppServer;
     const journal = yield* Journal;
 
+    const projectSecrets = yield* Effect.acquireRelease(
+      Effect.try(() => codexProjectSecretProtection(options.launch, codex.userAgent)).pipe(
+        Effect.orElseSucceed(() => undefined),
+      ),
+      (resource) => Effect.promise(() => resource?.close() ?? Promise.resolve()),
+    );
+
     const ctx: CodexThreadContext = {
       options,
       codex,
@@ -125,24 +134,11 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       byCodex: new Map(),
       mcpSpecs: new Map(),
       failure: undefined,
+      ...(projectSecrets && { projectSecrets }),
     };
 
     const { record } = threadEvents(ctx);
-    let usageRevision = 0;
-
-    const readUsage = Effect.suspend(() => {
-      const revision = usageRevision;
-
-      return codex.request("account/rateLimits/read", { excludeResetCreditDetails: true }).pipe(
-        Effect.timeout("3 seconds"),
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            if (usageRevision === revision && result.rateLimits) options.onUsage?.(codexUsage(result.rateLimits));
-          }),
-        ),
-        Effect.ignore,
-      );
-    });
+    const usage = trackCodexUsage(ctx);
 
     ctx.connectorMcp = codexConnectorMcp(ctx);
     yield* Effect.addFinalizer(() =>
@@ -153,21 +149,27 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     let processing = 0;
     const settleAfterExit = threadExit(ctx);
     // Interrupted (before the process is killed) when the runtime closes on purpose.
-    yield* Effect.forkScoped(codex.exited.pipe(Effect.flatMap(settleAfterExit), Effect.ignore));
+    yield* Effect.forkScoped(
+      codex.exited.pipe(
+        Effect.tap(() => Effect.promise(() => ctx.projectSecrets?.close() ?? Promise.resolve())),
+        Effect.flatMap(settleAfterExit),
+        Effect.ignore,
+      ),
+    );
     // One consumer, in order, for every notification of every loaded thread.
     yield* Effect.forkScoped(
       codex.notifications.pipe(
         Stream.runForEach((notification) => {
-          if (notification.method === "account/rateLimits/updated") {
-            usageRevision++;
-
-            return Effect.sync(() => options.onUsage?.(codexUsage(notification.params.rateLimits)));
-          }
+          if (notification.method === "account/rateLimits/updated")
+            return Effect.sync(() => usage.update(notification.params.rateLimits));
 
           const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
           const entry = threadId ? ctx.byCodex.get(threadId) : undefined;
 
-          if (notification.method === "thread/closed") entry?.onClosed?.();
+          if (notification.method === "thread/closed" && entry) {
+            ctx.projectSecrets?.reset(entry.platformId);
+            entry.onClosed?.();
+          }
 
           if (entry?.sandboxProfile && notification.method === "thread/settings/updated") {
             const { sandboxPolicy, ...settings } = notification.params.threadSettings;
@@ -191,7 +193,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       ),
     );
 
-    if (options.onUsage) yield* Effect.forkScoped(readUsage);
+    if (options.onUsage) yield* Effect.forkScoped(usage.read);
     setRoute(serverRequestHandler(ctx));
 
     // Read the launched config so explicit launch flags can override the effort configured in Canopy.
@@ -208,27 +210,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     const sessions = threadSessions(ctx);
 
     return CodexThreads.of({
-      readAccount: () =>
-        codex.request("account/read", { refreshToken: false }).pipe(
-          Effect.tap(() => {
-            usageRevision = 0;
-
-            return options.onUsage ? readUsage : Effect.void;
-          }),
-          Effect.map((result) =>
-            result.account?.type === "chatgpt"
-              ? { email: result.account.email ?? "", plan: result.account.planType }
-              : undefined,
-          ),
-          Effect.mapError(
-            () =>
-              new CodexThreadError({
-                threadId: "",
-                operation: "account/read",
-                message: "Could not read account metadata.",
-              }),
-          ),
-        ),
+      readAccount: usage.readAccount,
       ...codexThreadCommands(ctx, sessions, turnSettings),
       listModels: catalog.listModels,
       listMentionCatalog: catalog.listMentionCatalog,
@@ -250,3 +232,50 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       has: (threadId) => ctx.byPlatform.has(threadId),
     });
   });
+
+function trackCodexUsage({ codex, options }: CodexThreadContext) {
+  let usageRevision = 0;
+
+  const read = Effect.suspend(() => {
+    const revision = usageRevision;
+
+    return codex.request("account/rateLimits/read", { excludeResetCreditDetails: true }).pipe(
+      Effect.timeout("3 seconds"),
+      Effect.tap((result) =>
+        Effect.sync(() => {
+          if (usageRevision === revision && result.rateLimits) options.onUsage?.(codexUsage(result.rateLimits));
+        }),
+      ),
+      Effect.ignore,
+    );
+  });
+
+  return {
+    read,
+    update(rateLimits: v2.AccountRateLimitsUpdatedNotification["rateLimits"]) {
+      usageRevision++;
+      options.onUsage?.(codexUsage(rateLimits));
+    },
+    readAccount: () =>
+      codex.request("account/read", { refreshToken: false }).pipe(
+        Effect.tap(() => {
+          usageRevision = 0;
+
+          return options.onUsage ? read : Effect.void;
+        }),
+        Effect.map((result) =>
+          result.account?.type === "chatgpt"
+            ? { email: result.account.email ?? "", plan: result.account.planType }
+            : undefined,
+        ),
+        Effect.mapError(
+          () =>
+            new CodexThreadError({
+              threadId: "",
+              operation: "account/read",
+              message: "Could not read account metadata.",
+            }),
+        ),
+      ),
+  };
+}

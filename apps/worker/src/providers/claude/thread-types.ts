@@ -21,6 +21,7 @@ import { ClaudeEventMapper } from "./mapping.ts";
 import type { AutoAllow } from "./permissions.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 import type { ClaudeUsage } from "./usage.ts";
+import type { claudeSecretHooks } from "./secret-hooks.ts";
 
 export class ClaudeThreadError extends Schema.TaggedError<ClaudeThreadError>()("ClaudeThreadError", {
   threadId: Schema.String,
@@ -101,6 +102,7 @@ export interface Session {
   readonly sessionId: string;
   readonly cwd: string;
   readonly query: Query;
+  readonly secretHooks: Pick<ReturnType<typeof claudeSecretHooks>, "version" | "close">;
   /** A named sandbox profile is pinned for the lifetime of this process. */
   readonly sandboxProfileDigest?: string | undefined;
   /** The input stream: turn inputs and steered messages. */

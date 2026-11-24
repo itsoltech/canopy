@@ -10,6 +10,8 @@ import {
 } from "@canopy/contracts";
 import { workspaceEdit } from "../edit-scope.ts";
 import { decodeJson, isString, jsonObject } from "../json.ts";
+import { threadSecretOutputGuard } from "../../runtime/thread-secrets.ts";
+import { redactToolOutput } from "../secret-tool-output.ts";
 
 export type GrokCleanup = (() => void | Promise<void>) | undefined;
 
@@ -77,6 +79,9 @@ export async function grokPermission(
   const approval = JSON.stringify([request.toolCall.title, request.toolCall.rawInput]);
 
   if (entry.approvals.has(approval)) return selected(true);
+  const { redact } = threadSecretOutputGuard(spec.threadId);
+  const { rawInput } = request.toolCall;
+  const details = rawInput === undefined ? {} : { input: decodeJson(rawInput) };
 
   const answer = await interact(
     create(InteractionRequestSchema, {
@@ -86,7 +91,7 @@ export async function grokPermission(
       itemId: `${entry.turnId}:${request.toolCall.toolCallId}`,
       kind: InteractionKind.PERMISSION,
       toolName: request.toolCall.title ?? "Grok tool",
-      requestJson: JSON.stringify({ input: request.toolCall.rawInput }),
+      requestJson: JSON.stringify(redactToolOutput(details, redact)),
     }),
     signal,
   );

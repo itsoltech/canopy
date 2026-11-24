@@ -8,9 +8,10 @@ import { SettingsInput } from "./SettingsInput";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { ProjectWorktreeDefaults } from "./ProjectWorktreeDefaults";
 import { useOpenSettingsSection } from "./navigation";
-import { ResourceState, confirmAction } from "./resource";
+import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ProjectDefaults, type ProjectResource } from "./ProjectDefaults";
 import { ProjectColorSetting } from "./ProjectColorSetting";
+import { ProjectSecrets } from "./ProjectSecrets";
 import { useProjectDetails } from "../computers/project-details";
 import { AddWorkspace } from "./AddWorkspace";
 import { WorkspaceRow } from "./WorkspaceRow";
@@ -32,6 +33,11 @@ export function ProjectDetailsSheet({
   const openSettingsSection = useOpenSettingsSection();
   const [adding, setAdding] = useState(false);
   const [addingWorkspace, setAddingWorkspace] = useState(false);
+  const capabilities = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
+
+  // Secrets stay on the gateway that owns the project; a linked computer's project is managed there.
+  const secrets =
+    !project.nodeId && project.kind !== "scratch" && !!capabilities.data?.methods.includes("ListProjectSecrets");
 
   return (
     <ResourceState resource={resource}>
@@ -77,6 +83,7 @@ export function ProjectDetailsSheet({
           onOpen={() => openSettingsSection("worktrees", { projectId: project.id })}
         />
       )}
+      {secrets && <ProjectSecrets projectId={project.id} />}
       {!project.nodeId && project.kind === "project" && (
         <SettingsGroup>
           <SettingsRow

@@ -227,6 +227,7 @@ export class ProviderRuntimes {
         Journal.use((j) => j.append(threadId, { body: { case: "itemCompleted", value: { item: ended } } })),
       );
 
+      this.ctx.state.secrets.trackProjectBackground(threadId, "", item.itemId, false);
       this.ctx.ops.sendEvent(event);
       closed++;
     }

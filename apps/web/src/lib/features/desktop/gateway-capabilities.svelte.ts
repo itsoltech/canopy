@@ -46,6 +46,10 @@ export class GatewayCapabilities {
 
     return !this.methods || required.every((method) => this.methods?.includes(method));
   }
+  /** A single gateway method, for a part of a page; unknown until the first negotiation, then assumed. */
+  supportsMethod(method: string) {
+    return !this.methods || this.methods.includes(method);
+  }
   unavailableMessage(path: string) {
     return path.startsWith("/settings/computers") && !this.linkedComputers
       ? "Linked computers are available only in the Canopy desktop app"

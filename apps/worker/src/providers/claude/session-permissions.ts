@@ -5,6 +5,9 @@ import { decodeJson, isString } from "../json.ts";
 import { workspaceEdit } from "../edit-scope.ts";
 import { BUS_SERVER } from "./mapping.ts";
 import { autoAllows, type AutoAllow } from "./permissions.ts";
+import type { claudeSecretHooks } from "./secret-hooks.ts";
+import { threadSecretOutputGuard } from "../../runtime/thread-secrets.ts";
+import { redactToolOutput } from "../secret-tool-output.ts";
 
 import type { ClaudeThreadsOptions } from "./thread-types.ts";
 
@@ -17,7 +20,12 @@ const editorPath = new Map([
 
 export function sessionPermissions(options: ClaudeThreadsOptions) {
   const canUseTool =
-    (spec: ThreadSpec, turnId: () => string, autoAllow: () => AutoAllow): CanUseTool =>
+    (
+      spec: ThreadSpec,
+      turnId: () => string,
+      autoAllow: () => AutoAllow,
+      protectBash: ReturnType<typeof claudeSecretHooks>["protectBash"],
+    ): CanUseTool =>
     async (toolName, input, context) => {
       if (spec.sandboxProfile && toolName === "SandboxNetworkAccess")
         return { behavior: "deny", message: "The Sandbox profile does not allow this destination." };
@@ -40,7 +48,10 @@ export function sessionPermissions(options: ClaudeThreadsOptions) {
       )
         return { behavior: "deny", message: "This edit is outside the thread's workspace." };
 
-      if (!question && autoAllows(policy, toolName)) return { behavior: "allow", updatedInput: input };
+      const approvedInput = () => (toolName === "Bash" ? protectBash(input) : input);
+
+      if (!question && autoAllows(policy, toolName)) return { behavior: "allow", updatedInput: approvedInput() };
+      const { redact } = threadSecretOutputGuard(spec.threadId);
 
       const answer = await options.interact(
         create(InteractionRequestSchema, {
@@ -50,13 +61,18 @@ export function sessionPermissions(options: ClaudeThreadsOptions) {
           itemId: context.toolUseID,
           kind: question ? InteractionKind.QUESTION : InteractionKind.PERMISSION,
           toolName,
-          requestJson: JSON.stringify({
-            input,
-            ...(context.title && { title: context.title }),
-            ...(context.description && { description: context.description }),
-            ...(context.decisionReason && { reason: context.decisionReason }),
-            ...(context.blockedPath && { blockedPath: context.blockedPath }),
-          }),
+          requestJson: JSON.stringify(
+            redactToolOutput(
+              {
+                input: decodeJson(input),
+                ...(context.title && { title: context.title }),
+                ...(context.description && { description: context.description }),
+                ...(context.decisionReason && { reason: context.decisionReason }),
+                ...(context.blockedPath && { blockedPath: context.blockedPath }),
+              },
+              redact,
+            ),
+          ),
         }),
       );
 
@@ -71,8 +87,11 @@ export function sessionPermissions(options: ClaudeThreadsOptions) {
       return answer.allow
         ? {
             behavior: "allow",
-            updatedInput: input,
-            ...(answer.allowForSession && context.suggestions && { updatedPermissions: context.suggestions }),
+            updatedInput: approvedInput(),
+            ...(answer.allowForSession &&
+              context.suggestions && {
+                updatedPermissions: context.suggestions,
+              }),
           }
         : { behavior: "deny", message: answer.message || "denied by the user" };
     };

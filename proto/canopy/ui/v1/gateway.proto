@@ -252,6 +252,9 @@ service GatewayService {
   rpc RenameProject(RenameProjectRequest) returns (CreateProjectResponse);
   rpc SetProjectColor(SetProjectColorRequest) returns (CreateProjectResponse);
   rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
+  rpc ListProjectSecrets(ListProjectSecretsRequest) returns (ListProjectSecretsResponse);
+  rpc PutProjectSecret(PutProjectSecretRequest) returns (PutProjectSecretResponse);
+  rpc DeleteProjectSecret(DeleteProjectSecretRequest) returns (google.protobuf.Empty);
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
   // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
   // o tym samym git origin albo tworzy nowy projekt. Trasowane do domu workera.
@@ -1326,6 +1329,28 @@ message ArchiveProjectRequest {
 
 message ArchiveProjectResponse {}
 
+message ProjectSecret {
+  string name = 1;
+  google.protobuf.Timestamp updated_at = 2;
+}
+
+message ListProjectSecretsRequest { string project_id = 1; }
+message ListProjectSecretsResponse { repeated ProjectSecret secrets = 1; }
+
+message PutProjectSecretRequest {
+  string project_id = 1;
+  string name = 2;
+  // Write only. Never include this field in diagnostics or replication.
+  string value = 3;
+}
+
+message PutProjectSecretResponse { ProjectSecret secret = 1; }
+
+message DeleteProjectSecretRequest {
+  string project_id = 1;
+  string name = 2;
+}
+
 message CreateWorkspaceRequest {
   string project_id = 1;
   string worker_id = 2;
@@ -1794,6 +1819,7 @@ message ThreadSecret {
   // pending | saved | declined | revoked | expired
   string status = 7;
   google.protobuf.Timestamp expires_at = 8;
+  string project_secret = 9;
 }
 message AnswerThreadSecretRequest {
   string request_id = 1;

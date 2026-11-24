@@ -17,6 +17,7 @@ export interface CodexAppServerLaunch {
   readonly command: readonly string[];
   readonly env: Record<string, string | undefined>;
   readonly cliHomes?: CodexCliHomes;
+  readonly httpInference?: { readonly provider: string; readonly baseUrl: URL };
 }
 
 interface CodexCliHomes {
@@ -122,7 +123,15 @@ export function codexAppServerLaunch(
     env[keyEnv] = profile.apiKey;
   }
 
-  return { command, env, ...(cliHomes && { cliHomes }) };
+  const httpInference =
+    instance?.kind === "cliproxyapi" && others.length === 0
+      ? {
+          provider: codexModelProviderId(instance),
+          baseUrl: new URL("v1/", withTrailingSlash(instance.baseUrl)),
+        }
+      : undefined;
+
+  return { command, env, ...(cliHomes && { cliHomes }), ...(httpInference && { httpInference }) };
 }
 
 /** Also sent on resume: omitting the native provider would retain the rollout's previous proxy. */

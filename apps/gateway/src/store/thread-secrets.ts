@@ -8,6 +8,7 @@ import type { CallSource } from "./agent-bus.ts";
 import { Invalid, NotFound } from "./store.ts";
 import { encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { secretDeliveries } from "./secret-deliveries.ts";
+import type { ProjectSecretLease } from "./project-secret-leases.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid | NotFound>;
 
@@ -81,7 +82,7 @@ const requestSecret = (sql: SqlClient.SqlClient, source: CallSource, args: Agent
       const rows =
         yield* sql<ThreadSecretRow>`INSERT INTO thread_secrets(id, thread_id, turn_id, call_id, label, description, placeholder, name)
     VALUES (${source.callId}::uuid, ${source.threadId}::uuid, ${source.turnId}::uuid, ${source.callId}::uuid,
-      ${args.label}, ${args.description}, ${args.placeholder ?? ""}, ${args.name ?? ""}) RETURNING *`;
+      ${args.label ?? ""}, ${args.description ?? ""}, ${args.placeholder ?? ""}, ${args.name ?? ""}) RETURNING *`;
 
       return rows[0]!;
     }),
@@ -90,7 +91,7 @@ const requestSecret = (sql: SqlClient.SqlClient, source: CallSource, args: Agent
 type SecretMetadata = Pick<
   ThreadSecretRow,
   "id" | "thread_id" | "label" | "description" | "placeholder" | "name" | "status" | "expires_at"
->;
+> & { project_secret?: string };
 
 export function toUiThreadSecret(row: SecretMetadata): ui.ThreadSecret {
   return create(ui.ThreadSecretSchema, {
@@ -100,9 +101,14 @@ export function toUiThreadSecret(row: SecretMetadata): ui.ThreadSecret {
     description: row.description,
     placeholder: row.placeholder,
     name: row.name,
+    projectSecret: row.project_secret ?? "",
     status: row.status,
     ...(row.expires_at && { expiresAt: timestampFromDate(new Date(row.expires_at)) }),
   });
+}
+
+export function toUiProjectSecretLease(row: ProjectSecretLease): ui.ThreadSecret {
+  return toUiThreadSecret({ ...row, label: row.name, description: "", placeholder: "", project_secret: row.name });
 }
 
 /** Values never enter normal interactions, agent-bus arguments/results or worker_commands. */
@@ -111,10 +117,15 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
     requestSecret: (source, args) => requestSecret(sql, source, args),
     threadSecrets: (ownerId, threadId) =>
       Effect.gen(function* () {
-        const rows =
-          yield* sql<SecretMetadata>`SELECT s.id,s.thread_id,s.label,s.description,s.placeholder,s.name,s.status,s.expires_at
-        FROM thread_secrets s JOIN threads t ON t.id = s.thread_id
-        WHERE t.id = ${threadId}::uuid AND t.owner_user_id = ${ownerId}::uuid AND t.deleted_at IS NULL ORDER BY s.created_at`;
+        const rows = yield* sql<SecretMetadata>`WITH owned AS (
+          SELECT id FROM threads WHERE id=${threadId}::uuid AND owner_user_id=${ownerId}::uuid AND deleted_at IS NULL
+        )
+        SELECT s.id,s.thread_id,s.label,s.description,s.placeholder,s.name,s.status,s.expires_at,
+          '' AS project_secret,s.created_at FROM thread_secrets s JOIN owned t ON t.id=s.thread_id
+        UNION ALL
+        SELECT l.id,l.thread_id,l.name,'','',l.name,l.status,l.expires_at,l.name,l.created_at
+          FROM project_secret_leases l JOIN owned t ON t.id=l.thread_id WHERE l.owner_user_id=${ownerId}::uuid
+        ORDER BY created_at,id`;
 
         return rows.map(toUiThreadSecret);
       }),

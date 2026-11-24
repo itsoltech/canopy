@@ -155,6 +155,8 @@ function SecretGrant({ secret, disabled }: { secret: ui.ThreadSecret; disabled: 
   const { client } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // A project secret shows its name; Revoke ends only this thread's access (Project settings deletes it).
+  const name = secret.projectSecret || secret.label || "Secret";
 
   async function revoke() {
     if (!client || disabled || busy) return;
@@ -174,16 +176,31 @@ function SecretGrant({ secret, disabled }: { secret: ui.ThreadSecret; disabled: 
     <View style={{ gap: 6 }}>
       <View style={styles.row}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text numberOfLines={compact ? 1 : 2} style={[compact ? type.chrome : styles.body, { color: c.text }]}>
-            {secret.label || "Secret"}
+          <Text
+            numberOfLines={compact ? 1 : 2}
+            style={[
+              compact ? type.chrome : styles.body,
+              secret.projectSecret ? { fontFamily: type.mono.fontFamily } : null,
+              { color: c.text },
+            ]}
+          >
+            {name}
           </Text>
+          {secret.projectSecret ? <Text style={[styles.meta, { color: c.muted }]}>Project secret</Text> : null}
           {secret.expiresAt && (
             <Text style={[styles.meta, { color: c.muted }]}>
               {`Expires ${new Date(timestampMs(secret.expiresAt)).toLocaleString()}`}
             </Text>
           )}
         </View>
-        <Button title="Revoke" size="sm" busy={busy} disabled={disabled} onPress={() => void revoke()} />
+        <Button
+          title="Revoke"
+          label={secret.projectSecret ? `Revoke ${name} in this thread` : `Revoke ${name}`}
+          size="sm"
+          busy={busy}
+          disabled={disabled}
+          onPress={() => void revoke()}
+        />
       </View>
       {error ? <Notice error>{error}</Notice> : null}
     </View>

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { GrokProviderSettings } from "@canopy/domain/provider-settings";
@@ -8,9 +8,10 @@ import { instanceShadowHome } from "../../config/remote.ts";
 import { instructionDirectory } from "../../agent-environment/files.ts";
 import { textOnlyConfig } from "./text-agent.ts";
 import { isolatedHomeEnvironment } from "../home.ts";
-import { grokAuthPath } from "./home.ts";
+import { grokAuthPath, grokProcessHome } from "./home.ts";
 
 interface GrokLaunch {
+  home: string;
   options: GrokOptions;
   cleanup(): void;
 }
@@ -140,13 +141,7 @@ export function grokLaunch(options: {
   const { profile } = options;
   const runtime = profile.runtime ?? {};
   const root = options.temporaryDir ?? join(options.dataDir, "grok", profile.id);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  const sessions = join(root, "sessions");
-
-  if (!options.textOnly) mkdirSync(sessions, { recursive: true, mode: 0o700 });
-  const home = mkdtempSync(join(root, "process-"));
-
-  if (!options.textOnly) symlinkSync(sessions, join(home, "sessions"), "dir");
+  const { home, sessions } = grokProcessHome(root, options.textOnly === true);
 
   const skillHome =
     instanceShadowHome(options.dataDir, "grok", profile.id, runtime) ?? join(options.dataDir, "grok-home");
@@ -257,6 +252,7 @@ export function grokLaunch(options: {
   ];
 
   return {
+    home,
     options: {
       executable: runtime.executablePath || options.executable || "grok",
       args,

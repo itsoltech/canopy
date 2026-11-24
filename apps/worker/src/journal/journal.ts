@@ -18,7 +18,7 @@ import { connectorCatalog } from "./connector-catalog.ts";
 import { heldDelivery } from "./held-delivery.ts";
 import { commandTracking } from "./commands.ts";
 import { claudeSessionTracking } from "./claude-session-homes.ts";
-import { secretEventRedactor } from "../runtime/thread-secrets.ts";
+import { secretEventRedactor } from "../runtime/secret-event-redactor.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { storageCleanup, type StorageCleanupGrant } from "./storage-cleanup.ts";
@@ -79,6 +79,7 @@ export interface TurnHarness {
 
 export interface OpenTurn {
   readonly serviceInvocation?: string;
+  readonly projectSecret?: true;
   readonly threadId: string;
   readonly turnId: string;
   /** Absent when the turn was started by a process that did not record it. */
@@ -151,6 +152,10 @@ export class Journal extends Context.Service<
     openTurns(): Effect.Effect<ReadonlyArray<OpenTurn>, JournalError>;
     /** Durable admission receipt, retained after turn end and transcript ACK. */
     hasStartedTurn(threadId: string, turnId: string): Effect.Effect<boolean, JournalError>;
+    /** Commits a plaintext-free marker before a project secret file can be written. */
+    markProjectSecretTurn(threadId: string, turnId: string): Effect.Effect<boolean, JournalError>;
+    hasProjectSecretTurn(threadId: string, turnId: string): Effect.Effect<boolean, JournalError>;
+    hasProjectSecretHistory(threadId: string, nativeSessionId?: string): Effect.Effect<boolean, JournalError>;
     wasInterrupted(threadId: string, turnId: string): Effect.Effect<boolean, JournalError>;
     /** Records (or updates) where the turn's harness keeps its record; dropped with the turn's end. */
     noteHarness(threadId: string, turnId: string, harness: TurnHarness): Effect.Effect<void, JournalError>;
@@ -287,7 +292,6 @@ function codexCliHomes(
 }
 
 function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: string): Journal["Service"] {
-  const redact = secretEventRedactor();
   let shuttingDown = false;
 
   const attempt = <A>(operation: string, run: () => A) =>
@@ -305,9 +309,9 @@ function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: stri
     "INSERT INTO events (thread_id, journal_seq, event_id, payload, created_at) VALUES ($thread, $seq, $id, $payload, $at)",
   );
 
-  const { trackBackground, selectBackground } = backgroundTracking(db);
-
+  const { trackBackground, selectBackground, backgroundTurn } = backgroundTracking(db);
   const turns = turnTracking(db, attempt, serviceInvocation);
+  const redact = secretEventRedactor(turns.isProjectSecretTurn, backgroundTurn);
   const homes = claudeSessionTracking(db, attempt);
 
   const appendTx = db.transaction((threadId: string, event: ThreadEventInit) => {
@@ -418,6 +422,9 @@ function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: stri
       }),
     ),
     openTurns: turns.openTurns,
+    markProjectSecretTurn: turns.markProjectSecretTurn,
+    hasProjectSecretTurn: turns.hasProjectSecretTurn,
+    hasProjectSecretHistory: turns.hasProjectSecretHistory,
     noteInterrupt: turns.noteInterrupt,
     noteHarness: (threadId, turnId, harness) =>
       turns
@@ -453,6 +460,17 @@ function backgroundTracking(db: Database) {
     "SELECT thread_id, item FROM background_tasks ORDER BY rowid",
   );
 
+  const selectForItem = db.query<{ item: Uint8Array }, { thread: string; item: string }>(
+    "SELECT item FROM background_tasks WHERE thread_id = $thread AND item_id IN ($item, 'bg:' || $item) LIMIT 1",
+  );
+
+  const backgroundTurn = (threadId: string, itemId: string) => {
+    const row = selectForItem.get({ thread: threadId, item: itemId });
+    const content = row && fromBinary(ItemSchema, row.item).content;
+
+    return content?.case === "backgroundTask" ? content.value.startedInTurnId : undefined;
+  };
+
   const trackBackground = (threadId: string, body: ThreadEvent["body"]) => {
     if (body.case !== "itemStarted" && body.case !== "itemCompleted") return;
     const item = body.value.item;
@@ -466,5 +484,5 @@ function backgroundTracking(db: Database) {
     }
   };
 
-  return { trackBackground, selectBackground };
+  return { trackBackground, selectBackground, backgroundTurn };
 }

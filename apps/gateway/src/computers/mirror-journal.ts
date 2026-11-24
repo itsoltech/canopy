@@ -4,7 +4,8 @@ import type { ComputerStore } from "./store.ts";
 export async function mirrorJournal(store: ComputerStore, from: string, to: string) {
   return (
     await store.query<{ count: string; threads: (string | null)[] }>(
-      `SELECT count(*)::text AS count,coalesce(array_agg(DISTINCT thread_id),'{}'::uuid[]) AS threads
+      `SELECT count(*)::text AS count,
+        coalesce(array_agg(DISTINCT thread_id) FILTER (WHERE entity_kind IS DISTINCT FROM 'thread_controls'),'{}'::uuid[]) AS threads
       FROM computer_thread_changes WHERE owner_user_id=$1::uuid AND revision>$2::bigint AND revision<=$3::bigint`,
       [store.owner, from, to],
     )

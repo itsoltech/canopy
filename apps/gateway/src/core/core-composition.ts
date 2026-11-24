@@ -92,7 +92,7 @@ export function createCoreBus(core: GatewayCore): AgentBus {
 
       return result;
     },
-    requestSecret: (source, args) => core.secrets.request(source, args),
+    requestSecret: (source, args, connection) => core.secrets.request(source, args, connection),
     showImages: (source, caller, args) => publishThreadImages(core, source, caller, args),
     importImageReply: (source, caller, itemId) => importImageReply(core, source, caller, itemId),
     renderVisual: (source, caller, args) => publishThreadVisual(core, source, caller, args),

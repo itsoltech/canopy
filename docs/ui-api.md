@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): w web i desktopie Settings → Projects → projekt ma zakładkę Secrets.
+Pozwala dodać sekret projektu, podmienić jego wartość i go usunąć; wartości nie da się odczytać.
+Panel wątku oznacza przydział sekretu projektu i cofa go tylko w tym wątku.
+
 Status (2026-11-24): szkic nowego wątku w web, desktopie i mobile jest wspólny dla
 projektów i workerów. Powrót do kompozytora odtwarza jego treść.
 
@@ -1495,6 +1499,51 @@ zwraca pustą listę; `ListMentionCatalog` pobiera komendy i umiejętności z ka
 Scope istniejącego wątku używa jego cwd. Pliki są zachowywane bez automatycznego cleanupu,
 także po archiwizacji lub soft delete; panel szczegółów opisuje ręczne sprzątanie.
 
+## Sekrety projektu
+
+Zasady przechowywania, przydziałów i cofania opisuje [secrets.md](secrets.md).
+Web i desktop pokazują zakładkę **Secrets** w Settings → Projects → projekt
+(`features/projects/secrets`). Zakładka pojawia się przy zwykłym projekcie tego gatewaya,
+gdy `GetClientCapabilities.methods` zawiera `ListProjectSecrets`. Projekt połączonego
+komputera (`Project.node_id`) jej nie ma: w pierwszej wersji sekretami zarządza jego dom.
+
+Lista zawiera nazwę (czcionka o stałej szerokości, zawijana) i czas `updated_at`.
+Akcje wiersza to **Replace value** i **Delete**, a **Add secret** jest w nagłówku grupy.
+Dialog dodania przyjmuje nazwę i wartość. Dialog podmiany przyjmuje tylko nową wartość.
+Nazwa i rozmiar są sprawdzane przed wysłaniem regułami `PROJECT_SECRET_NAME_PATTERN`
+i `PROJECT_SECRET_MAX_BYTES` z `@canopy/domain`. Nazwa jest wrażliwa na wielkość liter.
+Istniejącej nazwy nie można dodać drugi raz; UI odsyła do Replace value.
+Pole wartości jest tekstowe z maskowaniem (`-webkit-text-security`), bez autouzupełniania,
+korekty i podpowiedzi menedżerów haseł; przełącznik **Show value** ma `aria-pressed`.
+Jednowierszowe pole usuwa znaki nowej linii z wklejanego tekstu. Dlatego wklejenie lub upuszczenie tekstu
+z `\n` albo `\r` (np. klucz PEM) przejmuje cały tekst bez zmian, poza polem. Pole pokazuje wtedy
+tylko „Multiline value pasted” (readonly) i przycisk **Clear value**, a wartości nie da się odsłonić.
+Przycisk **Paste value** czyta schowek przez `navigator.clipboard.readText()` z tą samą zasadą.
+Wartość istnieje tylko w stanie dialogu i w żądaniu HTTPS do BFF. Dialog czyści ją
+przy wysłaniu, zamknięciu i odmontowaniu. Rejestruje też niewysłaną pracę,
+więc aktualizacja nie przeładuje strony w trakcie wpisywania. Po błędzie zapisu użytkownik wpisuje
+wartość ponownie. Usunięcie potwierdza dialog „Delete secret?” z fokusem na Cancel;
+po usunięciu fokus wraca do Add secret. Teksty dialogów mówią, że zapis i usunięcie
+cofają tę nazwę w wątkach, które jej używają. Nie obiecują natychmiastowego
+usunięcia pliku z odłączonego workera.
+
+BFF (`routes/api/projects/[projectId]/secrets`): `GET` → `ListProjectSecrets`,
+`PUT [name]` z `{value}` (1–32768 znaków, bez innych pól; limit bajtów sprawdza gateway) → `PutProjectSecret`,
+`DELETE [name]` → `DeleteProjectSecret`. Odpowiedzi mają `cache-control: no-store`.
+`PUT` nie używa `call()`/`failWith()`: przyczyna transportu może zawierać żądanie.
+Przekazuje wyłącznie odpowiedź gatewaya bez przyczyny transportu
+(`InvalidArgument`, `NotFound`, `PermissionDenied`, `FailedPrecondition`,
+`ResourceExhausted`, `Unimplemented`), a w pozostałych przypadkach stały komunikat.
+Lista żyje w komponencie, bez wspólnego cache `queries`. Wartości nie trafiają do overview,
+diagnostyki ani logów BFF.
+
+Panel wątku pokazuje przydział sekretu projektu jak zwykły aktywny sekret.
+`ThreadSecret.project_secret` (9) niesie nazwę i jest pusty przy ręcznej prośbie.
+Wiersz pokazuje nazwę czcionką o stałej szerokości. Przycisk cofania ma etykietę
+„Revoke NAZWA in this thread” i kończy tylko dostęp tego wątku przez `RevokeThreadSecret`.
+Usunięcie z projektu jest osobną akcją w ustawieniach. Przydział projektu nigdy
+nie tworzy karty prośby nad kompozytorem.
+
 ## Bots
 
 Boty bezpośrednich partnerów mają kwalifikowane id i `Bot.node_id` (800). `ListBots` sumuje
@@ -2862,7 +2911,7 @@ użycia `SwapText` zachowują domyślne wyrównanie do początku wiersza.
 Trasy:
 - `/`: „What should we work on?”; projekt i workspace z `placement.ts`, domyślne projektu nad użytkownikiem, ręczny wybór wygrywa, `?project=` wstępnie wybiera projekt. `ProjectPicker` / `WorkerPicker` pokazują tylko właściwe powiązania. Model, profil dostawcy i wysiłek pochodzą z katalogu wybranego workera (ulubione pierwsze); niewybrany model pozostawia `CreateThread.model` puste. Projekt bez workera, worker offline lub brak agenta blokują wysłanie i wyjaśniają powód; pole pozostaje edytowalne. Bez projektów jest link do ustawień.
 - `/threads/[id]`: klientowy `+page.ts` pobiera `GetThread` przez BFF (404 dla nieznanego); SSE daje snapshot i dalsze zmiany. Panel kontekstu pokazuje drzewo, cele i zadania. „New side thread” prowadzi do `/threads/[id]/new-side-thread`: kompozytor z modelem, wysiłkiem, uprawnieniami i domyślnie włączonym dziedziczeniem historii; kontekst miejsca jest tylko do odczytu. Akcja `?/createSideThread` na tej stronie pobiera rodzica przez `GetThread`, bierze z niego projekt, workspace, dostawcę i instancję oraz wywołuje wspólne `CreateThread`. [Szczegóły przepływu](threads.md#nowy-wątek-boczny-w-webie). `/settings/appearance` i `/settings/threads` edytują wygląd i domyślne nowych wątków; `/settings/schedules` pokazuje wszystkie harmonogramy, także zakończone, i pozwala je tworzyć, wstrzymywać, wznawiać i anulować.
-- `/settings/projects` i `/settings/projects/[id]`: projekty, powiązania z workerami i katalogami (`?/createWorkspace`, `?/updateWorkspace`, `?/removeWorkspace`), domyślne wątków projektu i lista wątków. Stare `/projects/[id]` przekierowuje tutaj. `/settings/workers` i `/settings/workers/[id]` pokazują maszyny i linki do ich dostawców.
+- `/settings/projects` i `/settings/projects/[id]`: projekty, powiązania z workerami i katalogami (`?/createWorkspace`, `?/updateWorkspace`, `?/removeWorkspace`), domyślne wątków projektu, sekrety projektu (zakładka Secrets) i lista wątków. Stare `/projects/[id]` przekierowuje tutaj. `/settings/workers` i `/settings/workers/[id]` pokazują maszyny i linki do ich dostawców.
 - `/settings/providers`: klientowy `+page.ts` pobiera instancje i pełne katalogi modeli; strona działa też w nakładce. Zakres All workers / worker, status i wersja CLI instancji, definicja (id, kolor, połączenie, runtime i zmienne), nadpisania workera, modele (filtry, ukrywanie, ulubione, własne id i tagi), logowanie, usuwanie. „Add” prowadzi przez Provider → Identity → Config (`pageSlide`). Na telefonie lista i szczegóły są osobnymi panelami.
 
   Claude ma wspólne `UserConfigurationFields` w tworzeniu, definicji i nadpisaniach workera.
@@ -2898,7 +2947,7 @@ Trasy:
 `ModelPicker` pokazuje konkretną nazwę modelu bez opisu i etykiety połączenia; instancję nazywa tylko tam, gdzie dostawca ma ich kilka (`ModelOption.sharedProvider`). Pole `legacy` katalogu przenosi starsze modele do zwijanej grupy „Legacy models” z licznikiem per instancja; wyszukiwanie i ulubione pokazują je bez zwijania. `Combobox` obsługuje takie grupy przez `groupExpanded` (brak wartości = zwykły nagłówek) i `ontogglegroup`; zwinięte opcje nie uczestniczą w nawigacji strzałkami. `ComboboxGroup` używa wspólnego `expand` i respektuje ograniczenie ruchu. Lista modeli w Settings → Providers pokazuje nazwę i id.
 
 `features/bots/wizard` dostarcza prezentacyjne `CreateBotWizard` i `EditBotAppearance`: współdzielony podgląd maskotki, 14 kształtów, kolory i własny picker HSV/HEX, walidację nazwy oraz istniejące pickery modelu/effortu. Instancje i modele przychodzą przez props, zapis przez asynchroniczny callback. API, adapter i weryfikacja: [bots-wizard.md](bots-wizard.md).
-- API (JSON): `GET api/overview`, `GET api/threads` (wszystkie wątki użytkownika), `POST api/threads/[id]/messages` (`{text, clientRequestId, model?, effort?, permissionMode?, delivery?}`; `permissionMode` = klucz enuma, tylko ta tura: model i wysiłek tylko tej tury; `delivery` = `queue` (domyślnie) albo `steer`), `POST api/threads/[id]/goal` (`{action: set | pause | resume | clear, objective?, tokenBudget?}` → `SetGoal`), `POST api/threads/[id]/background-tasks/stop` (`{itemId}` → `StopBackgroundTask`), `POST api/threads/[id]/seen` (`{upToSeq}` dziesiętnie → `MarkThreadSeen`), `POST api/threads/[id]/settings` (`{model?, effort?, permissionMode?}` → `UpdateThread`: brak = bez zmian, pusty = domyślny profilu), `GET api/models?workerId=` (ostatnie katalogi), `POST api/models` (`{workerId}`: lista od nowa z workera, 503 gdy offline), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`, `GET api/settings`, `PUT api/settings/user` (`UpdateUserSettingsRequest`), `PUT api/settings/projects/[id]` (`UpdateProjectSettingsRequest`; konflikt wersji → 409), `GET api/schedules?threadId=&projectId=&includeFinished=true`, `POST api/schedules` (`CreateScheduleRequest`), `POST api/schedules/[id]/status` (`{status: active | paused | cancelled}`), `GET api/providers` (`ListProviderInstances`), `POST api/providers/{save,delete,workers,worker,models,refresh,login}` (odpowiednio `SaveProviderInstanceRequest`, `DeleteProviderInstanceRequest`, `SetInstanceWorkersRequest`, `SetInstanceWorkerRequest`, `SetInstanceModelsRequest`, `RefreshProvidersRequest`, `StartProviderLoginRequest`; nieaktualna wersja albo instancja w użyciu: 409), `GET api/models?unfiltered=1` (katalogi bez wyborów instancji),
+- API (JSON): `GET api/overview`, `GET api/threads` (wszystkie wątki użytkownika), `POST api/threads/[id]/messages` (`{text, clientRequestId, model?, effort?, permissionMode?, delivery?}`; `permissionMode` = klucz enuma, tylko ta tura: model i wysiłek tylko tej tury; `delivery` = `queue` (domyślnie) albo `steer`), `POST api/threads/[id]/goal` (`{action: set | pause | resume | clear, objective?, tokenBudget?}` → `SetGoal`), `POST api/threads/[id]/background-tasks/stop` (`{itemId}` → `StopBackgroundTask`), `POST api/threads/[id]/seen` (`{upToSeq}` dziesiętnie → `MarkThreadSeen`), `POST api/threads/[id]/settings` (`{model?, effort?, permissionMode?}` → `UpdateThread`: brak = bez zmian, pusty = domyślny profilu), `GET api/models?workerId=` (ostatnie katalogi), `POST api/models` (`{workerId}`: lista od nowa z workera, 503 gdy offline), `POST .../interrupt`, `POST api/interactions/[id]` (`{allow}` albo odpowiedzi), `GET api/workers/[id]/directory?path=`, `GET api/settings`, `PUT api/settings/user` (`UpdateUserSettingsRequest`), `PUT api/settings/projects/[id]` (`UpdateProjectSettingsRequest`; konflikt wersji → 409), `GET api/projects/[id]/secrets`, `PUT|DELETE api/projects/[id]/secrets/[name]` (sekrety projektu, [opis](#sekrety-projektu)), `GET api/schedules?threadId=&projectId=&includeFinished=true`, `POST api/schedules` (`CreateScheduleRequest`), `POST api/schedules/[id]/status` (`{status: active | paused | cancelled}`), `GET api/providers` (`ListProviderInstances`), `POST api/providers/{save,delete,workers,worker,models,refresh,login}` (odpowiednio `SaveProviderInstanceRequest`, `DeleteProviderInstanceRequest`, `SetInstanceWorkersRequest`, `SetInstanceWorkerRequest`, `SetInstanceModelsRequest`, `RefreshProvidersRequest`, `StartProviderLoginRequest`; nieaktualna wersja albo instancja w użyciu: 409), `GET api/models?unfiltered=1` (katalogi bez wyborów instancji),
 - Wzmianki: `POST api/mentions/catalog`, `api/mentions/files`, `api/mentions/threads` (ciało: `ListMentionCatalogRequest`, `SearchFilesRequest`, `SearchThreadsRequest` w JSON protobuf; odczyty, POST tylko dlatego, że ciałem jest wiadomość kontraktu); `POST api/threads/[id]/messages` przyjmuje `mentions` (JSON protobuf `Mention`, najwyżej 50), formularz nowego wątku ukryte pole `mentions` (to samo jako JSON) obok `message`.
 - Kolejka: `POST api/threads/[id]/queue` (`{turnIds}`, nowa kolejność), `POST api/threads/[id]/queue/[turnId]` (`{action: "edit", text, expectedRevision, mentions?}` | `{action: "delete" | "restore" | "steer"}`); wiadomość, która już ruszyła = 409 z powodem.
 - Załączniki: `POST api/attachments` (surowe bajty w ciele, nazwa w `x-file-name` zakodowana URI, wymagany nagłówek `x-requested-with: canopy`, a `Origin`, jeśli jest, musi wskazywać ten host → `Attachment`), `GET api/attachments/[id]` (`?thumbnail`, `?download`, `?preview`, `?image`), `GET api/threads/[id]/blobs/[sha256]` (podgląd z transkryptu). Odpowiedzi z bajtami: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: private, immutable`; inline PNG, JPEG, GIF i WebP oraz SVG wyłącznie przez `?image` do elementu `<img>`. Pozostałe pliki mają `Content-Disposition: attachment` (SVG domyślnie jako `application/octet-stream`, tekst i HTML jako `text/plain`). `?preview` zwraca ograniczony prefiks do odczytu jako tekst. `POST api/threads/[id]/messages` przyjmuje `attachmentIds` (tekst może być pusty), formularz nowego wątku pola `attachmentId`.

@@ -58,6 +58,7 @@ export function unloadCodexThread(ctx: CodexThreadContext, threadId: string) {
       yield* threadEvents(ctx).record(entry).pipe(Effect.ignore);
 
       if (released) {
+        ctx.projectSecrets?.release(threadId);
         ctx.byCodex.delete(entry.codexId);
         ctx.byPlatform.delete(threadId);
       }
@@ -66,6 +67,8 @@ export function unloadCodexThread(ctx: CodexThreadContext, threadId: string) {
     // The crashed process owns no native work anymore. Release local transports without RPCs;
     // the host settles journal orphans, including turns whose final notifications were lost.
     if (ctx.failure) {
+      ctx.projectSecrets?.release(threadId);
+
       if (entry) ctx.byCodex.delete(entry.codexId);
       ctx.byPlatform.delete(threadId);
       failures.length = 0;

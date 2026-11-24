@@ -4,6 +4,7 @@ import { SqlClient } from "effect/sql";
 import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui, type InteractionRequest, type ThreadEvent } from "@canopy/contracts";
+import { PROJECT_SECRET_LEASES } from "@canopy/domain";
 import { type WorkerConnection } from "../worker-link/index.ts";
 import { Ingest } from "../store/index.ts";
 import { coreRedeliver } from "./core-commands.ts";
@@ -36,6 +37,7 @@ import { permissionsChanged } from "./turn-permission-state.ts";
 export function createCoreWorkerLink(core: GatewayCore) {
   return createWorkerLink({
     onMessage: (connection, message) => core.diagnostics.workerMessage(connection, message),
+    projectSecretDeliveryValue: (connection, delivery) => core.secrets.projectSecretDeliveryValue(connection, delivery),
     onBlobChunk: (connection, chunk) => coreReceiveBlob(core, connection, chunk),
     observeCommand: (kind) => core.diagnostics.command(kind),
     diagnosticsEnabled: () => core.diagnostics.collector.enabled,
@@ -88,10 +90,14 @@ async function workerConnected(hostContext: GatewayCore, connection: WorkerConne
       workerId,
       reason: WORKER_RESTARTED,
       keep: connection.hello.runningTurns,
-    }).catch((cause: unknown) =>
-      coreLog(hostContext, `lost turns of worker ${workerId} not ended: ${describeError(cause)}`),
-    );
+    }).catch((cause: unknown) => {
+      if (connection.hello.capabilities.includes(PROJECT_SECRET_LEASES)) throw cause;
+      coreLog(hostContext, `lost turns of worker ${workerId} not ended: ${describeError(cause)}`);
+    });
   }
+
+  connection.projectSecretLeasesReady = true;
+  await hostContext.secrets.syncProjectLeases(connection);
 }
 
 export async function coreServe(hostContext: GatewayCore, connection: WorkerConnection): Promise<void> {
@@ -123,7 +129,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await coreGitHeads(hostContext, workerId, message.payload.value);
           break;
         case "threadSecretReceipt":
-          await hostContext.secrets.receipt(workerId, message.payload.value);
+          await hostContext.secrets.receipt(connection, message.payload.value);
           break;
         case "threadEvent":
           await ingest.enqueue(connection.eventBatch(message.payload.value));

@@ -1,5 +1,5 @@
 import { trackGeneration } from "./text-generation.ts";
-import { ThreadSecretFiles } from "./thread-secrets.ts";
+import { applyLinkSecretDelivery } from "./session.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import {
   Provider,
@@ -9,6 +9,7 @@ import {
   type InteractionResponse,
   type ThreadEvent,
   type ThreadLifecycle,
+  type ThreadSecretDelivery,
   type WorkerConfig,
 } from "@canopy/contracts";
 import { applyWorkerConfig, type AppliedConfig, prepareSystemProbe } from "../config/remote.ts";
@@ -75,7 +76,7 @@ export class WorkerHost {
   readonly #copies: WorkspaceCopies;
   readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
-  readonly secrets: ThreadSecretFiles;
+  readonly secrets: HostState["secrets"];
   readonly cli: CliTools;
   readonly environment: WorkerAgentEnvironment;
   readonly #ctx: HostContext;
@@ -168,6 +169,8 @@ export class WorkerHost {
   }
 
   attach(link: GatewayLink): void {
+    if (this.#ctx.state.link && this.#ctx.state.link !== link) this.detach(this.#ctx.state.link);
+
     if (link.welcome.threadLifecycle) this.applyThreadLifecycle(link.welcome.threadLifecycle);
     this.previews.attach(link);
     this.#ctx.state.link = link;
@@ -216,14 +219,14 @@ export class WorkerHost {
   }
 
   detach(link: GatewayLink): void {
-    if (this.#ctx.ops.detachGateway(link)) {
-      // These transient commands can only report to the link that requested them.
-      for (const abort of this.#ctx.state.generationRequests.values()) abort.abort();
-      this.previews.detach(link);
-      this.#ctx.state.imageExports.close();
-      void this.#ctx.ops.closeClones();
-      void this.#ctx.ops.closeDirectories();
-    }
+    if (!this.#ctx.ops.detachGateway(link)) return;
+
+    // These transient commands can only report to the link that requested them.
+    for (const abort of this.#ctx.state.generationRequests.values()) abort.abort();
+    this.previews.detach(link);
+    this.#ctx.state.imageExports.close();
+    void this.#ctx.ops.closeClones();
+    void this.#ctx.ops.closeDirectories();
 
     // The redelivered StartTurn asks again on the next link.
     for (const [id, fetch] of this.#ctx.state.fetches) {
@@ -262,6 +265,9 @@ export class WorkerHost {
   canSendEvent(event: ThreadEvent): boolean {
     return this.#ctx.state.markdownImages.canSend(event);
   }
+
+  applySecretDelivery = (link: GatewayLink, delivery: ThreadSecretDelivery) =>
+    applyLinkSecretDelivery(this.#ctx.state, link, delivery);
 
   applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit> {
     return this.storage.use(() => this.#applyConfig(message));
@@ -303,8 +309,8 @@ export class WorkerHost {
     pending.resolve(response);
   }
 
-  handleAgentToolResult(result: AgentToolResult): void {
-    this.#ctx.ops.toolResult(result);
+  handleAgentToolResult(result: AgentToolResult, link = this.#ctx.state.link): void {
+    if (link === this.#ctx.state.link) this.#ctx.ops.toolResult(result);
   }
 
   /**
@@ -438,6 +444,7 @@ export class WorkerHost {
   }
 
   async close(): Promise<void> {
+    this.secrets.disableProjectTurns();
     await this.#previewCleanup.stop();
     await this.storage.stop();
     await Promise.allSettled(this.#ctx.state.threadCleanup.values());

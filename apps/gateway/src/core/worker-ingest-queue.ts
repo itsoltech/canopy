@@ -1,4 +1,6 @@
 import type { ThreadEvent } from "@canopy/contracts";
+import { decodeAgentBusCall } from "@canopy/domain";
+import { Result } from "effect";
 import type { IngestFallback } from "../store/ingest-outcomes.ts";
 import type { WorkerConnection } from "../worker-link/connection.ts";
 
@@ -19,6 +21,7 @@ export class WorkerIngestQueue {
   }
 
   enqueue(events: [ThreadEvent, ...ThreadEvent[]]) {
+    for (const event of events) removeProjectSecretResult(event);
     const { threadId } = events[0];
     const previous = this.#pending.get(threadId);
     const firstFailure = Promise.withResolvers<void>();
@@ -86,4 +89,35 @@ export class WorkerIngestQueue {
       });
     }
   }
+}
+
+/** The private reply belongs to the live tool call. Keep results out of the canonical transcript. */
+function removeProjectSecretResult(event: ThreadEvent) {
+  if (event.body.case !== "itemStarted" && event.body.case !== "itemCompleted") return;
+  const content = event.body.value.item?.content;
+
+  if (
+    content?.case === "agentBusCall" &&
+    content.value.toolName === "request_secret" &&
+    isProjectSecretArgs(content.value.argumentsJson)
+  ) {
+    content.value.resultJson = "";
+    event.rawJson = "";
+  }
+
+  if (
+    content?.case === "toolCall" &&
+    content.value.server === "canopy" &&
+    content.value.name === "request_secret" &&
+    isProjectSecretArgs(content.value.inputJson)
+  ) {
+    content.value.output = "";
+    event.rawJson = "";
+  }
+}
+
+function isProjectSecretArgs(args: string) {
+  const call = decodeAgentBusCall("request_secret", args);
+
+  return Result.isSuccess(call) && call.success.tool === "request_secret" && !!call.success.args.project_secret;
 }

@@ -25,6 +25,7 @@ export interface ThreadRow {
   pull_request_count?: number;
   pull_request_revision?: bigint;
   project_kind?: string;
+  project_secrets_configured?: boolean;
   id: string;
   project_id: string;
   owner_user_id: string;
