@@ -8,6 +8,8 @@ pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.
 
 Aktualizacja (2026-11-24): web/desktop udostępnia ustawienia relaya mobilnych powiadomień w zakładce **Push relay**.
 
+Status (2026-11-24): pipeline wydań buduje gateway i worker dla Maców z Intelem (`darwin-x64`).
+
 Status (2026-11-22): relay mobilnych powiadomień może wydawać poświadczenia
 po App Attest lub Play Integrity. Obsługuje ich odwołanie i ogranicza odnawianie
 do 90 dni od ostatniej atestacji. Gateway zachowuje obsługę własnych relayów.
@@ -424,7 +426,8 @@ canopy-worker --version
 ```
 
 Kanał `v1`/`v1.2`: weź najwyższe wydanie z tym prefiksem (`gh release list -R itsoltech/canopy`).
-macOS: plik pobrany przeglądarką ma kwarantannę — `xattr -d com.apple.quarantine canopy-worker-darwin-arm64`.
+Na macOS wybierz plik dla architektury Maca (`darwin-x64` dla Intela lub `darwin-arm64` dla Apple Silicon).
+Po sprawdzeniu sumy pliku pobranego przeglądarką usuń kwarantannę poleceniem `xattr -d com.apple.quarantine <plik>`.
 Przy pierwszym starcie binarka rozpakowuje bibliotekę sharp/libvips do `~/.cache/canopy/native`
 (zmiana: `CANOPY_NATIVE_DIR`).
 

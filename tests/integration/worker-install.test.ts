@@ -14,6 +14,8 @@ let directory = "";
 let server: ReturnType<typeof Bun.serve>;
 let sha = "";
 let corruptDownload = false;
+const intelBytes = Buffer.from("verified Intel Mac worker");
+const intelSha = createHash("sha256").update(intelBytes).digest("hex");
 const binary = resolve("dist/release/canopy-worker-linux-x64");
 const realBinary = process.env["CANOPY_INSTALL_BINARY_TEST"] === "1";
 const sshContainer = process.env["CANOPY_SSH_CONTAINER_TEST"] === "1";
@@ -26,6 +28,12 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
     const bytes = realBinary ? readFileSync(binary) : Buffer.from("verified release bytes");
     sha = createHash("sha256").update(bytes).digest("hex");
     const mirror = gw.core.updates.service.options.mirror;
+
+    const workers = [
+      { os: "linux", sha256: sha, data: bytes },
+      { os: "darwin", sha256: intelSha, data: intelBytes },
+    ] as const;
+
     await mirror.remember({
       schema: 1,
       version: gw.core.updates.version,
@@ -33,19 +41,18 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
       commit: "fixture",
       published_at: new Date().toISOString(),
       protocol: { worker_link: 1, update: 1 },
-      assets: [
-        {
-          app: "worker",
-          os: "linux",
-          arch: "x64",
-          name: "canopy-worker-linux-x64",
-          sha256: sha,
-          size: bytes.length,
-          url: "https://github.com/itsoltech/canopy/releases/download/v0.0.0/canopy-worker-linux-x64",
-        },
-      ],
+      assets: workers.map(({ os, sha256, data }) => ({
+        app: "worker",
+        os,
+        arch: "x64",
+        name: `canopy-worker-${os}-x64`,
+        sha256,
+        size: data.length,
+        url: `https://github.com/itsoltech/canopy/releases/download/v0.0.0/canopy-worker-${os}-x64`,
+      })),
     });
-    await Bun.write(join(mirror.directory, sha), bytes);
+
+    for (const { sha256, data } of workers) await Bun.write(join(mirror.directory, sha256), data);
     server = Bun.serve({
       port: 0,
       async fetch(request) {
@@ -87,10 +94,18 @@ describe.skipIf(!dockerAvailable)("worker installer and BFF mirror boundary", ()
     ).toBe(sha);
     expect((await (await fetch(new URL("/install/worker/linux/x64?sha256=1", server.url))).text()).trim()).toBe(sha);
 
-    for (const platform of ["darwin/x64", "windows/x64", "linux/riscv64", "unknown/x64"]) {
+    const intel = await fetch(new URL("/install/worker/darwin/x64", server.url));
+    expect(intel.status).toBe(200);
+    expect(intel.headers.get("content-disposition")).toContain("canopy-worker-darwin-x64");
+    expect(Buffer.from(await intel.arrayBuffer())).toEqual(intelBytes);
+    expect((await (await fetch(new URL("/install/worker/darwin/x64?sha256=1", server.url))).text()).trim()).toBe(
+      intelSha,
+    );
+
+    for (const platform of ["windows/x64", "linux/riscv64", "darwin/ppc", "unknown/x64"]) {
       const rejected = await fetch(new URL(`/install/worker/${platform}`, server.url));
       expect(rejected.status).toBe(400);
-      expect(await rejected.text()).toContain("Supported platforms");
+      expect(await rejected.text()).toContain("Choose Linux or macOS");
     }
 
     expect(await (await fetch(new URL("/install/worker/darwin/arm64", server.url))).text()).toContain(

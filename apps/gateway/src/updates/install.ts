@@ -42,8 +42,8 @@ export async function* workerInstall(
 ): AsyncIterable<ui.WorkerInstallChunk> {
   const { os, arch } = request;
 
-  if (!((os === "linux" && ["x64", "arm64"].includes(arch)) || (os === "darwin" && arch === "arm64"))) {
-    throw new ConnectError("Supported platforms: linux/x64, linux/arm64, darwin/arm64", Code.InvalidArgument);
+  if (!["linux", "darwin"].includes(os) || !["x64", "arm64"].includes(arch)) {
+    throw new ConnectError("Choose Linux or macOS with an x64 or arm64 processor.", Code.InvalidArgument);
   }
 
   try {

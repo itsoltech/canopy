@@ -68,6 +68,7 @@ export interface ReleaseUploadOptions {
   channel: string;
   sha: string;
   publish: boolean;
+  macIntel: boolean;
 }
 
 export interface ReleaseUploadAdapters {
@@ -142,10 +143,11 @@ const github: ReleaseUploadAdapters = {
 };
 
 /** Missing required targets must leave the entire release hidden, including gateway/worker updates. */
-function requireComplete(names: readonly string[], version: string, channel: string): void {
+function requireComplete(names: readonly string[], { version, channel, macIntel }: ReleaseUploadOptions): void {
   const required = [...GENERATED];
+  const macTargets = macIntel ? ["darwin-arm64", "darwin-x64"] : ["darwin-arm64"];
 
-  for (const target of ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"]) {
+  for (const target of ["linux-x64", "linux-arm64", ...macTargets, "windows-x64"]) {
     for (const app of ["gateway", "worker"])
       required.push(`canopy-${app}-${target}${target.startsWith("windows") ? ".exe" : ""}`);
   }
@@ -153,10 +155,7 @@ function requireComplete(names: readonly string[], version: string, channel: str
   const installers = [
     "linux-x64.AppImage",
     "linux-x64.deb",
-    "darwin-arm64.dmg",
-    "darwin-arm64.zip",
-    "darwin-arm64.dmg.blockmap",
-    "darwin-arm64.zip.blockmap",
+    ...macTargets.flatMap((target) => ["dmg", "zip", "dmg.blockmap", "zip.blockmap"].map((ext) => `${target}.${ext}`)),
     "windows-x64.exe",
     "windows-x64.exe.blockmap",
   ];
@@ -214,7 +213,7 @@ export async function uploadRelease(
     if (!existsSync(join(directory, name)))
       throw new Error(`${name} is missing; run scripts/release-manifest.ts first`);
 
-  if (options.publish) requireComplete(names, version, channel);
+  if (options.publish) requireComplete(names, options);
 
   if (channel !== "nightly" && names.some((name) => NIGHTLY_DESKTOP_FEED.test(name)))
     throw new Error("Only nightly releases can publish nightly feeds");
@@ -312,5 +311,6 @@ if (import.meta.main) {
     channel,
     sha,
     publish: flag === "--publish",
+    macIntel: process.env["CANOPY_RELEASE_MAC_INTEL"] !== "false",
   });
 }

@@ -29,8 +29,12 @@ describe("SSH installer command and shell adapter", () => {
     }
   });
 
-  for (const corrupt of [false, true]) {
-    test(`fixed SSH stdin downloads without a web origin and ${corrupt ? "rejects tampering before enrollment" : "preserves the gateway and TLS pin during enrollment"}`, async () => {
+  for (const { os, system, corrupt } of [
+    { os: "linux", system: "Linux", corrupt: false },
+    { os: "linux", system: "Linux", corrupt: true },
+    { os: "darwin", system: "Darwin", corrupt: false },
+  ] as const) {
+    test(`${os}/x64: fixed SSH stdin downloads without a web origin and ${corrupt ? "rejects tampering before enrollment" : "preserves the gateway and TLS pin during enrollment"}`, async () => {
       const directory = mkdtempSync(join(tmpdir(), "canopy-ssh-shell-"));
 
       const fixture =
@@ -48,11 +52,11 @@ describe("SSH installer command and shell adapter", () => {
         assets: [
           {
             app: "worker",
-            os: "linux",
+            os,
             arch: "x64",
-            name: "canopy-worker-linux-x64",
+            name: `canopy-worker-${os}-x64`,
             size: fixture.length,
-            url: "https://github.com/itsoltech/canopy/releases/download/v0.2.0-nightly.74/canopy-worker-linux-x64",
+            url: `https://github.com/itsoltech/canopy/releases/download/v0.2.0-nightly.74/canopy-worker-${os}-x64`,
             sha256,
           },
         ],
@@ -65,6 +69,11 @@ describe("SSH installer command and shell adapter", () => {
 
       try {
         mkdirSync(join(directory, "bin"));
+        await Bun.write(
+          join(directory, "bin/uname"),
+          `#!/bin/sh\ncase "$1" in -s) echo ${system} ;; -m) echo x86_64 ;; *) exit 1 ;; esac\n`,
+        );
+        chmodSync(join(directory, "bin/uname"), 0o755);
         await Bun.write(join(directory, "download"), corrupt ? "corrupted bytes" : fixture);
         await Bun.write(
           join(directory, "bin/curl"),
@@ -96,6 +105,7 @@ describe("SSH installer command and shell adapter", () => {
         ]);
 
         expect(output).toContain("Using compatible GitHub channel release 0.2.0-nightly.74");
+        expect(output).toContain(`Downloading Canopy worker (${os}/x64)`);
         expect(output + errors).not.toContain("fixture-enrollment");
 
         if (corrupt) {

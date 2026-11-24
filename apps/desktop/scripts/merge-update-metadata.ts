@@ -43,12 +43,13 @@ function isFeed(value: unknown): value is Feed {
   );
 }
 
-// Every macOS runner emits <channel>-mac.yml (only arm64 today). Merge their files arrays
+// Every macOS runner emits <channel>-mac.yml. Merge their files arrays
 // instead of allowing download-artifact's last writer to remove an architecture.
 export async function mergeDesktopUpdates(source: string, destination: string, channel: string, version: string) {
   if (!isDesktopChannel(channel)) throw new Error(`Invalid desktop update channel: ${channel}`);
   const identity = desktopIdentity(channel);
   const feeds = new Map<string, Feed>();
+  const macZips: string[] = [];
   mkdirSync(destination, { recursive: true });
   const entries = readdirSync(source, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -102,8 +103,19 @@ export async function mergeDesktopUpdates(source: string, destination: string, c
 
         if (existsSync(output)) throw new Error(`Duplicate desktop asset: ${name}`);
         copyFileSync(path, output);
+
+        if (name.startsWith(`${identity.artifactPrefix}-${version}-darwin-`) && name.endsWith(".zip"))
+          macZips.push(name);
       }
     }
+  }
+
+  const macFeedName = `${identity.feed}-mac.yml`;
+  const macFeed = feeds.get(macFeedName);
+
+  if (macFeed) {
+    for (const zip of macZips)
+      if (!macFeed.files.some((file) => file.url === zip)) throw new Error(`Missing ZIP in ${macFeedName}: ${zip}`);
   }
 
   for (const [name, feed] of feeds) {

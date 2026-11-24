@@ -5,14 +5,37 @@ import { directoryIdentity, directoryRefused } from "./thread-directory-path.ts"
 
 const mac = process.platform === "darwin";
 
-const native = () =>
-  dlopen(mac ? "/usr/lib/libSystem.B.dylib" : "libc.so.6", {
-    openat: { args: ["i32", "cstring", "i32"], returns: "i32" },
-    fdopendir: { args: ["i32"], returns: "ptr" },
-    readdir: { args: ["ptr"], returns: "ptr" },
-    closedir: { args: ["ptr"], returns: "i32" },
-    fstatat: { args: ["i32", "cstring", "ptr", "i32"], returns: "i32" },
-  });
+function native() {
+  const path = mac ? "/usr/lib/libSystem.B.dylib" : "libc.so.6";
+  const openat = { args: ["i32", "cstring", "i32"], returns: "i32" } as const;
+  const closedir = { args: ["ptr"], returns: "i32" } as const;
+  const fdopendir = { args: ["i32"], returns: "ptr" } as const;
+  const readdir = { args: ["ptr"], returns: "ptr" } as const;
+  const fstatat = { args: ["i32", "cstring", "ptr", "i32"], returns: "i32" } as const;
+
+  // Darwin x64 exports both inode ABIs. Match the 64-bit dirent and stat layouts read below.
+  if (mac && process.arch === "x64") {
+    const lib = dlopen(path, {
+      openat,
+      closedir,
+      fdopendir$INODE64: fdopendir,
+      readdir$INODE64: readdir,
+      fstatat$INODE64: fstatat,
+    });
+
+    return {
+      ...lib,
+      symbols: {
+        ...lib.symbols,
+        fdopendir: lib.symbols.fdopendir$INODE64,
+        readdir: lib.symbols.readdir$INODE64,
+        fstatat: lib.symbols.fstatat$INODE64,
+      },
+    };
+  }
+
+  return dlopen(path, { openat, closedir, fdopendir, readdir, fstatat });
+}
 
 let library: ReturnType<typeof native> | undefined;
 const cstring = (value: string) => Buffer.from(`${value}\0`);
@@ -94,7 +117,7 @@ export async function openUnixDirectory(target: DirectoryTarget): Promise<Direct
   }
 }
 
-/** struct stat layouts for the worker release targets: Darwin arm64, Linux x64/arm64. */
+/** The Darwin inode64 layout is shared by x64 and arm64. Linux mode offsets depend on the CPU. */
 function child(name: string, info: Buffer): DirectoryChild {
   const mode = mac ? info.readUInt16LE(4) : info.readUInt32LE(process.arch === "arm64" ? 16 : 24);
   const type = mode & 0xf000;

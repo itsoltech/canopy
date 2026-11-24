@@ -36,6 +36,7 @@
         "@connectrpc/connect": "2.3.0",
         "@connectrpc/connect-node": "2.3.0",
         "@embedded-postgres/darwin-arm64": "18.7.0-beta.19",
+        "@embedded-postgres/darwin-x64": "18.7.0-beta.19",
         "@embedded-postgres/linux-arm64": "18.7.0-beta.19",
         "@embedded-postgres/linux-x64": "18.7.0-beta.19",
         "@embedded-postgres/windows-x64": "18.7.0-beta.19",
@@ -751,6 +752,8 @@
     "@electron/windows-sign": ["@electron/windows-sign@1.2.2", "", { "dependencies": { "cross-dirname": "^0.1.0", "debug": "^4.3.4", "fs-extra": "^11.1.1", "minimist": "^1.2.8", "postject": "^1.0.0-alpha.6" }, "bin": { "electron-windows-sign": "bin/electron-windows-sign.js" } }, "sha512-dfZeox66AvdPtb2lD8OsIIQh12Tp0GNCRUDfBHIKGpbmopZto2/A8nSpYYLoedPIHpqkeblZ/k8OV0Gy7PYuyQ=="],
 
     "@embedded-postgres/darwin-arm64": ["@embedded-postgres/darwin-arm64@18.7.0-beta.19", "", { "os": "darwin", "cpu": "arm64", "hasInstallScript": true }, "sha512-cUehAUPzwxweDYLrzYDvAQSV7Ie9+19RbT7m+jhOCQoykjjWFInPu0FB+58k/nlyQ8xIkjEzFg/OTMQg4wgRdw=="],
+
+    "@embedded-postgres/darwin-x64": ["@embedded-postgres/darwin-x64@18.7.0-beta.19", "", { "os": "darwin", "cpu": "x64", "hasInstallScript": true }, "sha512-Je4cD+On7Pn78jsMMmtYifYr1GAx+VakJgrEuhjeePwWCFRm+p97UIIlQajBV+fbG2gLhLzp2YurJ8625LgB0w=="],
 
     "@embedded-postgres/linux-arm64": ["@embedded-postgres/linux-arm64@18.7.0-beta.19", "", { "os": "linux", "cpu": "arm64", "hasInstallScript": true }, "sha512-8Vf8dz6zlaU6KkohjHbMWN4T7/ptHfRIcWP0kh7PTpnXUxAgPGOZAMvud9MFWloM9cEqpHkCYyhWTaXrQodaig=="],
 

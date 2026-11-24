@@ -1,6 +1,7 @@
 const { existsSync, readFileSync, readdirSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { listPackage } = require("@electron/asar");
+const { Arch } = require("electron-builder");
 const { packageMetrics } = require("./package-metrics.cjs");
 
 function verifySidebarIcons(preparedRuntime, runtime) {
@@ -33,7 +34,7 @@ function verifySidebarIcons(preparedRuntime, runtime) {
 
 // Validate the final resources, not the build directory. electron-builder deliberately
 // filters a root node_modules directory unless it has its own resource mapping.
-module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
+module.exports = async ({ appOutDir, electronPlatformName, arch, packager }) => {
   const resources =
     electronPlatformName === "darwin"
       ? join(appOutDir, `${packager.appInfo.productFilename}.app/Contents/Resources`)
@@ -49,6 +50,10 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
   if (existsSync(archive + ".unpacked"))
     throw new Error("Unexpected app.asar.unpacked: the shell must be fully bundled");
   const { target } = JSON.parse(readFileSync(join(runtime, "target.json"), "utf8"));
+  const architecture = Arch[arch];
+  const expectedTarget = `${electronPlatformName}-${architecture}`;
+
+  if (target !== expectedTarget) throw new Error(`Expected ${expectedTarget} runtime, got ${target}`);
   const suffix = electronPlatformName === "win32" ? ".exe" : "";
 
   if (!existsSync(join(runtime, "bun" + suffix))) throw new Error("Packaged Bun missing");
@@ -116,14 +121,14 @@ module.exports = async ({ appOutDir, electronPlatformName, packager }) => {
 
       if (!existsSync(addon)) throw new Error(`Packaged native addon missing: ${name}`);
 
-      if (machOArchitectures(addon).join() !== "arm64")
-        throw new Error(`Native addon must be an arm64 Mach-O: ${name}`);
+      if (machOArchitectures(addon).join() !== architecture)
+        throw new Error(`Native addon must be a ${architecture} Mach-O: ${name}`);
       binaries.push(addon);
     }
 
     for (const binary of machOFiles(application))
-      if (machOArchitectures(binary).join() !== "arm64")
-        throw new Error(`Packaged Mach-O must be arm64 only: ${binary}`);
+      if (machOArchitectures(binary).join() !== architecture)
+        throw new Error(`Packaged Mach-O must be ${architecture} only: ${binary}`);
     const { prepareMacPresentation } = require("./macos-presentation.cjs");
     prepareMacPresentation(resources, packager.platformSpecificBuildOptions.extendInfo.CFBundleIconFile);
     packager.platformSpecificBuildOptions.binaries = binaries;
