@@ -126,8 +126,10 @@ export const segmentsOf = (
 const itemOf = (row: BodyRow) => (row.kind === "item" ? [row.node.item] : []);
 const isToolRow = (row: BodyRow) => row.kind === "item" && isToolItem(row.node.item);
 
+type ThreadTitle = (id: string) => string | undefined;
+
 /** Runs of consecutive tools always retain their header, including a sole run. */
-export function workRows(work: readonly BodyRow[]): WorkRow[] {
+export function workRows(work: readonly BodyRow[], threadTitle: ThreadTitle): WorkRow[] {
   const runs: BodyRow[][] = [];
   let run: BodyRow[] | undefined;
 
@@ -149,7 +151,7 @@ export function workRows(work: readonly BodyRow[]): WorkRow[] {
         key,
         ...groupSummary(rows.flatMap(itemOf)),
         running: rows.some((r) => r.kind === "item" && r.node.item.status === ItemStatus.IN_PROGRESS),
-        hint: currentWorkHint(rows.flatMap(itemOf)),
+        hint: currentWorkHint(rows.flatMap(itemOf), { threadTitle }),
         rows,
       });
     } else if (!isToolRow(row)) out.push({ kind: "row", row });
@@ -163,6 +165,7 @@ export function summarize(
   work: readonly BodyRow[],
   times: { startMs: number | undefined; endMs: number | undefined; live: boolean },
   tasks: ReadonlyMap<string, Item>,
+  threadTitle: ThreadTitle,
 ): WorkSummary {
   const items = work.flatMap(itemOf);
   const status = (item: Item) => (tasks.get(item.itemId) ?? item).status;
@@ -182,7 +185,7 @@ export function summarize(
     counts: workCounts(items),
     running: running.size,
     live: times.live,
-    hint: currentWorkHint(items, (item) => status(item) === ItemStatus.IN_PROGRESS),
+    hint: currentWorkHint(items, { running: (item) => status(item) === ItemStatus.IN_PROGRESS, threadTitle }),
     size: work.length,
   };
 }

@@ -124,12 +124,15 @@ interface TurnFold {
   readonly segments: readonly WorkSegment[];
 }
 
+type ThreadTitle = (id: string) => string | undefined;
+
 export function foldTurns(
   rows: readonly TimelineRow[],
   isOpen: (fold: string) => boolean,
   groupOpen: (key: string) => boolean = () => false,
   gaps: ReadonlySet<string> = new Set(),
   report: (count: number) => void = (count) => console.warn("Timeline recovery", { reason: "fold_derivation", count }),
+  threadTitle?: ThreadTitle,
 ): FoldedRow[] {
   // A background task owns its source command's lifecycle after the turn ends. System stops can
   // finish the task without another source-item update; tasks can also arrive outside the turn.
@@ -216,7 +219,10 @@ export function foldTurns(
       if (fold.body.length === 0) continue;
     }
 
-    const derived = fold.segments.flatMap((_, index) => segmentRows(fold, index, isOpen, groupOpen, tasksBySource));
+    const derived = fold.segments.flatMap((_, index) =>
+      segmentRows(fold, index, isOpen, groupOpen, tasksBySource, threadTitle),
+    );
+
     out.push(...recoverFoldRows(fold.body, derived, report));
 
     for (const result of results.get(turnId) ?? []) {
@@ -241,6 +247,7 @@ function segmentRows(
   isOpen: (fold: string) => boolean,
   groupOpen: (key: string) => boolean,
   tasksBySource: ReadonlyMap<string, TimelineEntry>,
+  threadTitle?: ThreadTitle,
 ): FoldedRow[] {
   const { turn, body, segments } = fold;
   const segment = segments[index]!;
@@ -257,10 +264,10 @@ function segmentRows(
     fold: id,
     turn,
     open,
-    summary: summarize(turn, work, tasksBySource, segmentTimes(fold, index)),
+    summary: summarize(work, tasksBySource, segmentTimes(fold, index), threadTitle),
   });
 
-  if (open) out.push(...workRows(turn, work, groups, groupOpen));
+  if (open) out.push(...workRows(turn, work, groups, groupOpen, threadTitle));
   out.push({ kind: "answer", key: `answer:${id}`, fold: id, turn, row: final });
 
   return out;
@@ -308,6 +315,7 @@ function workRows(
   work: readonly TimelineRow[],
   groups: readonly TimelineRow[][],
   groupOpen: (key: string) => boolean,
+  threadTitle?: ThreadTitle,
 ): FoldedRow[] {
   const out: FoldedRow[] = [];
   const groupOf = new Map(groups.flatMap((tools) => tools.map((row) => [row, tools] as const)));
@@ -331,7 +339,7 @@ function workRows(
         open,
         ...groupSummary(itemsOf(tools)),
         running: tools.some((r) => r.kind === "item" && r.node.entry.item.status === ItemStatus.IN_PROGRESS),
-        hint: currentWorkHint(itemsOf(tools)),
+        hint: currentWorkHint(itemsOf(tools), { threadTitle }),
         items: tools.map((r) => r.key),
       });
 
@@ -342,10 +350,10 @@ function workRows(
 }
 
 function summarize(
-  turn: ui.Turn,
   work: readonly TimelineRow[],
   tasksBySource: ReadonlyMap<string, TimelineEntry>,
   { startMs, endMs, live }: SegmentTimes,
+  threadTitle?: ThreadTitle,
 ): WorkSummary {
   const running = new Set<string>();
 
@@ -366,10 +374,10 @@ function summarize(
     counts: workCounts(itemsOf(work)),
     running: running.size,
     live,
-    hint: currentWorkHint(
-      itemsOf(work),
-      (item) => (tasksBySource.get(item.itemId)?.item ?? item).status === ItemStatus.IN_PROGRESS,
-    ),
+    hint: currentWorkHint(itemsOf(work), {
+      running: (item) => (tasksBySource.get(item.itemId)?.item ?? item).status === ItemStatus.IN_PROGRESS,
+      threadTitle,
+    }),
     size: work.length,
   };
 }

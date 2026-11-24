@@ -37,6 +37,7 @@ function fixture(
     channel,
     sha: "abc123456789",
     publish: false,
+    macIntel: true,
   };
 
   const release: Release = { id: 1, tag_name: options.tag, draft: true, prerelease: channel !== "stable" };
@@ -134,7 +135,7 @@ function fixture(
 
   const write = (name: string) => writeFileSync(join(directory, name), `bytes for ${name}`);
 
-  for (const target of ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"])
+  for (const target of ["linux-x64", "linux-arm64", "darwin-arm64", "darwin-x64", "windows-x64"])
     for (const app of ["gateway", "worker"])
       write(`canopy-${app}-${target}${target.startsWith("windows") ? ".exe" : ""}`);
 
@@ -146,6 +147,10 @@ function fixture(
       "darwin-arm64.zip",
       "darwin-arm64.dmg.blockmap",
       "darwin-arm64.zip.blockmap",
+      "darwin-x64.dmg",
+      "darwin-x64.zip",
+      "darwin-x64.dmg.blockmap",
+      "darwin-x64.zip.blockmap",
       "windows-x64.exe",
       "windows-x64.exe.blockmap",
     ];
@@ -373,6 +378,12 @@ test("missing Windows/macOS/Linux feeds, blockmaps and experimental feeds keep t
     "latest-linux-arm64.yml",
     "Canopy-0.2.0-windows-x64.exe.blockmap",
     "Canopy-0.2.0-darwin-arm64.zip",
+    "Canopy-0.2.0-darwin-x64.zip",
+    "Canopy-0.2.0-darwin-x64.dmg",
+    "Canopy-0.2.0-darwin-x64.zip.blockmap",
+    "Canopy-0.2.0-darwin-x64.dmg.blockmap",
+    "canopy-worker-darwin-x64",
+    "canopy-gateway-darwin-x64",
   ]) {
     const f = fixture("stable");
     f.desktop(true);
@@ -382,6 +393,20 @@ test("missing Windows/macOS/Linux feeds, blockmaps and experimental feeds keep t
     expect(f.release.draft).toBe(true);
     expect(f.uploaded.size).toBe(0);
   }
+});
+
+test("recovery publishes a revision that only supported Apple Silicon on macOS", async () => {
+  const f = fixture("stable");
+  f.options.macIntel = false;
+  f.desktop();
+
+  for (const name of readdirSync(f.directory)) {
+    if (name.includes("darwin-x64")) rmSync(join(f.directory, name));
+  }
+
+  await f.generate();
+  await f.publish();
+  expect(f.release.draft).toBe(false);
 });
 
 test("GitHub read failures abort without treating an unknown release as absent", async () => {

@@ -29,7 +29,7 @@ const open = (path: string) => {
   void goto(path);
 };
 
-function showSystem(notice: Notice, sound: boolean): void {
+function showSystem(notice: Pick<Notice, "key" | "title" | "body" | "path">, sound: boolean): void {
   const desktop = window.canopyDesktop;
 
   if (desktop?.showNotification) {
@@ -84,6 +84,28 @@ export async function deliver(notice: Notice, currentPath: string, allowed: () =
     });
 
   if (choice !== "off" && (await claimNotice(notice.key)) && allowed()) showSystem(notice, sound);
+}
+
+export async function deliverClaudeReset(key: string, label: string, allowed: () => boolean): Promise<void> {
+  const title = "Claude usage limit reset";
+  const path = "/settings/providers";
+
+  const inApp = async () => {
+    const canToast = () => focused() && devicePreferences.values.inAppNotifications === "on" && allowed();
+
+    if (canToast() && (await claimNotice(`${key}:toast`)) && canToast())
+      toast(title, {
+        description: label,
+        tone: "info",
+        action: { label: "Open provider settings", run: () => open(path) },
+      });
+  };
+
+  const system = async () => {
+    if ((await claimNotice(key)) && allowed()) showSystem({ key, title, body: label, path }, false);
+  };
+
+  await Promise.all([inApp(), system()]);
 }
 
 /** Desktop: a click on a native notification focuses the window in main, then navigates here. */

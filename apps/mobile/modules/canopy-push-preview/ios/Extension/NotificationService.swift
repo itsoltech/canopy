@@ -6,6 +6,7 @@ final class NotificationService: UNNotificationServiceExtension {
   private struct Preview: Decodable {
     let title: String
     let body: String
+    let badge: Int?
   }
 
   private let lock = NSLock()
@@ -28,6 +29,9 @@ final class NotificationService: UNNotificationServiceExtension {
     }
     content.title = preview.title
     content.body = preview.body
+    if let badge = preview.badge, (0...9999).contains(badge) {
+      content.badge = NSNumber(value: badge)
+    }
     finish(content)
   }
 

@@ -1,7 +1,14 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): iOS pokazuje licznik na ikonie przy włączonych powiadomieniach
+systemowych i odświeża go z push w nowym buildzie. Android korzysta z oznaczeń
+launchera dla dostarczonych alertów. [Licznik na ikonie](notifications.md#licznik-na-ikonie)
+
 Status (2026-11-24): systemowe powiadomienia o wynikach wątków znikają z iOS i Androida
 po zsynchronizowaniu odczytu. Zgody i pytania znikają po rozstrzygnięciu lub wygaśnięciu.
+
+Status (2026-11-24): powiadomienie po aktualizacji pokazuje numer wersji i akcję
+„View changes” pod treścią ekranu.
 
 Status (2026-11-24): szczegóły projektu pozwalają wybrać, wykadrować i usunąć zdjęcie
 projektu w natywnym kliencie iOS i Android.
@@ -80,6 +87,7 @@ Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany
 Zmiana wątku nie przedłuża wyświetlania wyniku.
 Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu i wraca do tej wysokości po wysłaniu szkicu.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
+Do serii 0.7 przeniesiono wygaszanie zapowiedzi restartu po potwierdzeniu gotowości binarnego gatewaya bez zmiany wersji.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
 podaje liczbę raportów bez kompletnego kosztu.
@@ -416,8 +424,8 @@ Do lokalnego uruchomienia używamy **development build** Expo, nie Expo Go ani E
 Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
-Po OTA lub aktualizacji sklepowej zamykana karta „Updated to …” otwiera
-„What's new” z zakresem poprzedniej i bieżącej wersji bundla. Historia jest lokalna
+Po OTA lub aktualizacji sklepowej „View changes” w powiadomieniu „Updated to …”
+otwiera „What's new” z zakresem poprzedniej i bieżącej wersji bundla. Historia jest lokalna
 dla instalacji i pozostaje po zmianie parowania. Settings → App updates i Updates
 otwierają ten sam arkusz. Notatki oraz podgląd notatek dostępnego OTA czytają
 wyłącznie statyczny JSON Pages, bez API GitHuba. Implementacja jest wyłącznie JS,

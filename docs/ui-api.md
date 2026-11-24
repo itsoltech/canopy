@@ -1,7 +1,7 @@
 # API dla UI i architektura frontendu
 
 Status (2026-11-24): `ListDismissibleMobilePush` dopasowuje dostarczone powiadomienia
-do stanu odczytu wątków i ich interakcji.
+do stanu odczytu wyników wątków, wiadomości botów oraz rozstrzygnięcia ich interakcji.
 
 Status (2026-11-24): web, desktop i mobile zapisują kwadratowe zdjęcie projektu
 i pokazują je w miejscach, w których wcześniej były inicjały.
@@ -1047,7 +1047,8 @@ i zarządzać własnym pushem przez `SetMobilePushSubscription`. Włączenie prz
 token Expo i klucz podglądu. `ResolveMobilePush` przyjmuje losowy identyfikator
 i zwraca wątek lub bota bieżącego właściciela i parowania. `ListDismissibleMobilePush`
 przyjmuje do 100 identyfikatorów i zwraca te z bieżącego parowania, które dotyczą
-przeczytanych wyników wątków lub zamkniętych interakcji z ostatniej doby. Te RPC
+przeczytanych wyników wątków, przeczytanych wiadomości botów lub zamkniętych
+interakcji z ostatniej doby. Te RPC
 wymagają tokenu telefonu na listenerze Network access. Podglądy są szyfrowane od gatewaya
 do telefonu. [Powiadomienia](notifications.md#push-na-ios-i-androidzie).
 

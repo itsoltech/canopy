@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tempDirs } from "@canopy/testing";
+import { Arch } from "electron-builder";
 import { noAgentClis } from "../../../scripts/agent-clis.ts";
 import { desktopIdentity } from "../src/identity.ts";
 import { channelConfiguration } from "../scripts/channel-configuration.ts";
@@ -20,6 +21,7 @@ import { savePlistFile } from "app-builder-lib/out/util/plist.js";
 const { createPackage } = require("@electron/asar") as { createPackage(source: string, output: string): Promise<void> };
 
 interface PackageContext {
+  arch: Arch;
   appOutDir: string;
   electronPlatformName: string;
   packager: {
@@ -46,6 +48,13 @@ const { machOArchitectures, thinMachOFilesPortable } = require("../scripts/macho
 };
 
 const makeTemp = tempDirs();
+
+const macArchitectures = ["arm64", "x64"] as const;
+
+const machO = {
+  arm64: Buffer.from("cffaedfe0c0000010000000061726d3634", "hex"),
+  x64: Buffer.from("cffaedfe07000001000000007838363634", "hex"),
+};
 
 const generatedNotices = ["THIRD_PARTY_NOTICES.txt", "web/client/open-source-licenses.json"];
 
@@ -103,7 +112,7 @@ async function packed(extraAsarDependency = false, notices = generatedNotices, p
     app,
     resources,
     runtime,
-    context: { appOutDir: app, electronPlatformName: platform, packager: { projectDir } },
+    context: { arch: Arch.x64, appOutDir: app, electronPlatformName: platform, packager: { projectDir } },
   };
 }
 
@@ -162,7 +171,7 @@ test("packaging rejects bundled agent CLIs and a bundled database", async () => 
   await expect(verify(second.context)).rejects.toThrow("PostgreSQL must be downloaded only for local mode");
 });
 
-test("macOS packaging preserves the install identity, localizes its name and signs the native adapter", async () => {
+async function verifyMacPackaging(arch: "x64" | "arm64") {
   const fixture = await packed();
   const identity = desktopIdentity("nightly");
   const { mac } = channelConfiguration(identity);
@@ -194,21 +203,24 @@ test("macOS packaging preserves the install identity, localizes its name and sig
     ...mac.extendInfo,
   });
   const runtime = join(resources, "runtime");
-  renameSync(join(runtime, "node_modules/@img/sharp-linux-x64"), join(runtime, "node_modules/@img/sharp-darwin-arm64"));
-  writeFileSync(join(runtime, "target.json"), JSON.stringify({ target: "darwin-arm64" }));
+  const target = `darwin-${arch}`;
+  renameSync(join(runtime, "node_modules/@img/sharp-linux-x64"), join(runtime, `node_modules/@img/sharp-${target}`));
+  writeFileSync(join(runtime, "target.json"), JSON.stringify({ target }));
   writeFileSync(
     join(runtime, "postgres.json"),
     JSON.stringify({
-      packageName: "@embedded-postgres/darwin-arm64",
-      target: "darwin-arm64",
+      packageName: `@embedded-postgres/${target}`,
+      target,
       integrity: `sha512-${Buffer.alloc(64).toString("base64")}`,
     }),
   );
-  const arm64 = Buffer.from("cffaedfe0c0000010000000061726d3634", "hex");
-  writeFileSync(join(runtime, "bun"), arm64);
+  const nativeBinary = machO[arch];
+  const otherArch = arch === "arm64" ? "x64" : "arm64";
+  writeFileSync(join(runtime, "bun"), nativeBinary);
   const signing = { binaries: [] as string[], extendInfo: mac.extendInfo };
 
   const context = {
+    arch: Arch[arch],
     appOutDir: fixture.app,
     electronPlatformName: "darwin",
     packager: {
@@ -218,15 +230,21 @@ test("macOS packaging preserves the install identity, localizes its name and sig
     },
   };
 
+  await expect(verify({ ...context, arch: Arch[otherArch] })).rejects.toThrow(
+    `Expected darwin-${otherArch} runtime, got ${target}`,
+  );
   await expect(verify(context)).rejects.toThrow("Packaged native addon missing: quit-key-event.node");
   mkdirSync(join(resources, "native"));
   const adapter = join(resources, "native/quit-key-event.node");
-  writeFileSync(adapter, "not a Mach-O");
-  await expect(verify(context)).rejects.toThrow("Native addon must be an arm64 Mach-O: quit-key-event.node");
-  writeFileSync(adapter, arm64);
+  writeFileSync(adapter, machO[otherArch]);
+  await expect(verify(context)).rejects.toThrow(`Native addon must be a ${arch} Mach-O: quit-key-event.node`);
+  writeFileSync(adapter, nativeBinary);
   const permission = join(resources, "native/notification-permission.node");
   await expect(verify(context)).rejects.toThrow("Packaged native addon missing: notification-permission.node");
-  writeFileSync(permission, arm64);
+  writeFileSync(permission, nativeBinary);
+  writeFileSync(join(runtime, "bun"), machO[otherArch]);
+  await expect(verify(context)).rejects.toThrow(`Packaged Mach-O must be ${arch} only`);
+  writeFileSync(join(runtime, "bun"), nativeBinary);
   await expect(verify(context)).resolves.toBeUndefined();
   expect(signing.binaries).toContain(adapter);
   expect(signing.binaries).toContain(permission);
@@ -252,7 +270,13 @@ test("macOS packaging preserves the install identity, localizes its name and sig
 
     expect(check.exitCode, check.stderr.toString()).toBe(0);
   }
-}, 60_000);
+}
+
+test.each(macArchitectures)(
+  "macOS packaging signs the %s adapters and preserves localized identity",
+  verifyMacPackaging,
+  60_000,
+);
 
 test("the size guard rejects duplicated large files even outside node_modules", () => {
   const app = makeTemp("canopy-duplicate-binary-");
@@ -310,10 +334,9 @@ test("Postgres library copies without a manifest become links to the most specif
   expect(lstatSync(join(directory, "lib/libpq.dylib")).isFile()).toBe(true);
 });
 
-test("macOS runtime thinning selects the exact arm64 slice without lipo or Xcode", () => {
+test.each(macArchitectures)("PostgreSQL thinning selects the exact %s slice without lipo or Xcode", (arch) => {
   const directory = makeTemp("canopy-postgres-fat-macho-");
-  const arm64 = Buffer.from("cffaedfe0c0000010000000061726d3634", "hex");
-  const x64 = Buffer.from("cffaedfe07000001000000007838363634", "hex");
+  const { arm64, x64 } = machO;
   const header = Buffer.alloc(48);
   header.writeUInt32BE(0xcafebabe, 0);
   header.writeUInt32BE(2, 4);
@@ -326,8 +349,8 @@ test("macOS runtime thinning selects the exact arm64 slice without lipo or Xcode
   const binary = join(directory, "postgres");
   writeFileSync(binary, Buffer.concat([header, x64, arm64]), { mode: 0o755 });
   expect(machOArchitectures(binary)).toEqual(["x64", "arm64"]);
-  thinMachOFilesPortable(directory, "arm64");
-  expect(machOArchitectures(binary)).toEqual(["arm64"]);
-  expect(readFileSync(binary)).toEqual(arm64);
+  thinMachOFilesPortable(directory, arch);
+  expect(machOArchitectures(binary)).toEqual([arch]);
+  expect(readFileSync(binary)).toEqual(machO[arch]);
   expect(lstatSync(binary).mode & 0o111).toBe(0o111);
 });

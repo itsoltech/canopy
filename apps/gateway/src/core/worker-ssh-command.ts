@@ -8,6 +8,7 @@ const platforms = [
   { os: "linux", arch: "x64", pattern: "Linux/x86_64|Linux/amd64" },
   { os: "linux", arch: "arm64", pattern: "Linux/aarch64|Linux/arm64" },
   { os: "darwin", arch: "arm64", pattern: "Darwin/arm64" },
+  { os: "darwin", arch: "x64", pattern: "Darwin/x86_64" },
 ];
 
 /** URL normalisation also catches shortened IPv4 and IPv4-mapped IPv6 loopback. */
@@ -77,7 +78,7 @@ set -- --gateway ${quote(setup.gatewayUrl)}${setup.gatewayFingerprint ? ` --fing
 printf '%s\\n' ${quote(message)}
 case "$(uname -s)/$(uname -m)" in
 ${cases.join("\n")}
-*) printf '%s\\n' 'Canopy: No worker binary for this platform. Choose Linux x64/arm64 or macOS arm64.' >&2; exit 1 ;;
+*) printf '%s\\n' 'Canopy: This release has no worker for this platform. Check the available downloads in GitHub Releases.' >&2; exit 1 ;;
 esac
 `;
 }

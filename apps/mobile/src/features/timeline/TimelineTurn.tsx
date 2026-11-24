@@ -15,6 +15,7 @@ import { QuoteItem } from "../quotes/QuoteAction";
 import { BodyRowView } from "./TimelineBodyRow";
 import { WorkRail } from "./WorkRail";
 import { TimelineDisclosure } from "./TimelineDisclosure";
+import { useTimelineDirectory } from "./directory";
 import { ThreadScrollItem, useThreadScrollTarget } from "../../ui/thread-scroll-items";
 import { ReplyMessageContext, ReplySuggestions, useTurnReplySuggestions } from "./ReplySuggestions";
 
@@ -42,6 +43,12 @@ const replyResults = (body: readonly BodyRow[], ended: boolean) =>
   body.filter(
     (row) => visibleResult(row) && (ended || row.kind !== "item" || row.node.item.content.case !== "imageGallery"),
   );
+
+const answerEnd = (body: readonly BodyRow[], at: number | undefined) => {
+  const row = at === undefined ? undefined : body[at];
+
+  return row?.kind === "item" ? row.completedAt : undefined;
+};
 
 /** Only seed the disclosure that contains the saved row; later toggles retain normal fold rules. */
 function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], context: TurnContext, target?: string) {
@@ -88,6 +95,7 @@ export function TimelineTurn({
 }) {
   const { workFold, values } = useDevicePreferences();
   const target = useThreadScrollTarget();
+  const directory = useTimelineDirectory();
   const replies = useTurnReplySuggestions(turn, entries);
 
   const [folds, setFolds] = useState<ReadonlyMap<number, WorkFoldChoice>>(() =>
@@ -117,12 +125,6 @@ export function TimelineTurn({
   const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
   const answerText = replies.answerText;
 
-  const answerEnd = (at: number | undefined) => {
-    const row = at === undefined ? undefined : body[at];
-
-    return row?.kind === "item" ? row.completedAt : undefined;
-  };
-
   return (
     <ReplyMessageContext.Provider value={replies.context}>
       <View style={{ gap: 12, paddingBottom: 12 }}>
@@ -150,11 +152,12 @@ export function TimelineTurn({
                   ? timestampMs(turn.startedAt)
                   : segment.inputs
                     ? undefined
-                    : answerEnd(segments[index - 1]?.answer),
-              endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(segment.answer),
+                    : answerEnd(body, segments[index - 1]?.answer),
+              endMs: index === segments.length - 1 ? timestampMs(turn.completedAt) : answerEnd(body, segment.answer),
               live: index === segments.length - 1 && segment.live,
             },
             context.tasks,
+            (id) => directory.thread(id)?.title,
           );
 
           return (

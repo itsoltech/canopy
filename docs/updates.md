@@ -1,7 +1,10 @@
 # Aktualizacje Canopy
 
-Status: opis zaimplementowanego kodu (2026-11-22), w tym raportowania startu i zamykania
-gatewaya oraz etapów przygotowania, pobierania i ponownego łączenia workera,
+Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
+
+Status: opis zaimplementowanego kodu (2026-11-24), w tym kompaktowego powiadomienia po
+aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
+pobierania i ponownego łączenia workera,
 przekazania nadzoru workera
 przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamkniętych wątków
 po powrocie workera, ograniczenia kanału Nightly
@@ -670,9 +673,12 @@ Nie ma możliwości zdalnego dodania kanału do procesu, który go jeszcze nie z
 ### What's new po aktualizacji
 
 Przy starcie klient zapamiętuje wersję uruchomionej aplikacji i ostatni zakres
-aktualizacji. Zmiana na wyższe SemVer pokazuje zamykaną kartę
-„Updated to …” z akcją „See what's new”; dialog nie otwiera się sam.
-Zamknięcie karty ani restart nie kasują zakresu From … to ….
+aktualizacji. Po przejściu na wyższą wersję SemVer w dolnym rogu pojawia się
+„Updated to …” z numerem wersji, akcją „View changes” i przyciskiem zamknięcia.
+Na wąskim ekranie aplikacja rezerwuje pod treścią miejsce na powiadomienie,
+żeby przyciski kompozytora pozostały dostępne.
+„View changes” otwiera notatki. Ostatni zakres From … to … pozostaje dostępny
+po zamknięciu powiadomienia i po restarcie.
 Pierwsza instalacja, nieznana poprzednia wersja i downgrade tylko ustawiają
 nową bazę, bez pokazywania historii. Buildy development nie zmieniają bazy.
 
@@ -982,7 +988,7 @@ Ten sam mirror zasila nową instalację: uwierzytelniony BFF wywołuje dodany
 `GatewayService.FetchWorkerInstall`, a publiczne `/install/worker/<os>/<arch>` przekazuje
 strumień binarki. `?sha256=1` zwraca hash z manifestu dokładnej wersji gatewaya. Nie zmienia
 to zamrożonego `UpdateService` ani nie wymaga credentialu jeszcze nieutworzonego workera.
-Dozwolone platformy instalatora: Linux x64/arm64 i macOS arm64. Brak wydania/mirrora
+Dozwolone platformy instalatora: Linux x64/arm64 i macOS x64/arm64. Brak wydania/mirrora
 kończy pobieranie błędem HTTP; kreator i SSH preferują manifest dokładnej wersji gatewaya,
 także prerelease `vX.Y.Z-nightly.N` i `vX.Y.Z-beta.N`. Brak publikacji uruchamia wybór
 najnowszego wydania kanału zgodnego z WorkerLink i UpdateService oraz z binarką docelowej platformy.

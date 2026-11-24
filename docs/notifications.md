@@ -1,4 +1,13 @@
-# Powiadomienia wątków i botów
+# Powiadomienia
+
+Aktualizacja (2026-11-24): web/desktop ma przełącznik powiadomień o odnowieniu
+wyczerpanego limitu Claude, z odczytów bezpośrednich i CLIProxyAPI.
+
+Aktualizacja (2026-11-24): ikona Canopy pokazuje licznik w Docku macOS,
+na pasku zadań Windows, w obsługiwanych launcherach Linuksa i na iOS.
+Launcher Androida oznacza ikonę zgodnie ze swoimi ustawieniami. Telefon usuwa
+także dostarczone powiadomienia o odczytanych wiadomościach botów oraz o
+rozstrzygniętych lub wygasłych kartach.
 
 Aktualizacja (2026-11-24): aplikacja iOS i Android usuwa z systemu powiadomienia
 o przeczytanych wynikach wątków i zamkniętych prośbach.
@@ -22,8 +31,8 @@ rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz więk
 statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
-Web i desktop pokazują alerty systemowe o wątkach i botach, gdy otwarte jest okno
-Canopy. Na telefonie push działa także poza otwartą aplikacją.
+Web i desktop pokazują alerty systemowe o wątkach, botach i limitach Claude,
+gdy otwarte jest okno Canopy. Na telefonie push działa także poza otwartą aplikacją.
 Kod: `apps/web/src/lib/features/notifications`, `apps/desktop/src/notifications.ts`,
 `apps/gateway/src/store/thread-notice.ts`, `packages/domain/src/notice-preview.ts`.
 
@@ -88,6 +97,17 @@ z zapisanej rozmowy.
   wiadomości nie cofa znanego stanu.
 - Wiadomość bota już przeczytana na innym urządzeniu (`unread_count = 0`) nie
   pokazuje alertu. Okno, które ją wyświetla, nadal gra dźwięk.
+- **Claude** powiadamia po świeżym odczycie, który potwierdza odnowienie
+  wcześniej wyczerpanego okna. Canopy musi widzieć wyczerpanie przed zgłoszonym
+  terminem resetu. Po terminie oczekuje późniejszego okna z dostępnym limitem
+  albo jawnego zera bez daty dla pustego okna. Start i ponowne połączenie
+  ustalają stan bazowy. Odczyty historyczne, sam upływ terminu i brak okna
+  nie wywołują alertu. Potwierdzenie przyjęte w ciągu 10 min od terminu wyświetla
+  `Claude usage limit reset` i nazwę okna. Kliknięcie systemowego alertu lub
+  `Open provider settings` w toaście otwiera Providers.
+  Bezpośrednie logowanie otrzymuje dane przy kolejnej obserwacji SDK,
+  CLIProxyAPI korzysta również z istniejących okresowych odczytów.
+  [Źródła odczytów](provider-accounts.md#limity-planu-i-dodatkowe-użycie)
 
 ## Toasty w aplikacji
 
@@ -141,6 +161,10 @@ Web Audio okna.
 Każde zdarzenie ma klucz wspólny dla kart, okien i komputerów, z identyfikatorem bez
 kwalifikatora komputera (`~node`): `thread:<id>:<zdarzenie>:<last_seq>:<pending>`,
 `bot:<id>:message:<seq>`, `bot:<id>:<approval|answer>:<id karty>`.
+Alert Claude używa klucza `claude:<okno>:<poprzedni reset>`, wspólnego dla
+odczytów bezpośrednich i z proxy. Równoczesny reset tego samego typu okna daje
+jeden alert. Toast i alert systemowy rezerwują klucze osobno, żeby karta w tle
+mogła wysłać alert systemowy, gdy karta z fokusem pokazuje toast.
 
 - Pierwsza karta bierze Web Lock `canopy:notice:<klucz>` z `ifAvailable` i trzyma
   go 15 s. To pokrywa niezsynchronizowane odpytywanie botów w innych kartach. Blokady
@@ -156,26 +180,50 @@ kwalifikatora komputera (`~node`): `thread:<id>:<zdarzenie>:<last_seq>:<pending>
 Ten sam wątek widziany na dwóch komputerach (dom i połączony) może dać alert na każdym
 z nich. To osobne urządzenia; na jednym komputerze zdarzenie pokazuje się raz.
 
+## Licznik na ikonie
+
+Desktop i iOS liczą po jednym na aktywny wątek z nieprzeczytanym wynikiem albo
+prośbą do użytkownika, każdą nieprzeczytaną wiadomość bota i po jednej otwartej
+karcie na aktywnego bota. Licznik uwzględnia włączone moduły oraz pomija subagentów,
+uśpione wątki i tury zatrzymane przez użytkownika. Znika przy zerze.
+
+Desktop uwzględnia połączone komputery z bieżącego widoku. Odczyt wyniku lub wiadomości
+i rozstrzygnięcie prośby aktualizują licznik na podstawie stanu z gatewaya,
+gdy Canopy ma otwarte okno aplikacji. Licznik działa także przy wyłączonych banerach
+i dźwiękach. Pasek zadań Windows pokazuje `99+` dla wyższych wartości.
+
+Na iOS licznik wymaga włączonych **System notifications** i zgody **Badges** w
+ustawieniach systemu. Obejmuje stan sparowanego gatewaya. Dostarczony push
+przekazuje w szyfrowanym podglądzie wartość z chwili wysyłki, także przy zamkniętej
+aplikacji. Po powrocie do Canopy licznik synchronizuje się z aktualnym odczytem i
+stanem próśb. Aktualizacja z push wymaga nowej wersji natywnego rozszerzenia iOS.
+
+Android wiąże oznaczenie ikony z dostarczonymi powiadomieniami w kanale **Canopy updates**.
+Launcher może wyświetlić liczbę albo kropkę. Po zsynchronizowaniu dostarczonego alertu
+z odczytem lub odpowiedzią telefon usuwa go, a launcher aktualizuje oznaczenie.
+
 ## Desktop
 
 Renderer wywołuje `canopyDesktop.showNotification({ key, title, body, path, sound })`
 (IPC `canopy:notification`) wyłącznie z autoryzowanej ramki aplikacji. Main sprawdza
 schemat: klucz, tytuł do 200 i treść do 600 znaków. Przyjmuje tylko ścieżkę
-`/threads/<id>` albo `/bots/<id>`. Pokazuje natywny `Notification` z nazwą aplikacji
+`/threads/<id>`, `/bots/<id>` lub `/settings/providers`. Pokazuje natywny `Notification` z nazwą aplikacji
 (`app.setName`), na Linuksie z ikoną aplikacji, a na macOS z ikoną paczki. Kliknięcie
 przywraca i fokusuje okno nadawcy, potem wysyła ścieżkę (`canopy:notification-click`),
 a renderer nawiguje. Uprawnienie `notifications` w `window-permissions.ts` zostaje
 rezerwą dla Notification API strony.
 
 Na macOS proces main odczytuje zgodę i prosi o nią przez `UNUserNotificationCenter`
-z paczki bieżącego kanału. Alerty o wątkach, botach i aktualizacjach wymagają zgody,
+z paczki bieżącego kanału. Alerty o wątkach, botach, limitach Claude i aktualizacjach wymagają zgody,
 więc zdarzenie w tle nie wywołuje okna systemowego.
 
 ## Ustawienia
 
 Settings → General → Notifications ([settings-map.md](settings-map.md)), osobno na
 urządzeniu (`localStorage`): **Thread notifications** i **Bot notifications** (Off,
-Notifications, Notifications with sound) oraz **In-app notifications**. Włączenie
+Notifications, Notifications with sound), **Claude usage limit resets** (domyślnie
+Off) oraz **In-app notifications**. Alerty Claude są ciche i respektują zgodę na
+powiadomienia systemowe oraz **In-app notifications** dla toastów. Włączenie
 alertów o wątkach lub botach wymaga zgody przeglądarki w webie albo systemu na macOS.
 Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy macOS nadal czeka na decyzję,
 wybór alertów wywołuje pytanie systemowe. Przy wcześniej zapisanym wyborze można
@@ -197,8 +245,9 @@ sparowany gateway, jeśli telefon ma do niego trasę.
 
 Po powrocie do aplikacji i przy zmianach wątków na pierwszym planie telefon
 porównuje identyfikatory dostarczonych powiadomień ze stanem odczytu na gatewayu.
-Usuwa z ekranu blokady i centrum powiadomień wyniki już przeczytane, także na
-innym urządzeniu, oraz prośby o zgodę i pytania po rozstrzygnięciu lub wygaśnięciu.
+Usuwa z ekranu blokady i centrum powiadomień przeczytane wyniki wątków i wiadomości
+botów, także odczytane na innym urządzeniu, oraz prośby o zgodę i pytania po
+rozstrzygnięciu lub wygaśnięciu.
 Nowsze nieprzeczytane wyniki i nadal otwarte prośby pozostają widoczne. Porównanie
 wymaga połączenia i obejmuje powiadomienia z ostatniej doby. Bez połączenia telefon
 sprawdza je po odzyskaniu trasy.
@@ -260,8 +309,9 @@ Aplikacja odnawia 30-dniową ważność rejestracji, gdy użytkownik do niej wra
 - `tests/integration/bots.test.ts`: `pending_approval` w `ListBots`, pusta lista innego
   właściciela, brak karty po odpowiedzi.
 - `tests/integration/mobile-push.test.ts`: trwałe zdarzenie wątku, zaszyfrowany podgląd
-  przez HTTPS, weryfikacja powiązania podglądu z identyfikatorem, izolacja urządzeń
-  i aktywacja relaya z testowym weryfikatorem atestacji.
+  i licznik iOS przez HTTPS, weryfikacja powiązania podglądu z identyfikatorem,
+  izolacja urządzeń, czyszczenie alertów botów oraz aktywacja relaya z testowym
+  weryfikatorem atestacji.
 - `apps/push-relay/src`: testy relaya przez TLS, walidacja przykładów App Attest
   i weryfikacja werdyktów Play Integrity z symulowaną odpowiedzią Google.
 - Ręcznie w Chromium: dwie karty, ta sama origin, alerty wątku i bota, oglądanie,

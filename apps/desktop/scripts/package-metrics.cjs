@@ -2,6 +2,7 @@ const { createHash } = require("node:crypto");
 const { closeSync, openSync, readSync, readdirSync, lstatSync } = require("node:fs");
 const { basename, join, relative } = require("node:path");
 const MiB = 1024 ** 2;
+const budgetsMiB = { "linux-x64": 550, "linux-arm64": 550, "darwin-arm64": 600, "darwin-x64": 600, "win32-x64": 650 };
 
 function files(directory) {
   const result = [];
@@ -90,7 +91,7 @@ function packageMetrics(application, resources, target) {
   }
 
   const total = Object.values(buckets).reduce((sum, bytes) => sum + bytes, 0);
-  const budget = { "linux-x64": 550, "linux-arm64": 550, "darwin-arm64": 600, "win32-x64": 650 }[target];
+  const budget = budgetsMiB[target];
 
   if (!budget) throw new Error(`No package size budget for ${target}`);
 

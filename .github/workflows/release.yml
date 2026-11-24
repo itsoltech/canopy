@@ -134,6 +134,7 @@ jobs:
       channel: ${{ steps.plan.outputs.channel }}
       tag: ${{ steps.plan.outputs.tag }}
       desktop_matrix: ${{ steps.matrix.outputs.value }}
+      mac_intel: ${{ steps.matrix.outputs.mac_intel }}
       image_apps: ${{ steps.image-apps.outputs.value }}
     steps:
       - uses: actions/checkout@v5
@@ -160,14 +161,21 @@ jobs:
         run: bun scripts/release-publication.ts "$EXPECTED_SHA" "$PLANNED_TAG"
       # Nightly skips the experimental targets unless the dispatch asks for them; beta and stable build all.
       - id: matrix
+        shell: bash
         env:
           CHANNEL: ${{ steps.plan.outputs.channel }}
           ALL_TARGETS: ${{ inputs.desktop_all_targets }}
         run: |
           targets='{"target":"linux-x64","runner":"ubuntu-24.04","experimental":false},{"target":"darwin-arm64","runner":"macos-15","packaging_runner":"macos-26","experimental":false},{"target":"windows-x64","runner":"windows-2025","experimental":false}'
+          # Recovery can package a source revision from before Canopy shipped for Intel.
+          mac_intel="$(git show "$EXPECTED_SHA:apps/desktop/package.json" | jq 'any(.build.mac.target[]; .target == "zip" and (.arch | index("x64") != null))')"
+          if [ "$mac_intel" = true ]; then
+            targets="$targets"',{"target":"darwin-x64","runner":"macos-15-intel","packaging_runner":"macos-26-intel","experimental":false}'
+          fi
           if [ "$CHANNEL" != nightly ] || [ "$ALL_TARGETS" = true ]; then
             targets="$targets"',{"target":"linux-arm64","runner":"ubuntu-24.04-arm","experimental":true}'
           fi
+          echo "mac_intel=$mac_intel" >> "$GITHUB_OUTPUT"
           echo "value={\"include\":[$targets]}" >> "$GITHUB_OUTPUT"
       - name: Select image targets in the release revision
         id: image-apps
@@ -661,6 +669,8 @@ jobs:
           echo "### Canopy $CANOPY_VERSION ($CANOPY_RELEASE_TAG): server and desktop" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/    /' release-assets/checksums.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Upload and verify all assets, then publish release
+        env:
+          CANOPY_RELEASE_MAC_INTEL: ${{ needs.plan.outputs.mac_intel }}
         run: GITHUB_SHA="$EXPECTED_SHA" bun scripts/release-upload.ts release-assets --publish
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3

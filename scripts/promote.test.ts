@@ -247,16 +247,7 @@ test("stable dry-run selects the exact recovered beta despite a later retry of t
 
       if (path.includes("/335/jobs?"))
         return {
-          jobs: [
-            ...["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].map((target) => ({
-              name: `smoke (${target}, fixture)`,
-              conclusion: "success",
-            })),
-            ...["checks / Typecheck, tests, builds", "release", "publish-desktop"].map((name) => ({
-              name,
-              conclusion: "success",
-            })),
-          ],
+          jobs: ["Verified CI", "release", "publish-desktop"].map((name) => ({ name, conclusion: "success" })),
         };
 
       return f.adapters.api(path, method, body);

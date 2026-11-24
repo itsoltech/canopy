@@ -55,6 +55,7 @@ export interface FeedInput {
   /** Steers not yet in the transcript (pending or accepted). */
   readonly steering: readonly ui.Steer[];
   readonly working: boolean;
+  readonly threadTitle?: (id: string) => string | undefined;
   /** A fork: the thread it was forked from, and the history it inherited. */
   readonly forkSourceId?: string | undefined;
   readonly inheritedEntries: readonly TimelineEntry[];
@@ -187,6 +188,7 @@ export class FeedBuilder {
               input.historyItemsHasMore ?? false,
             ),
             this.report,
+            input.threadTitle,
           );
 
           folded.forEach((fold, r) => {
@@ -274,6 +276,7 @@ function ownRows(
     (key) => input.openGroups?.has(key) ?? false,
     gaps,
     report,
+    input.threadTitle,
   ).map((fold): FeedRow =>
     fold.kind !== "row"
       ? { ...fold, history: false, last: false }

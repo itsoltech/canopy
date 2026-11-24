@@ -7,6 +7,8 @@ Claude, wybór odczytów kont i modeli CLIProxyAPI, wyrównanie tożsamości kon
 oraz odświeżanie powiązań proxy po zmianie lub usunięciu instancji w web/desktop.
 Codex ponawia krok przerwany przez zerwanie strumienia proxy w bieżącej turze.
 Aktualizacja (2026-11-24): web/desktop grupuje konta CLIProxyAPI w zakładce **Upstream accounts**.
+Okna limitu Claude niosą czas obserwacji upstream wykorzystywany przez
+[powiadomienia o odnowieniu](notifications.md#kiedy-powiadamiamy).
 Dostępność nightly/beta/stable wynika
 z promocji wydań ([release.md](release.md)).
 
@@ -221,6 +223,9 @@ jego wcześniejszego raportu. Przy równych lub brakujących datach wybieramy wi
 zużycie. Nowszy odczyt może obniżyć zużycie po resecie; nie bierzemy historycznego
 maksimum. Niepoprawny wpis modelu jest pomijany bez odrzucania konta. Czas pobrania
 listy i `checked_at` nie zastępują czasu obserwacji upstream.
+W odczytach Claude `ProviderUsageWindow.observed_at` przenosi czas wybranego
+pasywnego raportu lub początku aktywnego odczytu Anthropic. W starszych odczytach i
+przy braku daty pasywnego raportu pole pozostaje puste.
 
 Dla kont Claude OAuth z `auth_index` gateway dodatkowo wywołuje
 `POST <root>/v0/management/api-call`: stałe `GET https://api.anthropic.com/api/oauth/usage`,

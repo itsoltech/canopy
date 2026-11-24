@@ -216,6 +216,8 @@ export interface DesktopBridge {
     path: string;
     sound: boolean;
   }): Promise<boolean>;
+  /** Sets the app icon's notification count. Zero clears it. */
+  setNotificationBadge?: (count: number) => Promise<void>;
   /** macOS notification authorization for this app bundle. */
   notificationPermission?: DesktopNotificationPermission;
   /** The path of a clicked notification, after main has focused this window. */

@@ -30,9 +30,8 @@ if [ -z "$release_url" ]; then
   case "$origin" in http://*|https://*) ;; *) fail "Download this script from your Canopy web origin or supply --origin URL" ;; esac
 fi
 command -v curl >/dev/null 2>&1 || fail "Install curl first"
-case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) fail "Supported systems: Linux x64/arm64 and macOS arm64" ;; esac
+case "$(uname -s)" in Linux) os=linux ;; Darwin) os=darwin ;; *) fail "Run this installer on Linux or macOS." ;; esac
 case "$(uname -m)" in x86_64|amd64) arch=x64 ;; aarch64|arm64) arch=arm64 ;; *) fail "Unsupported CPU architecture" ;; esac
-[ "$os/$arch" != darwin/x64 ] || fail "macOS requires Apple Silicon (arm64)"
 config="$HOME/.config/canopy/worker.json"
 bin_dir="$HOME/.local/share/canopy/bin"
 binary="$bin_dir/canopy-worker"

@@ -32,6 +32,7 @@ internal object PushPreviewNotifications {
       manager.createNotificationChannel(
         NotificationChannel(CHANNEL, "Canopy updates", NotificationManager.IMPORTANCE_DEFAULT).apply {
           lockscreenVisibility = NotificationCompat.VISIBILITY_PRIVATE
+          setShowBadge(true)
         }
       )
     }
@@ -45,6 +46,7 @@ internal object PushPreviewNotifications {
     val app = context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
     val icon = app.metaData?.getInt(ExpoNotificationBuilder.META_DATA_DEFAULT_ICON_KEY, app.icon) ?: app.icon
     val notification = builder(context, preview ?: generic, icon)
+      .setNumber(1)
       .setOnlyAlertOnce(true)
       .setAutoCancel(true)
       .setDefaults(NotificationCompat.DEFAULT_SOUND)

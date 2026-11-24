@@ -34,7 +34,7 @@ import { binaryLicenseSuffix } from "./release-manifest.ts";
 import { noAgentClis } from "./agent-clis.ts";
 import { packWeb, webBuildVersion } from "../apps/gateway/src/web/archive.ts";
 
-export const TARGETS = ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"] as const;
+export const TARGETS = ["linux-x64", "linux-arm64", "darwin-arm64", "darwin-x64", "windows-x64"] as const;
 
 export type Target = (typeof TARGETS)[number];
 

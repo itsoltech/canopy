@@ -12,6 +12,7 @@ export const deviceChoices = {
   attachmentMarkdown: ["rendered", "source"],
   threadNotifications: ["off", "notifications", "sound"],
   botNotifications: ["off", "notifications", "sound"],
+  claudeLimitResetNotifications: ["off", "on"],
   inAppNotifications: ["on", "off"],
   showFinishedSubagents: ["off", "on"],
   subagentsExpanded: ["off", "on"],
@@ -44,6 +45,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   attachmentMarkdown: "rendered",
   threadNotifications: "off",
   botNotifications: "off",
+  claudeLimitResetNotifications: "off",
   inAppNotifications: "on",
   showFinishedSubagents: "off",
   subagentsExpanded: "off",
@@ -190,6 +192,7 @@ export const devicePreferences = new DevicePreferences();
 export const generalDeviceKeys = [
   "threadNotifications",
   "botNotifications",
+  "claudeLimitResetNotifications",
   "inAppNotifications",
   "timeFormat",
 ] as const;

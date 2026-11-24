@@ -43,14 +43,27 @@
 </script>
 
 {#if notes.notice}
-  <aside class="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-end px-4" aria-label="App updated">
+  <aside
+    class="pointer-events-none z-40 flex shrink-0 justify-end bg-surface pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] xl:fixed xl:inset-x-0 xl:bottom-0 xl:bg-transparent"
+    aria-label="App updated"
+  >
     <div
       transition:rise
-      class="pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-xl border border-divider bg-surface p-3 shadow-lg dark:shadow-none"
+      class="pointer-events-auto flex max-w-sm min-w-0 items-start gap-3 rounded-lg border border-divider bg-surface py-1.5 pr-2 pl-3.5 shadow-sm dark:shadow-none pointer-coarse:py-2"
     >
-      <div class="grid min-w-0 flex-1 gap-2">
-        <p class="break-anywhere text-sm/5 font-medium tabular-nums" role="status">Updated to {notes.current}</p>
-        <div><Button size="sm" onclick={() => notes.show()}>See what's new</Button></div>
+      <div class="flex min-w-0 flex-wrap items-center gap-x-3">
+        <p class="min-w-0 text-sm/5 wrap-anywhere text-muted" role="status">
+          Updated to <span class="inline-block max-w-full align-bottom font-medium text-ink tabular-nums"
+            >{notes.current}</span
+          >
+        </p>
+        <Button
+          variant="text"
+          size="sm"
+          class="underline decoration-current/35 underline-offset-2 hover:decoration-current"
+          aria-haspopup="dialog"
+          onclick={() => notes.show()}>View changes</Button
+        >
       </div>
       <IconButton icon="x-mark" label="Dismiss update notice" size="sm" onclick={() => (notes.notice = false)} />
     </div>

@@ -1,5 +1,10 @@
 # Canopy Desktop
 
+Status (2026-11-24): pipeline buduje osobne instalatory macOS dla Intela (x64) i Apple Silicon (arm64).
+
+Status (2026-11-24): ikona pokazuje licznik w Docku macOS, na pasku zadań Windows
+i w obsługiwanych launcherach Linuksa. [Licznik na ikonie](notifications.md#licznik-na-ikonie)
+
 Status (2026-11-24): **Settings → Accessibility** udostępnia preferencje fokusu
 i czytelności dla tego profilu Desktop w trybie lokalnym i zdalnym.
 [Ustawienia dostępności](appearance.md#dostępność-w-desktopie)
@@ -29,7 +34,7 @@ Na Windows i Linuksie otwarte Ustawienia pozwalają przeciągać okno za jego g�
 Na macOS Finder odczytuje nazwę aplikacji dla danego kanału z `InfoPlist.strings`.
 Finder i Dock renderują ikony Stable, Beta i Nightly z katalogu zasobów skompilowanego
 z projektów Icon Composer. Build Dev używa własnego ICNS z małymi reprezentacjami 1× i 2×.
-Runner `macos-26` kompiluje ikony dla paczek wydania i testu natywnego CI.
+Runnery `macos-26` i `macos-26-intel` kompilują ikony dla paczek wydania i testu natywnego CI.
 Desktop w trybie lokalnym aktywuje relay Canopy po weryfikacji sparowanego
 telefonu. Od 2026-11-23 oba tryby Desktopu pozwalają wybrać relay Canopy lub
 skonfigurować własny na bieżącym gatewayu przez **Settings → Network access**.
@@ -70,7 +75,7 @@ przełączenie na Remote oraz osobne dołączenie do wspólnego serwera.
 Dostępność w nightly/beta/stable określają [zasady wydań](release.md) i GitHub Releases.
 
 Implementacja: `apps/desktop`. Cele wydania na każdym kanale: **Linux x64,
-macOS arm64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
+macOS arm64/x64 i Windows x64**. Linux arm64 pozostaje eksperymentalny.
 Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji.
 
 ## Dzienny ping użycia
@@ -760,9 +765,10 @@ Pakowanie wydań na macOS wymaga aktywnego Xcode 26 lub nowszego, aby skompilowa
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
 | macOS arm64 | `macos-26` (pakowanie), `macos-15` (build runtime wydania i smoke w Push CI) | `darwin-arm64` | dmg, zip | niewykonana |
+| macOS x64 | `macos-26-intel` (pakowanie), `macos-15-intel` (build runtime wydania i smoke w Push CI) | `darwin-x64` | dmg, zip | testy natywne w CI |
 | Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | CI po pushu instaluje NSIS i sprawdza sidecary |
 
-Linux x64, macOS arm64 i Windows x64 są pełnymi celami każdego kanału: nightly,
+Linux x64, macOS arm64/x64 i Windows x64 są pełnymi celami każdego kanału: nightly,
 beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
 i stable budują go zawsze, nightly tylko z `desktop_all_targets: true`.
 PR-y ze zmianami powłoki Electron lub wspólnego interfejsu web uruchamiają
@@ -849,7 +855,7 @@ Bez jawnej migracji i backupu użyj poprzedniej wersji aplikacji.
 Przy przygotowaniu odtwarzamy symlinki z `pg-symlinks.json`, zastępując także
 zduplikowane zwykłe pliki. Usuwamy wyłącznie nagłówki i statyczne archiwa `.a`;
 SQL, rozszerzenia, locale, biblioteki dynamiczne i licencje zostają. Na macOS
-wybieramy slice arm64 plików universal bez wymagania Xcode/lipo u użytkownika,
+wybieramy slice zgodny z architekturą aplikacji z plików universal bez wymagania Xcode/lipo u użytkownika,
 podpisujemy Mach-O ad-hoc i sprawdzamy `codesign --verify --strict`. Przed atomowym
 opublikowaniem wszystkie trzy narzędzia PG muszą wykonać `--version`.
 
@@ -879,10 +885,10 @@ testowego kontrolera. Produkcyjne środowisko i konfiguracja UI nie mają takieg
 ### Limity rozmiaru pakietu
 
 Guard liczy długości plików bez narzutu bloków filesystemu. Limity wynoszą
-550 MiB dla Linux, 600 MiB dla macOS arm64 i 650 MiB dla Windows x64.
+550 MiB dla Linux, 600 MiB dla macOS (arm64 i x64) i 650 MiB dla Windows x64.
 `package-sizes-<target>.json` powstaje jako artefakt CI, poza źródłami.
 Guard odrzuca też app node_modules, asar.unpacked, dołączoną bazę/CLI, nieoczekiwane
-zależności runtime, kopie Bun, identyczne pliki ≥8 MiB i nie-arm64 Mach-O na macOS.
+zależności runtime, kopie Bun, identyczne pliki ≥8 MiB i pliki Mach-O o architekturze innej niż docelowa na macOS.
 Wspólny plugin kompilatora blokuje import pakietów CLI także w binarkach i Dockerze.
 
 ## Jedna instalacja i kanały

@@ -10,8 +10,7 @@ const Notice = Schema.Struct({
   key: Schema.String.check(Schema.isPattern(/^[a-z]+:[a-zA-Z0-9~:-]{1,200}$/)),
   title: Schema.String.check(Schema.isMaxLength(200)),
   body: Schema.String.check(Schema.isMaxLength(600)),
-  // Only a thread or a bot chat: a notification never navigates anywhere else.
-  path: Schema.String.check(Schema.isPattern(/^\/(?:threads|bots)\/[a-zA-Z0-9~-]{1,100}$/)),
+  path: Schema.String.check(Schema.isPattern(/^\/(?:(?:threads|bots)\/[a-zA-Z0-9~-]{1,100}|settings\/providers)$/)),
   sound: Schema.Boolean,
 });
 

@@ -71,6 +71,7 @@ const bridge: DesktopBridge = {
   },
   platform: process.platform,
   showNotification: (notice) => ipcRenderer.invoke("canopy:notification", notice),
+  setNotificationBadge: (count) => ipcRenderer.invoke("canopy:notification-badge", count),
   ...(process.platform === "darwin" && {
     notificationPermission: {
       status: () => ipcRenderer.invoke("canopy:notification-permission"),
