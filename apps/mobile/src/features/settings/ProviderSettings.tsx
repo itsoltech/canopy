@@ -12,6 +12,7 @@ import { useWorkerRecordOptions } from "../computers/worker-options";
 import { AddProvider } from "./AddProvider";
 import { InstanceDetail } from "../providers/InstanceDetail";
 import { InstanceRow } from "../providers/InstanceRow";
+import { ProviderProxyLimits } from "../providers/ProviderProxyLimits";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { SettingChoice, SettingsGroup } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
@@ -170,6 +171,7 @@ export function ProviderSettings() {
 
   return (
     <ResourceState resource={resource}>
+      <ProviderProxyLimits now={now} />
       <SettingChoice
         title="Applying settings on"
         value={scope}

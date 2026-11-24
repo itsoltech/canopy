@@ -53,12 +53,20 @@
 </script>
 
 <li class={["grid min-w-0 gap-1.5 py-2", !compact && "px-3"]}>
-  <div class="flex min-w-0 items-center gap-2">
+  <div class={["flex min-w-0 items-center gap-2", compact && "flex-wrap gap-y-1"]}>
     {@render providerMark()}
+    {#if compact && mark}<span class="shrink-0 text-base/6 font-medium sm:text-sm/6"
+        >{proxyProviderName(account.provider)}</span
+      >{/if}
     {#if !proxyId || !onread}<div class="max-w-24 shrink-0 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
         {plan ?? "Unknown plan"}{!weight.unknown ? ` · ×${weight.units}` : ""}
       </div>{/if}
-    <div class="flex min-w-0 flex-1 items-center text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white">
+    <div
+      class={[
+        "flex min-w-0 items-center text-base/6 text-zinc-950 sm:text-sm/6 dark:text-white",
+        compact ? "flex-[1_1_6rem]" : "flex-1",
+      ]}
+    >
       {#if account.label}<Sensitive value={account.label} label="Account identity" truncate />{:else}Unnamed account{/if}
     </div>
     {#if !compact || account.status !== "active"}<Badge tone={look.tone} compact>{look.label}</Badge>{/if}
@@ -77,8 +85,11 @@
 </li>
 
 {#snippet providerMark()}
-  {#if mark}<ProviderIcon provider={mark} label={proxyProviderName(account.provider)} class="shrink-0" />{:else}<span
-      class="max-w-24 shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+  {#if mark}<ProviderIcon
+      provider={mark}
+      label={compact ? undefined : proxyProviderName(account.provider)}
+      class="shrink-0"
+    />{:else}<span class="max-w-24 shrink-0 truncate text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
       >{proxyProviderName(account.provider)}</span
     >{/if}
 {/snippet}

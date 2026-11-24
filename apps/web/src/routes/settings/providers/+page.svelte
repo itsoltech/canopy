@@ -11,6 +11,8 @@
   import { ProvidersState } from "#lib/features/providers/providers-state.svelte.ts";
   import ScopeBar from "#lib/features/providers/ScopeBar.svelte";
   import ProviderUpdates from "#lib/features/providers/ProviderUpdates.svelte";
+  import ProxyLimits from "#lib/features/providers/ProxyLimits.svelte";
+  import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -33,6 +35,7 @@
   const records = workerRecords(overview);
   const route = useSettingsRoute();
   const catalog = useModelCatalog();
+  const proxies = sharedProxies();
 
   // svelte-ignore state_referenced_locally (seeded once; the page keeps it current itself)
   const providers = new ProvidersState({
@@ -191,6 +194,7 @@
       >{worker.name} is offline. Changes are saved and reach it when it connects.</Alert
     >{/if}
 
+  <ProxyLimits proxies={proxies.data?.proxies ?? []} class={[pane === "detail" && "max-md:hidden"]} />
   <div class="grid grid-cols-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)] md:items-start">
     <nav aria-label="Provider instances" class={["md:sticky md:top-0", pane === "detail" && "max-md:hidden"]}>
       <InsetList>

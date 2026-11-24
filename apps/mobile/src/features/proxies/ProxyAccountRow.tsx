@@ -17,8 +17,8 @@ const severity = (window: ui.ProxyAccount["windows"][number]) => (window.reached
 
 /**
  * One upstream account of a proxy (web: ProxyAccountRow): provider mark, plan and its weight, the masked account,
- * status badge, cooldown end, the masked last message and the limits the proxy last saw. Compact (the usage
- * sheet) sorts the most used limit first and shows the badge only for a status other than Active.
+ * status badge, cooldown end, the masked last message and the limits the proxy last saw. The compact
+ * provider settings row names the provider, puts the most used limit first and hides the Active badge.
  */
 export function ProxyAccountRow({
   account,
@@ -55,13 +55,16 @@ export function ProxyAccountRow({
             {proxyProviderName(account.provider)}
           </Text>
         )}
-        {!proxyId || !onRead ? (
-          <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.muted, maxWidth: 96, flexShrink: 0 }]}>
-            {plan ?? "Unknown plan"}
-            {weight.unknown ? "" : ` · ×${weight.units}`}
-          </Text>
-        ) : null}
         <View style={{ flex: 1, minWidth: 0 }}>
+          {!proxyId || !onRead ? (
+            <Text style={[styles.overlayMeta, { color: c.muted }]}>
+              {compact && mark ? (
+                <Text style={[styles.overlayHeading, { color: c.text }]}>{proxyProviderName(account.provider)} · </Text>
+              ) : null}
+              {plan ?? "Unknown plan"}
+              {weight.unknown ? "" : ` · ×${weight.units}`}
+            </Text>
+          ) : null}
           {account.label ? (
             <Sensitive
               value={account.label}

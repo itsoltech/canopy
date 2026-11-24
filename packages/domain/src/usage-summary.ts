@@ -1,7 +1,7 @@
 import { Provider, type ProviderUsageWindow, type ui } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { activeUsageWindows, usageReset, usageWindowName } from "./provider-usage.ts";
-import { proxyCapacityGroups, type CapacitySegment } from "./proxy-capacity.ts";
+import { proxyCapacityGroups, supportedProxyAccounts, type CapacitySegment } from "./proxy-capacity.ts";
 import { usageTone, type SidebarUsageAccount, type UsageGlance, type UsageTone } from "./sidebar-usage.ts";
 
 /** One limit window of a provider row: the lowest reading of all its accounts, weighted for proxies. */
@@ -78,12 +78,19 @@ function add(
   });
 }
 
-const proxyAccounts = (proxies: readonly ui.Proxy[]) =>
-  proxies.flatMap((proxy) =>
-    proxy.kind === "cliproxyapi" && proxy.usedBy.length && proxy.accounts?.state === "ok"
-      ? proxy.accounts.accounts
-      : [],
-  );
+const proxyAccounts = (proxy: ui.Proxy) =>
+  proxy.kind === "cliproxyapi" && proxy.usedBy.length && proxy.accounts?.state === "ok" ? proxy.accounts.accounts : [];
+
+/** Current account readings on the Providers page, grouped by their source. */
+export function usageProxyLimits(proxies: readonly ui.Proxy[], now = Date.now()) {
+  return proxies.flatMap((proxy) => {
+    const accounts = supportedProxyAccounts(proxyAccounts(proxy)).filter(
+      (account) => activeUsageWindows(account, now).length,
+    );
+
+    return accounts.length ? [{ proxy, accounts }] : [];
+  });
+}
 
 /**
  * How much each provider has left, in one row: weighted proxy capacity (`proxy-capacity`) and direct instance
@@ -94,7 +101,7 @@ export function usageSummary(
   proxies: readonly ui.Proxy[],
   now = Date.now(),
 ): UsageSummaryRow[] {
-  const groups = proxyCapacityGroups(proxyAccounts(proxies), now);
+  const groups = proxyCapacityGroups(proxies.flatMap(proxyAccounts), now);
 
   return providers.flatMap(({ provider, mark, name }) => {
     const own = direct.filter((account) => account.provider === provider);

@@ -9,7 +9,7 @@ import {
   ui,
 } from "@canopy/contracts";
 import { sidebarUsageAccounts, sidebarUsageGlance, usageTone } from "./sidebar-usage.ts";
-import { usageSummary, usageSummaryGlance, usageSummaryNotes } from "./usage-summary.ts";
+import { usageProxyLimits, usageSummary, usageSummaryGlance, usageSummaryNotes } from "./usage-summary.ts";
 
 const now = 1_800_000_000_000;
 const future = timestampFromMs(now + 3_600_000);
@@ -172,6 +172,10 @@ describe("sidebar usage overview projection", () => {
     ];
 
     const rows = usageSummary([], proxies, now);
+    expect(usageProxyLimits(proxies, now)).toMatchObject([
+      { proxy: { id: "a" }, accounts: [{ provider: "claude" }, { provider: "claude" }] },
+    ]);
+    expect(usageProxyLimits(proxies, now + 3_600_000)).toEqual([]);
 
     // Max 5x (5 units, 60% left) + an unknown plan (1 unit, 100% left) = 66.7% weekly; five-hour binds at 5%.
     expect(rows).toHaveLength(1);
