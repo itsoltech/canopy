@@ -172,11 +172,10 @@ const owners = CLIS.flatMap((spec) =>
     ? [
         { spec, owner: spec.name, tool: spec.name },
         { spec, owner: `npm-${spec.npm.slice(1).replaceAll("/", "-")}`, tool: `npm:${spec.npm}` },
+        ...(spec.name === "claude" ? [{ spec, owner: "claude-code", tool: "claude-code" }] : []),
       ]
     : [],
 );
-
-owners.push({ spec: claude, owner: "claude-code", tool: "claude-code" });
 
 describe("mise global agent CLIs", () => {
   test.each(owners)(
