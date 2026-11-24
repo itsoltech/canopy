@@ -429,9 +429,10 @@ Import w trybie **Use CLI home** zachowuje historię z możliwością kontynuacj
 w nowym wątku. Natywne kopie z wcześniejszych importów pozostają w katalogu prywatnym. Dla takich
 wątków należy wybrać **Isolated**, aby kontynuować pracę na zaimportowanej kopii.
 
-Bot uruchamia Codexa z prywatnym `CODEX_HOME` rozmowy. Na Windowsie, gdy ścieżka
-pliku pomocniczego SQLite osiąga limit Win32, worker ustawia krótszy
-[`sqlite_home` rozmowy i instancji](bots-harness.md#sesja-i-kontekst).
+Bot uruchamia Codexa z prywatnym `CODEX_HOME` rozmowy. Na Windowsie, gdy domyślna
+ścieżka pliku pomocniczego SQLite osiąga limit Win32, worker podaje krótszy
+[katalog SQLite rozmowy i instancji](bots-harness.md#sesja-i-kontekst) jako
+wartość domyślną środowiska Codexa.
 Worker pobiera obsługiwane poświadczenia z magazynu wybranej instancji
 przez lokalne RPC i przekazuje je do
 pamięci procesu tury po sprawdzeniu efektywnych adresów docelowych obu procesów

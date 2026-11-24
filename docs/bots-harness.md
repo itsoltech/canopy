@@ -191,11 +191,13 @@ Zmiana izolacji unieważnia cache sesji, żeby odbudowa usunęła wcześniejszy
 kontekst skilli z transkryptu harnessu. Wątki zachowują swoje skille i instrukcje.
 
 Na Windowsie Codex potrzebuje miejsca na pliki pomocnicze SQLite, w tym
-`thread_history_1.sqlite-journal`. Gdy ścieżka tego pliku osiąga limit Win32,
-worker ustawia `sqlite_home` w prywatnym `<data_dir>/bdb`. Podkatalog wyznacza
-skrót identyfikatorów bota, rozmowy i instancji. Bazy w `CODEX_HOME` pozostają
-domyślne na pozostałych systemach oraz dla krótkich ścieżek bez wcześniejszej
-migracji.
+`thread_history_1.sqlite-journal`. Gdy domyślna ścieżka tego pliku osiąga limit
+Win32, worker podaje prywatny podkatalog `<data_dir>/bdb` przez
+`CODEX_SQLITE_HOME`. Podkatalog wyznacza skrót identyfikatorów bota, rozmowy
+i instancji. Jawne `CODEX_SQLITE_HOME` workera lub instancji oraz `sqlite_home`
+w konfiguracji bota zachowują dotychczasowe działanie. Codex stosuje własne
+reguły pierwszeństwa konfiguracji. Bazy w `CODEX_HOME` pozostają domyślne na
+pozostałych systemach oraz dla krótkich ścieżek bez wcześniejszej migracji.
 
 Przy pierwszym uruchomieniu w krótszej lokalizacji worker odczytuje istniejące bazy
 stanu, historii, celów, pamięci i kolejki jako spójne migawki SQLite, także z

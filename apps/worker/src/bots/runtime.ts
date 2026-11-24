@@ -59,6 +59,7 @@ function sessionOptions(
     dataDir: ctx.state.options.dataDir,
     sourceHome,
     ...(provider === "codex" && {
+      codexProfileEnv: profile.env,
       protectedCodexHomes: config.profiles.flatMap(({ config: other }) => {
         if (!providersOf(other).includes("codex")) return [];
         const shadow = instanceShadowHome(ctx.state.options.dataDir, "codex", other.id, other.runtime);

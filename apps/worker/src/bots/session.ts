@@ -7,6 +7,7 @@ import { prepareClaudeHome } from "../providers/claude/home.ts";
 import { deviceCodexHome } from "../providers/codex/home.ts";
 import { cleanLegacyCodexBotLogin } from "../providers/codex/legacy-login.ts";
 import { providerHomeProblem } from "../providers/home-paths.ts";
+import type { Env } from "../providers/profiles.ts";
 import { prepareBotCodexSqliteHome } from "./codex-sqlite-home.ts";
 import { BotWorkspace } from "./workspace.ts";
 
@@ -42,6 +43,7 @@ export function botSession(
     linkLogin: boolean;
     secureStorageDir?: string;
     protectedCodexHomes?: readonly string[];
+    codexProfileEnv?: Env;
   },
 ) {
   if (!ID.test(input.botId) || !ID.test(input.turnId) || (input.conversationId && !ID.test(input.conversationId)))
@@ -114,6 +116,7 @@ export function botSession(
         home,
         [input.botId.toLowerCase(), input.conversationId.toLowerCase(), instance],
         protectedHomes,
+        { ...process.env, ...options.codexProfileEnv },
       );
   }
 

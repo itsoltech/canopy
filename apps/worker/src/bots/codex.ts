@@ -12,6 +12,7 @@ import { isolatedHomeEnvironment } from "../providers/home.ts";
 import { verifyCodexBotTier } from "./codex-service-tier.ts";
 import { codexBotEvents } from "./codex-events.ts";
 import { codexBotAuth } from "./codex-auth.ts";
+import { CODEX_SQLITE_HOME, hasExplicitCodexSqliteHome } from "./codex-sqlite-home.ts";
 
 async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLaunch> {
   const { input, session } = ctx;
@@ -29,10 +30,10 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
 
   const env: NodeJS.ProcessEnv = { ...launch.env, ...isolatedHomeEnvironment(session.home, launch.env) };
 
-  if (session.codexSqliteHome !== undefined) {
-    for (const key of Object.keys(env)) if (key.toUpperCase() === "CODEX_SQLITE_HOME") delete env[key];
-    // The model catalog probe does not inherit app-server arguments.
-    env["CODEX_SQLITE_HOME"] = session.codexSqliteHome;
+  if (session.codexSqliteHome && session.codexSqliteHome !== session.home && !hasExplicitCodexSqliteHome(env)) {
+    for (const key of Object.keys(env)) if (key.toUpperCase() === CODEX_SQLITE_HOME) delete env[key];
+    // Codex's explicit config takes precedence over its environment fallback.
+    env[CODEX_SQLITE_HOME] = session.codexSqliteHome;
   }
 
   if (ctx.profile.kind === "native" && session.linkLogin) {
@@ -50,9 +51,6 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
     ...base,
     command: [
       ...base.command,
-      ...(session.codexSqliteHome && session.codexSqliteHome !== session.home
-        ? ["-c", `sqlite_home=${JSON.stringify(session.codexSqliteHome)}`]
-        : []),
       ...codexTextOverrides(catalog),
       "-c",
       `web_search=${JSON.stringify(input.webAccess ? "live" : "disabled")}`,

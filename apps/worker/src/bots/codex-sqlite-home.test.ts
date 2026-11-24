@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Provider } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
@@ -9,7 +9,7 @@ import { botSessionInstanceKey } from "./session.ts";
 
 const temp = tempDirs();
 
-test("compacting a Windows Codex database preserves committed WAL rows and keeps the first snapshot", () => {
+function fixture() {
   const root = temp("canopy-bot-sqlite-");
   // Match the failure where the rollback journal crosses MAX_PATH while the legacy database still fits.
   const home = join(root, "legacy".padEnd(Math.max(6, 229 - root.length), "x"));
@@ -23,6 +23,11 @@ test("compacting a Windows Codex database preserves committed WAL rows and keeps
     botSessionInstanceKey(Provider.CODEX, "fixture"),
   ] as const;
 
+  return { root, home, identity };
+}
+
+test("compacting a Windows Codex database preserves committed WAL rows and keeps the first snapshot", () => {
+  const { root, home, identity } = fixture();
   const legacyPath = join(home, "state_5.sqlite");
   const sentinel = "FIXTURE_COMMITTED_WAL_ROW";
   const credential = "FIXTURE_PROFILE_CREDENTIAL";
@@ -52,4 +57,36 @@ test("compacting a Windows Codex database preserves committed WAL rows and keeps
   using reopened = new Database(snapshotPath, { readonly: true });
   expect(reopened.query("SELECT id FROM threads").values()).toEqual([[sentinel]]);
   expect(legacy.query("SELECT id FROM threads ORDER BY id").values()).toEqual([[sentinel], ["second legacy row"]]);
+});
+
+test("explicit Codex SQLite configuration leaves both database locations alone", () => {
+  const { root, home, identity } = fixture();
+  const external = temp("canopy-bot-explicit-sqlite-");
+  const state = "FIXTURE_EXTERNAL_SQLITE_STATE";
+  const externalFile = join(external, "state_5.sqlite");
+  writeFileSync(externalFile, state);
+  // Attempting to open this file would fail. Explicit configuration skips the default migration entirely.
+  writeFileSync(join(home, "state_5.sqlite"), "FIXTURE_UNAVAILABLE_DEFAULT_DATABASE");
+
+  for (const env of [{ CODEX_SQLITE_HOME: external }, { codex_sqlite_home: external }]) {
+    expect(prepareBotCodexSqliteHome(root, home, identity, [], env)).toBe(home);
+  }
+
+  writeFileSync(join(home, "config.toml"), `"sqlite_home" = ${JSON.stringify(external)}`);
+  expect(prepareBotCodexSqliteHome(root, home, identity)).toBe(home);
+  expect(existsSync(join(root, "bdb"))).toBe(false);
+  expect(readFileSync(externalFile, "utf8")).toBe(state);
+});
+
+test("compact storage checks protected path overlap without requiring an unrelated profile directory", () => {
+  const { root, home, identity } = fixture();
+  const unrelated = join(root, "unrelated-provider-home");
+  writeFileSync(unrelated, "FIXTURE_UNAVAILABLE_PROFILE");
+
+  const compact = prepareBotCodexSqliteHome(root, home, identity, [unrelated]);
+  const alias = join(root, "provider-home-alias");
+  symlinkSync(compact, alias, "junction");
+
+  expect(compact).not.toBe(home);
+  expect(() => prepareBotCodexSqliteHome(root, home, identity, [alias])).toThrow("separate");
 });

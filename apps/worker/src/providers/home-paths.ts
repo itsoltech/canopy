@@ -34,19 +34,32 @@ export function providerHomeProblem(
   return undefined;
 }
 
-/** Both the native CLI and the worker manage files below their respective roots. */
-export function codexCliHomeProblem(privateHome: string, cliHome: string, deviceHome: string): string | undefined {
+/** Check overlap even when a protected path is configured for a different, unavailable instance. */
+export function codexHomeOverlapProblem(privateHome: string, protectedHomes: readonly string[]): string | undefined {
   try {
     const target = canonicalHome(privateHome);
     const nested = (path: string) => path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 
-    for (const source of new Set([cliHome, deviceHome])) {
+    for (const source of new Set(protectedHomes)) {
       const root = canonicalHome(source);
 
       if (nested(relative(target, root)) || nested(relative(root, target)))
         return "Choose separate Codex CLI and private home directories outside each other.";
     }
+  } catch {
+    return "Cannot inspect the provider home. Check its path and directory permissions.";
+  }
 
+  return undefined;
+}
+
+/** Both the native CLI and the worker manage files below their respective roots. */
+export function codexCliHomeProblem(privateHome: string, cliHome: string, deviceHome: string): string | undefined {
+  const problem = codexHomeOverlapProblem(privateHome, [cliHome, deviceHome]);
+
+  if (problem) return problem;
+
+  try {
     const source = statSync(cliHome, { throwIfNoEntry: false });
 
     if (source && !source.isDirectory()) return "The Codex CLI home must be a directory.";

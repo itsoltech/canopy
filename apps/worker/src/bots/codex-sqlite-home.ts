@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   openSync,
+  readFileSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -14,12 +15,36 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep, toNamespacedPath } from "node:path";
 import { pathToFileURL } from "node:url";
-import { codexCliHomeProblem } from "../providers/home-paths.ts";
+import { codexHomeOverlapProblem } from "../providers/home-paths.ts";
+import type { Env } from "../providers/profiles.ts";
 
 const MAX_PATH = 260;
+export const CODEX_SQLITE_HOME = "CODEX_SQLITE_HOME";
 const historyJournal = "thread_history_1.sqlite-journal";
 const stateDatabase = /^(?:state|thread_history|goals|memories(?:_v2)?|queue)_[0-9]+\.sqlite$/i;
 const sqliteFile = /\.sqlite(?:$|-(?:wal|shm|journal)$)/i;
+
+export function hasExplicitCodexSqliteHome(env: Env): boolean {
+  return Object.entries(env).some(([key, value]) => key.toUpperCase() === CODEX_SQLITE_HOME && Boolean(value?.trim()));
+}
+
+function usesDefaultSqliteHome(home: string, env: Env): boolean {
+  if (hasExplicitCodexSqliteHome(env)) return false;
+  const config = toNamespacedPath(join(home, "config.toml"));
+
+  try {
+    const info = lstatSync(config, { throwIfNoEntry: false });
+
+    if (!info) return true;
+
+    return (
+      info.isFile() && info.nlink === 1 && !Object.hasOwn(Bun.TOML.parse(readFileSync(config, "utf8")), "sqlite_home")
+    );
+  } catch {
+    // Let Codex handle its configuration. A read or parse failure does not establish default storage.
+    return false;
+  }
+}
 
 function directory(path: string): boolean {
   const info = lstatSync(toNamespacedPath(path), { throwIfNoEntry: false });
@@ -76,7 +101,9 @@ export function prepareBotCodexSqliteHome(
   home: string,
   identity: readonly [botId: string, conversationId: string, instance: string],
   protectedHomes: readonly string[] = [],
+  env: Env = {},
 ): string {
+  if (!usesDefaultSqliteHome(home, env)) return home;
   const data = realpathSync(dataDir);
   const canonicalHome = realpathSync(home);
   const inside = relative(data, canonicalHome);
@@ -105,10 +132,8 @@ export function prepareBotCodexSqliteHome(
   if (join(target, historyJournal).length >= MAX_PATH)
     throw new Error("The worker data directory is too long for the Codex bot database on Windows.");
 
-  for (const protectedHome of [canonicalHome, ...protectedHomes]) {
-    if (protectedHome && codexCliHomeProblem(target, protectedHome, protectedHome))
-      throw new Error("The Codex bot database directory must be separate from provider homes.");
-  }
+  if (codexHomeOverlapProblem(target, [canonicalHome, ...protectedHomes.filter(Boolean)]))
+    throw new Error("The Codex bot database directory must be separate from provider homes.");
 
   if (!initialized) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
