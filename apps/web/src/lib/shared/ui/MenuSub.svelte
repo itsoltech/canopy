@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "./Icon.svelte";
   import type { IconName } from "./icons.ts";
@@ -18,16 +18,26 @@
 
   /**
    * Submenu of a `DropdownMenu`: opens to the side on hover, click, ArrowRight or Enter; ArrowLeft or
-   * Escape goes back to its row. Choosing an item inside closes the whole menu.
+   * Escape goes back to its row. With a primary action, the label runs it and the chevron opens
+   * the choices. ArrowRight opens the choices from either button.
    *
    *   <MenuSub label="Copy" icon="document-duplicate"><MenuItem onselect={copyId}>Thread ID</MenuItem></MenuSub>
    */
   let {
     label,
     icon,
+    primary,
+    disabled = false,
     class: className,
     children,
-  }: { label: string; icon?: IconName | undefined; class?: ClassValue; children: Snippet } = $props();
+  }: {
+    label: string;
+    icon?: IconName | undefined;
+    primary?: { label: string; onselect: () => void };
+    disabled?: boolean | undefined;
+    class?: ClassValue;
+    children: Snippet;
+  } = $props();
 
   const id = $props.id();
   const parent = useMenu();
@@ -35,17 +45,21 @@
 
   provideMenu(menu);
 
-  const open = $derived(parent.openSub === id);
+  const open = $derived(!disabled && parent.openSub === id);
+  let row = $state<HTMLDivElement>();
 
-  // Only a keyboard opening moves focus into the submenu; hovering keeps it on the row.
-  let byKeyboard = $state(false);
-
-  function triggerKeydown(event: KeyboardEvent) {
+  function triggerKeydown(event: KeyboardEvent, panelId: string) {
     if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       event.stopPropagation();
-      byKeyboard = true;
+
+      if (disabled) return;
       parent.openSub = id;
+      void tick().then(() => {
+        const panel = document.getElementById(panelId);
+
+        if (open && panel) focusItem(panel, "first");
+      });
     }
   }
 
@@ -58,9 +72,7 @@
   }
 
   const onpointermove = hoverFocus(() => {
-    if (open) return;
-    byKeyboard = false;
-    parent.openSub = id;
+    parent.openSub = disabled ? undefined : id;
   });
 
   const navigate = menuKeydown();
@@ -69,12 +81,11 @@
 <Popover
   bind:open={() => open, (value) => (parent.openSub = value ? id : undefined)}
   {label}
+  anchor={primary ? row : undefined}
   placement="right-start"
   offset={2}
   role="menu"
-  focusOnOpen={byKeyboard}
-  initialFocus={(panel) => focusItem(panel, "first")}
-  {triggerKeydown}
+  focusOnOpen={false}
   panelKeydown={(event) => {
     panelKeydown(event);
     if (!event.defaultPrevented) navigate(event);
@@ -83,23 +94,51 @@
   class="min-w-44 p-1"
 >
   {#snippet trigger(props)}
-    <button
-      type="button"
-      {...props}
-      role="menuitem"
-      tabindex="-1"
-      data-menu-item
-      class={[menuRowClasses, className]}
-      onclick={() => {
-        byKeyboard = false;
-        parent.openSub = open ? undefined : id;
-      }}
-      {onpointermove}
-    >
-      {#if icon}<span class={menuGlyphClasses}><Icon name={icon} class={menuIconClasses} /></span>{/if}
-      <span class="min-w-0 flex-1 truncate">{label}</span>
-      <span class={menuGlyphClasses}><Icon name="chevron-right" class="fill-zinc-400 dark:fill-zinc-500" /></span>
-    </button>
+    <div bind:this={row} class={primary ? "flex" : "contents"}>
+      {#if primary}
+        <button
+          type="button"
+          role="menuitem"
+          tabindex="-1"
+          data-menu-item
+          aria-disabled={disabled || undefined}
+          class={[menuRowClasses, "min-w-0 flex-1", className]}
+          onclick={() => {
+            if (disabled) return;
+            primary.onselect();
+            parent.closeAll();
+          }}
+          onkeydown={(event) => {
+            if (event.key === "ArrowRight") triggerKeydown(event, props["aria-controls"]);
+          }}
+          {onpointermove}
+        >
+          {#if icon}<span class={menuGlyphClasses}><Icon name={icon} class={menuIconClasses} /></span>{/if}
+          <span class="min-w-0 truncate">{primary.label}</span>
+        </button>
+      {/if}
+      <button
+        type="button"
+        {...props}
+        role="menuitem"
+        tabindex="-1"
+        data-menu-item
+        aria-label={primary ? label : undefined}
+        aria-disabled={disabled || undefined}
+        class={[menuRowClasses, primary && "shrink-0 basis-8 justify-center pointer-coarse:basis-11", className]}
+        onclick={() => {
+          if (!disabled) parent.openSub = open && !primary ? undefined : id;
+        }}
+        onkeydown={(event) => triggerKeydown(event, props["aria-controls"])}
+        {onpointermove}
+      >
+        {#if !primary}
+          {#if icon}<span class={menuGlyphClasses}><Icon name={icon} class={menuIconClasses} /></span>{/if}
+          <span class="min-w-0 flex-1 truncate">{label}</span>
+        {/if}
+        <span class={menuGlyphClasses}><Icon name="chevron-right" class="fill-zinc-400 dark:fill-zinc-500" /></span>
+      </button>
+    </div>
   {/snippet}
   {@render children()}
 </Popover>
