@@ -1,19 +1,20 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
-  import type { DesktopStatus } from "@canopy/ui/desktop";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import WorkerStatus from "#lib/features/desktop/WorkerStatus.svelte";
+  import DesktopGatewayAddress from "#lib/features/desktop/DesktopGatewayAddress.svelte";
+  import { useDesktopStatus } from "#lib/features/desktop/desktop-status.svelte.ts";
   import UsagePingSettings from "#lib/features/desktop/UsagePingSettings.svelte";
 
-  let status = $state<DesktopStatus>();
+  const desktop = useDesktopStatus();
   let hasUsagePing = $state(false);
   let hasMigration = $state(false);
   let hasMigrationFollowUp = $state(false);
-  const local = $derived((status?.configuration?.mode ?? status?.mode) === "local");
+  const local = $derived((desktop.status?.configuration?.mode ?? desktop.status?.mode) === "local");
 
   onMount(() => {
     const bridge = window.canopyDesktop;
@@ -28,19 +29,12 @@
       },
       () => {},
     );
-    void bridge.status().then((value) => {
-      status = value;
-    });
-
-    return bridge.onStatus((value) => {
-      status = value;
-    });
   });
 </script>
 
 <svelte:head><title>Desktop · Settings · {applicationName}</title></svelte:head>
-{#if status}
-  {@const current = status}
+{#if desktop.status}
+  {@const current = desktop.status}
   <SettingsTopics
     label="Desktop settings"
     topics={[
@@ -51,6 +45,7 @@
   {#snippet gateway()}
     <SettingsGroup title="This computer">
       <WorkerStatus status={current} class="p-4" />
+      {#if desktop.remoteAddress}<DesktopGatewayAddress address={desktop.remoteAddress} />{/if}
       <SettingsRow title="Desktop mode">
         {#snippet control()}<Button size="sm" onclick={() => window.canopyDesktop?.openSettings()}>Change mode…</Button
           >{/snippet}

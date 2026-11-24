@@ -55,6 +55,7 @@
     provideGatewayCapabilities,
   } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import GatewayCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
+  import { useDesktopStatus } from "#lib/features/desktop/desktop-status.svelte.ts";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { legacyDeviceView } from "@canopy/domain/device-view";
@@ -92,6 +93,7 @@
   });
 
   const capabilities = new GatewayCapabilities();
+  const desktop = useDesktopStatus();
 
   provideGatewayCapabilities(capabilities);
 
@@ -362,6 +364,11 @@
         <Alert tone="warning" banner>
           The gateway is not responding. {overview.resyncs > 0 ? "Showing the last known state. " : ""}Retrying
           automatically.
+          {#if desktop.remoteAddress}
+            <div class="mt-2">
+              <Button size="sm" onclick={() => window.canopyDesktop?.openSettings()}>Edit gateway address</Button>
+            </div>
+          {/if}
           <div class="mt-2 empty:hidden"><MigrationRecoveryLink /></div>
         </Alert>
       </div>
@@ -376,7 +383,9 @@
         <GatewayUnavailable retry={() => location.reload()}>
           {#snippet actions()}
             {#if window.canopyDesktop}
-              <Button onclick={() => window.canopyDesktop?.openSettings()}>Open desktop settings</Button>
+              <Button onclick={() => window.canopyDesktop?.openSettings()}>
+                {desktop.remoteAddress ? "Edit gateway address" : "Open desktop settings"}
+              </Button>
             {/if}
             <MigrationRecoveryLink />
           {/snippet}
