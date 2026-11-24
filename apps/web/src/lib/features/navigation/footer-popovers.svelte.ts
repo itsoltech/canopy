@@ -1,6 +1,6 @@
 /** The footer panels share space. Only the active panel can be open, and an explicit press takes priority over hover. */
 export function footerPopovers() {
-  let active = $state<"updates" | "provider-usage">();
+  let active = $state<"updates" | "provider-usage" | "usage" | "workers">();
   let pinned = $state(false);
 
   function panel(id: NonNullable<typeof active>) {
@@ -54,7 +54,12 @@ export function footerPopovers() {
     };
   }
 
-  return { updates: panel("updates"), providerUsage: panel("provider-usage") };
+  return {
+    usage: panel("usage"),
+    workers: panel("workers"),
+    updates: panel("updates"),
+    providerUsage: panel("provider-usage"),
+  };
 }
 
 export type FooterPopover = ReturnType<typeof footerPopovers>["updates"];
