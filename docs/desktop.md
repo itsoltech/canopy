@@ -6,6 +6,7 @@ projektu i kwadratowe kadrowanie we wspólnym interfejsie [web i desktopu](ui-ap
 Aktualizacja (2026-11-24): skrót zamykania aplikacji znajduje się w zakładce **Device** ustawień General.
 Pickery Typography wczytują listę zainstalowanych fontów przy otwarciu.
 Desktop sprawdza, czy macOS pozwala na powiadomienia, zanim poprosi o zgodę.
+W paczkach na macOS okno About wskazuje IT SOL Sp. z o.o. jako właściciela praw autorskich.
 
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). CI po pushu sprawdza
 runtime i instalator Windows. Release buduje paczki dystrybucyjne i sprawdza ich podpisy.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Canopy desktop: a local gateway and worker, or a worker for your remote gateway",
-  "author": "Canopy contributors",
+  "author": "IT SOL Sp. z o.o.",
   "homepage": "canopy://desktop",
   "desktopName": "canopy.desktop",
   "type": "module",
