@@ -9,6 +9,8 @@ poświadczenia UI (2026-11-19). Sparowany Desktop konfiguruje relay powiadomień
 na zdalnym gatewayu, jeśli gateway ogłasza tę możliwość (2026-11-23).
 Ręczny adres HTTPS w ustawieniach Desktopu jest trasą przypiętą do dotychczasowego
 certyfikatu gatewaya i może też posłużyć do wymiany zaproszenia (2026-11-23).
+Ustawienia Workers i Desktop pokazują lokalny stan workera oraz zapisany adres
+gatewaya. Dostęp do edycji tego adresu działa również podczas awarii (2026-11-24).
 Nowe i ponowne parowanie Desktopu odróżnia przyjęcie zaproszenia od pierwszego
 uwierzytelnionego połączenia w Settings → Devices (2026-11-24).
 Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
@@ -162,6 +164,10 @@ desktopu, wybór trybu/kanału, quit-guard i interfejs aktualizacji działają o
 (pobieranie aktualizacji wymaga internetu). Wywołania gatewaya mają krótki deadline;
 ekrany danych korzystają z istniejącego stanu „gateway unavailable”. Brak kolejki
 mutacji i automatycznego odtwarzania poleceń po powrocie sieci.
+**Edit gateway address** otwiera lokalny formularz wyboru trybu zarówno z ustawień,
+jak i z komunikatu o niedostępnym gatewayu. Wybór adresu HTTPS dla tego samego
+gatewaya używa istniejącego parowania i zachowuje osobny profil workera. Parowanie
+z innym gatewayem wymaga jego zaproszenia.
 
 BFF materializuje overview, indeks wątków i ustawienia z gRPC oraz współdzieli
 wczytane projekcje i ograniczone ogony historii między oknami. Ten stan istnieje

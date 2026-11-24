@@ -32,7 +32,7 @@ export function pullRequestHandlers(
     setGitHubRepositoryAccount: (r) => guard(() => prs.repositories.set(r)),
     listThreadPullRequests: (r) =>
       guard(async () => {
-        const result = await prs.list(r.threadId, r.pageSize, r.offset);
+        const result = await prs.list(r.threadId, r.pageSize, r.offset, true);
         core.githubDetection.request(r.threadId, false);
         const detail = (await core.github.run((s) => s.detectionDetail(core.github.owner, r.threadId)))[0]?.detail;
 

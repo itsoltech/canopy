@@ -1,5 +1,9 @@
 # Canopy Desktop
 
+Status (2026-11-24): w trybie zdalnym **Settings → Workers** rozróżnia lokalnego
+workera i workery zarejestrowane na gatewayu. Zapisany adres gatewaya można
+sprawdzić i edytować również podczas awarii połączenia.
+
 Status (2026-11-24): desktop zapisuje lokalne zdarzenia aktualizatora i etap zamykania aplikacji.
 Na Windows kolejne pobranie różnicowe korzysta z pliku odpowiadającego poprzedniej mapie bloków.
 
@@ -510,7 +514,8 @@ Skonfigurowana aplikacja ładuje `/desktop` jako ekran startu. Ikona pochodzi
 z kanału zainstalowanej aplikacji i jest dostępna przed połączeniem z gatewayem.
 Ekran pokazuje krótki status połączenia ze zdalnym hostem lub startu usług lokalnych,
 a przy pobieraniu PostgreSQL także pasek postępu. Błędy udostępniają „Try again”
-i „Open desktop settings”.
+i „Open desktop settings”. Jeśli zapisano połączenie z gatewayem, ekran odzyskiwania
+pokazuje jego adres i udostępnia „Edit gateway address”.
 Jeśli PostgreSQL zgłosi odmowę pracy z uprawnieniami administratora, ekran od razu
 wyjaśnia przyczynę i poleca zamknąć Canopy oraz otworzyć je bez „Run as administrator”.
 Komunikat wynika z odpowiedzi procesu bazy, nie z samego braku gotowości SQL;
@@ -533,9 +538,16 @@ i `--window-safe-top` co konfiguracja; wskaźnik respektuje ograniczenie ruchu.
 Zdalny web ma 3-sekundowy limit sondy dokumentu. Jeśli działa, otwiera się od razu,
 a niedostępny gateway obsługuje istniejący ekran webu; jeśli sam web nie odpowiada,
 lokalny ekran startu pokazuje błąd i działania naprawcze.
-Komunikat o niedostępnym gatewayu i szczegóły połączenia w sidebarze otwierają
-lokalną konfigurację przez **Open desktop settings**. Tę samą konfigurację otwiera
-**Change desktop mode…** w menu aplikacji, niezależnie od stanu połączenia.
+W trybie zdalnym **Settings → Workers** i **Settings → Desktop → Gateway**
+pokazują stan połączenia lokalnego workera i zapisany adres gatewaya z lokalnego
+kontrolera. Pole **Desktop gateway address** dotyczy aplikacji. Zarejestrowany
+worker korzysta z własnej konfiguracji połączenia. Lista zarejestrowanych workerów
+pochodzi z gatewaya. Podczas awarii
+pokazuje ostatni znany stan lub informację o oczekiwaniu na pierwszą listę.
+**Edit gateway address** w ustawieniach i w komunikacie o awarii połączenia
+otwiera istniejący lokalny formularz z zapisanym adresem. Tę samą konfigurację
+otwierają **Open desktop settings** w szczegółach połączenia i **Change desktop mode…**
+w menu aplikacji, niezależnie od stanu połączenia.
 
 Procesy uruchamiają się w kolejności: baza → migracje/start gatewaya → enrollment
 → worker. Lokalny BFF (w kontrolerze) służy także jako ekran konfiguracji przed uruchomieniem bazy.

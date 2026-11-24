@@ -108,12 +108,15 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
     release();
     fixture.gate(Promise.resolve());
 
-    const fresh = await eventually(list, (r) => r.links[0]?.stale === false);
+    const fresh = await eventually(
+      () => gw.core.github.prs.list(thread),
+      (r) => r.links[0]?.stale === false && r.revision > first.revision,
+    );
+
     expect(fresh.links[0]!.summary!.title).toContain("renamed");
     expect(fresh.links[0]!.detail).toBe("");
     expect(fixture.calls).toBeGreaterThanOrEqual(calls);
-    // The refresh never moves the revision that fences link and unlink.
-    expect(fresh.revision).toBe(first.revision);
+    expect(fresh.revision).toBe(first.revision + 1n);
     fixture.echoText("");
     // A fresh list does not start another read.
     const after = fixture.calls;

@@ -90,6 +90,7 @@ export async function refreshLinkedBatch(prs: GitHubPullRequests, refs: readonly
               revision: BigInt(selected.row.revision),
               payload,
             })
+            .then(() => prs.pullRequestChanged(ref.id))
             .catch(() => {});
         }
       } catch (cause) {
