@@ -1,11 +1,9 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import { create, toJson } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
-  import { diagnosticsEpochs } from "./read.ts";
-  import { clientMeasurements } from "./client.ts";
-  import { queries } from "#lib/shared/queries.svelte.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
@@ -18,33 +16,22 @@
   let {
     computers,
     range,
-    computer,
-    onreset,
+    rangeControl,
     logsJobId = "",
   }: {
     computers: ui.ComputerDiagnostics[];
     range: number;
-    computer: ui.ComputerDiagnostics | undefined;
-    onreset(): void;
+    rangeControl: Snippet;
     logsJobId?: string;
   } = $props();
 
   let open = $state(false);
-  let resetting = $state(false);
-  let process = $state("gateway");
   let ids = $state<string[]>([]);
   let format = $state("markdown");
   let report = $state<ui.DiagnosticsReport>();
   let busy = $state(false);
   let error = $state("");
   let message = $state("");
-
-  const processes = $derived([
-    { value: "gateway", label: "Gateway" },
-    ...(computer?.links ?? [])
-      .filter((link) => link.kind === "worker" && link.online)
-      .map((link) => ({ value: `worker:${link.targetId}`, label: link.name })),
-  ]);
 
   async function preview() {
     if (busy || !ids.length) return;
@@ -80,50 +67,14 @@
       error = "Could not copy the report. Select and copy the preview instead.";
     }
   }
-
-  async function reset() {
-    if (!computer || busy) return;
-    const target = computer;
-    busy = true;
-    error = "";
-
-    try {
-      const receipt = decode(
-        ui.DiagnosticsReceiptSchema,
-        await requestJson(
-          "POST",
-          "/api/diagnostics/reset",
-          toJson(
-            ui.ResetDiagnosticsRequestSchema,
-            create(ui.ResetDiagnosticsRequestSchema, {
-              computerId: target.computerId,
-              processId: process,
-              epoch: target.epoch,
-              actionId: crypto.randomUUID(),
-            }),
-          ),
-        ),
-      );
-
-      diagnosticsEpochs.reset(target.computerId, receipt.epoch, receipt.epochStartedAtMs);
-      queries.forget((key) => key.startsWith("GetDiagnostics:") || key.startsWith("GetComputerDiagnostics:"));
-
-      if (target.computerId === computers[0]?.computerId) clientMeasurements.clear(receipt.epoch);
-      resetting = false;
-      message = "Counters reset.";
-      onreset();
-    } catch {
-      error = "Could not reset counters. Refresh diagnostics and retry.";
-    } finally {
-      busy = false;
-    }
-  }
 </script>
 
-<SettingsGroup title="Report and actions">
+<SettingsGroup title="Diagnostics report" description="Choose which computers to include in the report.">
+  {#snippet actions()}{@render rangeControl()}{/snippet}
   <div class="grid min-w-0 gap-3 p-4">
-    <div class="flex flex-wrap gap-2">
+    <div>
       <Button
+        disabled={!computers.length}
         onclick={() => {
           ids = computers.slice(0, 16).map((item) => item.computerId);
           report = undefined;
@@ -131,15 +82,6 @@
           message = "";
           open = true;
         }}>Prepare report</Button
-      >
-      <Button
-        disabled={!computer || computer.status !== "online" || computer.restoring}
-        onclick={() => {
-          process = "gateway";
-          error = "";
-          message = "";
-          resetting = true;
-        }}>Reset counters</Button
       >
     </div>
     {#if message}<p role="status" class="text-sm text-muted">{message}</p>{/if}
@@ -192,7 +134,7 @@
       >
         <pre class="text-xs wrap-anywhere whitespace-pre-wrap">{report.text}</pre>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div>
         <Button onclick={copy}>Copy report</Button><Button onclick={() => (report = undefined)}>Change selection</Button
         >
       </div>
@@ -201,26 +143,4 @@
     {#if error}<Alert tone="error">{error}</Alert>{/if}
     {#if message}<p role="status" class="text-sm text-muted">{message}</p>{/if}
   </div>
-</Dialog>
-
-<Dialog
-  bind:open={resetting}
-  title="Reset counters?"
-  description={`Start a new diagnostics baseline for ${computer?.name || "this computer"}.`}
-  dismissible={!busy}
->
-  <div class="grid gap-4">
-    <Field label="Process"><Select value={process} options={processes} onchange={(value) => (process = value)} /></Field
-    >
-    <p class="text-sm text-muted">
-      Clears this process’s diagnostic history and findings. Running work, live gauges and runtime governor limits
-      continue.
-    </p>
-    {#if error}<Alert tone="error">{error}</Alert>{/if}
-  </div>
-  {#snippet footer()}<div class="flex justify-end gap-2">
-      <Button disabled={busy} onclick={() => (resetting = false)}>Cancel</Button><Button loading={busy} onclick={reset}
-        >Reset counters</Button
-      >
-    </div>{/snippet}
 </Dialog>

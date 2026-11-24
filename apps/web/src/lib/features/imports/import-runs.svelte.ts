@@ -30,7 +30,7 @@ export class ImportRunsState {
     return this.runs.some((r) => r.status === "running" || r.status === "paused");
   }
 
-  async load(): Promise<void> {
+  async load(clearError = false): Promise<void> {
     const wasActive = this.active;
 
     try {
@@ -38,6 +38,8 @@ export class ImportRunsState {
 
       for (const id of this.details.keys())
         if (!finished(this.details.get(id)) || !finished(this.runs.find((r) => r.id === id))) await this.open(id);
+
+      if (clearError) this.error = "";
     } catch (error) {
       this.error = error instanceof Error ? error.message : "Imports are unavailable. Try again.";
     }

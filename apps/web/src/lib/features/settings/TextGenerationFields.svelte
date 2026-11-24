@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Provider } from "@canopy/contracts";
-  import type { ClassValue } from "svelte/elements";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { modelOption, modelOptions, type ModelOption } from "#lib/features/models/catalog.ts";
   import { useModelCatalog } from "#lib/features/models/model-catalog.svelte.ts";
   import SettingsModelControls from "#lib/features/models/SettingsModelControls.svelte";
@@ -14,7 +14,6 @@
   import Textarea from "#lib/shared/ui/Textarea.svelte";
   import { useSettings } from "./settings-state.svelte.ts";
 
-  let { class: className }: { class?: ClassValue } = $props();
   const settings = useSettings();
   const overview = useOverview();
   const catalog = useModelCatalog();
@@ -67,8 +66,16 @@
   }
 </script>
 
-<div class={["settings-stack", className]}>
-  <SettingsGroup title="Text generation" description="Account">
+<SettingsTopics
+  label="Text generation settings"
+  topics={[
+    { id: "model", label: "Model", content: model },
+    { id: "title-instructions", label: "Title instructions", content: instructions },
+  ]}
+/>
+
+{#snippet model()}
+  <SettingsGroup title="Text generation model" description="Account">
     {#snippet actions()}
       <Button
         size="sm"
@@ -79,7 +86,7 @@
         >Reset to default</Button
       >
     {/snippet}
-    <SettingsRow title="Text generation model" description="Generate thread titles and branch names with this model.">
+    <SettingsRow title="Model and effort" description="Generate thread titles and branch names with this model.">
       <div class="grid min-w-0 gap-2 pt-3">
         <SettingsModelControls
           {options}
@@ -99,8 +106,10 @@
       </div>
     </SettingsRow>
   </SettingsGroup>
+{/snippet}
 
-  <SettingsGroup title="Advanced" description="Account">
+{#snippet instructions()}
+  <SettingsGroup title="Thread titles" description="Account">
     {#snippet actions()}
       <SettingAction active={!!value.threadTitleInstructions}>
         <Button
@@ -125,4 +134,4 @@
       </Field>
     </div>
   </SettingsGroup>
-</div>
+{/snippet}

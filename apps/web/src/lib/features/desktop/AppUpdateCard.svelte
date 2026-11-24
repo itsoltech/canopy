@@ -45,7 +45,7 @@
         >{status.phase === "downloaded" ? "Restart to update" : "Check for updates"}</Button
       >
       <a
-        href="/settings/app-updates"
+        href="/settings/app-updates#topic-preferences"
         class="text-base/6 text-zinc-500 underline focus-ring sm:text-sm/6 dark:text-zinc-400">App update settings</a
       >
     </div>

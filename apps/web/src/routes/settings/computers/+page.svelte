@@ -24,8 +24,8 @@
   import { MOVE_ITEMS, RELAY } from "@canopy/domain/computers";
   import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
   import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
-  import ConfigSharing from "#lib/features/computers/ConfigSharing.svelte";
-  import ConfigNotice from "#lib/features/computers/ConfigNotice.svelte";
+  import ComputerSharingSettings from "#lib/features/computers/ComputerSharingSettings.svelte";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import PairingChoice from "#lib/features/computers/PairingChoice.svelte";
   import PairingInvitation from "#lib/features/computers/PairingInvitation.svelte";
@@ -41,6 +41,13 @@
 
   const setup = $derived(request.data);
   const loaded = $derived(request.loaded);
+
+  const hasSharing = $derived(
+    setup.peers.some((peer) => !peer.viaNodeId) ||
+      setup.configNotices.length > 0 ||
+      setup.configGroup.some((peer) => peer.nodeId !== setup.self?.nodeId),
+  );
+
   let busy = $state(false);
   let error = $state("");
   let open = $state(false);
@@ -55,14 +62,6 @@
   let removeOpen = $state(false);
   let copied = $state("");
   let shareConfig = $state(true);
-  const groupNames = $derived(setup.configGroup.filter((c) => c.nodeId !== setup.self?.nodeId).map((c) => c.name));
-
-  const groupDescription = $derived(
-    groupNames.length
-      ? `Shares configuration with ${new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(groupNames)}`
-      : "Configuration stays on this computer.",
-  );
-
   let routeFor = $state<ui.LinkedComputer>();
   let routeOpen = $state(false);
   let shareFor = $state("");
@@ -186,22 +185,6 @@
 </script>
 
 <svelte:head><title>Linked computers · Settings · {applicationName}</title></svelte:head>
-<div class="flex flex-col items-start justify-between gap-4 px-1 sm:flex-row">
-  <div class="min-w-0 flex-1">
-    <h1 class="text-base font-semibold text-balance text-zinc-950 dark:text-white">Linked computers</h1>
-    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Each computer keeps its own gateway and data.
-    </p>
-  </div>
-  <Button
-    variant="primary"
-    disabled={!loaded || !!request.error || busy}
-    onclick={() => {
-      error = "";
-      open = true;
-    }}>Link a computer</Button
-  >
-</div>
 {#if request.error}<ConnectionRequestError
     title="Could not load linked computers"
     error={request.error}
@@ -212,87 +195,114 @@
 {#if error && !open && !renameOpen && !removeOpen && !routeOpen && !shareOpen}<Alert tone="error"
     >{error}<Button size="sm" onclick={() => void run(reload)}>Retry</Button></Alert
   >{/if}
-<SettingsGroup title="This computer">
-  {#if setup.self}<ComputerDetails computer={setup.self} self {busy} onrename={() => setup.self && edit(setup.self)} />
-  {:else}<SettingsRow
-      title={request.error || loaded ? "Computer identity unavailable" : "Loading computer identity…"}
-    />{/if}
-  {#if setup.self}<LanDiscoveryRow
-      {setup}
-      disabled={busy || !!request.error}
-      onchange={(enabled) => void run(() => manage("lan_discovery", { enabled }))}
-    />{/if}
-</SettingsGroup>
-<p role="status" class="px-1 text-base/6 text-pretty break-words text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-  {groupDescription}
-</p>
-<NetworkAccessSummary
-  {network}
-  busy={network.busy || busy}
-  onenable={() => void run(async () => void (await network.update("set_enabled", { enabled: true })))}
+
+<SettingsTopics
+  label="Linked computer settings"
+  topics={[
+    { id: "computers", label: "Linked computers", content: computers },
+    { id: "this-computer", label: "This computer", content: thisComputer },
+    {
+      id: "sharing",
+      label: "Configuration sharing",
+      content: sharing,
+      hidden: !hasSharing,
+    },
+  ]}
 />
-<SettingsGroup
-  title="Linked computers"
-  description="Pairing grants full access between your computers. Only link computers you own."
->
-  {#each setup.peers as computer (computer.nodeId)}
-    <ComputerDetails
-      {computer}
-      {busy}
-      {now}
-      onrename={() => edit(computer)}
-      onunlink={() => {
-        error = "";
-        remove = computer;
-        removeOpen = true;
-      }}
-      onshare={!computer.viaNodeId && (computer.capabilities.includes(RELAY) || computer.shareOnwardNodeIds.length)
-        ? () => {
-            error = "";
-            shareFor = computer.nodeId;
-            shareOpen = true;
-          }
-        : undefined}
-      onmove={allModules && !computer.viaNodeId && computer.capabilities.includes(MOVE_ITEMS)
-        ? () => {
-            moveFor = computer.nodeId;
-            moveOpen = true;
-          }
-        : undefined}
-      onaddroute={() => {
-        error = "";
-        routeFor = computer;
-        routeOpen = true;
-      }}
-      onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))}
-    />
-    {#if !computer.viaNodeId}<ConfigSharing
+
+{#snippet computers()}
+  <SettingsGroup
+    title="Linked computers"
+    description="Pairing grants full access between your computers. Only link computers you own."
+  >
+    {#snippet actions()}<Button
+        variant="primary"
+        disabled={!loaded || !!request.error || busy}
+        onclick={() => {
+          error = "";
+          open = true;
+        }}>Link a computer</Button
+      >{/snippet}
+    {#each setup.peers as computer (computer.nodeId)}
+      <ComputerDetails
         {computer}
         {busy}
-        alternative={computer.configAlternativeName}
-        onchange={(enabled) => run(() => manage("share_config", { nodeId: computer.nodeId, enabled }))}
-      />{/if}
-  {:else}<SettingsRow
-      title={loaded
-        ? "No computers linked yet"
-        : request.error
-          ? "Linked computers unavailable"
-          : "Loading linked computers…"}
-      description={loaded ? "Generate a code here, or enter a code from your other computer." : undefined}
-    />{/each}
-</SettingsGroup>
-{#if setup.configNotices.length}<SettingsGroup title="Changed on two computers">
-    {#each setup.configNotices as notice (notice.id)}<ConfigNotice
-        {notice}
-        {busy}
-        onaction={(id, action) =>
-          void run(async () => {
-            request.set(
-              decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers/notices", { id, action })),
-            );
-          })}
+        {now}
+        onrename={() => edit(computer)}
+        onunlink={() => {
+          error = "";
+          remove = computer;
+          removeOpen = true;
+        }}
+        onshare={!computer.viaNodeId && (computer.capabilities.includes(RELAY) || computer.shareOnwardNodeIds.length)
+          ? () => {
+              error = "";
+              shareFor = computer.nodeId;
+              shareOpen = true;
+            }
+          : undefined}
+        onmove={allModules && !computer.viaNodeId && computer.capabilities.includes(MOVE_ITEMS)
+          ? () => {
+              moveFor = computer.nodeId;
+              moveOpen = true;
+            }
+          : undefined}
+        onaddroute={() => {
+          error = "";
+          routeFor = computer;
+          routeOpen = true;
+        }}
+        onremoveroute={(address) => void run(() => manage("remove_route", { nodeId: computer.nodeId, address }))}
+      />
+    {:else}<SettingsRow
+        title={loaded
+          ? "No computers linked yet"
+          : request.error
+            ? "Linked computers unavailable"
+            : "Loading linked computers…"}
+        description={loaded ? "Generate a code here, or enter a code from your other computer." : undefined}
       />{/each}
-  </SettingsGroup>{/if}
+  </SettingsGroup>
+{/snippet}
+
+{#snippet thisComputer()}
+  <SettingsGroup title="This computer" description="Each computer keeps its own gateway and data.">
+    {#if setup.self}<ComputerDetails
+        computer={setup.self}
+        self
+        {busy}
+        onrename={() => setup.self && edit(setup.self)}
+      />
+    {:else}<SettingsRow
+        title={request.error || loaded ? "Computer identity unavailable" : "Loading computer identity…"}
+      />{/if}
+    {#if setup.self}<LanDiscoveryRow
+        {setup}
+        disabled={busy || !!request.error}
+        onchange={(enabled) => void run(() => manage("lan_discovery", { enabled }))}
+      />{/if}
+  </SettingsGroup>
+  <NetworkAccessSummary
+    {network}
+    busy={network.busy || busy}
+    onenable={() => void run(async () => void (await network.update("set_enabled", { enabled: true })))}
+  />
+{/snippet}
+
+{#snippet sharing()}
+  <ComputerSharingSettings
+    {setup}
+    {busy}
+    onshare={(nodeId, enabled) => run(() => manage("share_config", { nodeId, enabled }))}
+    onnotice={(id, action) =>
+      run(async () => {
+        request.set(
+          decode(ui.ComputersSnapshotSchema, await requestJson("PUT", "/api/computers/notices", { id, action })),
+        );
+      })}
+  />
+{/snippet}
+
 <Dialog
   bind:open
   title="Link a computer"

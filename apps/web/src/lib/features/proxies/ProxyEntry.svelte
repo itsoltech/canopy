@@ -5,22 +5,19 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import SensitiveUrl from "#lib/shared/ui/SensitiveUrl.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { proxyCall, proxyKinds } from "./proxies.ts";
   import ProxyMappings from "./ProxyMappings.svelte";
-  import ProxyAccounts from "./ProxyAccounts.svelte";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
 
   let {
     proxy,
     onedit,
     ondelete,
-    onaccounts,
     class: className,
   }: {
     proxy: ui.Proxy;
     onedit: () => void;
     ondelete: () => void;
-    onaccounts: (accounts: ui.ProxyAccounts) => void;
     class?: ClassValue;
   } = $props();
 
@@ -28,22 +25,6 @@
   let deleting = $state(false);
   let result = $state<ui.TestProxyResponse>();
   let failure = $state<string>();
-  const route = useSettingsRoute();
-  const sectionId = $derived(`proxy-${proxy.id}`);
-  let section = $state<HTMLElement>();
-
-  $effect(() => {
-    const target = section;
-
-    if (!target || route.url.hash !== `#${sectionId}`) return;
-
-    const frame = requestAnimationFrame(() => {
-      target.scrollIntoView({ block: "start" });
-      target.focus({ preventScroll: true });
-    });
-
-    return () => cancelAnimationFrame(frame);
-  });
 
   async function testConnection() {
     testing = true;
@@ -75,8 +56,7 @@
 </script>
 
 <section
-  bind:this={section}
-  id={sectionId}
+  id={`proxy-${proxy.id}`}
   tabindex="-1"
   aria-label={proxy.name}
   class={[
@@ -98,11 +78,10 @@
       ? `Used by ${proxy.usedBy.join(", ")}`
       : "No profiles yet"}
   </p>
-  {#if proxy.kind === "cliproxyapi"}<ProxyAccounts {proxy} onread={onaccounts} />{/if}
-  <div class="grid gap-2">
-    <h3 class="text-base/6 font-medium text-zinc-950 sm:text-sm/6 dark:text-white">How agents use this proxy</h3>
-    <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} />
-  </div>
+  <Disclosure summaryClass="py-1 text-base/6 sm:text-sm/6">
+    {#snippet summary()}How agents use this proxy{/snippet}
+    <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} class="pt-3" />
+  </Disclosure>
   {#if result}<Alert tone={result.ok ? "info" : "error"}
       >{result.detail}{result.ok ? ` · ${result.modelCount} models` : ""}</Alert
     >{/if}

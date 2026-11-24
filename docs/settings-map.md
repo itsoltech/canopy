@@ -21,6 +21,8 @@ Dostępność wydań według [release.md](release.md).
 
 Status (2026-11-23): natywne Settings zawiera sekcję Agent tools i sprawdza obsługę sekcji przez sparowany gateway.
 
+Status (2026-11-24): ścieżki w tabelach uwzględniają zakładki wewnątrz sekcji web/desktop. Natywne Settings zachowuje własny układ.
+
 ## Nawigacja
 
 General obejmuje **App updates**, **General**, **Appearance**, **Keybindings**,
@@ -43,9 +45,8 @@ paleta zachowuje własny algorytm dopasowania rozmytego.
 
 **General → Diagnostics**: karty wszystkich komputerów, metryki RPC i RTT, findings
 oraz osobne granty odczytu przez relay; [diagnostics.md](diagnostics.md).
-Projekt obejmuje wspólny przegląd gatewayów, workerów i łączy wszystkich połączonych
-komputerów, metryki RPC, zalecenia oraz zbieranie zredagowanych logów; web/desktop
-i mobile mają ten sam zakres. Strona nie jest jeszcze zaimplementowana.
+W web/desktop **Overview** pokazuje stan komputerów, **Performance** metryki wybranego
+komputera, **Calls and tracing** wywołania RPC i tracing, a **Reports and logs** udostępnia raporty i zbieranie logów.
 
 „Account” oznacza ustawienia właściciela w DB aktualnego gatewaya, wspólne dla jego
 klientów web/desktop. Nie oznacza automatycznej synchronizacji niezależnych gatewayów.
@@ -115,17 +116,17 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | General / Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
 | General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota przy fokusie aplikacji |
 | Sidebar | Project filter | urządzenie/gateway | All projects | Filtr listy aktywnej i archiwum, niezależny od pozostałych urządzeń |
-| General / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
-| General / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
-| General / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
-| General / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
-| General / Display | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
-| General / Display | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
-| Threads / Thread details | Keep finished subagents in the list | urządzenie | Off | Off grupuje zakończonych pod rozwijanym N finished; On pokazuje ostatnie 10 minut i starszych pod Previous subagents. Reset przywraca Off; sidebar zawsze ukrywa subagentów |
-| Threads / Archived threads | Auto-delete archived threads; czas w dniach | konto/DB | Off | Trwałe usuwanie historii po 1–36500 dniach od archiwizacji, również istniejącego archiwum; jawny Save, wyłączenie zatrzymuje nowe usunięcia; pliki projektu pozostają, źródła potrzebne zachowanym forkom czekają |
-| Threads / Turn activity | While working | urządzenie | Expanded | Rozwinięta lub zwinięta praca podczas tury; Expanded pokazuje postęp, podsumowania rozumowania i narzędzia. Ręczny wybór foldu ma pierwszeństwo; osobny reset |
-| Threads / Turn activity | After the turn | urządzenie | Collapse | Collapse zamyka pracę przy niepustej odpowiedzi oznaczonej final_answer, a bez wiarygodnej fazy przy końcu tury; Keep open zostawia ją rozwiniętą. Czytana praca i ręczny wybór pozostają zachowane; osobny reset |
-| Appearance / Colors | Color scheme; Light theme; Dark theme | urządzenie | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
+| General / Thread list / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
+| General / Thread list / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
+| General / Thread list / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
+| General / Thread list / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
+| General / Device / Time | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
+| General / Device / Time | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
+| Threads / Conversation / Thread details | Keep finished subagents in the list | urządzenie | Off | Off grupuje zakończonych pod rozwijanym N finished; On pokazuje ostatnie 10 minut i starszych pod Previous subagents. Reset przywraca Off; sidebar zawsze ukrywa subagentów |
+| Threads / Archiving / Archived threads | Auto-delete archived threads; czas w dniach | konto/DB | Off | Trwałe usuwanie historii po 1–36500 dniach od archiwizacji, również istniejącego archiwum; jawny Save, wyłączenie zatrzymuje nowe usunięcia; pliki projektu pozostają, źródła potrzebne zachowanym forkom czekają |
+| Threads / Conversation / Turn activity | While working | urządzenie | Expanded | Rozwinięta lub zwinięta praca podczas tury; Expanded pokazuje postęp, podsumowania rozumowania i narzędzia. Ręczny wybór foldu ma pierwszeństwo; osobny reset |
+| Threads / Conversation / Turn activity | After the turn | urządzenie | Collapse | Collapse zamyka pracę przy niepustej odpowiedzi oznaczonej final_answer, a bez wiarygodnej fazy przy końcu tury; Keep open zostawia ją rozwiniętą. Czytana praca i ręczny wybór pozostają zachowane; osobny reset |
+| Appearance / Themes | Color scheme; Light theme; Dark theme | urządzenie | System; Birch; Birch | Pełne palety, w tym Ash, niezależne dla obu trybów |
 | Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
 | Appearance / Interface | Thread width | urządzenie | Comfortable | Szerokość wątku i kompozytora |
 | Appearance / Interface | Effort display | urządzenie | Name | Nazwa lub paski w kontrolkach wysiłku modelu, z dostępną nazwą |
@@ -139,10 +140,10 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Diffs / Viewer | Hide whitespace changes | urządzenie | Off | Ukrycie wyłącznie zmian różniących się białymi znakami |
 | Diffs / Viewer | Default file state | urządzenie | Expanded | Początkowy stan pliku; ręczny wybór obowiązuje w zamontowanym widoku |
 | Diffs / Viewer | Diff colors | urządzenie | Red & green | Także Blue & orange; znaki +/− pozostają |
-| General / Desktop app | Quit shortcut | urządzenie, store Electron | Press twice | Tylko desktop: sposób reagowania na skrót zamykania (dwukrotne naciśnięcie, przytrzymanie, natychmiast); reset pojedynczy i całej strony General |
-| App updates / App updates | Update check frequency | urządzenie/store Electron | Every 6 hours | Rzeczywisty timer procesu main; Hourly / 6h / Daily / Weekly / Never. Never wyłącza automatyczne sprawdzanie i pobieranie, ręczne sprawdzanie działa; ostatni/następny termin i trwałość po restarcie |
-| Workers / Agent CLI updates | Agent CLI update check frequency | konto/DB | Every 6 hours | Pobieranie najnowszych wersji Claude Code, Codex i Grok przez gateway; te same interwały i Never; nigdy nie instaluje CLI |
-| Workers / Agent CLIs | Update checks (rozwinięty worker) | konto, nadpisanie workera | Use account | Efektywna częstotliwość w WorkerConfig, raporty workera i oddzielny trwały stan dostępności aktualizacji; Last checked / Next check; ręczny Check for updates działa również przy Never |
+| General / Device / Desktop app | Quit shortcut | urządzenie, store Electron | Press twice | Tylko desktop: sposób reagowania na skrót zamykania (dwukrotne naciśnięcie, przytrzymanie, natychmiast); reset pojedynczy i całej strony General |
+| App updates / Update preferences | Update check frequency | urządzenie/store Electron | Every 6 hours | Rzeczywisty timer procesu main; Hourly / 6h / Daily / Weekly / Never. Never wyłącza automatyczne sprawdzanie i pobieranie, ręczne sprawdzanie działa; ostatni/następny termin i trwałość po restarcie |
+| Workers / Updates / CLI update schedule | Agent CLI update check frequency | konto/DB | Every 6 hours | Pobieranie najnowszych wersji Claude Code, Codex i Grok przez gateway; te same interwały i Never; nigdy nie instaluje CLI |
+| Workers / wybrany worker / Agent CLIs | Update checks | konto, nadpisanie workera | Use account | Efektywna częstotliwość w WorkerConfig, raporty workera i oddzielny trwały stan dostępności aktualizacji; Last checked / Next check; ręczny Check for updates działa również przy Never |
 
 ## Istniejące ustawienia zachowane kontekstowo
 
@@ -152,16 +153,16 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Strona / sekcja | Istniejące pola | Zakres i domyślne | Co zmieniają |
 | --- | --- | --- | --- |
 | Threads / New threads | Project and worker; Agent; Profile; Model per provider; Permissions | konto: last used, any available, first available, provider default, ask | Wartości początkowe nowych wątków; projekt może nadpisać. Permissions: Ask first, Accept edits, Read only, Full auto, Full access (bez sandboxa; wybór wymaga potwierdzenia, także w edytorze harmonogramu) |
-| Threads / Composer | Running delivery (w menu kolejki kompozytora) | konto: Steer | Główna akcja kompozytora podczas pracy; domyślnie Enter, druga akcja Mod+Enter |
+| Threads / Conversation / Messages | Running delivery (również w menu kolejki kompozytora) | konto: Steer | Główna akcja kompozytora podczas pracy; domyślnie Enter, druga akcja Mod+Enter |
 | Text generation | Provider instance; Model; Effort; Thread title instructions | konto: automatic, provider default, provider default, puste | Generowanie tytułów i semantycznych nazw gałęzi |
 | Scheduled tasks | Target; prompt; run time / recurrence; pause/resume; edit/duplicate/cancel | konto/zasób: brak zadań | Harmonogram rzeczywistych tur, nie preferencja UI |
 | Projects | Workspaces (worker/root path); thread defaults | konto/projekt: brak, dziedziczenie | Miejsce uruchomienia i nadpisania nowych wątków w kompozytorze web; nazwa powstaje przy tworzeniu projektu (bez zmiany nazwy w UI) |
-| Projects / Worktrees | Default workspace | projekt × wszystkie komputery: dziedziczenie | Skrót do zakresu projektu z Settings → Worktrees (ta sama wartość); link „Worktree settings” otwiera stronę Worktrees z tym projektem (`?project=`) |
+| Projects / wybrany projekt / Workspaces / Worktrees | Default workspace | projekt × wszystkie komputery: dziedziczenie | Skrót do zakresu projektu z Settings → Worktrees (ta sama wartość); link „Worktree settings” otwiera stronę Worktrees z tym projektem (`?project=`) |
 | Worktrees / Scope | Project; computer | konto: wszystkie × wszystkie | Zakres dziedziczenia ustawień worktree |
-| Worktrees / Creation | Location; Start from remote; Remote | konto/zakres: managed (`~/canopy/worktrees` workera; w zakresie komputera UI pokazuje zgłoszoną ścieżkę), Off, origin | Tworzenie katalogu i wybór podstawy gałęzi |
-| Worktrees / Branches | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora. Opcja Thread title jest „Soon”: nowe wątki nie wysyłają tytułu, a gałąź nie zmienia nazwy po wygenerowaniu tytułu |
-| Worktrees / Cleanup | Deleted threads; Merged branches; Archived threads; Unchanged worktrees | konto/zakres: wszystkie Off | Reguły usuwania worktree bez aktywnych wątków; pojedynczy reset przywraca dziedziczenie |
-| Worktrees / Cleanup | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Reguły Archived/Deleted threads zezwalają odrzucić lokalne pliki po zamknięciu wszystkich współdzielących wątków; opcjonalne sprzątanie lokalnej gałęzi wymaga potwierdzonego merge oraz archiwizacji wątków zgodnie z [regułami worktree](worktrees.md#sprzątanie-etap-2). Pozostałe reguły chronią zwykłe lokalne zmiany; pliki ignorowane przez Git nie blokują sprzątania. Keep worktrees with local changes pozostaje „Soon” i zmienia tylko etykietę dla pozostałych reguł |
+| Worktrees / New worktrees / Creation | Location; Start from remote; Remote | konto/zakres: managed (`~/canopy/worktrees` workera; w zakresie komputera UI pokazuje zgłoszoną ścieżkę), Off, origin | Tworzenie katalogu i wybór podstawy gałęzi |
+| Worktrees / New worktrees | Branch naming; Branch prefix; default workspace mode | konto/zakres: semantic, canopy, current checkout | Nowe gałęzie i początkowy tryb kompozytora. Opcja Thread title jest „Soon”: nowe wątki nie wysyłają tytułu, a gałąź nie zmienia nazwy po wygenerowaniu tytułu |
+| Worktrees / Cleanup rules | Deleted threads; Merged branches; Archived threads; Unchanged worktrees | konto/zakres: wszystkie Off | Reguły usuwania worktree bez aktywnych wątków; pojedynczy reset przywraca dziedziczenie |
+| Worktrees / Cleanup rules | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Reguły Archived/Deleted threads zezwalają odrzucić lokalne pliki po zamknięciu wszystkich współdzielących wątków; opcjonalne sprzątanie lokalnej gałęzi wymaga potwierdzonego merge oraz archiwizacji wątków zgodnie z [regułami worktree](worktrees.md#sprzątanie-etap-2). Pozostałe reguły chronią zwykłe lokalne zmiany; pliki ignorowane przez Git nie blokują sprzątania. Keep worktrees with local changes pozostaje „Soon” i zmienia tylko etykietę dla pozostałych reguł |
 | Agent tools | Agent Browser, Agent Desktop, Agent Device; Session defaults | dostęp per worker; wartości początkowe na koncie | Włączanie dostępu, instalacja, gotowość i ustawienia nowych sesji na web, desktop i mobile |
 | Agent environment | Instruction fragments; files; skills; sources; plugins; tags; machine targeting; synchronization | konto/zasoby: brak | Konfiguracja środowiska agentów na wybranych workerach |
 | Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login/install/updates | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway |
@@ -170,7 +171,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Workers | Enrollments; public gateway URL; SSH install; name/tags; CLI updates; Updates (ten komputer, połączone komputery, workery i Agent CLIs według komputera) | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
 | Network access | Enabled; port; hostnames; routes; TLS fingerprint | komputer gatewaya: Off, automatyczny port | Osiągalność gatewaya i przypięty TLS; adres nasłuchu ustawia wyłącznie konfiguracja gatewaya |
 | Network access / Attachments | Per file; per message; file count | konto: 20 MiB, 50 MiB, 10 | Limity uploadu egzekwowane przez gateway |
-| Network access / Mobile push relay | Canopy relay; Relay address; Relay token; prywatne CA | web serwerowy: konfiguracja wdrożenia. Lokalny Desktop: relay Canopy | Relay Canopy aktywuje się po włączeniu push na sparowanym telefonie i weryfikacji aplikacji. Wybór zapisany w panelu ma pierwszeństwo i działa bez restartu. |
+| Network access / Push relay | Canopy relay; Relay address; Relay token; prywatne CA | web serwerowy: konfiguracja wdrożenia. Lokalny Desktop: relay Canopy | Relay Canopy aktywuje się po włączeniu push na sparowanym telefonie i weryfikacji aplikacji. Wybór zapisany w panelu ma pierwszeństwo i działa bez restartu. |
 | Devices | Pairing code / QR; device list; revoke | konto/zasoby: brak | Dostęp telefonów i klientów desktopowych |
 | Linked computers | Identity; link/pair; rename; onward sharing; unlink; per-item sharing/conflicts | komputer gatewaya: brak linków, lokalne | Wzajemny dostęp i jawne udostępnianie konfiguracji |
 | Desktop | Local/remote mode; worker status; detected CLIs; change mode | urządzenie/store: wybór przy konfiguracji | Wyłącznie topologia uruchomienia i status lokalnych usług; bez ogólnych preferencji zachowania |
@@ -207,14 +208,13 @@ kontrakt nie ma osobnego filtra komputerów ani statusu; kolejność wątków wy
 Istniejące zakresy powiadomień i keybindings pozostają bez zmian.
 Udostępnianie między połączonymi komputerami pozostaje osobną funkcją.
 
-Quit shortcut przenosimy z App updates do General → Desktop app, obok potwierdzeń,
-z etykietą „This device” i tylko w Electron. To polityka zachowania przy zamykaniu,
+Quit shortcut jest dostępny w Electron w General → Device → Desktop app
+z etykietą „This device”. To polityka zachowania przy zamykaniu,
 nie zmiana przypisania klawiszy.
 Audyt Desktop: tryb local/remote, status workera i wykryte CLI opisują miejsce
 uruchomienia usług i pozostają na tej stronie; ogólnych preferencji tam nie dodajemy.
 App updates nie zawiera skrótów ani innych ustawień niezwiązanych z aktualizacjami.
-Częstotliwość wykrywania aktualizacji CLI pozostaje obok narzędzi Workers;
-centrum aktualizacji służy wykonywaniu aktualizacji.
+W Workers → Updates sekcja CLI update schedule określa częstotliwość sprawdzania wersji CLI.
 
 ## Pominięcia
 

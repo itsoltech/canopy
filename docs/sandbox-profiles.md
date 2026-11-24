@@ -1,13 +1,13 @@
 # Profile Sandbox
 
-Status (2026-11-22): katalog właściciela i wybór profilu w wątku działają
+Status (2026-11-24): katalog właściciela i wybór profilu w wątku działają
 w web/desktop. Harmonogramy nowych wątków obsługują wybór także na mobile.
 Dostępność wydań wynika z [promocji](release.md). Obsługa zależy od raportu
 wybranej instancji dostawcy na workerze.
 
 ## Wybór profilu w wątku
 
-Settings → Threads → Sandbox profiles zapisuje nazwy i listy dokładnych domen.
+W web/desktop nazwy profili i listy dokładnych domen zapisuje się w **Settings → Threads → Sandbox and subagents → Sandbox profiles**.
 W wątku właściciel wybiera **Sandbox** i **Harness default** lub zapisany
 profil. **Harness default** zachowuje dotychczasowe zachowanie harnessu.
 Pusta lista w nazwanym profilu wyłącza ruch wychodzący poleceń. Lista domen

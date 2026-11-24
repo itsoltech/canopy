@@ -23,6 +23,7 @@
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
 
   const overview = useOverview();
@@ -98,85 +99,104 @@
 
 <svelte:head><title>Workers · Settings · {applicationName}</title></svelte:head>
 
-<div class="flex flex-wrap items-start justify-between gap-4 px-1">
-  <div class="min-w-0">
-    <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>
-    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      <span class="tabular-nums">{online} of {total}</span> connected.
-    </p>
-  </div>
-  <div class="shrink-0">
-    <Button variant="primary" icon="plus" disabled={!setup.loaded} onclick={() => (adding = true)}>Add worker</Button>
-  </div>
-</div>
 {#if setup.error || error}<Alert tone="error"
     >{error || setup.error}{#snippet actions()}<Button size="sm" onclick={() => void setup.reload()}>Retry</Button
       >{/snippet}</Alert
   >{/if}
-<NetworkAccessSummary
-  {network}
-  busy={network.busy}
-  onenable={() =>
-    void network
-      .update("set_enabled", { enabled: true })
-      .then(() => setup.reload())
-      .catch((e) => {
-        error = e instanceof Error ? e.message : "Could not enable network access";
-      })}
+
+<SettingsTopics
+  label="Worker settings"
+  topics={[
+    { id: "workers", label: "Registered workers", content: workers },
+    { id: "connections", label: "Connections", content: connections },
+    { id: "updates", label: "Updates", content: updates },
+  ]}
 />
-<SettingsGroup title="This computer" cards>
-  {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} {environment} />
-  {:else}<SettingsCard
-      ><SettingsRow
-        title="No workers yet"
-        description="Add a worker to run Claude, Codex or Grok on a computer you control."
-      /></SettingsCard
-    >{/each}
-</SettingsGroup>
-{#each records.computers as computer (computer.nodeId)}
-  <SettingsGroup title={computer.name} description={computer.readOnly || undefined} cards>
-    {#each computer.workers as item (item.record.workerId)}<WorkerRow
-        worker={item.worker}
-        linked={item}
-        {setup}
-        {environment}
-        onchanged={() => void records.reload()}
-      />{/each}
+
+{#snippet workers()}
+  <div class="flex flex-wrap items-start justify-between gap-4 px-1">
+    <div class="min-w-0">
+      <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>
+      <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        <span class="tabular-nums">{online} of {total}</span> connected.
+      </p>
+    </div>
+    <div class="shrink-0">
+      <Button variant="primary" icon="plus" disabled={!setup.loaded} onclick={() => (adding = true)}>Add worker</Button>
+    </div>
+  </div>
+  <SettingsGroup title="This computer" cards>
+    {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} />
+    {:else}<SettingsCard
+        ><SettingsRow
+          title="No workers yet"
+          description="Add a worker to run Claude, Codex or Grok on a computer you control."
+        /></SettingsCard
+      >{/each}
   </SettingsGroup>
-{/each}
-{#if records.error}<Alert tone="error"
-    >{records.error}{#snippet actions()}<Button size="sm" onclick={() => void records.reload()}>Retry</Button
-      >{/snippet}</Alert
-  >{/if}
-{#if environment.error}<Alert tone="error"
-    >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}
-        >Refresh tags</Button
-      >{/snippet}</Alert
-  >{/if}
-{#if capabilities?.linkedComputers && elsewhere}
-  <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    Workers from linked computers are managed in Settings → Workers on their home computer.
-  </p>
-{/if}
-<CliUpdatesSummary workers={overview.workers} />
-<SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule."
-  ><CliCheckSettings /></SettingsGroup
->
-<AccountConfigNotices section="cliUpdates" />
-{#if pending.length}
-  <SettingsGroup title="Pending enrollments">
-    {#each pending as enrollment (enrollment.id)}
-      <SettingsRow
-        title={enrollment.name}
-        description={`Waiting for enrollment · expires ${formatTime(enrollment.expiresAt) || "soon"}`}
-      >
-        {#snippet control()}<Button variant="ghost" size="sm" onclick={() => void revoke(enrollment.id)}>Revoke</Button
-          >{/snippet}
-      </SettingsRow>
-    {/each}
-  </SettingsGroup>
-{/if}
-<UpdatesPanel />
-<SettingsGroup title="Install over SSH"><WorkerSshKey class="p-4 sm:p-5" /></SettingsGroup>
-<WorkerConnectionSettings {setup} />
+  {#each records.computers as computer (computer.nodeId)}
+    <SettingsGroup title={computer.name} description={computer.readOnly || undefined} class="break-anywhere" cards>
+      {#each computer.workers as item (item.record.workerId)}<WorkerRow
+          worker={item.worker}
+          linked={item}
+          {setup}
+          onchanged={() => void records.reload()}
+        />{/each}
+    </SettingsGroup>
+  {/each}
+  {#if records.error}<Alert tone="error"
+      >{records.error}{#snippet actions()}<Button size="sm" onclick={() => void records.reload()}>Retry</Button
+        >{/snippet}</Alert
+    >{/if}
+  {#if environment.error}<Alert tone="error"
+      >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}
+          >Refresh tags</Button
+        >{/snippet}</Alert
+    >{/if}
+  {#if capabilities?.linkedComputers && elsewhere}
+    <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      Workers from linked computers are managed in Settings → Workers on their home computer.
+    </p>
+  {/if}
+{/snippet}
+
+{#snippet connections()}
+  <NetworkAccessSummary
+    {network}
+    busy={network.busy}
+    onenable={() =>
+      void network
+        .update("set_enabled", { enabled: true })
+        .then(() => setup.reload())
+        .catch((e) => {
+          error = e instanceof Error ? e.message : "Could not enable network access";
+        })}
+  />
+  <SettingsGroup title="Install over SSH"><WorkerSshKey class="p-4 sm:p-5" /></SettingsGroup>
+  <WorkerConnectionSettings {setup} />
+  {#if pending.length}
+    <SettingsGroup title="Pending enrollments">
+      {#each pending as enrollment (enrollment.id)}
+        <SettingsRow
+          title={enrollment.name}
+          description={`Waiting for enrollment · expires ${formatTime(enrollment.expiresAt) || "soon"}`}
+        >
+          {#snippet control()}<Button variant="ghost" size="sm" onclick={() => void revoke(enrollment.id)}
+              >Revoke</Button
+            >{/snippet}
+        </SettingsRow>
+      {/each}
+    </SettingsGroup>
+  {/if}
+{/snippet}
+
+{#snippet updates()}
+  <UpdatesPanel />
+  <CliUpdatesSummary workers={overview.workers} />
+  <SettingsGroup title="CLI update schedule" description="Account · Workers can override this schedule."
+    ><CliCheckSettings /></SettingsGroup
+  >
+  <AccountConfigNotices section="cliUpdates" />
+{/snippet}
+
 <AddWorkerWizard {setup} workers={environment.snapshot.workers} bind:open={() => adding, setAdding} />

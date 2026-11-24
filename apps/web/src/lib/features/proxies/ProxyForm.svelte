@@ -146,7 +146,7 @@
   {/if}
   {#if kind !== "anthropic"}
     <Disclosure>
-      {#snippet summary()}Advanced: Codex transport{/snippet}
+      {#snippet summary()}Codex transport{/snippet}
       <div class="grid gap-4 pt-4">
         <Field label="Wire API" description="The installed Codex adapter uses the Responses API."
           ><Input value="responses" readonly /></Field
@@ -167,7 +167,7 @@
     </Disclosure>
   {/if}
   <Disclosure>
-    {#snippet summary()}Advanced: how agents use this proxy{/snippet}
+    {#snippet summary()}How agents use this proxy{/snippet}
     <ProxyMappings {kind} {baseUrl} class="pt-4" />
   </Disclosure>
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}

@@ -146,7 +146,7 @@
       </section>
     {/each}
     <a
-      href="/settings/workers"
+      href="/settings/workers#topic-updates"
       class="w-fit text-base/6 text-zinc-500 underline focus-ring sm:text-sm/6 dark:text-zinc-400"
       >Worker settings and update details</a
     >

@@ -1,5 +1,7 @@
 # Dostęp sieciowy (Network access)
 
+Aktualizacja (2026-11-24): w web/desktop port i odcisk certyfikatu są w zakładce **Connections**.
+
 Status (2026-11-23): w ustawieniach Network access można wybrać sieci, z których
 gateway przyjmuje połączenia. Wybór obowiązuje na listenerze TLS i w ogłoszeniach
 tras. Ustawienia pozwalają też zwiększyć limit załączników do 40 MiB na plik.
@@ -204,8 +206,8 @@ Pole `note` pojawia się tylko, gdy coś wymaga działania:
 - **Settings → Network access** w webie, desktopie i aplikacji mobilnej: główny przełącznik
   i podsumowanie „Allowed networks”. „Change” otwiera listę wyboru, a „Apply”
   zapisuje wszystkie zmiany jednocześnie. „Reachable at” pokazuje aktualne adresy.
-  Dodane nazwy można edytować po wyłączeniu ich sieci. „Advanced” pokazuje port
-  i odcisk certyfikatu.
+  Dodane nazwy można edytować po wyłączeniu ich sieci. W web/desktop port i odcisk
+  certyfikatu pokazuje **Connections → Port and certificate**, na mobile **Advanced**.
 - **Settings → Network access → Tailscale**: stan Tailscale, nazwa MagicDNS i adresy tailnetu z kopiowaniem,
   „Check again” oraz „HTTPS over Tailscale” (przełącznik, adres z kodem QR, port) — [tailscale.md](tailscale.md).
 - **Settings → Linked computers**: karta stanu („Network access is on · Reachable at 192.168.1.20,

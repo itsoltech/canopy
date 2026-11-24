@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -9,7 +8,7 @@
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import { computerUpdate } from "@canopy/domain/release/computer-update";
   import { presenceTime } from "#lib/features/computers/computers.ts";
-  import { updateCenter, UpdatesState } from "#lib/features/workers/updates.svelte.ts";
+  import type { UpdatesState } from "#lib/features/workers/updates.svelte.ts";
   import { updateCheckLabel } from "@canopy/domain/computer-presence";
   import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
 
@@ -19,15 +18,12 @@
    */
   let {
     class: className,
-    fixture,
+    updates,
   }: {
     class?: ClassValue;
-    /** Development fixtures (/dev/updates): fixed state, no polling. */
-    fixture?: UpdatesState;
+    updates: UpdatesState;
   } = $props();
 
-  const given = untrack(() => fixture);
-  const updates = given ?? updateCenter;
   const computers = $derived(updates.snapshot?.computers ?? []);
   let action = $state("");
 
@@ -36,12 +32,6 @@
     ["beta", "Beta"],
     ["nightly", "Nightly"],
   ]);
-
-  onMount(() => {
-    if (given) return;
-
-    return updates.poll();
-  });
 
   function run(kind: "computer" | "computer_check", computer: ui.ComputerUpdate) {
     action = kind;

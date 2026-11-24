@@ -111,7 +111,7 @@ bo leży poza paskami tytułu i nie powinien zawieszać przeciągania całego ok
 
 Gdy podczas pracy w Canopy pojawi się nowa sugestia gotowa do przeglądu,
 web, desktop i mobile pokazują powiadomienie z akcją `Review habits`.
-Akcja otwiera Settings → Memory. Powiadomienie respektuje `In-app notifications`
+Akcja otwiera Settings → Memory, w web/desktop bezpośrednio zakładkę Habits. Powiadomienie respektuje `In-app notifications`
 i jest pomijane, gdy użytkownik już ogląda Memory. Przy pierwszym odczycie
 i po ponownym połączeniu aplikacja odtwarza licznik bieżących sugestii.
 Rozstrzygnięcie lub utrata podstawy sugestii zmniejsza licznik.

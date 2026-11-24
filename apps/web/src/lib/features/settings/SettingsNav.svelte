@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
   import HabitReviewBadge from "#lib/features/memory/HabitReviewBadge.svelte";
-  import { memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
+  import { habitsSettingsHref, memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
@@ -29,15 +29,16 @@
         <h2 class="px-2.5 text-sm/6 text-zinc-500 sm:text-xs/6">{group}</h2>
         <ul role="list" class="mt-1 grid gap-0.5">
           {#each items as section (section.href)}
+            {@const reviewHabits = section.href === memorySettingsPath && habitCount}
             <li>
               <a
-                href={section.href}
+                href={reviewHabits && !query.trim() ? habitsSettingsHref : section.href}
                 class={itemClass}
                 aria-current={sections.isActive(section.href) ? "page" : undefined}
               >
                 <Icon name={section.icon} tone="inherit" />
                 {section.label}
-                {#if section.href === memorySettingsPath && habitCount}
+                {#if reviewHabits}
                   <HabitReviewBadge count={habitCount} class="ml-auto" />
                 {/if}
                 {#if sections.hinted(section.href)}

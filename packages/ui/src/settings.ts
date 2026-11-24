@@ -40,7 +40,8 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "App updates",
     icon: "arrow-up",
     group: "General",
-    keywords: "app updates stable beta nightly channel version whats new release notes changelog",
+    keywords:
+      "app updates stable beta nightly channel version whats new release notes changelog releases update preferences linked computers",
   },
   {
     href: "/settings/general",
@@ -48,7 +49,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "cog-6-tooth",
     group: "General",
     keywords:
-      "modules first tab default order threads bots enable disable notifications sound sidebar grouping projects confirmations unpin archive delete display time zone format",
+      "modules first tab default order threads bots enable disable notifications sound sidebar grouping projects confirmations unpin archive delete display time zone format device thread list",
   },
   {
     href: "/settings/appearance",
@@ -56,7 +57,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "swatch",
     group: "General",
     keywords:
-      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display context window tokens circle text bar render math latex animated mascots",
+      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display context window tokens circle text bar render math latex animated mascots themes",
   },
   {
     href: "/settings/keybindings",
@@ -71,14 +72,14 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "chat-bubble-left-right",
     group: "General",
     keywords:
-      "new thread defaults project worker agent model profile permissions workspace archived threads retention auto-delete delete after days cleanup clean up history subagents finished list turn activity while working after turn tool calls reasoning progress expanded collapsed messages steer queue delivery",
+      "new thread defaults project worker agent model profile permissions workspace archived threads retention auto-delete delete after days cleanup clean up history subagents finished list turn activity while working after turn tool calls reasoning progress expanded collapsed messages steer queue delivery conversation sandbox and subagents archiving",
   },
   {
     href: "/settings/memory",
     label: "Memory",
     icon: "square-2-stack",
     group: "General",
-    keywords: "agent bot memory notes aliases pinned project worker conversation scope edit delete",
+    keywords: "agent bot memory notes aliases pinned project worker conversation scope edit delete habits reflection",
   },
   {
     href: "/settings/text-generation",
@@ -101,7 +102,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "signal",
     group: "General",
     keywords:
-      "performance health storage disk space logs data cache application database rpc calls network latency rtt history findings computers sync progress remaining records errors failures linked computers",
+      "performance health storage disk space logs data cache application database rpc calls network latency rtt history findings computers sync progress remaining records errors failures linked computers overview calls and tracing reports",
   },
   {
     href: "/settings/open-source-licenses",
@@ -115,7 +116,7 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Projects",
     icon: "folder",
     group: "Code",
-    keywords: "project workspace directory threads",
+    keywords: "project workspace directory threads workspaces project details",
   },
   {
     href: "/settings/worktrees",
@@ -123,14 +124,15 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "git-fork",
     group: "Code",
     keywords:
-      "git worktree branch base ref remote prefix semantic checkout location creation default workspace cleanup clean up automatic hourly remove delete deleted archived threads merged branches unchanged inactive days keep local changes safe local branches preview run now managed worktrees",
+      "git worktree branch base ref remote prefix semantic checkout location creation default workspace cleanup clean up automatic hourly remove delete deleted archived threads merged branches unchanged inactive days keep local changes safe local branches preview run now managed worktrees new worktrees cleanup rules",
   },
   {
     href: "/settings/providers",
     label: "Providers",
     icon: "cpu-chip",
     group: "Connections",
-    keywords: "provider instance codex claude cliproxyapi endpoint key login models favorites environment",
+    keywords:
+      "provider instance codex claude cliproxyapi endpoint key login models favorites environment status and access configuration worker overrides",
   },
   {
     href: "/settings/diffs",
@@ -144,28 +146,30 @@ export const settingsSections: readonly SettingsSection[] = [
     label: "Agent environment",
     icon: "sparkles",
     group: "Code",
-    keywords: "instructions claude.md agents.md fragments skills plugins tags machines sync drift",
+    keywords: "instructions claude.md agents.md fragments skills plugins tags machines sync drift computers",
   },
   {
     href: "/settings/agent-tools",
     label: "Agent tools",
     icon: "wrench",
     group: "Code",
-    keywords: "automation agent browser desktop device simulator emulator worker access install update tools",
+    keywords:
+      "automation agent browser desktop device simulator emulator worker access install update tools session defaults",
   },
   {
     href: "/settings/import",
     label: "Import",
     icon: "arrow-down-tray",
     group: "Code",
-    keywords: "import claude code codex grok cli sessions history resume migrate",
+    keywords: "import claude code codex grok cli sessions history resume migrate new import activity",
   },
   {
     href: "/settings/github",
     label: "GitHub",
     icon: "github",
     group: "Connections",
-    keywords: "github account device code app installations repositories personal access token",
+    keywords:
+      "github account device code app installations repositories personal access token connect connected accounts and access",
   },
   {
     href: "/settings/connectors",
@@ -173,28 +177,30 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "plug",
     group: "Connections",
     keywords:
-      "github slack outlook microsoft notion linear google atlassian custom mcp server oauth accounts integrations access authentication endpoint url token secret headers client secret scopes",
+      "github slack outlook microsoft notion linear google atlassian custom mcp server oauth accounts integrations access authentication endpoint url token secret headers client secret scopes tool accounts slack bots",
   },
   {
     href: "/settings/proxies",
     label: "Proxies",
     icon: "arrows-right-left",
     group: "Connections",
-    keywords: "proxy cliproxyapi anthropic openai endpoint secret key connection",
+    keywords: "proxy cliproxyapi anthropic openai endpoint secret key connection connections upstream accounts",
   },
   {
     href: "/settings/workers",
     label: "Workers",
     icon: "server",
     group: "Connections",
-    keywords: "worker machine environment device online config",
+    keywords:
+      "worker machine environment device online config registered workers connections updates configuration agent clis tags enrollment ssh",
   },
   {
     href: "/settings/network",
     label: "Network access",
     icon: "signal",
     group: "Connections",
-    keywords: "network listen port address hostname tailscale lan wifi firewall phones computers connect",
+    keywords:
+      "network listen port address hostname tailscale lan wifi firewall phones computers connect connections push relay attachments",
   },
   {
     href: "/settings/mobile",
@@ -202,14 +208,14 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "link",
     group: "Connections",
     keywords:
-      "phone iphone android pairing qr tailscale device revoke unpair this phone forget pairing locally mobile desktop app",
+      "phone iphone android pairing qr tailscale device revoke unpair this phone forget pairing locally mobile desktop app device access",
   },
   {
     href: "/settings/computers",
     label: "Linked computers",
     icon: "server",
     group: "Connections",
-    keywords: "computer link pair fingerprint certificate network desktop",
+    keywords: "computer link pair fingerprint certificate network desktop this computer configuration sharing",
   },
 ];
 
@@ -238,6 +244,6 @@ export const desktopSettingsSections: readonly SettingsSection[] = [
     label: "Desktop",
     icon: "server",
     group: "Connections",
-    keywords: "desktop local remote worker computer privacy analytics telemetry usage ping",
+    keywords: "desktop local remote worker computer privacy analytics telemetry usage ping gateway",
   },
 ];

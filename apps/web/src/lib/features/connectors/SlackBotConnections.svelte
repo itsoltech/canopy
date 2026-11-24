@@ -11,15 +11,15 @@
   let {
     slackUsers,
     oauthCompletion,
-    adding = $bindable(false),
-    ready = $bindable(false),
+    canAdd,
   }: {
     slackUsers: readonly connectors.ConnectorAccount[];
     oauthCompletion?: connectors.CompleteConnectorOAuthResponse;
-    adding?: boolean;
-    ready?: boolean;
+    canAdd: boolean;
   } = $props();
 
+  let adding = $state(false);
+  let ready = $state(false);
   let catalog = $state<ui.ListMessengerAccountsResponse>();
   let loading = $state(true);
   let failed = $state(false);
@@ -90,10 +90,13 @@
 </script>
 
 <section aria-labelledby="slack-bot-heading" class="grid min-w-0 gap-4">
-  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+  <div class="flex flex-wrap items-center justify-between gap-2">
     <h2 id="slack-bot-heading" class="text-lg font-semibold">Slack Bot accounts</h2>
-    <Button size="sm" variant="ghost" disabled={loading} onclick={reload}>Refresh status</Button>
-    <p class="col-span-full text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+    <div class="flex flex-wrap gap-2">
+      <Button size="sm" variant="ghost" disabled={loading} onclick={reload}>Refresh status</Button>
+      {#if canAdd}<Button size="sm" disabled={!ready} onclick={() => (adding = true)}>Add Slack Bot</Button>{/if}
+    </div>
+    <p class="w-full text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       Receive and reply to Slack messages as your Slack app’s bot.
     </p>
   </div>

@@ -99,6 +99,7 @@
 <SettingsGroup title="Logs" description="Collect redacted logs from selected computers.">
   <div class="flex flex-wrap items-center gap-3 p-4">
     <Button
+      disabled={!computers.length && !job}
       onclick={() => {
         ids = computers.slice(0, 16).map((c) => c.computerId);
         open = true;

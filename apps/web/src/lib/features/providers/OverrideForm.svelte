@@ -144,8 +144,15 @@
 
 <form class={["settings-form settings-stack", className]} onsubmit={submit} novalidate>
   {#if worker.nodeId && !loaded}
-    {#if !readOnly && failure}<Alert tone="error">{failure}</Alert>
+    {#if readOnly}
+      <SettingsSection title="Overrides on {worker.name}">
+        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">{readOnly}</p>
+      </SettingsSection>
+    {:else if failure}
+      <Alert tone="error">{failure}</Alert>
       <div><Button {loading} onclick={load}>Refresh status</Button></div>
+    {:else}
+      <p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">Loading worker overrides…</p>
     {/if}
   {:else}
     {#if instance.harness === Provider.CLAUDE}

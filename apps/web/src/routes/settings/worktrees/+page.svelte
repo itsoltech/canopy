@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
+  import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import { ui } from "@canopy/contracts";
   import { setContext, untrack } from "svelte";
@@ -75,6 +77,7 @@
 <svelte:head><title>Worktrees · Settings · {applicationName}</title></svelte:head>
 
 <div class="settings-stack">
+  <SettingsHeading title="Worktrees" />
   <WorktreeScopeBar {scope} disabled={settingsState.saving > 0} onchange={(next) => (scope = next)} />
   <ConfigNotices
     match={(notice) =>
@@ -92,100 +95,114 @@
     {#if !effective || !inherited}
       <Skeleton class="h-64 w-full" />
     {:else}
-      <SettingsGroup title="Creation" description="Existing worktrees stay in their current directories.">
-        <WorktreeTextSetting
-          name="worktreeLocation"
-          field="location"
-          title="Worktree location"
-          description="An absolute directory path on the computer. Empty: Canopy uses canopy/worktrees in the home directory."
-          placeholder={managedRoot}
-          inputClass="w-64"
-          value={effective.location ?? ""}
-          overridden={is("location")}
-          inherited={inherited.location || managedRoot}
-          onsave={(location) => settingsState.update({ location })}
-          onreset={() => reset("location")}
-        />
-        <WorktreeSettingRow
-          title="Start from remote"
-          field="startFromRemote"
-          description="New worktrees start from the base branch's latest remote commit, or from the local branch if it has no remote."
-          overridden={is("startFromRemote")}
-          inherited={inherited.startFromRemote ? "On" : "Off"}
-          onreset={() => reset("startFromRemote")}
-        >
-          {#snippet control()}
-            <Switch
-              name="startFromRemote"
-              label="Start from remote"
-              checked={effective.startFromRemote ?? false}
-              onchange={(checked) => settingsState.update({ startFromRemote: checked })}
-            />
-          {/snippet}
-        </WorktreeSettingRow>
-        <div class="px-4 py-3">
-          <Disclosure summaryClass="py-1 text-base/6 sm:text-sm/6">
-            {#snippet summary()}Advanced{/snippet}
-            <WorktreeTextSetting
-              name="worktreeRemote"
-              field="remote"
-              title="Remote"
-              description="Used when the base branch tracks no remote branch."
-              class="-mx-4"
-              value={effective.remote ?? "origin"}
-              overridden={is("remote")}
-              inherited={inherited.remote || "origin"}
-              onsave={(remote) => settingsState.update({ remote: remote || undefined })}
-              onreset={() => reset("remote")}
-            />
-          </Disclosure>
-        </div>
-      </SettingsGroup>
+      <SettingsTopics
+        label="Worktree settings"
+        topics={[
+          { id: "creation", label: "New worktrees", content: creation },
+          { id: "cleanup", label: "Cleanup rules", content: cleanup },
+          { id: "worktrees", label: "Manage worktrees", content: management, hidden: !!splitId(scope.workerId).node },
+        ]}
+      />
+      {#snippet creation()}
+        <SettingsGroup title="Creation" description="Existing worktrees stay in their current directories.">
+          <WorktreeTextSetting
+            name="worktreeLocation"
+            field="location"
+            title="Worktree location"
+            description="An absolute directory path on the computer. Empty: Canopy uses canopy/worktrees in the home directory."
+            placeholder={managedRoot}
+            inputClass="w-64"
+            value={effective.location ?? ""}
+            overridden={is("location")}
+            inherited={inherited.location || managedRoot}
+            onsave={(location) => settingsState.update({ location })}
+            onreset={() => reset("location")}
+          />
+          <WorktreeSettingRow
+            title="Start from remote"
+            field="startFromRemote"
+            description="New worktrees start from the base branch's latest remote commit, or from the local branch if it has no remote."
+            overridden={is("startFromRemote")}
+            inherited={inherited.startFromRemote ? "On" : "Off"}
+            onreset={() => reset("startFromRemote")}
+          >
+            {#snippet control()}
+              <Switch
+                name="startFromRemote"
+                label="Start from remote"
+                checked={effective.startFromRemote ?? false}
+                onchange={(checked) => settingsState.update({ startFromRemote: checked })}
+              />
+            {/snippet}
+          </WorktreeSettingRow>
+          <div class="px-4 py-3">
+            <Disclosure summaryClass="py-1 text-base/6 sm:text-sm/6">
+              {#snippet summary()}Advanced{/snippet}
+              <WorktreeTextSetting
+                name="worktreeRemote"
+                field="remote"
+                title="Remote"
+                description="Used when the base branch tracks no remote branch."
+                class="-mx-4"
+                value={effective.remote ?? "origin"}
+                overridden={is("remote")}
+                inherited={inherited.remote || "origin"}
+                onsave={(remote) => settingsState.update({ remote: remote || undefined })}
+                onreset={() => reset("remote")}
+              />
+            </Disclosure>
+          </div>
+        </SettingsGroup>
 
-      <SettingsGroup title="Branches">
-        <WorktreeChoiceSetting
-          name="branchNaming"
-          field="branchNaming"
-          title="Branch naming"
-          description="The model suggests a prefix based on the thread’s first message."
-          options={naming}
-          value={effective.branchNaming}
-          inherited={inherited.branchNaming}
-          overridden={is("branchNaming")}
-          onchange={(branchNaming) => settingsState.update({ branchNaming })}
-          onreset={() => reset("branchNaming")}
-        />
-        <WorktreeTextSetting
-          name="branchPrefix"
-          field="branchPrefix"
-          title="Branch prefix"
-          description="Also used until the model suggests a semantic prefix."
-          value={effective.branchPrefix ?? ""}
-          overridden={is("branchPrefix")}
-          inherited={inherited.branchPrefix || "canopy"}
-          onsave={(branchPrefix) => settingsState.update({ branchPrefix: branchPrefix || undefined })}
-          onreset={() => reset("branchPrefix")}
-        />
-      </SettingsGroup>
+        <SettingsGroup title="Branches">
+          <WorktreeChoiceSetting
+            name="branchNaming"
+            field="branchNaming"
+            title="Branch naming"
+            description="The model suggests a prefix based on the thread’s first message."
+            options={naming}
+            value={effective.branchNaming}
+            inherited={inherited.branchNaming}
+            overridden={is("branchNaming")}
+            onchange={(branchNaming) => settingsState.update({ branchNaming })}
+            onreset={() => reset("branchNaming")}
+          />
+          <WorktreeTextSetting
+            name="branchPrefix"
+            field="branchPrefix"
+            title="Branch prefix"
+            description="Also used until the model suggests a semantic prefix."
+            value={effective.branchPrefix ?? ""}
+            overridden={is("branchPrefix")}
+            inherited={inherited.branchPrefix || "canopy"}
+            onsave={(branchPrefix) => settingsState.update({ branchPrefix: branchPrefix || undefined })}
+            onreset={() => reset("branchPrefix")}
+          />
+        </SettingsGroup>
 
-      <SettingsGroup title="New threads">
-        <WorktreeChoiceSetting
-          name="defaultMode"
-          field="defaultMode"
-          title="Default workspace"
-          description="You can choose a different workspace for each thread."
-          options={modes}
-          value={effective.defaultMode}
-          inherited={inherited.defaultMode}
-          overridden={is("defaultMode")}
-          onchange={(defaultMode) => settingsState.update({ defaultMode })}
-          onreset={() => reset("defaultMode")}
-        />
-      </SettingsGroup>
-      <WorktreeCleanupSettings />
-      {#if !splitId(scope.workerId).node}{#key `${scope.projectId}:${scope.workerId}:${settingsState.current?.version}`}
+        <SettingsGroup title="New threads">
+          <WorktreeChoiceSetting
+            name="defaultMode"
+            field="defaultMode"
+            title="Default workspace"
+            description="You can choose a different workspace for each thread."
+            options={modes}
+            value={effective.defaultMode}
+            inherited={inherited.defaultMode}
+            overridden={is("defaultMode")}
+            onchange={(defaultMode) => settingsState.update({ defaultMode })}
+            onreset={() => reset("defaultMode")}
+          />
+        </SettingsGroup>
+      {/snippet}
+      {#snippet cleanup()}
+        <WorktreeCleanupSettings />
+      {/snippet}
+      {#snippet management()}
+        {#key `${scope.projectId}:${scope.workerId}:${settingsState.current?.version}`}
           <WorktreeManagement {scope} />
-        {/key}{/if}
+        {/key}
+      {/snippet}
     {/if}
   {/if}
 </div>

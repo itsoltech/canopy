@@ -10,6 +10,7 @@
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import DevicePairingDialog from "#lib/features/network/DevicePairingDialog.svelte";
   import NetworkAccessSummary from "#lib/features/network/NetworkAccessSummary.svelte";
@@ -22,6 +23,7 @@
   import { useConnectionRequest } from "#lib/features/network/connection-request.svelte.ts";
   import ConnectionRequestError from "#lib/features/network/ConnectionRequestError.svelte";
 
+  let topics: ReturnType<typeof SettingsTopics> | undefined;
   const overview = useOverview();
   const network = useNetworkAccess();
 
@@ -169,29 +171,6 @@
 </script>
 
 <svelte:head><title>Devices · Settings · {applicationName}</title></svelte:head>
-<div class="flex flex-wrap items-start justify-between gap-4 px-1">
-  <div class="min-w-0">
-    <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Devices</h1>
-    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Pair once and connect on any Wi-Fi or VPN you share with this computer.
-    </p>
-  </div>
-  <div class="flex flex-wrap gap-3">
-    <Button
-      disabled={!request.loaded || !network.loaded || !!network.error || !!request.error || busy}
-      onclick={() => void pair("desktop")}>Pair a desktop app</Button
-    >
-    <Button
-      variant="primary"
-      disabled={!request.loaded || !network.loaded || !!network.error || !!request.error || busy}
-      loading={busy}
-      onclick={() => void pair()}
-      >{network.loaded && !network.error && network.status.state === "off"
-        ? "Turn on network access and pair a phone"
-        : "Pair a phone"}</Button
-    >
-  </div>
-</div>
 {#if request.error}<ConnectionRequestError
     title="Could not load paired devices"
     error={request.error}
@@ -208,79 +187,116 @@
       }}>Retry</Button
     ></Alert
   >{/if}
-<NetworkAccessSummary
-  {network}
-  busy={busy || network.busy}
-  onenable={() =>
-    void network.update("set_enabled", { enabled: true }).catch((e) => {
-      error = e instanceof Error ? e.message : "Could not enable network access";
-    })}
+
+<SettingsTopics
+  bind:this={topics}
+  label="Device settings"
+  topics={[
+    { id: "pairing", label: "Pairing", content: pairing },
+    { id: "device-access", label: "Device access", content: devices },
+  ]}
 />
-<SettingsGroup title="Paired devices">
-  {#each activeDevices as device (device.id)}
-    <SettingsRow
-      title={device.name}
-      description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
-    >
-      {#snippet control()}{#if device.pairingVersion < 2}<Button
-            size="sm"
-            disabled={busy}
-            onclick={() => void pair(device.clientKind === "desktop" ? "desktop" : "mobile")}>Pair again</Button
-          >
-        {:else}<Button size="sm" variant="ghost" disabled={busy} onclick={() => void revoke(device.id, "device")}
-            >Revoke access</Button
-          >{/if}{/snippet}
-    </SettingsRow>
-  {:else}<SettingsRow
-      title={request.loaded && revokedDevices.length
-        ? "No active devices"
-        : request.loaded
-          ? "No devices paired yet"
-          : request.error
-            ? "Paired devices unavailable"
-            : "Loading devices…"}
-      description={request.loaded && revokedDevices.length
-        ? "Pair a phone or desktop app to connect it to Canopy."
-        : request.loaded
-          ? "Pair a phone or desktop app. Revoke its access here at any time."
-          : undefined}
-    />{/each}
-  {#if revokedDevices.length}
-    <Disclosure summaryClass="px-4 py-3.5 text-base/6 sm:text-sm/6">
-      {#snippet summary()}
-        <span class="flex min-w-0 items-center gap-2">
-          <span>Revoked devices</span>
-          <Badge compact>{revokedDevices.length}</Badge>
-        </span>
-      {/snippet}
-      <div class="divide-y divide-zinc-950/5 dark:divide-white/8">
-        {#each revokedDevices as device (device.id)}
-          <SettingsRow
-            title={device.name}
-            description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform}`}
-          />
-        {/each}
-      </div>
-    </Disclosure>
-  {/if}
-</SettingsGroup>
-{#if pending.length}
-  <SettingsGroup title="Pending pairing codes">
-    {#each pending as p (p.id)}
-      <SettingsRow
-        title={p.clientKind === "desktop" ? "Waiting for a desktop app" : "Waiting for a phone"}
-        description={`Expires ${formatTime(p.expiresAt) || "soon"}`}
+
+{#snippet pairing()}
+  <div class="grid gap-3 px-1">
+    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      Pair once and connect on any Wi-Fi or VPN you share with this computer.
+      {#if network.loaded && !network.error && network.status.state === "off"}
+        Pairing turns on network access.
+      {/if}
+    </p>
+    <div class="flex flex-wrap gap-3">
+      <Button
+        disabled={!request.loaded || !network.loaded || !!network.error || !!request.error || busy}
+        onclick={() => void pair("desktop")}>Pair a desktop app</Button
       >
-        {#snippet control()}<Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onclick={() => void revoke(p.id, "pairing")}>Revoke code</Button
-          >{/snippet}
+      <Button
+        variant="primary"
+        disabled={!request.loaded || !network.loaded || !!network.error || !!request.error || busy}
+        loading={busy}
+        onclick={() => void pair()}>Pair a phone</Button
+      >
+    </div>
+  </div>
+  <NetworkAccessSummary
+    {network}
+    busy={busy || network.busy}
+    onenable={() =>
+      void network.update("set_enabled", { enabled: true }).catch((e) => {
+        error = e instanceof Error ? e.message : "Could not enable network access";
+      })}
+  />
+  {#if pending.length}
+    <SettingsGroup title="Pending pairing codes">
+      {#each pending as p (p.id)}
+        <SettingsRow
+          title={p.clientKind === "desktop" ? "Waiting for a desktop app" : "Waiting for a phone"}
+          description={`Expires ${formatTime(p.expiresAt) || "soon"}`}
+        >
+          {#snippet control()}<Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onclick={() => void revoke(p.id, "pairing")}>Revoke code</Button
+            >{/snippet}
+        </SettingsRow>
+      {/each}
+    </SettingsGroup>
+  {/if}
+{/snippet}
+
+{#snippet devices()}
+  <SettingsGroup title="Paired devices">
+    {#each activeDevices as device (device.id)}
+      <SettingsRow
+        title={device.name}
+        description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
+      >
+        {#snippet control()}{#if device.pairingVersion < 2}<Button
+              size="sm"
+              disabled={busy}
+              onclick={() => void pair(device.clientKind === "desktop" ? "desktop" : "mobile")}>Pair again</Button
+            >
+          {:else}<Button size="sm" variant="ghost" disabled={busy} onclick={() => void revoke(device.id, "device")}
+              >Revoke access</Button
+            >{/if}{/snippet}
       </SettingsRow>
-    {/each}
+    {:else}<SettingsRow
+        title={request.loaded && revokedDevices.length
+          ? "No active devices"
+          : request.loaded
+            ? "No devices paired yet"
+            : request.error
+              ? "Paired devices unavailable"
+              : "Loading devices…"}
+      >
+        {#snippet control()}
+          {#if request.loaded}
+            <Button size="sm" onclick={() => topics?.selectTopic("pairing")}>Pair a device</Button>
+          {/if}
+        {/snippet}
+      </SettingsRow>{/each}
+    {#if revokedDevices.length}
+      <Disclosure summaryClass="px-4 py-3.5 text-base/6 sm:text-sm/6">
+        {#snippet summary()}
+          <span class="flex min-w-0 items-center gap-2">
+            <span>Revoked devices</span>
+            <Badge compact>{revokedDevices.length}</Badge>
+          </span>
+        {/snippet}
+        <div class="divide-y divide-zinc-950/5 dark:divide-white/8">
+          {#each revokedDevices as device (device.id)}
+            <SettingsRow
+              title={device.name}
+              description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform}`}
+            />
+          {/each}
+        </div>
+      </Disclosure>
+    {/if}
   </SettingsGroup>
-{/if}
+{/snippet}
+
 <DevicePairingDialog
   bind:open
   {invitation}

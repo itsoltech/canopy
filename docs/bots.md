@@ -34,7 +34,8 @@ Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwy
 Aktualizacja rozmowy zachowuje w panelu stan pracy i oczekującej zgody z podsumowania bota.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
-Settings → Connectors → Slack Bot zarządza kontami wiadomości obok Slack User.
+Aktualizacja (2026-11-24): w web/desktop **Settings → Connectors → Slack bots** zarządza kontami
+wiadomości przy włączonym module Bots. Konta Slack User są w zakładce **Tool accounts**.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki, formatowanie odpowiedzi, izolację historii kanałów i przyznane narzędzia
 w turach zewnętrznych. Konektor Slack umożliwia pobranie pliku po jego identyfikatorze.
@@ -169,7 +170,7 @@ wymiany między botami.
 
 ## Rozmowy przez komunikatory
 
-Settings → Connectors → Slack Bot zarządza wiadomościami przez Socket Mode. Jedna
+Konta Slack Bot w Settings → Connectors obsługują wiadomości przez Socket Mode. Jedna
 instalacja w workspace ma wiele tras do botów. Można użyć niezależnej aplikacji
 z tokenem bota lub aplikacji Slack User z osobną zgodą OAuth bota. Gateway
 odnawia rotowane tokeny współdzielonej aplikacji. App-level token, bot token i refresh token są
@@ -272,7 +273,7 @@ atrapy nie dowodzą poprawności uprawnień konkretnej instalacji Slack.
 
 ### Konfiguracja nasłuchiwania przez prywatną rozmowę
 
-Właściciel najpierw podłącza konto w Settings → Connectors → Slack Bot.
+Właściciel najpierw podłącza konto Slack Bot w Settings → Connectors.
 Bot settings → Messengers wybiera to konto i konfiguruje trasy. Instalacja
 wymaga `channels:read` i `groups:read` do wyszukiwania kanałów; po dodaniu tych
 scopes należy ponownie zainstalować aplikację i zaprosić ją do kanałów. Tokenów

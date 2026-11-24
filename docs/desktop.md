@@ -1,5 +1,7 @@
 # Canopy Desktop
 
+Aktualizacja (2026-11-24): skrót zamykania aplikacji znajduje się w zakładce **Device** ustawień General.
+
 Status: opis zaimplementowanego runtime i pakowania (2026-11-23). CI po pushu sprawdza
 runtime i instalator Windows. Release buduje paczki dystrybucyjne i sprawdza ich podpisy.
 Ekran startu, okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
@@ -491,7 +493,7 @@ pozostałe przyczyny nie są przypisywane uprawnieniom administratora.
 Niepoprawny plik konfiguracji również prowadzi do odzyskiwania, zamiast do pierwszego uruchomienia.
 Formularz wyboru trybu pojawia się tylko bez konfiguracji albo po jawnym otwarciu
 wyboru trybu (`/desktop?settings=1`). Ekran zawiera wyłącznie wybór local/remote
-i pola połączenia. Aktualizacje pozostają w Settings → App updates, a skrót Quit w Settings → General → Desktop app.
+i pola połączenia. Aktualizacje pozostają w Settings → App updates, a skrót Quit w Settings → General → Device → Desktop app.
 „Back to Settings” i Escape zamykają osobne okno wyboru, przywracając poprzedni
 widok Settings bez zapisu ani przeładowania; pierwsze uruchomienie nie ma przycisku powrotu.
 Zapis niezmienionych pól tylko wraca. Main i kontroler również pomijają wtedy
@@ -1149,7 +1151,7 @@ przez gateway i dopiero potem zamyka WorkerLink. Po flush nie czeka bez końca n
 odpowiedź zdalnego serwera na half-close. Niepotwierdzone zdarzenia zostają w SQLite
 i są wysyłane po kolejnym starcie ([durability.md](durability.md)).
 
-**Settings → General → Desktop app → Quit shortcut**
+**Settings → General → Device → Desktop app → Quit shortcut**
 wybiera zachowanie `⌘Q` na macOS i `Ctrl+Q` na Linux/Windows:
 
 - **Press twice** (domyślnie): wymagane są dwa osobne naciśnięcia w oknie krótszym

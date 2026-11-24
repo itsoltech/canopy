@@ -1,6 +1,6 @@
 <script lang="ts">
   import HabitReviewBadge from "#lib/features/memory/HabitReviewBadge.svelte";
-  import { memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
+  import { habitsSettingsHref, memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
   import { habitSuggestionCount } from "#lib/features/memory/habits-format.ts";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -52,13 +52,14 @@
     {#if items.length > 0}
       <MenuGroup label={group}>
         {#each items as section (section.href)}
+          {@const reviewHabits = section.href === memorySettingsPath && habitCount}
           <MenuItem
-            href={section.href}
+            href={reviewHabits ? habitsSettingsHref : section.href}
             current={sections.isActive(section.href)}
             description={sections.hinted(section.href) ? "Updates available" : undefined}
           >
             {section.label}
-            {#if section.href === memorySettingsPath && habitCount}
+            {#if reviewHabits}
               <HabitReviewBadge count={habitCount} class="ml-1.5 align-middle" />
             {/if}
           </MenuItem>

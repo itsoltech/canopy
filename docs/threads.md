@@ -1,5 +1,7 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): w web/desktop ustawienia archiwizacji są w zakładce **Archiving** sekcji Threads.
+
 Status (2026-11-23): w Settings → Projects można zmienić kolor istniejącego projektu
 w web, desktop, iOS i Androidzie. **Use automatic color** przywraca dobór z nazwy.
 Zapisany kolor jest wspólny dla widoków projektu i urządzeń właściciela.
@@ -86,7 +88,7 @@ wybrać inny tryb pojedynczej wiadomości, a steer korzysta z uprawnień działa
 Picker Claude podczas zmiany uprawnień na żywo pokazuje osobno tryb działającej tury
 i oczekiwany tryb kolejnej wiadomości, gdy te tryby się różnią po jawnym zapisie ustawienia wątku.
 Subagent uruchamiany narzędziem dziedziczy tryb właściciela, także Full access.
-Settings → Threads → Subagents wybiera **Same as parent** (domyślnie) lub stały tryb,
+W web/desktop Settings → Threads → Sandbox and subagents → Subagents pozwala wybrać **Same as parent** (domyślnie) lub stały tryb,
 który nie przekroczy uprawnień rodzica. Gateway zapisuje rozstrzygnięty tryb na dziecku;
 późniejsza zmiana rodzica nie zmienia istniejących dzieci. Tryb tury może ograniczyć
 dziedziczenie poniżej domyślnego trybu wątku. Ograniczenie Full access przez komputer
@@ -124,7 +126,7 @@ plików. **Brak automatycznego czyszczenia**: użytkownik usuwa katalog ręcznie
 gdy żaden fork ani wątek boczny nie potrzebuje plików.
 
 Sidebar, filtr projektów, hover card i paleta poleceń pokazują „No project” oraz tę samą ikonę.
-Settings → Threads → „Project and worker” pozwala wybrać worker w grupie „No project”.
+W web/desktop Settings → Threads → New threads → „Project and worker” pozwala wybrać worker w grupie „No project”.
 Systemowy projekt nie występuje w Settings → Projects. Harmonogram nowego wątku pozwala
 wybrać „No project” i konkretny worker. Boty również mogą wskazać tę pozycję i workspace
 workera przez `list_projects` oraz `start_thread`.
@@ -195,7 +197,7 @@ identyfikują. Gdy jedynym niezrewokowanym workerem jest lokalny worker wbudowan
 w desktop i nie ma połączonych komputerów, wiersz pomija nazwę i ikonę komputera.
 Inne konfiguracje, także pojedynczy worker serwera, nadal pokazują tę informację.
 
-Settings → General → Sidebar udostępnia jedno pole „Group by”: „None”, „Project”
+Pole „Group by” jest w sekcji Sidebar, w web/desktop pod Settings → General → Thread list. Dostępne wartości to „None”, „Project”
 lub „Project & worktree”. „None” wyłącza grupowanie, „Project” zostawia tylko nagłówki
 projektów, a „Project & worktree” dodaje podgrupy katalogów. Wybór zapisuje oba
 istniejące ustawienia lokalne jednocześnie; wcześniejsze preferencje są odczytywane
@@ -339,7 +341,7 @@ Ponowienia tego samego żądania nie tworzą kolejnych wątków ani worktree.
 
 ### Automatyczna archiwizacja po merge
 
-Settings → Threads → **Pull requests → Auto-archive after merge** ustawia domyślne
+W web/desktop Settings → Threads → Archiving → **Auto-archive after merge** ustawia domyślne
 zachowanie konta; początkowo jest wyłączone. Settings → Projects → wybrany projekt
 udostępnia **Use my default (on/off)**, **On** i **Off**. W web/desktop sekcja
 Pull requests w podsumowaniu wątku ma kompaktowy przełącznik i ikonę informacji.
@@ -363,7 +365,7 @@ Szczegóły odczytu stanu PR i warunków ponowienia:
 
 ### Automatyczne usuwanie archiwum
 
-Settings → Threads → **Archived threads** pozwala włączyć automatyczne usuwanie
+Sekcja **Archived threads** (w web/desktop w Settings → Threads → Archiving) pozwala włączyć automatyczne usuwanie
 po dowolnej liczbie pełnych dni od archiwizacji (1–36500). Domyślnie funkcja jest
 wyłączona. Zmianę zatwierdza osobny przycisk **Save**; obejmuje ona również już
 zarchiwizowane wątki. Ustawienie należy do konta i synchronizuje się przez istniejące
@@ -439,7 +441,7 @@ niezależnie od ustawienia automatycznej retencji archiwum. Nadal obowiązują o
 forków, zachowanych dzieci i niedokończonej pracy opisane wyżej. Po trwałym usunięciu
 historii `RestoreThread` jej nie odtwarza. Pliki workspace pozostają bez zmian.
 Potwierdzenia Delete w web/desktop i mobile podają termin 31 dni, zachowanie plików
-oraz krótkie okno Undo. Settings → Threads → Archived threads informuje również
+oraz krótkie okno Undo. Sekcja Archived threads informuje również
 o stałym terminie dla ręcznego Delete; nie dodaje osobnego ustawienia.
 Kontrakt: [ui-api.md](ui-api.md#pasek-boczny-i-cykl-życia-wątku).
 Archiwizacja i usunięcie anulują również oczekujące dostarczenie odpowiedzi `ask_user` oraz notatek

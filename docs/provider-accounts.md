@@ -10,14 +10,15 @@ udostępniania loginu ma status **Login unavailable**.
 
 Status (2026-11-24) obejmuje widok limitów kont proxy w Providers, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
-Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
+Aktualizacja (2026-11-24): w web/desktop ręczny wybór planu konta proxy znajduje się
+w **Settings → Proxies → Upstream accounts**. Na mobile służy do tego **Accounts** w karcie proxy.
 Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
 Claude Team liczy się jako ×5 według deklaracji użytkownika z 2026-11-15,
 nie niezależnie potwierdzonego limitu providera. Szczegóły zapisu i detekcji:
 [proxies.md](proxies.md#ręczny-plan-konta).
 
-Settings → Providers pokazuje status osobno dla instancji i workera. Workers
-pokazuje te same metadane w rozwiniętej karcie maszyny. Raport dostępności
+Settings → Providers pokazuje status osobno dla instancji i workera. W web/desktop te same metadane są w **Settings → Workers**
+po wybraniu maszyny, w zakładce **Configuration**. Raport dostępności
 CLI pozostaje osobny: obecność loginu nie oznacza poprawnego działania
 każdego modelu ani dostępności endpointu.
 
@@ -214,9 +215,9 @@ To osłona przed przypadkowym pokazaniem ekranu, nie szyfrowanie danych w DOM.
 
 Pokryte miejsca:
 
-- Providers → wybrany worker → Status instancji;
-- Providers → All workers → status na każdym workerze;
-- Workers → rozwinięta karta → Provider accounts;
+- Providers → wybrany worker i instancja → Status and access;
+- Providers → All workers → wybrana instancja → Status and access;
+- Workers → wybrany worker → Configuration → Provider accounts;
 - wspólny frontend web używany przez desktop (te same komponenty).
 
 Audyt istniejących źródeł web/mobile/desktop nie znalazł renderowanych pól

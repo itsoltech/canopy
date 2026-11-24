@@ -6,7 +6,6 @@
   import { expand } from "#lib/shared/ui/motion.ts";
   import { toolKey, workerTool, type ToolWorker } from "@canopy/domain/agent-tool-settings";
   import type { AgentToolActions } from "./agent-tools.svelte.ts";
-  import ToolSessionDefaults from "./ToolSessionDefaults.svelte";
   import ToolWorkerRow from "./ToolWorkerRow.svelte";
 
   let {
@@ -134,7 +133,6 @@
           {unavailable === 1 ? "worker is" : "workers are"} unavailable here. Connect workers or open their home computer
           to change access.
         </p>{/if}
-      <ToolSessionDefaults {tool} {name} />
     </div>
   {/if}
 </SettingsCard>

@@ -165,7 +165,7 @@ Właściciel widzi przykłady z nadal dostępnych rozmów. Rozstrzygnięcie
 sprawdza rewizje.
 Licznik w nawigacji obejmuje sugestie dostępne do przeglądu. Gdy w trakcie pracy
 pojawi się nowa, powiadomienie w aplikacji prowadzi do Settings → Memory akcją
-`Review habits`. Po ponownym połączeniu licznik odzwierciedla aktualny stan.
+`Review habits`. W web/desktop otwiera zakładkę Habits. Po ponownym połączeniu licznik odzwierciedla aktualny stan.
 [Powiadomienia](notifications.md#sugestie-habits)
 
 Ponowna analiza dowodów nie odtwarza odrzuconej lub usuniętej reguły.

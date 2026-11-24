@@ -17,7 +17,7 @@
     {#each groups as { proxy, accounts } (proxy.id)}
       <div class="grid min-w-0 gap-1.5">
         <h3 class="px-1 text-base/6 sm:text-sm/6">
-          <TextLink href={`/settings/proxies#proxy-${proxy.id}`} class="wrap-anywhere">{proxy.name}</TextLink>
+          <TextLink href={`/settings/proxies#accounts-${proxy.id}`} class="wrap-anywhere">{proxy.name}</TextLink>
         </h3>
         <InsetList label={`Accounts of ${proxy.name}`} class="px-3">
           {#each accounts as account (account.id)}

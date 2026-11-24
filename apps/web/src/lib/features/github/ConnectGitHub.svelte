@@ -18,7 +18,7 @@
     homeId?: string;
     configured?: boolean;
     hasAccounts?: boolean;
-    onconnected?: () => void;
+    onconnected?: (justConnected: boolean) => void;
     class?: ClassValue;
   } = $props();
 
@@ -32,6 +32,7 @@
 
   function update(value: github.GitHubDeviceAuthResponse) {
     if (!alive) return;
+    const wasPending = attempt?.state === "pending";
     attempt = value.attempt;
 
     if (!attempt) return;
@@ -39,7 +40,7 @@
 
     if (attempt.state === "connected" && notified !== attempt.id) {
       notified = attempt.id;
-      onconnected?.();
+      onconnected?.(wasPending);
     }
   }
 

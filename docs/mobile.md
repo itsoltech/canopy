@@ -5,6 +5,8 @@ instrukcje oraz zachowuje przycisk utworzenia pod przewijaną treścią.
 Opcje workera, wygląd i uprawnienia są w rozwijanych sekcjach.
 Dostępność w kanałach określa [promocja wydań](release.md).
 
+Aktualizacja (2026-11-24): instrukcje parowania telefonu i wyboru relaya uwzględniają zakładki ustawień web/desktop.
+
 Status (2026-11-24): lista Files używa tych samych ikon typów plików co web
 i desktop, dobieranych po nazwie lub rozszerzeniu.
 
@@ -918,7 +920,7 @@ To domyślna konfiguracja lokalnego Desktopu. Ponowna atestacja odbywa się przy
 otwarciu aplikacji, bez ponownego pytania o zgodę systemową. W trakcie weryfikacji
 obowiązuje dotychczasowe poświadczenie, dopóki jest ważne. Relay Canopy lub
 własny relay można wybrać w webie serwerowym i w obu trybach Desktopu w
-**Settings → Network access → Mobile push relay**.
+**Settings → Network access → Push relay**.
 
 Wyłączenie **System notifications** zapisuje wybór na telefonie i usuwa lokalny
 klucz podglądu także offline. Aplikacja ponawia wyrejestrowanie przy następnym
@@ -1103,7 +1105,7 @@ Adres Metro i adres gatewaya to dwa różne połączenia. Nie używaj publiczneg
    `bunx expo start --dev-client --lan` w tej samej sieci co telefon lub wpisz
    `http://TAILSCALE_IP_KOMPUTERA:8081` w development launcherze. Włącz Tailscale
    na iPhonie i użyj w Canopy **HTTPS** Serve z poprawnym certyfikatem.
-5. W web otwórz **Settings → Devices → Pair a phone**. W Canopy zeskanuj QR
+5. W web otwórz **Settings → Devices → Pairing → Pair a phone**. W Canopy zeskanuj QR
    (zgoda na kamerę jest potrzebna tylko przy skanowaniu) lub wklej kod i adres.
    Potwierdź nazwę i adres, a następnie **Pair this phone**.
 

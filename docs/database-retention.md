@@ -1,6 +1,6 @@
 # Retencja danych bazy
 
-Status (2026-11-20): zaimplementowane sprzątanie techniczne i opcjonalne trwałe
+Status (2026-11-24): zaimplementowane sprzątanie techniczne i opcjonalne trwałe
 usuwanie historii zarchiwizowanych wątków i 31-dniowe okno odtworzenia ręcznie
 usuniętych wątków, bezstratna kompakcja transkryptu, ograniczanie dziennika
 replikacji także dla starszych nieopublikowanych wpisów i GC nieużywanych uploadów.
@@ -54,7 +54,7 @@ i konfiguracji zachowują payload, ponieważ ścieżki odtworzenia nadal go odcz
 
 ## Retencja archiwum wątków
 
-Osobnym, jawnym kontraktem jest **Settings → Threads → Archived threads**.
+Regułę retencji ustawia właściciel w **Settings → Threads**, w grupie **Archived threads**. W web/desktop grupa jest w zakładce **Archiving**.
 `ThreadRetentionSettings.archived_thread_days` przyjmuje `0` (wyłączone, domyślnie)
 albo `1–36500` pełnych dni od `threads.archived_at`. Zapis obejmuje istniejące
 archiwum. Czas ostatniego zapisu ani wynik zadania w tle nie przedłużają terminu.

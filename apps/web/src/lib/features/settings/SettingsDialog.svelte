@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -7,7 +8,8 @@
   import { backdropDismiss } from "#lib/shared/ui/backdrop.ts";
   import SettingsBreadcrumb from "./SettingsBreadcrumb.svelte";
   import { useSettings } from "./settings-state.svelte.ts";
-  import { highlightSettingsMatches } from "./settings-search.ts";
+  import { useSettingsRoute } from "./settings-route.ts";
+  import { highlightSettingsMatches, provideSettingsSearch } from "./settings-search.ts";
   import SettingsNav from "./SettingsNav.svelte";
   import Toaster from "#lib/shared/ui/Toaster.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
@@ -29,8 +31,29 @@
   }: { open: boolean; focused: boolean; onclose: () => void; onexited: () => void; children: Snippet } = $props();
 
   const settings = useSettings();
+  const route = useSettingsRoute();
+  let pane = $state<HTMLElement>();
+  const sectionPath = $derived(route.url.pathname);
+
+  $effect(() => {
+    void sectionPath;
+    pane?.scrollTo({ top: 0 });
+  });
 
   let query = $state("");
+  const wide = new MediaQuery("(min-width: 64rem)");
+  const searchQuery = $derived(wide.current && !focused ? query.trim() : "");
+  let matchedPanel = $state<string>();
+
+  provideSettingsSearch({
+    get query() {
+      return searchQuery;
+    },
+    get panel() {
+      return matchedPanel;
+    },
+  });
+
   let dialog = $state<HTMLDialogElement>();
   let exited: ReturnType<typeof setTimeout> | undefined;
 
@@ -104,9 +127,9 @@
           <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
         </div>
       {/if}
-      <div class="min-h-0 flex-1 scroll-stable overflow-y-auto">
+      <div bind:this={pane} class="min-h-0 flex-1 scroll-stable overflow-y-auto">
         <div
-          {@attach focused ? undefined : highlightSettingsMatches(query)}
+          {@attach highlightSettingsMatches(searchQuery, (panel) => (matchedPanel = panel))}
           class="settings-content mx-auto grid grid-cols-1 px-4 py-4 sm:px-6 lg:py-5"
         >
           {#if settings.notice}

@@ -1,6 +1,8 @@
 <script lang="ts">
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
+  import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import { applicationName } from "#lib/application-name.ts";
-  import { onMount, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import ImportFilters from "#lib/features/imports/ImportFilters.svelte";
   import ImportLibrary from "#lib/features/imports/ImportLibrary.svelte";
@@ -24,6 +26,7 @@
   const overview = useOverview();
   const route = useSettingsRoute();
   const imports = new ImportState();
+  let topics: ReturnType<typeof SettingsTopics> | undefined;
 
   // When a run ends, the list shows the new states (Imported).
   const runs = new ImportRunsState(() => void imports.load());
@@ -66,16 +69,32 @@
     if (!imports.workerId) imports.selectWorker(workers.find((w) => w.online)?.id ?? "");
   });
 
+  async function showActivity() {
+    await runs.load();
+    await tick();
+    topics?.selectTopic("activity");
+  }
+
   const workerName = $derived(workers.find((w) => w.id === imports.scan?.workerId)?.name ?? "this worker");
 </script>
 
 <svelte:head><title>Import · Settings · {applicationName}</title></svelte:head>
 
-<div class="settings-stack">
-  <SettingsGroup
-    title="Import"
-    description="Bring threads from Claude Code, Codex and Grok into Canopy. Canopy only reads the CLI files."
-  >
+<SettingsHeading
+  title="Import"
+  description="Bring threads and settings from Claude Code, Codex and Grok into Canopy. Canopy only reads the CLI files."
+/>
+<SettingsTopics
+  bind:this={topics}
+  label="Import settings"
+  topics={[
+    { id: "new-import", label: "New import", content: newImport },
+    { id: "activity", label: "Import activity", content: activity, hidden: !runs.runs.length && !runs.error },
+  ]}
+/>
+
+{#snippet newImport()}
+  <SettingsGroup title="Scan a worker">
     <div class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center">
       <div class="min-w-0 sm:w-72">
         <Select
@@ -104,17 +123,6 @@
     {/if}
   </SettingsGroup>
 
-  {#if runs.runs.length > 0}
-    <SettingsGroup title="Imports">
-      {#if runs.error}<Alert class="mx-4 mt-3" tone="error">{runs.error}</Alert>{/if}
-      <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/5">
-        {#each runs.runs as run (run.id)}
-          <ImportRunRow {run} {runs} />
-        {/each}
-      </ul>
-    </SettingsGroup>
-  {/if}
-
   {#if imports.error}<Alert tone="error">{imports.error}</Alert>{/if}
 
   {#if imports.scanning}
@@ -139,7 +147,7 @@
 
     <SettingsGroup title="Threads" description="Each directory maps to a project.">
       <ImportFilters {imports} />
-      <ImportSelectionBar {imports} onstart={() => void runs.load()} />
+      <ImportSelectionBar {imports} onstart={() => void showActivity()} />
       {#if imports.result}
         <ImportThreadList {imports} />
       {:else}
@@ -147,4 +155,20 @@
       {/if}
     </SettingsGroup>
   {/if}
-</div>
+{/snippet}
+
+{#snippet activity()}
+  <SettingsGroup title="Import activity">
+    {#if runs.error}
+      <Alert class="mx-4 mt-3" tone="error">
+        {runs.error}
+        {#snippet actions()}<Button size="sm" onclick={() => void runs.load(true)}>Refresh imports</Button>{/snippet}
+      </Alert>
+    {/if}
+    <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/5">
+      {#each runs.runs as run (run.id)}
+        <ImportRunRow {run} {runs} />
+      {/each}
+    </ul>
+  </SettingsGroup>
+{/snippet}

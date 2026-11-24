@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import type { ClassValue } from "svelte/elements";
   import type { ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -26,7 +27,7 @@
   /**
    * The detail of one instance, for the scope chosen above the list: on one worker its status
    * there, sign-in (Codex with its own login), and that worker's overrides; in "All workers" its status everywhere,
-   * where it runs, and the global definition. Models and deletion are global in both.
+   * where it runs, and the global definition. Models and deletion apply to every worker in either scope.
    */
   let {
     instance,
@@ -114,6 +115,17 @@
   {#if failure}<Alert tone="error">{failure}</Alert>{/if}
   <InstanceNotices {instance} />
 
+  <SettingsTopics
+    label="Provider instance settings"
+    topics={[
+      { id: "status", label: "Status and access", content: statusAndAccess },
+      { id: "configuration", label: "Configuration", content: configuration },
+      { id: "models", label: "Models", content: models },
+    ]}
+  />
+</div>
+
+{#snippet statusAndAccess()}
   <SettingsSection title="Status">
     {#if instance.proxyId}<ProxyThrough {instance} />{/if}
     {#if worker}
@@ -201,7 +213,9 @@
       />
     {/if}
   </SettingsSection>
+{/snippet}
 
+{#snippet configuration()}
   {#if worker}
     {#if on?.enabled}
       <OverrideForm
@@ -215,7 +229,7 @@
       />
     {:else}
       <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Turn the instance on for {worker.name} to set its overrides there. Name, color and models are shared by all workers.
+        Turn this instance on for {worker.name} to configure its overrides.
       </p>
     {/if}
   {:else}
@@ -228,16 +242,12 @@
     />
   {/if}
 
-  <SettingsSection title="Models" description="What the model picker offers for this instance, on every worker.">
-    <InstanceModels catalog={providers.models(instance, worker?.id)} models={instance.models} onchange={setModels} />
-  </SettingsSection>
-
   {#if !instance.builtIn}
     <SettingsSection
-      title="Delete instance"
+      title="Delete instance from all workers"
       description={instance.threadCount > 0
-        ? "Threads use it: turn it off on the workers instead."
-        : "Removes it from every worker, with its secrets."}
+        ? "Threads use this instance. You can turn it off on individual workers."
+        : "Deleting this instance also deletes its secrets."}
     >
       <div>
         <Button variant="danger" icon="trash" loading={deleting} disabled={instance.threadCount > 0} onclick={remove}
@@ -246,4 +256,10 @@
       </div>
     </SettingsSection>
   {/if}
-</div>
+{/snippet}
+
+{#snippet models()}
+  <SettingsSection title="Models" description="What the model picker offers for this instance, on every worker.">
+    <InstanceModels catalog={providers.models(instance, worker?.id)} models={instance.models} onchange={setModels} />
+  </SettingsSection>
+{/snippet}
