@@ -1,5 +1,6 @@
 import { FileResolution, type ThreadDirectoryPage, type ThreadFilesUpdate, type ui } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { joinThreadPath } from "./thread-files.ts";
 import type { FilePosition } from "./file-references.ts";
 
 export const FILE_EDIT_BYTES = 400 * 1024;
@@ -60,6 +61,7 @@ export class WorkspaceFile {
   #refreshAgain = false;
   #disposed = false;
   #rootChanged = false;
+  #reloadPath: string | undefined;
   changedOnDisk = false;
   removedOnDisk = false;
   diskText: string | undefined;
@@ -77,11 +79,21 @@ export class WorkspaceFile {
     this.position = target.position;
   }
 
+  get rootChanged(): boolean {
+    return this.#rootChanged;
+  }
+
+  /** Reload a retained draft against the same relative file in the new checkout. */
+  get reloadPath(): string {
+    return this.#reloadPath ?? this.path;
+  }
+
   get dirty(): boolean {
     return this.draft !== this.text;
   }
   get editable(): boolean {
     return Boolean(
+      !this.#rootChanged &&
       !this.readOnlyReason &&
       this.file?.sha256 &&
       !this.file.binary &&
@@ -127,7 +139,7 @@ export class WorkspaceFile {
     try {
       const file = await this.api.read(
         this.target,
-        selected ?? this.path,
+        selected ?? this.reloadPath,
         selected ? "" : (this.file?.sha256 ?? ""),
         read.signal,
       );
@@ -149,6 +161,7 @@ export class WorkspaceFile {
         this.diskText = undefined;
         this.stale = false;
         this.#rootChanged = false;
+        this.#reloadPath = undefined;
       }
     } catch (cause) {
       if (!read.signal.aborted)
@@ -274,7 +287,7 @@ export class WorkspaceFile {
     try {
       const saved = await this.api.write(this.target, this.path, this.draft, file.sha256, file.rootIdentity);
 
-      if (this.#disposed) return false;
+      if (this.#disposed || this.#rootChanged) return false;
       this.file = {
         ...file,
         ...saved,
@@ -287,7 +300,7 @@ export class WorkspaceFile {
 
       return true;
     } catch (cause) {
-      if (this.#disposed) return false;
+      if (this.#disposed || this.#rootChanged) return false;
       this.error = failure(cause, "Could not save the file. Check the connection, then retry.");
 
       if (cause instanceof WorkspaceFileConflict) this.changedOnDisk = true;
@@ -311,9 +324,9 @@ export class WorkspaceFile {
     try {
       await this.api.remove(this.target, this.path, this.file.sha256, this.file.rootIdentity);
 
-      return !this.#disposed;
+      return !this.#disposed && !this.#rootChanged;
     } catch (cause) {
-      if (this.#disposed) return false;
+      if (this.#disposed || this.#rootChanged) return false;
       this.error = failure(cause, "Could not delete the file. Reload, then retry.");
 
       return false;
@@ -346,8 +359,10 @@ export class WorkspaceFile {
     return true;
   }
 
-  invalidateRoot(): void {
+  invalidateRoot(cwd?: string): void {
     this.cancel();
+
+    if (cwd && this.file?.relativePath) this.#reloadPath = joinThreadPath(cwd, this.file.relativePath);
     this.#rootChanged = true;
     this.changedOnDisk = true;
     this.diskText = undefined;

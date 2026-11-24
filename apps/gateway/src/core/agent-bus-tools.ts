@@ -39,6 +39,8 @@ export async function busExecute(
   switch (call.tool) {
     case SETTINGS_GUIDE_TOOL:
       return findCanopySettings(call.args);
+    case "switch_worktree":
+      return hostContext[busState].host.switchWorktree(source, caller, call.args, hops);
     case "show_images":
       return hostContext[busState].host.showImages(source, caller, call.args);
     case "import_image_reply":

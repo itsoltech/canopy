@@ -12,7 +12,7 @@ import type { WorkerConnection } from "../worker-link/index.ts";
 import type { PendingCommand } from "../store/outbox.ts";
 import { coreState, HARNESS_ERROR_CODES, SETTLE_TURN_ENDED } from "./core-context.ts";
 import { coreEndLostTurns, coreSettle } from "./core-work-loop.ts";
-import { commandThreadSpec, sandboxCommandRefusal } from "./thread-sandbox.ts";
+import { commandThreadSpec, threadCommandCheck } from "./thread-sandbox.ts";
 import { fullAccessRefusal } from "./full-access.ts";
 import { serviceTierRefusal } from "./service-tier-compatibility.ts";
 import type { GatewayCore } from "./core.ts";
@@ -225,11 +225,11 @@ async function deliverCommand(
 
     if (!result) await prepareThreadTools(hostContext, workerId, command);
 
-    const sandboxRefusal = await sandboxCommandRefusal(hostContext, connection, command);
+    const checked = await threadCommandCheck(hostContext, connection, command);
     const sandboxReport = connection.sandboxConfigReport;
 
-    if (sandboxRefusal === false) return;
-    result ??= sandboxRefusal;
+    if (checked === false) return;
+    result ??= checked;
 
     if (relocation?.draining && NEW_THREAD_WORK.has(kind.case)) return;
 

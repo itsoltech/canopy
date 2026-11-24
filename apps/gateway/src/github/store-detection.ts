@@ -1,6 +1,7 @@
 import { ownerModule } from "../store/module-access.ts";
 import { fromJsonString, toJson } from "@bufbuild/protobuf";
 import { GitPrContextSchema, type GitPrContext } from "@canopy/contracts";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
 import { projectConnectorAccess } from "../connectors/project-access.ts";
@@ -73,9 +74,21 @@ export function githubDetectionStore(sql: SqlClient.SqlClient) {
       before = new Date(),
     ) => sql<ContextRow>`SELECT id,context FROM github_git_contexts
       WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid AND observed_at<=${before} ORDER BY id DESC LIMIT 1`,
-    detectionSaveContext: (owner: string, id: string, context: GitPrContext) =>
+    detectionSaveContext: (owner: string, id: string, cwd: string, context: GitPrContext, lease?: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          const current = yield* sql`SELECT id FROM threads WHERE owner_user_id=${owner}::uuid
+            AND id=${id}::uuid AND cwd=${cwd} AND deleted_at IS NULL
+            AND (${lease ?? null}::uuid IS NULL OR EXISTS (
+              SELECT 1 FROM github_detection_jobs WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid
+                AND lease_id=${lease ?? null}::uuid AND lease_until>now()))
+            FOR NO KEY UPDATE`;
+
+          if (!current.length)
+            return yield* Effect.fail(
+              new ConnectError("The thread’s checkout changed. Refresh and retry.", Code.Aborted),
+            );
+
           const previous = (yield* sql<ContextRow>`SELECT id,context FROM github_git_contexts
         WHERE owner_user_id=${owner}::uuid AND thread_id=${id}::uuid ORDER BY id DESC LIMIT 1`)[0];
 

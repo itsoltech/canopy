@@ -9,7 +9,6 @@ import type { SteerError } from "../providers/turn-input.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
-import { instanceKey } from "./instance-runtimes.ts";
 import { prepareShellInput } from "./shell-input.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { connectorTurn } from "./connector-turn.ts";
@@ -43,15 +42,7 @@ export class ThreadCommands {
       }
     }
 
-    this.ctx.ops.checkCwd(spec.cwd);
-    this.ctx.state.imageExports.assign(spec.threadId, spec.cwd, this.ctx.state.files.threadDir(spec.threadId));
-    this.ctx.state.cwds.set(spec.threadId, spec.cwd);
-    void this.ctx.state.heads.track(spec.threadId, spec.cwd);
-    this.ctx.state.threadProviders.set(spec.threadId, spec.provider);
-    this.ctx.state.threadInstances.set(
-      spec.threadId,
-      instanceKey(Provider[spec.provider]!.toLowerCase(), spec.providerProfileId),
-    );
+    this.ctx.ops.assignThreadWorkspace(spec);
     const fork = kind.value.fork;
 
     // A fork point without its provider ref would make both harnesses copy the whole history instead.
@@ -136,15 +127,7 @@ export class ThreadCommands {
       this.ctx.state.options.fullAccess === false
     )
       throw new CommandError("FULL_ACCESS_DISABLED", "Full access is turned off on this computer's worker", true);
-    this.ctx.ops.checkCwd(spec.cwd);
-    this.ctx.state.imageExports.assign(spec.threadId, spec.cwd, this.ctx.state.files.threadDir(spec.threadId));
-    this.ctx.state.cwds.set(spec.threadId, spec.cwd);
-    void this.ctx.state.heads.track(spec.threadId, spec.cwd);
-    this.ctx.state.threadProviders.set(spec.threadId, spec.provider);
-    this.ctx.state.threadInstances.set(
-      spec.threadId,
-      instanceKey(Provider[spec.provider]!.toLowerCase(), spec.providerProfileId),
-    );
+    this.ctx.ops.assignThreadWorkspace(spec);
 
     const input = await prepareShellInput(this.ctx, spec.threadId, turnId, rawInput, commandId, true).catch((error) => {
       // Its ordered journal events carry the terminal state; a generic command error would race them.

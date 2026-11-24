@@ -1,5 +1,15 @@
 # Protokół gateway ↔ worker
 
+## Katalog kolejnej tury
+
+Status (2026-11-24): worker ogłasza `thread_worktree_switch_v1`. Gateway udostępnia narzędzie
+`switch_worktree` przez `ThreadSpec.enable_worktree_switch` i sprawdza capability przed operacją.
+`CreateWorktree.agent_requested` wymaga dokładnej nazwy gałęzi i lokalnego commita źródłowego.
+Kolejny `StartTurn` przekazuje docelowy cwd. Raporty `ThreadGitHead` zawierają katalog, którego dotyczył
+odczyt. Gateway sprawdza go przy zapisie HEAD, również gdy raport przyszedł już po przełączeniu.
+Po przełączeniu dalsze komendy sesji wymagają zgodnego workera także przy ponownej dostawie.
+Szczegóły opisuje [zmiana worktree przez agenta](worktrees.md#zmiana-worktree-przez-agenta).
+
 ## Profile Sandbox
 
 Status (2026-11-22): worker ogłasza addytywną capability `sandbox_profiles_v1`

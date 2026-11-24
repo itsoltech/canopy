@@ -27,7 +27,7 @@ export interface HostHooks {
 }
 
 export type HostOperations = HostHooks &
-  Pick<ThreadResources, "releaseThread" | "prepareThread"> &
+  Pick<ThreadResources, "releaseThread" | "prepareThread" | "assignThreadWorkspace"> &
   Pick<RewindCommands, "rewindThread"> &
   Pick<BranchCommands, "switchThreadBranch" | "getThreadGitStatus" | "pullThreadOrigin"> &
   Pick<HostCatalog, "homes" | "probe" | "publishCatalog" | "listModels"> &
@@ -79,7 +79,7 @@ export type HostOperations = HostHooks &
     | "cleanupRemovedBranch"
     | "revealWorktree"
   > &
-  Pick<CommandHandlers, "execute" | "closeDirectories" | "closeThreadResources">;
+  Pick<CommandHandlers, "execute" | "closeDirectories" | "closeThreadResources" | "rebindFileWatch">;
 
 export class HostContext {
   readonly ops: HostOperations;
@@ -105,6 +105,7 @@ export class HostContext {
     const branches = new BranchCommands(this);
     const rewinds = new RewindCommands(this);
     this.ops = {
+      assignThreadWorkspace: resources.assignThreadWorkspace.bind(resources),
       releaseThread: resources.releaseThread.bind(resources),
       prepareThread: resources.prepareThread.bind(resources),
       rewindThread: rewinds.rewindThread.bind(rewinds),
@@ -168,6 +169,7 @@ export class HostContext {
       execute: commands.execute.bind(commands),
       closeDirectories: commands.closeDirectories.bind(commands),
       closeThreadResources: commands.closeThreadResources.bind(commands),
+      rebindFileWatch: commands.rebindFileWatch.bind(commands),
       listGitRefs: gitCommands.listGitRefs.bind(gitCommands),
       readWorkspaceOrigin: gitCommands.readWorkspaceOrigin.bind(gitCommands),
       readGitPrContext: gitCommands.readGitPrContext.bind(gitCommands),

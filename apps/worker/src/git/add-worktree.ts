@@ -1,8 +1,10 @@
+import { populateAgentWorktree } from "./agent-checkout.ts";
 import { ProcessTimeoutError } from "@canopy/process-governor";
 import { git, GitError, settleWorktreeGit } from "./git.ts";
 import {
   atPath,
   ownsCheckout,
+  ownsMetadata,
   registeredWorktrees,
   reserveCheckout,
   rollbackWorktree,
@@ -25,6 +27,7 @@ export async function addWorktree(
   tree: NewWorktree,
   timeoutMs = LEGACY_WORKTREE_ADD_TIMEOUT_MS,
   cleanup?: FailedWorktreeCleanup,
+  agentRequested = false,
 ): Promise<void> {
   const marker = `Canopy worktree creation ${crypto.randomUUID()}`;
   const ref = `refs/heads/${tree.branch}`;
@@ -43,33 +46,38 @@ export async function addWorktree(
 
     const checkout = await git(
       repo,
-      ["worktree", "add", "--quiet", "--lock", "--reason", marker, "--no-guess-remote", "--", tree.path, tree.branch],
+      [
+        "worktree",
+        "add",
+        "--quiet",
+        "--lock",
+        "--reason",
+        marker,
+        "--no-guess-remote",
+        ...(agentRequested ? ["--no-checkout"] : []),
+        "--",
+        tree.path,
+        tree.branch,
+      ],
       timeoutMs,
-      { finishAfterAdmission: true },
-    ).catch((error: Error) => {
-      if (
-        error instanceof GitError &&
-        error.code === "GIT_TIMEOUT" &&
-        error.cause instanceof ProcessTimeoutError &&
-        error.cause.timing
-      ) {
-        const { elapsedMs, limitMs } = error.cause.timing;
-
-        throw new GitError(
-          error.code,
-          `Git timed out after ${seconds.format(elapsedMs / 1000)} s while creating the worktree. The limit was ${seconds.format(limitMs / 1000)} s.`,
-          { cause: error.cause },
-        );
-      }
-
-      throw error;
-    });
+      { finishAfterAdmission: !agentRequested },
+    ).catch(checkoutError);
 
     if (!checkout.ok)
       throw new GitError(
         "WORKTREE_CHECKOUT_FAILED",
         "Git could not check out the worktree. Check the Git settings and filters.",
       );
+
+    if (agentRequested) {
+      if (
+        !sameEntry(reservation.checkout, physicalDirectory(tree.path)) ||
+        !ownsMetadata(tree, reservation.metadata, marker)
+      )
+        throw new GitError("WORKTREE_FAILED", "The registered worktree changed during creation.");
+      await populateAgentWorktree(tree, reservation.metadata, timeoutMs).catch(checkoutError);
+    }
+
     await finishCheckout(repo, tree, marker, reservation);
   } catch (error) {
     if (branchRejected) throw error;
@@ -100,6 +108,25 @@ export async function addWorktree(
 
     throw new GitError(cause.code, `${cause.message} ${WORKTREE_CLEANUP_WARNING}`, { cause: cause.cause });
   }
+}
+
+function checkoutError(error: Error): never {
+  if (
+    error instanceof GitError &&
+    error.code === "GIT_TIMEOUT" &&
+    error.cause instanceof ProcessTimeoutError &&
+    error.cause.timing
+  ) {
+    const { elapsedMs, limitMs } = error.cause.timing;
+
+    throw new GitError(
+      error.code,
+      `Git timed out after ${seconds.format(elapsedMs / 1000)} s while creating the worktree. The limit was ${seconds.format(limitMs / 1000)} s.`,
+      { cause: error.cause },
+    );
+  }
+
+  throw error;
 }
 
 async function finishCheckout(

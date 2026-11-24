@@ -39,6 +39,7 @@
 
   $effect(() => {
     const current = diff;
+    void current.checkoutRevision;
 
     untrack(() => current.ensure());
   });

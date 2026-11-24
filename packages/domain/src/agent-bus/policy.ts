@@ -1,6 +1,12 @@
 import { Result } from "effect";
 
-import { agentBusToolsFor, SPAWN_PERMISSION_MODES, type AgentBusCall, type SpawnPermissionMode } from "./tools.ts";
+import {
+  AGENT_BUS_TOOL_NAMES,
+  SPAWN_PERMISSION_MODES,
+  type AgentBusCall,
+  type AgentBusToolName,
+  type SpawnPermissionMode,
+} from "./tools.ts";
 import { SETTINGS_GUIDE_TOOL } from "./settings-guide.ts";
 
 /**
@@ -80,7 +86,7 @@ export interface BusFacts {
   /** spawn_thread: provider and instance the new thread will run on (resolved from its arguments). */
   readonly spawnProvider?: string;
   readonly spawnInstance?: string;
-  /** spawn_thread: the caller's own permission mode, the ceiling for the new thread. */
+  /** Effective permission mode of the caller, also the ceiling for a new side thread. */
   readonly callerPermissionMode?: SpawnPermissionMode;
   /** answer_interaction: the referenced interaction. */
   readonly interaction?: InteractionFacts;
@@ -98,6 +104,28 @@ export type BusDecision =
 const deny = (reason: string): BusDecision => ({ allowed: false, reason });
 const allow: BusDecision = { allowed: true };
 
+const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
+  "spawn_thread",
+  "interrupt_thread",
+  "close_thread",
+  "list_interactions",
+  "answer_interaction",
+]);
+
+/** Model-facing catalog. A gateway that supports worktree switching opts the thread in. */
+export function agentBusToolsFor(
+  depth: number,
+  hasDelegatingBot = false,
+  enableWorktreeSwitch = false,
+): AgentBusToolName[] {
+  return AGENT_BUS_TOOL_NAMES.filter(
+    (name) =>
+      (name !== "message_delegating_bot" || hasDelegatingBot) &&
+      (name !== "switch_worktree" || enableWorktreeSwitch) &&
+      (depth === 0 || !ORCHESTRATOR_ONLY.has(name)),
+  );
+}
+
 export function authorizeBusCall(
   call: AgentBusCall,
   facts: BusFacts,
@@ -108,11 +136,18 @@ export function authorizeBusCall(
   if (call.tool === "message_delegating_bot" && !caller.hasDelegatingBot)
     return deny("This thread has no delegating bot.");
 
-  if (!agentBusToolsFor(caller.depth, caller.hasDelegatingBot).includes(call.tool)) {
+  if (caller.depth !== 0 && ORCHESTRATOR_ONLY.has(call.tool)) {
     return deny(`${call.tool} is not available in side threads; ask your parent thread with send_message`);
   }
 
   switch (call.tool) {
+    case "switch_worktree":
+      if (caller.archived) return deny("This thread is archived. Unarchive it to switch worktrees.");
+
+      if (facts.callerPermissionMode === "read_only")
+        return deny("This turn is read only. Switch worktrees in a turn with write access.");
+
+      return call.args.continuation ? hopsDecision(facts, limits, false) : allow;
     case "show_images":
     case "import_image_reply":
     case "render_visual":

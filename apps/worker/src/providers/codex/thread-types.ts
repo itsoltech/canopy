@@ -81,6 +81,7 @@ export interface Entry {
   readonly sandboxProfile: SandboxEvidence | undefined;
   sandboxProfileInvalid?: boolean;
   readonly platformId: string;
+  readonly cwd: string;
   readonly codexId: string;
   readonly mapper: CodexEventMapper;
   /** Platform turn ids awaiting the authoritative turn/start response. */

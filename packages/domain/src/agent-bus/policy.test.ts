@@ -39,6 +39,23 @@ const reason = (call: AgentBusCall, f: BusFacts) => {
   return d.allowed ? "allowed" : d.reason;
 };
 
+test("switching the caller's worktree needs write access and reserves a hop only for a continuation", () => {
+  const call: AgentBusCall = { tool: "switch_worktree", args: { branch: "alternate" } };
+  const next: AgentBusCall = { ...call, args: { path: "/worktrees/alternate", continuation: "Keep working." } };
+  const callerHops = DEFAULT_BUS_LIMITS.maxHops;
+
+  for (const caller of [root, a]) {
+    expect(reason(call, facts(caller, { callerPermissionMode: "read_only" }))).toContain("read only");
+    expect(reason(call, facts({ ...caller, archived: true }))).toContain("archived");
+    expect(authorizeBusCall(call, facts(caller, { callerHops }))).toEqual({ allowed: true });
+    expect(authorizeBusCall(next, facts(caller, { callerHops: callerHops - 1 }))).toEqual({
+      allowed: true,
+      hops: callerHops,
+    });
+    expect(reason(next, facts(caller, { callerHops }))).toContain("limit");
+  }
+});
+
 test("linking a PR stays local at the hop limit and refuses archived threads", () => {
   const call: AgentBusCall = { tool: "link_pull_request", args: { pull_request: "owner/repo#123" } };
 

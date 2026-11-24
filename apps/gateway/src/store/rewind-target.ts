@@ -21,8 +21,13 @@ export const rewindTarget = (sql: SqlClient.SqlClient, owner: string, threadId: 
     if (!thread.provider_thread_id || !thread.worker_id)
       return yield* Effect.fail(new Invalid("Wait for the agent to finish creating this thread."));
 
-    const target =
-      (yield* sql<TurnRow>`SELECT * FROM turns WHERE id=${turnId}::uuid AND thread_id=${threadId}::uuid`)[0];
+    // A checkpoint belongs to the turn being edited, even when its conversation prefix comes from a fork.
+    // Compare actual starts, not queue slots. A conversation rewind can hide the switch without undoing it.
+    const [target] = yield* sql<TurnRow & { before_worktree_switch: boolean }>`
+      SELECT u.*, ${thread.provider === "claude"} AND EXISTS (
+        SELECT 1 FROM turns s WHERE s.thread_id=u.thread_id AND s.worktree_switch_source_cwd IS NOT NULL
+          AND (s.first_seq IS NULL OR u.first_seq IS NULL OR s.first_seq>=u.first_seq)
+      ) AS before_worktree_switch FROM turns u WHERE u.id=${turnId}::uuid AND u.thread_id=${threadId}::uuid`;
 
     if (!target || target.trigger !== "user" || target.rewind_id || target.withdrawn || !target.started_at)
       return yield* Effect.fail(new Invalid("Choose a sent message of your own in this thread."));
@@ -54,6 +59,12 @@ export const rewindTarget = (sql: SqlClient.SqlClient, owner: string, threadId: 
       previous,
       suffix,
       tasks,
+      filesUnavailable:
+        thread.provider !== "claude"
+          ? "Files stay as they are."
+          : target.before_worktree_switch
+            ? "The thread switched worktrees after this message started."
+            : "",
       running: suffix.some((turn) => turn.status === "running" || turn.status === "queued"),
     };
   });

@@ -202,6 +202,9 @@ export function ThreadScreen({ id }: { id: string }) {
   const { workspace: store } = useSession();
   const workspace = useSyncExternalStore(store.subscribe, () => store.view(id));
   useSyncExternalStore(store.subscribe, () => workspace.active);
+  useEffect(() => {
+    if (state.thread) store.bindCheckout(workspace, state.thread);
+  }, [store, workspace, state.thread]);
   const fileTab = workspace.currentFile;
   const activeTab = workspace.current;
   useEffect(() => {

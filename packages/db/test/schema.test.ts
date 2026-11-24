@@ -158,7 +158,24 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
           [id(), w.project, w.user, w.worker, w.workspace],
         ),
       ).toContain("threads_agent_origin");
-      // Only spawn/send start turns and carry hops; notify only for them.
+
+      // A successful worktree switch carries hops only for its optional queued continuation.
+      const switchCall = `INSERT INTO agent_bus_calls(id,source_thread_id,source_turn_id,tool,arguments,hops,status,completed_at)
+        VALUES ($1,$2,$3,'switch_worktree',$4,$5,'completed',now())`;
+
+      const switchArgs = JSON.stringify({ path: "/repo" });
+      const withContinuation = JSON.stringify({ path: "/repo", continuation: "Review" });
+      expect(await failure(switchCall, [id(), main, turn, switchArgs, 1])).toContain("agent_bus_calls_starts_turn");
+      expect(await failure(switchCall, [id(), main, turn, withContinuation, null])).toContain(
+        "agent_bus_calls_starts_turn",
+      );
+      await query(switchCall, [id(), main, turn, switchArgs, null]);
+      const switched = id();
+      await query(switchCall, [switched, main, turn, withContinuation, 1]);
+      // Retention clears arguments and result, preserving the provenance of the turn.
+      await query(`UPDATE agent_bus_calls SET arguments='{}',result=NULL WHERE id=$1`, [switched]);
+
+      // Notifications require a notifying tool and consistent delivery state.
       expect(await failure(insertCall, [id(), main, turn, "send_message", null, false, null])).toContain(
         "agent_bus_calls_starts_turn",
       );

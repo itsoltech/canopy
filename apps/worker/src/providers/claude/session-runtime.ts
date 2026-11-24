@@ -65,9 +65,10 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
     return next;
   };
 
-  const sessionExists = async (sessionId: string, cwd: string, home: string) => {
+  // Native resume keeps writing to the original project bucket after a worktree move.
+  const sessionExists = async (sessionId: string, home: string) => {
     try {
-      return (await inHome(home, () => getSessionMessages(sessionId, { dir: cwd }))).length > 0;
+      return (await inHome(home, () => getSessionMessages(sessionId, { limit: 1 }))).length > 0;
     } catch {
       return false;
     }
@@ -79,9 +80,7 @@ export function claudeRuntime(ctx: ClaudeThreadContext) {
     const legacy = current.platformHome ?? options.home;
 
     const legacySession =
-      !existing &&
-      legacy !== current.home &&
-      (await sessionExists(spec.providerThreadId || spec.threadId, spec.cwd, legacy));
+      !existing && legacy !== current.home && (await sessionExists(spec.providerThreadId || spec.threadId, legacy));
 
     const home = await homes.bind(spec.threadId, legacySession ? legacy : current.home, spec);
 

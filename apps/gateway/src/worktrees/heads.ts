@@ -32,7 +32,7 @@ export async function coreGitHeads(hostContext: GatewayCore, workerId: string, r
 
     try {
       const threads = await coreRun(hostContext, (s) =>
-        s.saveGitHead(workerId, reported.threadIds.slice(0, MAX_THREADS), head),
+        s.saveGitHead(workerId, reported.threadIds.slice(0, MAX_THREADS), head, reported.cwd),
       );
 
       for (const id of threads) changed.add(id);

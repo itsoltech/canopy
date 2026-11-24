@@ -1,5 +1,5 @@
 import { untrack } from "svelte";
-import type { AgentPreviewTarget, AgentTool } from "@canopy/contracts";
+import type { AgentPreviewTarget, AgentTool, ui } from "@canopy/contracts";
 import type { PreviewSelection } from "#lib/features/preview/automatic-preview.svelte.ts";
 import type { Attachment } from "svelte/attachments";
 import { FILES_PANEL_WIDTH } from "@canopy/domain/device-view";
@@ -44,6 +44,16 @@ export class ThreadWorkspace {
       });
 
       return () => view.currentFile?.document.cancel();
+    });
+  }
+
+  bindCheckout(thread: () => ui.Thread | undefined) {
+    const workspace = $derived(this.view);
+    $effect(() => {
+      const current = thread();
+      const view = workspace;
+
+      if (current) untrack(() => view.store.bindCheckout(view, current));
     });
   }
 

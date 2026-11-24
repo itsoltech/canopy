@@ -3,6 +3,7 @@ import type { Workspace } from "@canopy/domain/workspace";
 import { listThreadDiff, ThreadDiffError, type ThreadDiffFile } from "./diff-api.ts";
 import { DiffPages } from "./diff-pages.svelte.ts";
 import { DiffReview } from "./diff-review.svelte.ts";
+import { workspaceStore } from "./workspace.svelte.ts";
 import { registerDiffState } from "./diff-drafts.svelte.ts";
 
 export { connectDiffDrafts } from "./diff-drafts.svelte.ts";
@@ -22,6 +23,7 @@ export class DiffState {
   snapshotId = $state("");
   loading = $state(false);
   loaded = $state(false);
+  checkoutRevision = $state(0);
   error = $state("");
   activePath = $state("");
   target = $state<{ path: string; revision: number }>();
@@ -96,6 +98,11 @@ export class DiffState {
     }
   }
 
+  changeCheckout(): void {
+    this.dispose();
+    this.checkoutRevision++;
+  }
+
   private accessEnded(): void {
     this.dispose();
     this.loaded = true;
@@ -121,6 +128,13 @@ export class DiffState {
 }
 
 const states = new WeakMap<Workspace, DiffState>();
+
+workspaceStore.watchFiles((change) => {
+  if (!change?.checkoutChanged) return;
+  const view = workspaceStore.views.get(change.threadId);
+
+  if (view) states.get(view)?.changeCheckout();
+});
 
 export function getDiffState(view: Workspace): DiffState {
   let state = states.get(view);

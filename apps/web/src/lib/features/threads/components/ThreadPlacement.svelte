@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { placementPath } from "@canopy/domain/git-heads";
+  import { placementPath, threadCheckoutKey } from "@canopy/domain/git-heads";
   import { osLabel } from "#lib/features/overview/workers.ts";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
@@ -81,7 +81,9 @@
     {#if thread.worktree}<MenuItem icon="cog-6-tooth" onselect={onworktree}>Manage worktree</MenuItem>{/if}
   </DropdownMenu>
   {#if thread.worktree || thread.checkoutHead}
-    <ThreadBranch {thread} {worker} />
-    {#key thread.id}<ThreadGit {thread} {worker} />{/key}
+    {#key threadCheckoutKey(thread)}
+      <ThreadBranch {thread} {worker} />
+      <ThreadGit {thread} {worker} />
+    {/key}
   {/if}
 </section>

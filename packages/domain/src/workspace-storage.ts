@@ -14,6 +14,7 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
 
     if (!id || id.length > 1024) continue;
     const view = store.view(id);
+    view.checkout = str(saved["checkout"]);
     const panel = objectOf(saved["panel"]);
     view.panel = {
       open: panel["open"] === true,
@@ -56,6 +57,7 @@ export function restoreWorkspace(store: WorkspaceStore, raw: string | null): voi
 export function workspaceMetadata(store: WorkspaceStore): string {
   const views = [...store.views.values()].slice(-30).map((view) => ({
     threadId: view.threadId,
+    checkout: view.checkout,
     panel: view.panel,
     active: view.tabs.findIndex((tab) => tab.id === view.active) + 1,
     tabs: view.tabs.map((tab) =>
@@ -63,7 +65,11 @@ export function workspaceMetadata(store: WorkspaceStore): string {
         ? tab.module === "preview"
           ? { module: tab.module, resource: "" }
           : { module: tab.module, resource: tab.resource, label: tab.label?.slice(0, 256) }
-        : { threadId: tab.document.target.threadId, path: tab.document.path, itemId: tab.document.target.itemId ?? "" },
+        : {
+            threadId: tab.document.target.threadId,
+            path: tab.document.reloadPath,
+            itemId: tab.document.target.itemId ?? "",
+          },
     ),
   }));
 

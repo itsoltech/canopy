@@ -613,6 +613,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
         s.detectionSaveContext(
           gw.userId,
           thread,
+          "/repo/github-fixture",
           create(GitPrContextSchema, {
             pushRemote: "origin",
             remotes: [{ name: "origin", pushRepositories: ["github.com/itsoltech/canopy"] }],

@@ -6,7 +6,8 @@ import {
   type ProcessResult,
 } from "@canopy/process-governor";
 
-const disabled = ["core.fsmonitor=false", "diff.external=", "diff.autoRefreshIndex=false", "submodule.recurse=false"];
+// Empty is false for boolean-aware Git; older Git would treat the word "false" as a hook pathname.
+const disabled = ["core.fsmonitor=", "diff.external=", "diff.autoRefreshIndex=false", "submodule.recurse=false"];
 
 const hooksPath = process.platform === "win32" ? "NUL" : "/dev/null";
 
@@ -23,19 +24,17 @@ export function gitReadEnv() {
   };
 }
 
-export function gitReadArgv(args: readonly string[], options: readonly string[] = []) {
-  return ["git", ...withoutGitHooks, ...disabled.flatMap((value) => ["-c", value]), ...options, ...args];
+export function gitReadArgv(args: readonly string[], options: readonly string[] = [], executable = "git") {
+  return [executable, ...withoutGitHooks, ...disabled.flatMap((value) => ["-c", value]), ...options, ...args];
 }
 
-function filterQuery(cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal): ProcessInput {
+function filterQuery(cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal, executable?: string): ProcessInput {
   return {
-    argv: gitReadArgv([
-      "config",
-      "--null",
-      "--name-only",
-      "--get-regexp",
-      "^filter\\..*\\.(clean|smudge|process|required)$",
-    ]),
+    argv: gitReadArgv(
+      ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|smudge|process|required)$"],
+      [],
+      executable,
+    ),
     cwd,
     env,
     ...(signal && { signal }),
@@ -69,11 +68,11 @@ export async function gitReadFilters(cwd: string, signal: AbortSignal): Promise<
 /** Discover filters for each actual scan. Identical readers can share the finished scan, including its setup. */
 export function runGitScan(input: ProcessInput & { cwd: string; env: NodeJS.ProcessEnv }, policy: ProcessPolicy) {
   const { onStart, ...scan } = input;
-  const setup = { ...filterQuery(scan.cwd, scan.env, scan.signal), ...(onStart && { onStart }) };
+  const setup = { ...filterQuery(scan.cwd, scan.env, scan.signal, scan.argv[0]), ...(onStart && { onStart }) };
 
   return runPreparedProcess(
     setup,
-    (result) => ({ ...scan, argv: gitReadArgv(scan.argv.slice(1), disableFilters(result)) }),
+    (result) => ({ ...scan, argv: gitReadArgv(scan.argv.slice(1), disableFilters(result), scan.argv[0]) }),
     policy.key === undefined ? policy : { ...policy, key: `git-scan:${policy.key}` },
   );
 }

@@ -32,7 +32,7 @@ const snapshot = `SELECT w.*,
     SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL AND t.archived_at IS NULL) AS all_archived,
   EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND t.deleted_at IS NULL
     AND t.archived_at > now() - interval '24 hours') AS archive_grace_period,
-  EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND (
+  (worktree_has_switched_turn(w) OR EXISTS (SELECT 1 FROM threads t WHERE t.worktree_id = w.id AND (
     t.status = 'creating' AND t.deleted_at IS NULL OR
     EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status IN ('queued', 'running')) OR
     EXISTS (SELECT 1 FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending') OR
@@ -40,7 +40,7 @@ const snapshot = `SELECT w.*,
     EXISTS (SELECT 1 FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled')
       AND (t.archived_at IS NULL AND t.deleted_at IS NULL OR g.status IN ('active', 'proposed'))) OR
     EXISTS (SELECT 1 FROM worker_commands c WHERE c.thread_id = t.id AND c.status IN ('pending', 'delivered')
-      AND c.kind IN ('startTurn', 'createThread', 'setGoal') AND c.expires_at > now()))) AS busy
+      AND c.kind IN ('startTurn', 'createThread', 'setGoal') AND c.expires_at > now())))) AS busy
   FROM worktrees w`;
 
 export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {

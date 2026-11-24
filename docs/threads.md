@@ -1,5 +1,7 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): `switch_worktree` przenosi kolejne tury Codexa i Claude do innego checkoutu w tym samym workspace.
+
 Status (2026-11-24): w web/desktop ustawienia archiwizacji są w zakładce **Archiving** sekcji Threads.
 
 Status (2026-11-23): w Settings → Projects można zmienić kolor istniejącego projektu
@@ -490,11 +492,11 @@ flowchart TB
 
 Zmiana względem wcześniejszego szkicu: `agents.worker_id` i `agents.cwd` znikają. Miejsce uruchomienia należy do wątku, nie do agenta. Dzięki temu globalnego agenta można użyć w wątku dowolnego projektu na dowolnym workerze. `conversations`, `messages` i `agent_sessions` zastępuje para wątki + tury.
 
-## 2. Dlaczego wątek jest przypięty do workera i katalogu
+## 2. Przypisanie wątku do workera i workspace’u
 
-Historia rozmowy u dostawcy leży w plikach na urządzeniu (`~/.claude/projects`, `~/.codex/sessions`) i jest związana z katalogiem roboczym. Wznowienie (`resume`, `thread/resume`) i fork (`forkSession`, `thread/fork`) działają tylko tam. Stąd niezmienniki:
+Historia dostawcy pozostaje na urządzeniu workera. Przy wznowieniu Claude i Codexa worker oddzielnie rozstrzyga tożsamość sesji i katalog roboczy nowej tury.
 
-- placement wątku (`worker_id`, `workspace_id`, `cwd`, `provider`) jest **niezmienny** (trigger `threads_before_update`),
+- worker, workspace i dostawca są przypisani na stałe. Zmiana cwd i worktree wymaga sprawdzenia aktywnej tury i docelowego checkoutu,
 - `provider_thread_id` ustawia zdarzenie `thread_ready`; rewind i Undo mogą przełączyć
   sesję dostawcy, zachowując identyfikator oraz miejsce wątku Canopy,
 - wątek boczny ma **ten sam** worker i workspace co rodzic; domyślnie dziedziczy katalog/worktree,
@@ -730,7 +732,7 @@ Szczegóły: [agent-bus.md](agent-bus.md). Wywołanie agenta poza bieżącym drz
 ## 9. Git worktrees
 
 Izolacja korzysta z osobnych rekordów `worktrees` i `threads.worktree_id`; workspace projektu zostaje
-ten sam, a miejsce wątku (`cwd` + worktree) pozostaje niezmienne. Git wykonuje worker, ustawienia
+ten sam przy zmianie katalogu przez `switch_worktree`. Git wykonuje worker, ustawienia
 i autoryzację rozstrzyga gateway. `spawn_thread` domyślnie dziedziczy worktree rodzica; jawny
 `workspace_mode` może wybrać checkout, nowy worktree albo domyślny tryb zakresu. Boty i harmonogramy
 korzystają z tych samych ustawień i polityk sprzątania, z ochroną aktywnej pracy i lokalnych zmian.

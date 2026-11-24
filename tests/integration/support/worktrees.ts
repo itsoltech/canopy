@@ -141,9 +141,16 @@ export async function worktreeFixture(
 
     const messages = async function* () {
       for await (const message of active.messages) {
-        if (message.payload.case === "agentToolResult")
-          calls.get(message.payload.value.callId)?.(message.payload.value);
-        else yield message;
+        if (message.payload.case === "agentToolResult") {
+          const resolve = calls.get(message.payload.value.callId);
+
+          if (resolve) {
+            resolve(message.payload.value);
+            continue;
+          }
+        }
+
+        yield message;
       }
     };
 
@@ -279,7 +286,12 @@ export async function worktreeFixture(
     sql: <A>(query: (sql: SqlClient.SqlClient) => Effect.Effect<A, import("effect/sql").SqlError.SqlError>) =>
       gw.runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, query)),
     command: (kind: MessageInitShape<typeof CommandSchema>) => host.handleCommand(create(CommandSchema, kind)),
-    callTool: (threadId: string, args: JsonValue, callId = Bun.randomUUIDv7()) =>
+    callTool: (
+      threadId: string,
+      args: JsonValue,
+      callId = Bun.randomUUIDv7(),
+      { toolName = "spawn_thread", turnId = "" }: { toolName?: string; turnId?: string } = {},
+    ) =>
       new Promise<AgentToolResult>((resolve) => {
         calls.set(callId, (result) => {
           calls.delete(callId);
@@ -287,7 +299,7 @@ export async function worktreeFixture(
         });
         link.send({
           case: "agentToolCall",
-          value: { callId, threadId, toolName: "spawn_thread", argumentsJson: JSON.stringify(args) },
+          value: { callId, threadId, turnId, toolName, argumentsJson: JSON.stringify(args) },
         });
       }),
     close: async () => {

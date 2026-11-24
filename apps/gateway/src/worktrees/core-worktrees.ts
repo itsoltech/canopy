@@ -1,3 +1,4 @@
+import { THREAD_WORKTREE_SWITCH_CAPABILITY } from "@canopy/domain/release/protocol";
 import type { CreationProgress } from "../core/thread-progress.ts";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
@@ -99,31 +100,35 @@ function worktreeLink(hostContext: GatewayCore, workerId: string) {
   return { connection, detail: "" };
 }
 
-/** A new worktree for a new main thread, created on the workspace's worker before the thread. */
-async function createWorktree(
+export async function createWorktree(
   hostContext: GatewayCore,
   request: ui.CreateThreadRequest,
   progress?: CreationProgress,
-  scheduledId?: string,
+  creation?: { id: string; commandId: string; branch?: string; expectedRoot?: string },
 ) {
   const { project, workspace, worker } = await ownWorkspace(hostContext, request.workspaceId);
 
   if (project.id !== request.projectId) throw new InvalidError("workspace not found");
+
+  if (creation?.expectedRoot && workspace.rootPath !== creation.expectedRoot)
+    throw new InvalidError("The workspace changed. Retry from its current checkout.");
 
   if (project.kind === "scratch") throw new InvalidError("a no-project thread has no repository for a worktree");
   const { connection, detail } = worktreeLink(hostContext, workspace.workerId);
 
   if (connection === undefined && detail) throw new InvalidError(detail);
   const settings = (await coreWorktreeScope(hostContext, project.id, workspace.workerId)).effective;
-  const id = scheduledId ?? Bun.randomUUIDv7();
+  const id = creation?.id ?? Bun.randomUUIDv7();
 
-  const branch = initialBranch(settings, {
-    message: request.initialMessage,
-    title: request.title,
-    shortId: id.slice(-8),
-  });
+  const branch =
+    creation?.branch ??
+    initialBranch(settings, {
+      message: request.initialMessage,
+      title: request.title,
+      shortId: id.slice(-8),
+    });
 
-  const semantic = settings.branchNaming === ui.BranchNaming.SEMANTIC;
+  const semantic = !creation?.branch && settings.branchNaming === ui.BranchNaming.SEMANTIC;
 
   const detailed = connection?.hello.capabilities.includes("worktree_progress_v1");
   const extended = connection?.hello.capabilities.includes(WORKTREE_CHECKOUT_DEADLINE);
@@ -140,14 +145,16 @@ async function createWorktree(
         baseRef: request.baseRef,
         branch,
         location: settings.location ?? "",
-        startFromRemote: settings.startFromRemote ?? false,
+        startFromRemote: !creation?.branch && (settings.startFromRemote ?? false),
+        agentRequested: Boolean(creation?.branch),
         remote: settings.remote ?? "origin",
         ...(extended && { checkoutStartDeadlineMs: BigInt(Date.now() + WORKTREE_PREPARATION_TIMEOUT_MS) }),
       },
     },
     extended ? WORKTREE_QUERY_TIMEOUT_MS : LEGACY_WORKTREE_QUERY_TIMEOUT_MS,
     {
-      ...(scheduledId && { commandId: `schedule-worktree/${scheduledId}` }),
+      ...(creation && { commandId: creation.commandId }),
+      ...(creation?.branch && { requiredCapability: THREAD_WORKTREE_SWITCH_CAPABILITY }),
       queryProgress: (event) => {
         if (!detailed) return;
 
@@ -250,7 +257,14 @@ export async function corePrepareWorkspace(
   }
 
   if (request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) return { request };
-  const made = await createWorktree(hostContext, request, progress, scheduledId);
+
+  const made = await createWorktree(
+    hostContext,
+    request,
+    progress,
+    scheduledId ? { id: scheduledId, commandId: `schedule-worktree/${scheduledId}` } : undefined,
+  );
+
   const next = create(ui.CreateThreadRequestSchema, { ...request, worktreeId: made.row.id, cwd: made.row.path });
 
   return {

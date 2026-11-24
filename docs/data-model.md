@@ -1,5 +1,8 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-24): migracja `0211_thread_worktree_switch` wiąże zmianę cwd i worktree z aktywną turą
+i zapisuje jej źródłowy katalog na czas ochrony checkoutu i kontroli checkpointów.
+
 Status (2026-11-24): migracja `0210_bot_approval_restricted_thread` wiąże jednorazową
 zgodę na `send_message` z docelowym wątkiem o odrębnym zakresie. Starsze karty mają
 `NULL` w `bot_approvals.restricted_thread_id`.
@@ -701,8 +704,8 @@ W SQL (CHECK, FK, indeksy częściowe):
 
 W triggerach:
 
-- `threads_before_insert`: wątek boczny dzieli projekt, właściciela, drzewo, worker i workspace z rodzicem, a `depth = rodzic + 1`; od `0068_worktree_automation` katalog/worktree jest domyślnie dziedziczony, ale jawnie może wskazać checkout albo inny worktree tego workspace'u. `threads_worktree_placement` wymaga zgodnego właściciela/projektu/workspace'u/workera i ścieżki rekordu worktree albo poprawnego checkoutu/dziedziczenia; miejsce pozostaje niezmienne. Źródło forka wątku bocznego jest w tym samym drzewie, a forkowanego wątku głównego w tym samym projekcie, u tego samego właściciela i na tym samym workerze; źródło ma tego samego dostawcę; punkt forka to zakończona tura (`completed`, `failed`, `interrupted`); brak punktu ⇒ przypięcie do ostatniej tury `completed`,
-- `threads_before_update`: placement i pochodzenie są niezmienne. `provider_thread_id`
+- `threads_before_insert`: wątek boczny dzieli projekt, właściciela, drzewo, worker i workspace z rodzicem, a `depth = rodzic + 1`; od `0068_worktree_automation` katalog/worktree jest domyślnie dziedziczony, ale jawnie może wskazać checkout albo inny worktree tego workspace'u. `threads_worktree_placement` wymaga zgodnego właściciela/projektu/workspace'u/workera i ścieżki rekordu worktree albo poprawnego checkoutu/dziedziczenia. Źródło forka wątku bocznego jest w tym samym drzewie, a forkowanego wątku głównego w tym samym projekcie, u tego samego właściciela i na tym samym workerze; źródło ma tego samego dostawcę; punkt forka to zakończona tura (`completed`, `failed`, `interrupted`); brak punktu ⇒ przypięcie do ostatniej tury `completed`,
+- `threads_before_update`: worker, workspace, dostawca i pochodzenie są niezmienne. Zmiana cwd i worktree po utworzeniu wymaga zweryfikowanego przełączenia w aktywnej turze. `provider_thread_id`
   można podmienić przed pierwszą widoczną turą bieżącej sesji (Codex bez rolloutu po
   restarcie workera) albo przy zatwierdzaniu trwałego rewindu lub Undo (`0136`).
   Ta druga ścieżka wymaga zgodnego właściciela oraz dokładnej pary sesji zapisanej

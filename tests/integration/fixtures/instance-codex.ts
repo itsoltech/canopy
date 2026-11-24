@@ -51,13 +51,20 @@ const currentProvider =
 const botServers = new Map<string, ReturnType<typeof codexBotConfig>>();
 const instructions = new Map<string, string>();
 const catalogs = new Map<string, string[]>();
+const workspaces = new Map<string, { cwd: string; server: typeof HttpMcp.Type | undefined }>();
 const interrupted = new Set<string>();
 const send = (message: JsonObject) => process.stdout.write(JSON.stringify(message) + "\n");
 const notify = (method: string, params: JsonObject) => send({ method, params });
 
 async function turn(
   id: number,
-  params: { threadId: string; input: { type: string; text?: string; path?: string }[] },
+  params: {
+    threadId: string;
+    cwd?: string;
+    approvalPolicy?: string;
+    sandboxPolicy?: { type: string };
+    input: { type: string; text?: string; path?: string }[];
+  },
 ): Promise<void> {
   recordInput(
     "codex",
@@ -184,6 +191,22 @@ async function turn(
       turnId,
       item: { id: `answer-${turnId}`, type: "agentMessage", text: answer },
     });
+  } else if (text.includes("TOOL:switch_worktree") || text.includes("REPORT_THREAD_CWD")) {
+    const workspace = workspaces.get(threadId);
+
+    const answer = text.includes("TOOL:switch_worktree")
+      ? await botTool(text, workspace?.server)
+      : JSON.stringify({
+          cwd: params.cwd ?? workspace?.cwd,
+          approval: params.approvalPolicy,
+          sandbox: params.sandboxPolicy?.type,
+        });
+
+    notify("item/completed", {
+      threadId,
+      turnId,
+      item: { id: `answer-${turnId}`, type: "agentMessage", text: answer },
+    });
   }
 
   recordProbe("codex", "finish", threadId, providers.get(threadId));
@@ -231,8 +254,8 @@ for await (const line of createInterface({ input: process.stdin })) {
       result: { rateLimits: codexLimits(usagePercent), rateLimitsByLimitId: null, rateLimitResetCredits: null },
     });
   else if (request.method === "model/list") send({ id, result: { data: [], nextCursor: null } });
-  else if (request.method === "thread/start" || request.method === "thread/resume") {
-    const session = params.threadId ?? crypto.randomUUID();
+  else if (["thread/start", "thread/resume", "thread/fork"].includes(request.method)) {
+    const session = request.method === "thread/resume" ? params.threadId : crypto.randomUUID();
     const file = join(home, "sessions", `${session}.json`);
 
     // A real rollout (sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl, e.g. an imported one) resumes too.
@@ -272,7 +295,9 @@ for await (const line of createInterface({ input: process.stdin })) {
       Schema.Struct({ mcp_servers: Schema.optionalKey(Schema.Record(Schema.String, HttpMcp)) }),
     )(params.config ?? {});
 
-    catalogs.set(session, await httpTools(config.mcp_servers?.["canopy_connectors"]));
+    const server = config.mcp_servers?.["canopy_connectors"];
+    workspaces.set(session, { cwd: params.cwd, server });
+    catalogs.set(session, await httpTools(server));
     recordProbe("codex", request.method, session, params.modelProvider);
     send({ id, result: { thread: { id: session, path: null } } });
   } else if (request.method === "mcpServerStatus/list") {

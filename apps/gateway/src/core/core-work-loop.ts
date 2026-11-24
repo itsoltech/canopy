@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { CommandSchema, ui, type Command } from "@canopy/contracts";
 import { Effect } from "effect";
-import { joinNotes } from "@canopy/domain";
+import { joinNotes, SPAWN_PERMISSION_MODES } from "@canopy/domain";
 import { mentionsFromJson, mentionsToJson } from "./mentions.ts";
 import {
   GatewayStore,
@@ -16,6 +16,7 @@ import {
   type ThreadRow,
   type TurnRow,
 } from "../store/index.ts";
+import { busPermissionMode } from "../store/agent-bus-types.ts";
 import { coreBroadcastGoal } from "./core-goals.ts";
 import { coreDeliver } from "./core-commands.ts";
 import {
@@ -261,7 +262,15 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
                     );
 
               const threadPermissionMode = permissionModeName(spec.permissionMode) || "ASK";
-              const permissionMode = turn.permission_mode || threadPermissionMode;
+              const requestedMode = turn.permission_mode || threadPermissionMode;
+              const ceiling = turn.input.permissionCeiling;
+
+              const permissionMode =
+                ceiling &&
+                SPAWN_PERMISSION_MODES.indexOf(ceiling) <
+                  SPAWN_PERMISSION_MODES.indexOf(busPermissionMode(requestedMode))
+                  ? ceiling.toUpperCase()
+                  : requestedMode;
 
               const sandboxProblem = spec.sandboxProfile
                 ? sandboxTurnProblem(threadPermissionMode, permissionMode, turn)

@@ -69,10 +69,9 @@ function fixture() {
     connection: ResolvedProfile,
     previous: ThreadSpec,
     text: string,
-    options: { direct?: boolean; unload?: boolean; imported?: boolean } = {},
+    options: { direct?: boolean; unload?: boolean; imported?: boolean; move?: { cwd: string; text: string } } = {},
   ) => {
     const events: ThreadEvent[] = [];
-    const turnId = crypto.randomUUID();
     const current = { ...previous, providerProfileId: connection.id };
 
     const layer = CodexThreads.layer({
@@ -102,23 +101,32 @@ function fixture() {
       Effect.gen(function* () {
         const threads = yield* CodexThreads;
         const providerThreadId = current.providerThreadId || (yield* threads.create(current));
-        yield* threads.startTurn({ ...current, providerThreadId }, turnId, create(UserInputSchema, { text }));
 
-        const finished = yield* Effect.gen(function* () {
-          for (;;) {
-            const done = events.find((event) => event.turnId === turnId && event.body.case === "turnFinished");
+        for (const next of [{ cwd: current.cwd, text }, ...(options.move ? [options.move] : [])]) {
+          const turnId = crypto.randomUUID();
+          current.cwd = next.cwd;
+          yield* threads.startTurn(
+            { ...current, providerThreadId },
+            turnId,
+            create(UserInputSchema, { text: next.text }),
+          );
 
-            if (done) return done;
-            yield* Effect.sleep("20 millis");
-          }
-        }).pipe(Effect.timeout("15 seconds"));
+          const finished = yield* Effect.gen(function* () {
+            for (;;) {
+              const done = events.find((event) => event.turnId === turnId && event.body.case === "turnFinished");
 
-        expect(
-          finished.body.case === "turnFinished" && {
-            outcome: finished.body.value.outcome,
-            reason: finished.body.value.reason,
-          },
-        ).toEqual({ outcome: TurnOutcome.COMPLETED, reason: "" });
+              if (done) return done;
+              yield* Effect.sleep("20 millis");
+            }
+          }).pipe(Effect.timeout("15 seconds"));
+
+          expect(
+            finished.body.case === "turnFinished" && {
+              outcome: finished.body.value.outcome,
+              reason: finished.body.value.reason,
+            },
+          ).toEqual({ outcome: TurnOutcome.COMPLETED, reason: "" });
+        }
 
         expect(
           events.some((event) => event.body.case === "threadReady" && event.body.value.replacesProviderThreadId),
@@ -189,6 +197,34 @@ test.skipIf(!codex)(
     } finally {
       await first.stop();
       await second.stop();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!codex)(
+  "Codex changes a warm session's workspace and resumes its history there after a restart",
+  async () => {
+    const { profile, spec, ask, first, second } = fixture();
+    const cwd = join(spec.cwd, "..", "new-worktree");
+    mkdirSync(cwd);
+    spec.enableAgentBus = true;
+    spec.enableWorktreeSwitch = true;
+    spec.permissionMode = PermissionMode.FULL_AUTO;
+
+    try {
+      const moved = await ask(profile("native"), spec, "FIXTURE_ORIGINAL", {
+        move: { cwd, text: "FIXTURE_MOVED" },
+      });
+
+      const resumed = await ask(profile("native"), moved, "FIXTURE_RESTARTED");
+      expect(resumed.providerThreadId).toBe(moved.providerThreadId);
+      const movedRequest = first.requests.find((request) => request.includes("FIXTURE_MOVED"));
+      expect(movedRequest).toContain("FIXTURE_ANSWER FIXTURE_ORIGINAL");
+      expect(movedRequest).toContain(cwd);
+      expect(first.requests.at(-1)).toContain("FIXTURE_ANSWER FIXTURE_MOVED");
+    } finally {
+      await Promise.all([first.stop(), second.stop()]);
     }
   },
   60_000,

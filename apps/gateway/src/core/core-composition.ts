@@ -32,6 +32,7 @@ import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 import { publishThreadImages } from "./image-publication.ts";
 import { importImageReply } from "./image-markdown.ts";
 import { releaseFound } from "../updates/found.ts";
+import { switchAgentWorktree } from "../worktrees/switch-agent-worktree.ts";
 import { withTurnPermissionMutation } from "./turn-permission-state.ts";
 
 export function createCoreConnectors(core: GatewayCore, options: GatewayCoreOptions): ConnectorsRuntime {
@@ -79,6 +80,10 @@ export function createCoreBus(core: GatewayCore): AgentBus {
       withTurnPermissionMutation(core[coreState].options.runtime, threadId, perform),
     startThread: (row) => coreStartThread(core, row),
     prepareWorkspace: async (caller, args) => (await prepareSpawnWorkspace(core, caller, args)).request,
+    switchWorktree: (source, caller, args, hops) =>
+      withTurnPermissionMutation(core[coreState].options.runtime, caller.id, () =>
+        switchAgentWorktree(core, source, caller, args, hops),
+      ),
     nameWorkspace: (thread, prompt) => nameAutomationBranch(core, thread, prompt),
     queued: async (threadId, turn) => {
       await coreBroadcastTurn(core, threadId, turn.id); // re-read: the UI gets the turn with its source

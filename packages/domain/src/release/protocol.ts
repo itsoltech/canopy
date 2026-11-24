@@ -39,6 +39,9 @@ export const GIT_BRANCH_SWITCH_CAPABILITY = "git_branch_switch_v1";
 export const GIT_BRANCH_STASH_CAPABILITY = "git_branch_stash_v1";
 export const WORKSPACE_BRANCH_SWITCH_CAPABILITY = "workspace_branch_switch_v1";
 
+/** Rebind a thread to a worktree and resume its next provider turn in the new directory. */
+export const THREAD_WORKTREE_SWITCH_CAPABILITY = "thread_worktree_switch_v1";
+
 /** Explicit owner action: open a thread's directory in the worker computer's file manager. */
 export const REVEAL_PATH_CAPABILITY = "reveal_path";
 

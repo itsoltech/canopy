@@ -63,7 +63,7 @@ export async function checkoutContext(core: GatewayCore, id: string) {
 
   if (!head || !context)
     throw new ConnectError("Choose a GitHub branch in this thread, then retry.", Code.FailedPrecondition);
-  await core.github.run((s) => s.detectionSaveContext(core.github.owner, id, context));
+  await core.github.run((s) => s.detectionSaveContext(core.github.owner, id, scope.cwd, context));
 
   return { context, head };
 }

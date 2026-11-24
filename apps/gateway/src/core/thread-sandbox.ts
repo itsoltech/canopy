@@ -6,6 +6,7 @@ import {
   type Provider,
   type SandboxProfileBinding,
 } from "@canopy/contracts";
+import { THREAD_WORKTREE_SWITCH_CAPABILITY } from "@canopy/domain/release/protocol";
 import { SANDBOX_PROFILES_CAPABILITY, sandboxBinding, sandboxSupportProblem } from "@canopy/domain/sandbox-profiles";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -103,7 +104,7 @@ export function commandThreadSpec(command: Command) {
 }
 
 /** false means this connection has yet to report its current configuration. */
-export async function sandboxCommandRefusal(core: GatewayCore, connection: WorkerConnection, command: Command) {
+export async function threadCommandCheck(core: GatewayCore, connection: WorkerConnection, command: Command) {
   const { kind } = command;
 
   if (
@@ -125,12 +126,29 @@ export async function sandboxCommandRefusal(core: GatewayCore, connection: Worke
 
   if (!threadId) return;
 
+  const placement = spec ?? (kind.case === "rewindThread" || kind.case === "setGoal" ? kind.value.thread : undefined);
+  const compatible = connection.hello.capabilities.includes(THREAD_WORKTREE_SWITCH_CAPABILITY);
+
   const row = await core[coreState].actions.run(
     Effect.flatMap(SqlClient.SqlClient, (sql) =>
-      sql<Pick<ThreadRow, "settings" | "owner_user_id" | "worker_id" | "provider" | "provider_profile_id">>`
-        SELECT settings,owner_user_id,worker_id,provider,provider_profile_id FROM threads WHERE id=${threadId}::uuid`.pipe(
-        Effect.map((rows) => rows[0]),
-      ),
+      sql<
+        Pick<ThreadRow, "settings" | "owner_user_id" | "worker_id" | "provider" | "provider_profile_id" | "cwd"> & {
+          switched: boolean;
+          startedInSource: boolean;
+        }
+      >`
+        SELECT settings,owner_user_id,worker_id,provider,provider_profile_id,cwd,
+          CASE WHEN ${!compatible} OR cwd IS DISTINCT FROM coalesce(${placement?.cwd ?? null}::text,cwd)
+            THEN EXISTS (SELECT 1 FROM turns WHERE thread_id=${threadId}::uuid AND worktree_switch_source_cwd IS NOT NULL)
+            ELSE false END AS switched,
+          ${
+            kind.case === "startTurn" && placement
+              ? sql`CASE WHEN cwd <> ${placement.cwd} THEN EXISTS (
+            SELECT 1 FROM turns WHERE thread_id=${threadId}::uuid AND id=${kind.value.turnId}::uuid
+              AND worktree_switch_source_cwd=${placement.cwd}) ELSE false END`
+              : sql`false`
+          } AS "startedInSource"
+        FROM threads WHERE id=${threadId}::uuid`.pipe(Effect.map((rows) => rows[0])),
     ),
   );
 
@@ -140,6 +158,17 @@ export async function sandboxCommandRefusal(core: GatewayCore, connection: Worke
 
   const refusal = (message: string, errorCode = "SANDBOX_PROFILE_UNAVAILABLE") =>
     create(CommandResultSchema, { commandId: command.commandId, errorCode, errorMessage: message });
+
+  if (row.switched && placement && placement.cwd !== row.cwd) {
+    // A switch proves creation and the original StartTurn already ran, even if their ACK got lost.
+    if (kind.case === "createThread" || row.startedInSource)
+      return create(CommandResultSchema, { commandId: command.commandId, ok: true });
+
+    return refusal("The thread switched worktrees before this command ran.", "WORKTREE_CHANGED");
+  }
+
+  if (row.switched && !compatible)
+    return refusal("Update this worker to resume the thread in its current worktree.", "WORKTREE_SWITCH_UNSUPPORTED");
 
   if (!binding) return profiled && refusal("This command's sandbox profile no longer matches the saved thread.");
 

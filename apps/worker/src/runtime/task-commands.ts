@@ -13,13 +13,14 @@ export class TaskCommands {
 
     if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
     await this.ctx.ops.prepareThread(spec.threadId);
-    this.ctx.ops.checkCwd(spec.cwd);
 
     // Claude goals are /goal turns in the input stream (docs/goals.md); the gateway queues them as turns.
     if (spec.provider === Provider.CLAUDE)
       throw new CommandError("UNSUPPORTED", "Claude goals are set with /goal turns", true);
 
     return this.ctx.state.turnAdmissions.start(spec.threadId, async (current) => {
+      if (!current()) return {};
+      this.ctx.ops.assignThreadWorkspace(spec);
       await this.ctx.ops.runCodex(
         spec.provider,
         (threads) =>

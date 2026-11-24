@@ -31,6 +31,10 @@ export class CommandHandlers {
     this.#diffs = new ThreadDiffs(ctx.state.options.dataDir);
   }
 
+  rebindFileWatch(threadId: string, cwd: string) {
+    return this.#filesWatcher.closeThread(threadId, cwd);
+  }
+
   closeDirectories() {
     this.#filesWatcher.close();
     this.#highlights.close();

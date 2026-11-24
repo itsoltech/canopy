@@ -156,6 +156,8 @@ function threadSpec(row: ThreadRow) {
     // Agent bus tools for every worker thread: Codex dynamicTools, Claude MCP (docs/agent-bus.md).
     enableMemory: memoryEnabled,
     enableAgentBus: row.runtime === "worker",
+    enableWorktreeSwitch:
+      row.runtime === "worker" && row.project_kind === "project" && row.provider !== "grok" && !threadSandbox(row),
     hasDelegatingBot: hasDelegatingBot(row),
     providerThreadId: row.provider_thread_id ?? "",
     depth: row.remote_parent_ref ? 1 : row.depth,

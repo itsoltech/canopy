@@ -5,6 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
+Status (2026-11-24): agent może [przepiąć swój wątek do innego worktree](#zmiana-worktree-przez-agenta).
+
 Aktualizacja (2026-11-24): w web/desktop reguły sprzątania i podgląd ich skutków mają osobne zakładki.
 
 Status: **etapy 1–3 zaimplementowane** (2026-11-23), w tym ponawianie odczytu opcji workspace'u
@@ -43,9 +45,30 @@ Migracje stosu następują po `0064_worker_enrollment_tags` (#75) i `0065_instan
 etap 1 używa `0066_worktrees`, etap 2 `0067_worktree_lifecycle`, a etap 3 `0068_worktree_automation`.
 Każdy etap ma docelowy numer w pliku SQL, loaderze i oczekiwanej liście testu schematu.
 
-Powiązane: [threads.md](threads.md) (miejsce wątku jest niezmienne), [protocol.md](protocol.md),
+Powiązane: [threads.md](threads.md), [protocol.md](protocol.md),
 [thread-titles.md](thread-titles.md) (generowanie tekstu), [agent-bus.md](agent-bus.md),
 [bots.md](bots.md), [linked-computers.md](linked-computers.md) (dom wątku, przeniesienia).
+
+## Zmiana worktree przez agenta
+
+Po forku użytkownik może poprosić agenta np. „Utwórz gałąź `feat/search` z tego miejsca i dokończ na niej wyszukiwarkę”.
+Agent wywołuje `switch_worktree` z argumentem `branch`. Worker tworzy osobny checkout wskazanego lokalnego commita
+HEAD wątku. Niezatwierdzone zmiany pozostają w katalogu źródłowym. Zajęta nazwa gałęzi kończy się odmową.
+Przy checkoutcie wymagającym zewnętrznych filtrów (np. Git LFS) lub sparse checkout
+worker zwraca przyczynę odmowy. Można przygotować checkout ręcznie.
+Argument `path` pozwala wybrać istniejący worktree, także utworzony wcześniej w terminalu, albo wrócić
+do głównego checkoutu workspace'u. Worker sprawdza rejestr Git tego repozytorium oraz rzeczywiste katalogi.
+
+Po zapisaniu przypisania podsumowanie, diff i pliki wskazują nowy katalog. Wątek zachowuje historię
+i ustawienia. Przy odtwarzaniu plików z checkpointu Claude sprawdza, czy należą do bieżącego checkoutu.
+Cofanie samej rozmowy zachowuje punkty ze źródłowego katalogu. Bieżąca tura kończy pracę w dotychczasowym środowisku. Agent może przekazać
+`continuation` z pozostałą częścią zadania, aby Canopy automatycznie rozpoczęło kolejną turę w docelowym cwd.
+Inne wątki współdzielące źródłowy katalog zachowują swoje przypisania.
+
+Narzędzie działa w projektowych wątkach Codexa i Claude, także w zwykłym trybie Sandbox. Wymaga
+trwającej tury z prawem zapisu, zgodnego workera oraz zakończenia celu i zadań w tle.
+Wątki z nazwanym profilem Sandbox i sesje Grok ACP nie obsługują przełączenia.
+Dostępność w kanałach wynika z [promocji wydań](release.md).
 
 ## Cel
 
@@ -222,7 +245,7 @@ Tabela `worktrees`: `id`, `owner_user_id`, `project_id`, `workspace_id`, `worker
 
 - Worktree to rzecz współdzielona: wątki boczne, forki i „Previous worktree” wskazują ten sam rekord.
 - `cwd` wątku = `worktrees.path`; trigger migracji `0066` sprawdza właściciela, projekt, workspace,
-  workera, ścieżkę i dziedziczenie z rodzica. Zarówno `cwd`, jak i `worktree_id` pozostają niezmienne.
+  workera, ścieżkę i dziedziczenie z rodzica. Późniejszą zmianę pary `cwd` i `worktree_id` obsługuje `switch_worktree`.
 - Migracja `0067_worktree_lifecycle` zapisuje pierwotny `location`, rezerwację usunięcia
   (`removal_token`, `removal_started_at`, binarna `removal_command`) i triggery dostępności worktree.
   Zmiana konfiguracji folderu nie blokuje obsługi wcześniej utworzonych worktree.
@@ -642,7 +665,7 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   Przy starszym workerze gateway wykorzystuje checkout zapisany już w inwentarzu, lecz nie ma lokalnego
   potwierdzenia do odtworzenia po utracie pierwszego wyniku. Pominięte lub anulowane wystąpienie pozostawia
   katalog dostępny do zwykłego sprzątania worktree zgodnie z regułami właściciela.
-  Wakeup istniejącego wątku zachowuje jego niezmienne miejsce. Opcje są dostępne w narzędziach i API;
+  Wakeup istniejącego wątku zachowuje jego bieżące miejsce. Opcje są dostępne w narzędziach i API;
   ten etap nie dodaje kontrolek w interfejsie harmonogramów ani testów UI.
 - **Połączone komputery:** etap 1 odmawia tworzenia i wyboru worktree przez połączenie komputerów
   z czytelnym komunikatem: otwórz Canopy na komputerze, na którym jest workspace. Kompozytor

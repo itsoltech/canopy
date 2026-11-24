@@ -1,4 +1,5 @@
 import type { JsonValue } from "@bufbuild/protobuf";
+import type { SpawnPermissionMode } from "@canopy/domain";
 import type { PrChecksNote } from "@canopy/domain";
 import type { StoredAttachment } from "./attachments.ts";
 import type { StoredQuote } from "./quotes.ts";
@@ -163,6 +164,8 @@ export interface TurnRow {
   input: {
     /** Direct owner text admitted by the UI API. Automation can also create turns with trigger='user'. */
     humanAuthored?: boolean;
+    /** Highest mode granted to the agent that queued its own continuation. */
+    permissionCeiling?: SpawnPermissionMode;
     shellCommand?: string;
     shellInputId?: string;
     shellResult?: JsonValue;

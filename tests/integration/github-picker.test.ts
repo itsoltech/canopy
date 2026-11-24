@@ -26,6 +26,7 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
       s.detectionSaveContext(
         gw.userId,
         thread,
+        "/repo/github-fixture",
         create(GitPrContextSchema, {
           branch: "feat/picker",
           headOid: "a".repeat(40),
@@ -79,6 +80,19 @@ describe.skipIf(!dockerAvailable)("repository PR picker through owner-scoped gRP
     expect(result.selection?.accountId).toBe(account);
     expect(result.selection?.candidates.map((candidate) => candidate.id)).toEqual([account]);
     expect(result.items.length).toBeGreaterThan(0);
+  });
+
+  test("a late Git response cannot replace the current checkout’s PR evidence", async () => {
+    const stale = create(GitPrContextSchema, { branch: "stale-branch" });
+    await expect(
+      gw.core.github.run((s) => s.detectionSaveContext(gw.userId, thread, "/repo/previous", stale)),
+    ).rejects.toThrow("checkout changed");
+    await expect(
+      gw.core.github.run((s) =>
+        s.detectionSaveContext(gw.userId, thread, "/repo/github-fixture", stale, Bun.randomUUIDv7()),
+      ),
+    ).rejects.toThrow("checkout changed");
+    expect((await page()).items.filter((pr) => pr.currentBranch).map((pr) => pr.number)).toEqual([42, 45]);
   });
 
   test("pins matching branches, then the viewer's PRs, then recently updated PRs; warms cache", async () => {

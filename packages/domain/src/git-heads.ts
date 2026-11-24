@@ -1,6 +1,11 @@
 import type { ui } from "@canopy/contracts";
 import { basename } from "./humanize.ts";
 
+/** Identity of the checkout used for file and Git reads, independent of its current branch. */
+export function threadCheckoutKey(thread: ui.Thread): string {
+  return [thread.id, thread.workerId, thread.cwd, thread.worktree?.id].join("\0");
+}
+
 /** Thread list placement: scratch, checkout HEAD, then the directory for non-worktree threads. */
 export function threadPlace(thread: ui.Thread, project?: ui.Project): string {
   if (project?.kind === "scratch") return "scratch folder";

@@ -8,14 +8,19 @@ import { connectorSessionCatalog } from "@canopy/domain/connector-session";
 import type { threadSessions } from "./thread-sessions.ts";
 import { automationMcp, automationMcpKey } from "../local-automation.ts";
 
-// Codex inherits dynamic tools in forks. This tool follows the current platform thread on start, fork and resume.
-const botTools = (spec?: ThreadSpec) =>
-  spec?.enableAgentBus && spec.hasDelegatingBot ? (["message_delegating_bot"] as const) : [];
+// Codex inherits dynamic tools in forks. Conditional tools use the current platform thread’s MCP catalog.
+const sessionTools = (spec?: ThreadSpec) =>
+  spec?.enableAgentBus
+    ? [
+        ...(spec.hasDelegatingBot ? (["message_delegating_bot"] as const) : []),
+        ...(spec.enableWorktreeSwitch ? (["switch_worktree"] as const) : []),
+      ]
+    : [];
 
 const catalogKey = (spec: ThreadSpec) =>
   JSON.stringify([
     connectorSessionCatalog(spec.connectorTools),
-    botTools(spec),
+    sessionTools(spec),
     spec.enableMemory,
     automationMcpKey(spec),
   ]);
@@ -53,7 +58,7 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
           return ctx.mcpSpecs.get(spec.threadId)?.enableMemory ?? false;
         },
         get agentBus() {
-          return botTools(ctx.mcpSpecs.get(spec.threadId));
+          return sessionTools(ctx.mcpSpecs.get(spec.threadId));
         },
         get connectorTools() {
           return ctx.mcpSpecs.get(spec.threadId)?.connectorTools ?? [];
@@ -100,6 +105,7 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
           // The gateway authorizes connector and delegation calls.
           default_tools_approval_mode: "approve",
           required: true,
+          ...(spec.enableWorktreeSwitch && { tool_timeout_sec: 360 }),
         },
         ...Object.fromEntries(
           (local.bridge?.servers ?? []).map((server) => [
@@ -153,7 +159,7 @@ export const refreshCodexConnectors = (
 
     const expected = [
       ...spec.connectorTools.map((t) => t.name),
-      ...botTools(spec),
+      ...sessionTools(spec),
       ...threadMemoryTools(spec.enableMemory).map((t) => t.name),
     ].sort();
 

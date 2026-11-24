@@ -21,8 +21,11 @@ export function threadParams(ctx: CodexThreadContext, spec: ThreadSpec, sandboxP
 
   if (!profile) throw new Error(`provider profile "${spec.providerProfileId || "native"}" is not available`);
 
+  const cwd = sandboxProfile?.cwd ?? codexThreadCwd(spec.cwd);
+
   return {
-    cwd: sandboxProfile?.cwd ?? codexThreadCwd(spec.cwd),
+    cwd,
+    ...(spec.enableWorktreeSwitch && { runtimeWorkspaceRoots: [cwd] }),
     serviceTier: spec.serviceTier || "default",
     // Scratch sessions must not discover instructions above their isolated directory.
     config: {

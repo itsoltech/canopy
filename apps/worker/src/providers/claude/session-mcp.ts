@@ -15,6 +15,7 @@ export function claudeSessionMcp(
   calls: Map<string, string[]>,
 ) {
   let enableMemory = spec.enableMemory;
+  let enableWorktreeSwitch = spec.enableAgentBus && spec.enableWorktreeSwitch;
   let automationKey = automationMcpKey(spec);
   let hasDelegatingBot = spec.enableAgentBus && spec.hasDelegatingBot;
   let automation = automationMcp(options, spec, turnId);
@@ -24,6 +25,7 @@ export function claudeSessionMcp(
       threadId: spec.threadId,
       depth: spec.depth,
       hasDelegatingBot,
+      enableWorktreeSwitch,
       enableMemory,
       agentBus: spec.enableAgentBus,
       connectorTools: tools,
@@ -43,7 +45,7 @@ export function claudeSessionMcp(
   return {
     servers,
     allowedTools: [
-      ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth, hasDelegatingBot) : []),
+      ...(spec.enableAgentBus ? claudeBusToolNames(spec.depth, hasDelegatingBot, enableWorktreeSwitch) : []),
       ...(options.viewImage ? [CLAUDE_VIEW_IMAGE_TOOL] : []),
       `mcp__${BUS_SERVER}__*`,
       ...["agent_browser", "agent_desktop", "agent_device"].map((name) => `mcp__${name}__*`),
@@ -56,10 +58,12 @@ export function claudeSessionMcp(
         automationKey,
         hasDelegatingBot,
         enableMemory,
+        enableWorktreeSwitch,
       );
 
       return async (current: ThreadSpec) => {
         enableMemory = current.enableMemory;
+        enableWorktreeSwitch = current.enableAgentBus && current.enableWorktreeSwitch;
         const next = automationMcpKey(current);
         hasDelegatingBot = current.enableAgentBus && current.hasDelegatingBot;
 
@@ -69,7 +73,7 @@ export function claudeSessionMcp(
           automationKey = next;
         }
 
-        await refresh(current.connectorTools, automationKey, hasDelegatingBot, enableMemory);
+        await refresh(current.connectorTools, automationKey, hasDelegatingBot, enableMemory, enableWorktreeSwitch);
       };
     },
     close: async () => {

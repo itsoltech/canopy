@@ -36,10 +36,7 @@ export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typ
           const legacy = instance.platformHome ?? options.home;
 
           const legacySource =
-            fork &&
-            !source &&
-            legacy !== current &&
-            (await runtime.sessionExists(fork.sourceProviderThreadId, spec.cwd, legacy));
+            fork && !source && legacy !== current && (await runtime.sessionExists(fork.sourceProviderThreadId, legacy));
 
           const home = await homes.bind(
             spec.threadId,
@@ -51,7 +48,6 @@ export function threadCreation(ctx: ClaudeThreadContext, runtime: ReturnType<typ
             ? (
                 await inHome(home, () =>
                   forkSession(fork.sourceProviderThreadId, {
-                    dir: spec.cwd,
                     ...(fork.afterProviderTurnRef && { upToMessageId: fork.afterProviderTurnRef }),
                   }),
                 )
@@ -125,14 +121,15 @@ export function threadStart(
 
           if (session?.turn) throw new Error("a turn of this thread is already running");
 
-          const freshSandbox = sandboxProfile || session?.sandboxProfileDigest;
+          // The process, MCP handlers and permission callbacks all close over the launch cwd.
+          const freshProcess = sandboxProfile || session?.sandboxProfileDigest || (session && session.cwd !== spec.cwd);
 
-          if (session && freshSandbox && session.mapper.backgroundTasks.length > 0)
+          if (session && freshProcess && session.mapper.backgroundTasks.length > 0)
             throw new Error(
               "Wait for Claude background tasks to finish before starting this turn with a different process.",
             );
 
-          if (session && (freshSandbox || (session.mode !== mode && session.mapper.backgroundTasks.length === 0))) {
+          if (session && (freshProcess || (session.mode !== mode && session.mapper.backgroundTasks.length === 0))) {
             // A named profile always gets fresh startup settings, even when its digest has not changed.
             if (session.closeTimer) clearTimeout(session.closeTimer);
             session.closeTimer = undefined;

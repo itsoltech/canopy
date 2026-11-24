@@ -6,7 +6,15 @@ import { cleanupRemovedBranch, recoverRemoval, removeWorktree } from "../git/rem
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
-import { boundedGit, freshGit, gitOk, GitError, prepareWorktreeGit, waitForWorktreeSlot } from "../git/git.ts";
+import {
+  boundedGit,
+  freshGit,
+  gitOk,
+  GitError,
+  prepareWorktreeGit,
+  waitForWorktreeSlot,
+  withLocalGitPolicy,
+} from "../git/git.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs, repoRoot } from "../git/refs.ts";
 import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
@@ -63,7 +71,7 @@ export class GitCommands {
     if (kind.value.branchesOnly)
       return gitStep(() =>
         freshGit(async () => {
-          const root = await repoRoot(kind.value.repoPath);
+          const root = await withLocalGitPolicy(() => repoRoot(kind.value.repoPath));
 
           return {
             gitRefs: kind.value.worktreesOnly
@@ -104,10 +112,8 @@ export class GitCommands {
 
     return gitStep(() =>
       prepareWorktreeGit(kind.value.checkoutStartDeadlineMs, async () => {
-        const common = await gitOk(
-          kind.value.repoPath,
-          ["rev-parse", "--path-format=absolute", "--git-common-dir"],
-          "NOT_A_REPOSITORY",
+        const common = await withLocalGitPolicy(() =>
+          gitOk(kind.value.repoPath, ["rev-parse", "--path-format=absolute", "--git-common-dir"], "NOT_A_REPOSITORY"),
         );
 
         const key = realpathSync(common.trim());

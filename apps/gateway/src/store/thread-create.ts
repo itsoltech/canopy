@@ -155,6 +155,33 @@ function replayCreation(
   });
 }
 
+/** Pin inherited placement and policy while the fork or side thread is being created. */
+function lockCreationSources(sql: SqlClient.SqlClient, ownerUserId: string, request: ui.CreateThreadRequest) {
+  return Effect.gen(function* () {
+    const sourceIds = [request.parentThreadId, request.forkThreadId].filter(Boolean);
+
+    if (!sourceIds.length) return;
+
+    const sourcePolicies = yield* sql<Pick<ThreadRow, "settings" | "cwd" | "worktree_id" | "id">>`
+      SELECT settings,cwd,worktree_id,id FROM threads WHERE id=ANY(${sourceIds}::uuid[]) AND owner_user_id=${ownerUserId}::uuid
+      ORDER BY id FOR SHARE`;
+
+    if (sourcePolicies.some(threadSandbox)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
+
+    const fork = sourcePolicies.find((row) => row.id === request.forkThreadId);
+
+    if (
+      !request.parentThreadId &&
+      request.forkAtTurnId &&
+      fork &&
+      (fork.cwd !== request.cwd || (fork.worktree_id ?? "") !== request.worktreeId)
+    )
+      return yield* Effect.fail(
+        new Invalid("The source thread switched worktrees. Retry the fork in its current directory."),
+      );
+  });
+}
+
 export function threadCreation(
   sql: SqlClient.SqlClient,
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
@@ -180,16 +207,7 @@ export function threadCreation(
 
           if (!provider) return yield* Effect.fail(new Invalid("unknown provider"));
           const id = movedId ?? Bun.randomUUIDv7();
-          const sourceIds = [request.parentThreadId, request.forkThreadId].filter(Boolean);
-
-          if (sourceIds.length) {
-            const sourcePolicies = yield* sql<Pick<ThreadRow, "settings">>`
-              SELECT settings FROM threads WHERE id=ANY(${sourceIds}::uuid[]) AND owner_user_id=${ownerUserId}::uuid
-              ORDER BY id FOR SHARE`;
-
-            if (sourcePolicies.some(threadSandbox))
-              return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
-          }
+          yield* lockCreationSources(sql, ownerUserId, request);
 
           if (request.sandboxProfileDigest && request.sandboxProfileDigest !== sandboxProfile?.digest)
             return yield* Effect.fail(new Invalid(DRAFT_SANDBOX_RESELECT));

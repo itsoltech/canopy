@@ -1,7 +1,8 @@
+import type { ThreadSpec } from "@canopy/contracts";
 import { Effect } from "effect";
 import { unsubscribeThread } from "./thread-path.ts";
 import { threadEvents } from "./thread-events.ts";
-import { fail, type CodexThreadContext, type CodexThreadError } from "./thread-types.ts";
+import { fail, type CodexThreadContext, type CodexThreadError, type Entry } from "./thread-types.ts";
 
 /** Native archive shuts down the session; cold admission restores its durable rollout. */
 export function unloadCodexThread(ctx: CodexThreadContext, threadId: string) {
@@ -78,5 +79,35 @@ export function unloadCodexThread(ctx: CodexThreadContext, threadId: string) {
     ctx.mcpSpecs.delete(threadId);
 
     if (failures[0]) return yield* failures[0];
+  });
+}
+
+/** Release only the idle session moving to another checkout. Archive forces a cold native resume. */
+export function releaseCodexPlacement(ctx: CodexThreadContext, spec: ThreadSpec, entry: Entry) {
+  return Effect.gen(function* () {
+    const blocked = (message: string) => fail(spec.threadId, "switch worktree")({ message });
+
+    if (spec.sandboxProfile || entry.sandboxProfile || entry.sandboxProfileInvalid)
+      return yield* blocked("Threads using a custom sandbox profile must stay in their assigned directory.");
+
+    if (spec.providerThreadId !== entry.codexId)
+      return yield* blocked("The Codex session changed before the worktree switch.");
+
+    if (
+      entry.pendingTurns.length ||
+      entry.mapper.backgroundTasks.length ||
+      [...entry.codexToPlatform.keys()].some((id) => !entry.finishedTurns.has(id))
+    )
+      return yield* blocked("Wait for the previous worktree’s turns and background tasks to finish.");
+
+    if (entry.privateRollout) yield* unsubscribeThread(ctx, entry);
+    else
+      yield* ctx.codex
+        .request("thread/archive", { threadId: entry.codexId })
+        .pipe(Effect.mapError(fail(spec.threadId, "switch worktree")));
+
+    yield* threadEvents(ctx).record(entry);
+    ctx.byPlatform.delete(spec.threadId);
+    ctx.byCodex.delete(entry.codexId);
   });
 }

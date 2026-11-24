@@ -106,7 +106,7 @@ export interface WorktreeStore {
    * The live HEAD of one checkout of the worker's threads (GitHeads): their worktree's branch, or the workspace's
    * own checkout. Returns the threads that show a changed branch.
    */
-  saveGitHead(workerId: string, threadIds: readonly string[], head: GitHeadValue): Fx<string[]>;
+  saveGitHead(workerId: string, threadIds: readonly string[], head: GitHeadValue, cwd?: string): Fx<string[]>;
 }
 
 export interface GitHeadValue {
@@ -262,7 +262,7 @@ function branchStore(
         return { requests: texts, answer: answer[0]?.text ?? "" };
       }),
 
-    saveGitHead: (workerId, threadIds, { branch, detachedCommit }) =>
+    saveGitHead: (workerId, threadIds, { branch, detachedCommit }, cwd) =>
       Effect.gen(function* () {
         const ids = threadIds.filter((id) => UUID.test(id));
 
@@ -274,6 +274,7 @@ function branchStore(
                 SELECT t.worktree_id, t.workspace_id, (t.cwd IS NULL OR t.cwd = ws.root_path) AS at_root
                   FROM threads t JOIN project_workspaces ws ON ws.id = t.workspace_id
                  WHERE t.id = ANY(${ids}::uuid[]) AND t.worker_id = ${workerId}::uuid AND ws.worker_id = t.worker_id
+                   ${cwd === "" ? sql`AND NOT EXISTS (SELECT 1 FROM turns u WHERE u.thread_id=t.id AND u.worktree_switch_source_cwd IS NOT NULL)` : cwd ? sql`AND t.cwd = ${cwd}` : sql``}
               ), worktree AS (
                 UPDATE worktrees w SET branch = coalesce(nullif(${branch}, ''), w.branch), detached_commit = ${detachedCommit}
                  WHERE w.id IN (SELECT worktree_id FROM reported) AND w.worker_id = ${workerId}::uuid
