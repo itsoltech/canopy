@@ -1,7 +1,7 @@
 /**
  * Full access (PERMISSION_MODE_FULL_ACCESS, docs/protocol.md): round-trips through CreateThread, UpdateThread
  * and SendMessage to a worker that announces `full_access`; a worker without it gets a readable refusal and
- * never a turn in another mode; user forks require opting in again, while agents inherit the owner's mode.
+ * never a turn in another mode; owner forks keep the source thread's saved mode.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
@@ -108,7 +108,7 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     await gw?.close();
   });
 
-  test("round-trips through CreateThread, UpdateThread and SendMessage; owner only; a fork does not inherit it", async () => {
+  test("round-trips through CreateThread, UpdateThread and SendMessage; owner only; forks keep the saved mode", async () => {
     const thread = (
       await gw.api.createThread({
         projectId,
@@ -140,6 +140,11 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     });
     const [, once] = await settled(thread.id, 2);
     expect(modern.turnModes.get(once!.id)).toEqual({ turn: PermissionMode.FULL_ACCESS, thread: PermissionMode.ASK });
+
+    const forkRequest = { forkThreadId: thread.id, forkAtTurnId: once!.id };
+    const askFork = (await gw.api.createThread(forkRequest)).thread!;
+    expect(askFork.permissionMode).toBe(PermissionMode.ASK);
+    expect((await modern.createdThread(askFork.id))?.permissionMode).toBe(PermissionMode.ASK);
 
     const updated = await gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.FULL_ACCESS });
     expect(updated.thread?.permissionMode).toBe(PermissionMode.FULL_ACCESS);
@@ -182,9 +187,12 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
     ).toContain("not found");
     expect((await gw.api.getThread({ threadId: strangerThread.id })).thread?.permissionMode).toBe(PermissionMode.ASK);
 
-    // Forked: Full auto until the user picks Full access again.
-    const fork = (await gw.api.createThread({ forkThreadId: thread.id, forkAtTurnId: once!.id })).thread!;
-    expect(fork.permissionMode).toBe(PermissionMode.FULL_AUTO);
+    const fork = (await gw.api.createThread(forkRequest)).thread!;
+    expect(fork.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    expect((await modern.createdThread(fork.id))?.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    await gw.api.sendMessage({ threadId: fork.id, text: "continue", clientRequestId: "full-access-fork-turn" });
+    const [forkTurn] = await settled(fork.id, 1);
+    expect(forkTurn).toMatchObject({ status: "completed", permission_mode: "FULL_ACCESS" });
   });
 
   test("a worker without full_access gets a readable refusal, never another mode", async () => {
@@ -199,7 +207,11 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
       REFUSED,
     );
 
-    const thread = (await gw.api.createThread({ ...asked, permissionMode: PermissionMode.ASK })).thread!;
+    const thread = (
+      await gw.api.createThread({ ...asked, permissionMode: PermissionMode.ASK, initialMessage: "start" })
+    ).thread!;
+
+    const [first] = await settled(thread.id, 1);
     expect(
       await failure(gw.api.updateThread({ threadId: thread.id, permissionMode: PermissionMode.FULL_ACCESS })),
     ).toContain(REFUSED);
@@ -214,11 +226,51 @@ describe.skipIf(!dockerAvailable)("full access mode (gateway + scripted workers)
         yield* sql`UPDATE threads SET settings = settings || '{"permissionMode":"FULL_ACCESS"}'::jsonb WHERE id = ${thread.id}::uuid`;
       }),
     );
+    expect(await failure(gw.api.createThread({ forkThreadId: thread.id, forkAtTurnId: first!.id }))).toContain(REFUSED);
     await gw.api.sendMessage({ threadId: thread.id, text: "go", clientRequestId: "old-worker-go" });
-    const [failed] = await settled(thread.id, 1);
+    const [, failed] = await settled(thread.id, 2);
     expect([failed!.status, failed!.permission_mode]).toEqual(["failed", "FULL_ACCESS"]);
     expect([failed!.error_code, failed!.error?.startsWith(REFUSED)]).toEqual(["FULL_ACCESS_UNSUPPORTED", true]);
     expect(gw.worker.turnModes.has(failed!.id)).toBe(false);
+  });
+
+  test("a Full access fork checks worker capability after reconnect and in an archived workspace", async () => {
+    const { workerId, credential } = await gw.addWorker("reconnecting");
+    const worker = await gw.connect(workerId, credential, undefined, { hello: { capabilities: ["full_access"] } });
+    const workspace = (await gw.api.createWorkspace({ projectId, workerId, rootPath: "/repo/app" })).workspace!;
+
+    const source = (
+      await gw.api.createThread({
+        projectId,
+        workspaceId: workspace.id,
+        provider: Provider.CODEX,
+        permissionMode: PermissionMode.FULL_ACCESS,
+        initialMessage: "start",
+      })
+    ).thread!;
+
+    const [first] = await settled(source.id, 1);
+    await gw.api.removeWorkspace({ workspaceId: workspace.id });
+
+    worker.link.close();
+    await eventually(
+      () => gw.api.getOverview({}),
+      (overview) => overview.workers.some((item) => item.id === workerId && !item.online),
+    );
+
+    const request = { forkThreadId: source.id, forkAtTurnId: first!.id };
+    const fork = (await gw.api.createThread(request)).thread!;
+    expect(fork.permissionMode).toBe(PermissionMode.FULL_ACCESS);
+    const reconnected = await gw.connect(workerId, credential);
+
+    const refused = await eventually(
+      async () => (await gw.api.getThread({ threadId: fork.id })).thread!,
+      (thread) => thread.status === "failed",
+    );
+
+    expect(refused.statusDetail).toContain(REFUSED);
+    expect(reconnected.created.some((thread) => thread.threadId === fork.id)).toBe(false);
+    expect(await failure(gw.api.createThread(request))).toContain(REFUSED);
   });
 
   test("subagents inherit Full access; changing the parent affects only new children", async () => {
