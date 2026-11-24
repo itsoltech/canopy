@@ -1,6 +1,10 @@
 name: Back-merge
 on:
   workflow_call:
+    secrets:
+      repository_deploy_key:
+        description: Repository deploy key for release branch updates
+        required: false
     inputs:
       stable_sha:
         description: Commit of the completed stable release
@@ -32,7 +36,7 @@ jobs:
     steps:
       - name: Require release deploy key
         env:
-          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY || secrets.repository_deploy_key }}
         run: |
           if [ -z "$RELEASE_DEPLOY_KEY" ]; then
             echo "::error::RELEASE_DEPLOY_KEY is required to push release branches through repository rulesets."
@@ -42,7 +46,7 @@ jobs:
         with:
           ref: ${{ github.workflow_sha }}
           fetch-depth: 0
-          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY || secrets.repository_deploy_key }}
           persist-credentials: true
       - uses: oven-sh/setup-bun@v2
         with:

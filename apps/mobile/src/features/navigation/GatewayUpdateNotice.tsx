@@ -13,7 +13,7 @@ import { UpdateDetails } from "../updates/UpdateDetails";
 export function GatewayUpdateNotice() {
   const { value, visible } = useGatewayDeparture();
   const { stream } = useOverview();
-  const [open, setOpen] = useState(false);
+  const [openId, setOpenId] = useState("");
   const updates = useRef(false);
   const c = useColors();
   const { setOpen: showUpdates } = useUpdates();
@@ -28,16 +28,18 @@ export function GatewayUpdateNotice() {
         <Alert
           banner
           tone={failed ? "warning" : "info"}
-          actions={<Button title="Details" size="sm" variant="ghost" onPress={() => setOpen(true)} />}
+          actions={<Button title="Details" size="sm" variant="ghost" onPress={() => setOpenId(value.id)} />}
         >
           {title}
         </Alert>
       )}
       <Overlay
-        visible={open}
-        onClose={() => setOpen(false)}
+        visible={openId === value.id && value.state !== "dismissed"}
+        onClose={() => setOpenId("")}
         label="Canopy update"
         onDismiss={() => {
+          if (value.state === "dismissed") setOpenId("");
+
           if (updates.current) {
             updates.current = false;
             showUpdates(true);
@@ -63,7 +65,7 @@ export function GatewayUpdateNotice() {
             title="Open updates"
             onPress={() => {
               updates.current = true;
-              setOpen(false);
+              setOpenId("");
             }}
           />
         </View>

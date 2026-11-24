@@ -5,6 +5,7 @@ import { ui } from "@canopy/contracts";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
 import { openListener, type Listener } from "../../apps/gateway/src/network/listener.ts";
+import { plannedDeparture } from "../../apps/mobile/src/api/departure.ts";
 import {
   ProbeError,
   routedMobileClient,
@@ -226,6 +227,11 @@ describe("phone route selection", () => {
       expect(client.departure.snapshot()?.state).toBe("restarting");
 
       updates.gatewayVersion = announcement.targetVersion;
+      updates.gatewayState = "starting";
+      client.departure.reconcile(await client.api.getUpdates({}), pending);
+      expect(plannedDeparture(client.departure.snapshot())).toBe(true);
+
+      updates.gatewayState = "succeeded";
       client.departure.reconcile(await client.api.getUpdates({}), pending);
       const returned = client.departure.snapshot();
       expect(returned).toMatchObject({ state: "succeeded", version: announcement.targetVersion });
@@ -257,6 +263,55 @@ describe("phone route selection", () => {
     } finally {
       updates = create(ui.UpdatesSnapshotSchema);
       setSystemTime();
+    }
+  });
+
+  test("a ready binary gateway retires a stale same-version restart without replaying it", async () => {
+    const { departure, api } = routedMobileClient({
+      connection: { fingerprint, addresses: [alive], lastAddress: alive },
+      transport: nodePinnedTransport(),
+    });
+
+    const announcement = create(ui.GatewayDepartureSchema, {
+      id: "handover",
+      state: "restarting",
+      version: "0.7.0-nightly.18",
+      startedAtMs: BigInt(Date.now()),
+      windowMs: 300_000,
+    });
+
+    try {
+      updates = create(ui.UpdatesSnapshotSchema, {
+        gatewayVersion: announcement.version,
+        gatewayInstallKind: "binary",
+        gatewayState: "succeeded",
+        departure: announcement,
+      });
+
+      const olderRead = await api.getUpdates({});
+      departure.receive(announcement);
+      departure.reconcile(olderRead, undefined);
+      expect(departure.snapshot()?.state).toBe("restarting");
+
+      for (const gatewayState of ["restarting", "shutting_down", "starting"]) {
+        updates.gatewayState = gatewayState;
+        departure.reconcile(await api.getUpdates({}), announcement);
+        expect(plannedDeparture(departure.snapshot())).toBe(true);
+      }
+
+      updates.gatewayState = "succeeded";
+      updates.gatewayBundled = true;
+      departure.reconcile(await api.getUpdates({}), announcement);
+      expect(plannedDeparture(departure.snapshot())).toBe(true);
+
+      updates.gatewayBundled = false;
+      departure.reconcile(await api.getUpdates({}), announcement);
+      expect(departure.snapshot()?.state).toBe("dismissed");
+      expect(departure.resultDeadline()).toBe(0);
+      departure.receive(announcement);
+      expect(plannedDeparture(departure.snapshot())).toBe(false);
+    } finally {
+      updates = create(ui.UpdatesSnapshotSchema);
     }
   });
 

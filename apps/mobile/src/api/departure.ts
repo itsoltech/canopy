@@ -2,6 +2,7 @@ import { create, equals, fromJsonString, toJsonString } from "@bufbuild/protobuf
 import { ui } from "@canopy/contracts";
 import { plannedGatewayDeparture } from "@canopy/domain/computer-presence";
 import { reachedUpdateVersion } from "@canopy/domain/release/remote-update-state";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
 
 export function plannedDeparture(value: ui.GatewayDeparture | undefined, now = Date.now()) {
   return plannedGatewayDeparture(value, now);
@@ -42,26 +43,55 @@ export class MobileDeparture {
     return this.value ? toJsonString(ui.GatewayDepartureSchema, this.value) : undefined;
   }
   reconcile(snapshot: ui.UpdatesSnapshot, observed: ui.GatewayDeparture | undefined) {
-    if (snapshot.departure) {
-      this.receive(snapshot.departure, snapshot.gatewayVersion);
+    const { departure, gatewayState, gatewayVersion } = snapshot;
+    const previous = this.value;
+    const transitioning = gatewayUpdateLifecycle(gatewayState);
+
+    if (departure) {
+      // A binary gateway marks a same-version handover as restarting before announcing it.
+      // A ready read started after the announcement can retire its checkpoint without a version change.
+      const handoverEnded =
+        departure.state === "restarting" &&
+        !departure.targetVersion &&
+        snapshot.gatewayInstallKind === "binary" &&
+        !snapshot.gatewayBundled &&
+        previous === observed &&
+        observed?.state === "restarting" &&
+        observed.id === departure.id &&
+        (gatewayState === "idle" || gatewayState === "succeeded");
+
+      if (handoverEnded) {
+        this.receive(create(ui.GatewayDepartureSchema, { ...departure, state: "dismissed", reason: "" }));
+
+        return;
+      }
+
+      // An unchanged version above the target may still be about to perform an explicit downgrade.
+      const installed =
+        reachedUpdateVersion(gatewayVersion, departure.targetVersion) &&
+        (gatewayVersion !== departure.version || gatewayVersion === departure.targetVersion);
+
+      this.apply(departure, !transitioning && installed ? gatewayVersion : "");
 
       return;
     }
 
-    const previous = this.value;
-
-    if (!previous || previous !== observed || !plannedDeparture(previous)) return;
-    const succeeded = !previous.targetVersion || reachedUpdateVersion(snapshot.gatewayVersion, previous.targetVersion);
+    if (transitioning || !previous || previous !== observed || !plannedDeparture(previous)) return;
+    const succeeded = !previous.targetVersion || reachedUpdateVersion(gatewayVersion, previous.targetVersion);
     this.receive(
       create(ui.GatewayDepartureSchema, {
         ...previous,
-        version: snapshot.gatewayVersion,
+        version: gatewayVersion,
         state: succeeded ? "succeeded" : "failed",
         reason: succeeded ? "" : "The computer returned without the requested update. Open Updates to retry.",
       }),
     );
   }
-  receive(value: ui.GatewayDeparture, gatewayVersion = "") {
+  receive(value: ui.GatewayDeparture) {
+    this.apply(value);
+  }
+
+  private apply(value: ui.GatewayDeparture, confirmedVersion = "") {
     if (value.nodeId || !value.id) return;
     const previous = this.value;
     const pending = pendingDeparture(value);
@@ -75,19 +105,13 @@ export class MobileDeparture {
 
     if (!pending && previous?.id !== value.id) return;
 
-    // The running version can be newer than the checkpoint while startup is still reconciling it.
-    // An unchanged version above the target may still be about to perform an explicit downgrade.
-    const installed =
-      pending &&
-      reachedUpdateVersion(gatewayVersion, value.targetVersion) &&
-      (gatewayVersion !== value.version || gatewayVersion === value.targetVersion);
-
+    const completed = pending && Boolean(confirmedVersion);
     const now = Date.now();
 
-    if (pending && !installed && !plannedDeparture(value, now)) return;
+    if (pending && !completed && !plannedDeparture(value, now)) return;
 
-    const next = installed
-      ? create(ui.GatewayDepartureSchema, { ...value, version: gatewayVersion, state: "succeeded", reason: "" })
+    const next = completed
+      ? create(ui.GatewayDepartureSchema, { ...value, version: confirmedVersion, state: "succeeded", reason: "" })
       : value;
 
     if (previous && equals(ui.GatewayDepartureSchema, previous, next)) return;
