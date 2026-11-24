@@ -50,6 +50,7 @@
           name={entry.heading ?? "?"}
           kind={entry.project?.kind}
           color={entry.project?.color}
+          imageBase64={entry.project?.imageBase64}
           class="size-5"
         />
       {:else}<Icon name="git-branch" size="xs" />{/if}

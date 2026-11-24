@@ -163,6 +163,55 @@ test("worker presence and config issues preserve membership in the live BFF over
   }
 });
 
+test("materializes and replays an overview snapshot with many project thumbnails", async () => {
+  // Thumbnail-sized wire values exercise both the upstream and subscriber byte limits.
+  const imageBase64 = "A".repeat(24 * 1024);
+  const projects = Array.from({ length: 180 }, (_, index) => ({ id: `project-${index}`, imageBase64 }));
+  const updates = new AsyncChannel<ui.OverviewUpdate>();
+
+  const server = await startGrpcServer({
+    routes: (router) =>
+      router.service(ui.GatewayService, {
+        async *watchOverview(_request, context) {
+          const close = () => updates.close();
+          context.signal.addEventListener("abort", close, { once: true });
+
+          try {
+            yield create(ui.OverviewUpdateSchema, {
+              change: { case: "mobileSnapshot", value: { overview: { projects }, settings: {} } },
+            });
+            yield* updates;
+          } finally {
+            context.signal.removeEventListener("abort", close);
+          }
+        },
+      }),
+  });
+
+  const bff = new BffOverview(createClient(ui.GatewayService, createGrpcTransport({ baseUrl: server.url })));
+  const abort = new AbortController();
+  let subscription: AsyncIterator<ui.OverviewUpdate> | undefined;
+
+  try {
+    expect((await bff.overview()).projects.length).toBe(projects.length);
+    subscription = bff.subscribe([], abort.signal)[Symbol.asyncIterator]();
+    const { value } = await subscription.next();
+    const change = value?.change;
+    expect(change?.case).toBe("mobileSnapshot");
+
+    if (change?.case === "mobileSnapshot") {
+      expect(change.value.overview?.projects.length).toBe(projects.length);
+      expect(change.value.overview?.projects.at(-1)?.imageBase64).toBe(imageBase64);
+    }
+  } finally {
+    abort.abort();
+    updates.close();
+    await subscription?.return?.();
+    bff.close();
+    await server.close();
+  }
+});
+
 test.skipIf(!dockerAvailable)("shares one overview stream and serves materialized reads", async () => {
   gateway = await startTestGateway();
   let watchCalls = 0;

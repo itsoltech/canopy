@@ -335,8 +335,9 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
       ),
     projectsChanged: async () => {
       const archived =
-        (await core.computers?.store.query<{ id: string; name: string; color: string }>(
-          "SELECT id::text,name,COALESCE(color,'') AS color FROM projects WHERE owner_user_id=$1::uuid AND archived_at IS NOT NULL AND kind='project'",
+        (await core.computers?.store.query<{ id: string; name: string; color: string; image_base64: string }>(
+          `SELECT id::text,name,COALESCE(color,'') AS color,COALESCE(image_base64,'') AS image_base64
+            FROM projects WHERE owner_user_id=$1::uuid AND archived_at IS NOT NULL AND kind='project'`,
           [core.computers.store.owner],
         )) ?? [];
 
@@ -350,6 +351,7 @@ export function sharedHost(core: GatewayCore, _local: UiHandlers): SharedHost {
               case: "project",
               value: {
                 ...project,
+                imageBase64: project.image_base64,
                 kind: "project",
                 archivedAt: timestampFromDate(new Date()),
               },

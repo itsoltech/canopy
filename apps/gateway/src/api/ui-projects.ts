@@ -21,6 +21,7 @@ export function projectsHandlers(
   | "createProject"
   | "renameProject"
   | "setProjectColor"
+  | "setProjectImage"
   | "archiveProject"
   | "listProjectSecrets"
   | "putProjectSecret"
@@ -54,6 +55,13 @@ export function projectsHandlers(
       guard(async () =>
         create(ui.CreateProjectResponseSchema, {
           project: await core.setProjectColor(request.projectId, request.color),
+        }),
+      ),
+
+    setProjectImage: (request) =>
+      guard(async () =>
+        create(ui.CreateProjectResponseSchema, {
+          project: await core.setProjectImage(request.projectId, request.image),
         }),
       ),
 

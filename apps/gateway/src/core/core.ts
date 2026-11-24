@@ -86,14 +86,9 @@ import { WorktreeCleanupSchedule } from "../worktrees/cleanup-schedule.ts";
 import { updateTurnPermissions } from "./live-turn-permissions.ts";
 import { ThreadSnoozes } from "./thread-snoozes.ts";
 
-export {
-  describeError,
-  InvalidError,
-  UnavailableError,
-  type CoreRuntime,
-  type CoreServices,
-  type GatewayCoreOptions,
-} from "./core-context.ts";
+export { describeError, InvalidError, UnavailableError } from "./core-context.ts";
+
+export type { CoreRuntime, CoreServices, GatewayCoreOptions } from "./core-context.ts";
 
 export class GatewayCore {
   readonly diagnostics: Diagnostics;
@@ -118,6 +113,7 @@ export class GatewayCore {
   declare createProject: CoreProjectsMethods["createProject"];
   declare renameProject: CoreProjectsMethods["renameProject"];
   declare setProjectColor: CoreProjectsMethods["setProjectColor"];
+  declare setProjectImage: CoreProjectsMethods["setProjectImage"];
   declare archiveProject: CoreProjectsMethods["archiveProject"];
   declare createWorkspace: CoreProjectsMethods["createWorkspace"];
   declare updateWorkspace: CoreProjectsMethods["updateWorkspace"];

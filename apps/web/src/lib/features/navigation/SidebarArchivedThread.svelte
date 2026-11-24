@@ -14,6 +14,7 @@
   }: { thread: ui.Thread; current?: boolean; class?: ClassValue } = $props();
 
   const overview = useOverview();
+  const project = $derived(overview.project(thread.projectId));
   const when = $derived(thread.archivedAt ?? thread.lastActivityAt ?? thread.createdAt);
 </script>
 
@@ -26,9 +27,10 @@
     class="sidebar-row-padding flex h-10 w-full min-w-0 items-center gap-2 rounded-lg sm:h-9 pointer-coarse:h-12"
   >
     <ProjectMark
-      name={overview.project(thread.projectId)?.name ?? "?"}
-      kind={overview.project(thread.projectId)?.kind}
-      color={overview.project(thread.projectId)?.color}
+      name={project?.name ?? "?"}
+      kind={project?.kind}
+      color={project?.color}
+      imageBase64={project?.imageBase64}
       class="opacity-50"
     />
     <span

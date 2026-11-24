@@ -51,7 +51,7 @@ const rootTables: ImportTable[] = [
         OR (d.slug=s.slug AND d.kind=s.kind AND d.archived_at IS NULL AND s.archived_at IS NULL)
         OR EXISTS (SELECT FROM public.config_items c JOIN pg_temp.cc_project_identity i ON i.global_id=c.global_id
           WHERE c.owner_user_id=d.owner_user_id AND c.kind='project' AND c.local_id=d.id::text AND i.id=s.id)`,
-      update: ["name", "description", "color", "updated_at"],
+      update: ["name", "description", "color", "image_base64", "updated_at"],
     },
   },
   { name: "workers", filter: owned, idKind: "worker" },

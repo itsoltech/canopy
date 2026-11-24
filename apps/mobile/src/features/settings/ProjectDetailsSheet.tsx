@@ -11,6 +11,7 @@ import { useOpenSettingsSection } from "./navigation";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ProjectDefaults, type ProjectResource } from "./ProjectDefaults";
 import { ProjectColorSetting } from "./ProjectColorSetting";
+import { ProjectImageSetting } from "./ProjectImageSetting";
 import { ProjectSecrets } from "./ProjectSecrets";
 import { useProjectDetails } from "../computers/project-details";
 import { AddWorkspace } from "./AddWorkspace";
@@ -34,6 +35,7 @@ export function ProjectDetailsSheet({
   const [adding, setAdding] = useState(false);
   const [addingWorkspace, setAddingWorkspace] = useState(false);
   const capabilities = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
+  const canEditAppearance = !project.nodeId && project.kind !== "scratch";
 
   // Secrets stay on the gateway that owns the project; a linked computer's project is managed there.
   const secrets =
@@ -63,7 +65,8 @@ export function ProjectDetailsSheet({
             onSave={async (name) => !!(await resource.run((api) => api.renameProject({ projectId: project.id, name })))}
           />
         )}
-        {!project.nodeId && project.kind !== "scratch" && <ProjectColorSetting project={project} resource={resource} />}
+        {canEditAppearance && <ProjectImageSetting project={project} resource={resource} />}
+        {canEditAppearance && <ProjectColorSetting project={project} resource={resource} />}
       </SettingsGroup>
       <SettingsGroup
         title="Workspaces"

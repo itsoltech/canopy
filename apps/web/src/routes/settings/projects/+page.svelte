@@ -52,7 +52,11 @@
       class={overview.projectAway(project) ? "opacity-50" : undefined}
       href={id && `/settings/projects/${id}`}
     >
-      {#snippet leading()}<ProjectAvatar name={project.name} color={project.color} />{/snippet}
+      {#snippet leading()}<ProjectAvatar
+          name={project.name}
+          color={project.color}
+          imageBase64={project.imageBase64}
+        />{/snippet}
     </SettingsRow>
   {:else}
     <SettingsRow
