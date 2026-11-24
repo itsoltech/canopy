@@ -94,6 +94,7 @@ const threadWork = new Set<string>([
 const botWork = new Set<string>([
   "createBot",
   "sendBotMessage",
+  "setBotMessageReaction",
   "retryBot",
   "answerBotApproval",
   "setBotRoutineEnabled",

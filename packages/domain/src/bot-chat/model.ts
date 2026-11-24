@@ -75,6 +75,8 @@ export interface ChatMessageView {
   mentions?: readonly Mention[] | undefined;
   quotes?: readonly ui.Quote[] | undefined;
   attachments?: readonly ui.Attachment[] | undefined;
+  /** Present for saved messages that support reactions in the private chat. */
+  reactions?: readonly string[] | undefined;
   links?: LinkView[] | undefined;
   /** Quoted message this one answers. */
   replyTo?: { senderId: string; excerpt: string } | undefined;

@@ -108,6 +108,7 @@ appear only as the literal name used by an external tool).
 | directory | a directory on disk | folder (exception: a "skill folder" picked in the file manager) |
 | worktree | a git worktree, managed by Canopy or created outside it | branch copy, checkout |
 | bot | a conversational partner on the gateway that remembers the conversation | assistant, agent |
+| reaction | an emoji attached to a message by the other participant in a bot conversation | vote, rating |
 | Slack User | a connected Slack account that lets agents use Slack tools as the signed-in user | Slack (when distinguishing from Slack Bot) |
 | Slack Bot | a Slack app connection that receives and replies to messages as the app’s bot | Slack messages |
 | messenger account | a reusable message connection managed in Settings → Connectors → Slack Bot | connector, MCP account |

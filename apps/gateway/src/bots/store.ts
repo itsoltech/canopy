@@ -1,5 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
+import type { bots } from "@canopy/contracts";
+import { setUserBotMessageReaction } from "./store-reactions.ts";
 import { botMemoryAccess } from "./memory.ts";
 import { botAccess } from "./store-access.ts";
 import { botConfig } from "./store-config.ts";
@@ -38,6 +40,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
   const core = { ...access, ...config, ...queue };
 
   return {
+    setUserMessageReaction: (owner: string, request: bots.SetBotMessageReactionRequest) =>
+      setUserBotMessageReaction(sql, access, owner, request),
     memoryAccess: (owner: string, turn: import("./types.ts").BotTurn) => botMemoryAccess(sql, owner, turn),
     conversationContext: (turn: import("./types.ts").BotTurn) => conversationContext(sql, turn),
     originEnabled: core.originEnabled,

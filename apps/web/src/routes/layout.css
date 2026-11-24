@@ -169,6 +169,7 @@ html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), 
 @theme {
   --font-sans: InterVariable, Inter, "Inter Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-sans--font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  --font-emoji: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", emoji;
   --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 }
 

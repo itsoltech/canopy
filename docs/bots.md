@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-24): w prywatnym czacie właściciel i bot mogą reagować na wiadomości drugiej strony.
+Dodanie lub cofnięcie reakcji właściciela trafia do kontekstu bota.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): w prywatnym czacie właściciel może zapytać bota o treść
 i wynik obsługi wiadomości z jego aktywnych subskrypcji Slack. Dostępność
 w kanałach określa [promocja wydań](release.md).
@@ -185,6 +189,22 @@ ponownie delegować pracę.
 
 Na połączonych komputerach oba gatewaye sprawdzają dostęp dla wiadomości, pytań
 i raportów między botem i wątkiem. Szczegóły w [opisie szyny agentów](agent-bus.md).
+
+## Reakcje w prywatnym czacie
+
+Właściciel może dodać do zapisanej wiadomości bota dowolne z sześciu emoji
+(👍, ❤️, 😂, 🎉, 👀, 🙏). Ponowne wybranie emoji usuwa tę reakcję.
+Reakcje widać pod wiadomością także po ponownym otwarciu rozmowy.
+Bot może użyć narzędzia `react_to_message` wobec wiadomości właściciela,
+np. potwierdzić ją kciukiem i zakończyć turę bez tekstu.
+
+Gateway zapisuje zmianę reakcji właściciela i powiadomienie w jednej transakcji.
+Powtórzenie żądania z tym samym stanem nie tworzy kolejnego powiadomienia.
+Bot dostaje rodzaj zmiany, emoji, identyfikator i fragment swojej wiadomości.
+Jeśli trwa prywatna tura obsługująca steer, gateway próbuje dostarczyć powiadomienie
+w jej trakcie. W pozostałych przypadkach bot otrzymuje je w osobnej turze z kolejki.
+Taka tura nie publikuje odpowiedzi w czacie. Zmiana reakcji przez bota aktualizuje
+wiadomość właściciela bez uruchamiania kolejnej tury.
 
 ## Kolejne wiadomości w prywatnym czacie
 

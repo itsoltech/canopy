@@ -221,6 +221,7 @@ function BotChatFeed({ state }: { state: ReturnType<typeof useBotConversation> }
                 approvals={approvals}
                 readOnly={!live}
                 onAnswer={chat.answer}
+                onSetReaction={message.setReaction}
                 onReply={
                   message.busy
                     ? undefined

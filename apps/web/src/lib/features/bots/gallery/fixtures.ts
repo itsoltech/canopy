@@ -121,6 +121,7 @@ export const directEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "d2",
+      reactions: [],
       senderId: bots.canopy.id,
       at: daysAgo(1, 18, 3),
       text: "Sure. I set up a routine that checks every 10 minutes.",
@@ -141,6 +142,7 @@ export const directEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "d4",
+      reactions: [],
       senderId: bots.canopy.id,
       at: daysAgo(1, 19, 40),
       text: "Merged **#441**.",
@@ -158,6 +160,7 @@ export const directEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "d5",
+      reactions: ["👍"],
       senderId: "me",
       at: minutesAgo(16),
       text: "Stop the routine for #443, I'll merge it myself.\nAnd pause the other ones for today.",
@@ -189,6 +192,7 @@ export const directEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "d8",
+      reactions: [],
       senderId: bots.canopy.id,
       at: minutesAgo(14),
       text: "Done. Nothing will merge on its own today.",
@@ -198,6 +202,7 @@ export const directEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "d9",
+      reactions: [],
       senderId: bots.canopy.id,
       at: minutesAgo(13),
       text: "Paused routines:\n\n- `merge-after-ci` for #445\n- nightly dependency bumps\n- stale branch cleanup",
@@ -218,6 +223,7 @@ export const directEntries: ChatEntry[] = [
     kind: "message",
     message: {
       id: "d11",
+      reactions: [],
       senderId: bots.canopy.id,
       at: minutesAgo(4),
       text: "Sync Bot rebased the landing branch and CI passed.",

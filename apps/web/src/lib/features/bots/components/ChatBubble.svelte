@@ -17,6 +17,8 @@
   import BotChip from "./BotChip.svelte";
   import LinkChip from "./LinkChip.svelte";
   import MessageActions from "./MessageActions.svelte";
+  import { botReactionOptions } from "@canopy/domain/bot-reactions";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import MessageRow from "./MessageRow.svelte";
   import MessageQuotes from "#lib/features/quotes/MessageQuotes.svelte";
   import CitationChip from "#lib/features/quotes/CitationChip.svelte";
@@ -59,19 +61,22 @@
     /** Bots whose names become chips in the text. */
     bots?: readonly ParticipantView[];
     conversationId?: string;
-    onreact?: ((message: ChatMessageView) => void) | undefined;
+    onreact?: ((messageId: string, emoji: string, active: boolean) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
     more?: readonly BotAction[];
     class?: ClassValue;
   } = $props();
 
   let touchMenuOpen = $state(false);
-  const react = $derived(onreact ? () => onreact(message) : undefined);
+  const reactionTriggerId = $props.id();
+  let pickerOpen = $state(false);
+  const activeReactions = $derived(botReactionOptions.filter(({ emoji }) => message.reactions?.includes(emoji)));
+  const react = $derived(onreact ? (emoji: string, active: boolean) => onreact(message.id, emoji, active) : undefined);
   const reply = $derived(onreply ? () => onreply(message) : undefined);
   const copy = () => void navigator.clipboard?.writeText(message.text).catch(() => undefined);
 
   const touchItems = $derived<BotAction[]>([
-    ...(react ? [{ label: "React", icon: "face-smile" as const, onselect: react }] : []),
+    ...(react ? [{ label: "React", icon: "face-smile" as const, onselect: () => (pickerOpen = true) }] : []),
     ...(reply ? [{ label: "Reply", icon: "arrow-uturn-left" as const, onselect: reply }] : []),
     { label: "Copy text", icon: "copy" as const, onselect: copy },
     ...more,
@@ -191,7 +196,16 @@
       {/snippet}
       <ActionItems actions={touchItems} />
     </DropdownMenu>
-    <MessageActions label="Actions for this message" onreact={react} onreply={reply} text={message.text} {more} />
+    <MessageActions
+      label="Actions for this message"
+      reactions={message.reactions}
+      onreact={react}
+      {reactionTriggerId}
+      bind:pickerOpen
+      onreply={reply}
+      text={message.text}
+      {more}
+    />
   </div>
   {#if message.links && message.links.length > 0}
     <ul role="list" class={["flex max-w-full flex-wrap gap-1.5", end && "justify-end"]}>
@@ -205,6 +219,37 @@
       align={end ? "end" : "start"}
       class="w-full"
     />{/if}
+  {#if activeReactions.length}
+    <ul
+      role="list"
+      aria-label={mine ? "Bot reactions" : "Your reactions"}
+      class={["flex max-w-full flex-wrap items-center gap-1", end && "justify-end"]}
+    >
+      {#each activeReactions as { emoji, label } (emoji)}
+        <li>
+          {#if react}
+            <button
+              type="button"
+              aria-label={`Remove reaction: ${label}`}
+              class="inline-flex h-6 min-w-8 items-center justify-center rounded-full bg-zinc-100 px-2 font-emoji text-sm focus-ring hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              {@attach tooltip(`Remove reaction: ${label}`)}
+              onclick={() => {
+                document.getElementById(reactionTriggerId)?.focus({ preventScroll: true });
+                react?.(emoji, false);
+              }}>{emoji}</button
+            >
+          {:else}
+            <span
+              class="inline-flex h-6 min-w-8 items-center justify-center rounded-full bg-zinc-100 px-2 text-sm dark:bg-zinc-800"
+              title={label}
+            >
+              <span class="font-emoji" aria-hidden="true">{emoji}</span><span class="sr-only">{label}</span>
+            </span>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
   {#if message.delivery}
     <p
       role="status"

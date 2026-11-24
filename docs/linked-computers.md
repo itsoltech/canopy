@@ -1,5 +1,7 @@
 # Połączone komputery
 
+Status (2026-11-24): reakcje na wiadomości w prywatnym czacie zapisuje dom bota.
+
 Status (2026-11-24): na połączonym komputerze ze wspólną konfiguracją web i desktop pokazują
 lokalne kopie skilli i pozwalają przenieść wybraną kopię do archiwum na tym komputerze.
 
@@ -1797,7 +1799,7 @@ pozostaje **1**: zmiany proto są addytywne, nowe usługi wewnętrzne używają 
 Starszy partner zachowuje wcześniejsze funkcje; próba nowej operacji daje „needs an update”.
 
 `remote_bots` rozszerza jawną listę `SERVED` o `ListBots`, `GetBot`, `WatchBotConversation`,
-`SendBotMessage`, `AnswerBotApproval`, `UpdateBot`, `InterruptBot`, `RetryBot`, `MarkBotRead`,
+`SendBotMessage`, `SetBotMessageReaction`, `AnswerBotApproval`, `UpdateBot`, `InterruptBot`, `RetryBot`, `MarkBotRead`,
 `ArchiveBot`, `UnarchiveBot`, `DeleteBot`, `ReadBotExchange`, `SetBotRoutineEnabled`,
 `DeleteBotRoutine`, `CancelBotReminder`, `GetBotProviderInstances` oraz wewnętrzny `WatchBotMirror`.
 Tworzenie bota na innym komputerze dodaje etap 7 wspólnej konfiguracji. Administracja connectorów,

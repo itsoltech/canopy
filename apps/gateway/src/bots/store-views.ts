@@ -37,6 +37,7 @@ export interface MessageRow {
   setting_changes?: bots.BotSettingChange[];
   mentions: JsonValue[];
   quotes: StoredQuote[];
+  reactions: string[];
 }
 
 export interface ApprovalRow {
@@ -84,6 +85,19 @@ export const MOVE_RECONNECT = `(SELECT coalesce(jsonb_agg(r), '[]'::jsonb) FROM 
     AND (a.all_bots OR EXISTS (SELECT 1 FROM connector_bot_grants g WHERE g.account_id = a.id AND g.bot_id = b.id)))
     AND NOT EXISTS (SELECT 1 FROM bot_mcp_connections c JOIN bot_mcp_servers s ON s.id = c.server_id WHERE c.bot_id = b.id AND r = 'MCP server ' || s.name)) AS move_reconnect`;
 
+type ReactionTarget = Pick<MessageRow, "bot_id" | "kind" | "sender_id" | "recipient_id" | "exchange_id">;
+
+/** Owner views already exclude channel messages except for activity events. */
+export function botReactionActor(message: ReactionTarget) {
+  if (message.kind !== "message" || message.exchange_id !== null) return undefined;
+
+  if (message.sender_id === message.bot_id && message.recipient_id === "user") return "user";
+
+  if (message.sender_id === "user" && message.recipient_id === message.bot_id) return "bot";
+
+  return undefined;
+}
+
 export const messageView = (row: MessageRow) =>
   create(bots.BotMessageSchema, {
     id: row.id,
@@ -101,6 +115,8 @@ export const messageView = (row: MessageRow) =>
     settingChanges: row.setting_changes ?? [],
     mentions: storedMentions(row.mentions),
     quotes: row.quotes.map(toUiQuote),
+    reactions: row.reactions,
+    reactionsAvailable: !!botReactionActor(row),
     attachments: (row.attachments ?? []).map(toUiAttachment),
   });
 

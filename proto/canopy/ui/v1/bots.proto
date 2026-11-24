@@ -75,6 +75,9 @@ message BotMessage {
   repeated canopy.worker.v1.Mention mentions = 450;
   repeated Quote quotes = 451;
   repeated Attachment attachments = 452;
+  // Emoji selected by the other participant in the private chat.
+  repeated string reactions = 453;
+  bool reactions_available = 454;
 }
 message BotSettingChange {
   string field = 1;
@@ -220,6 +223,12 @@ message SaveBotDraftRequest {
   uint64 expected_revision = 3;
 }
 message SendBotMessageResponse { string turn_id = 1; }
+message SetBotMessageReactionRequest {
+  string bot_id = 1;
+  string message_id = 2;
+  string emoji = 3;
+  bool active = 4;
+}
 message WatchBotConversationRequest {
   string bot_id = 1;
   bool incremental = 1100;

@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { EmptySchema } from "@bufbuild/protobuf/wkt";
 import { bots, ui } from "@canopy/contracts";
 import { type GatewayCore } from "../core/core.ts";
 import { connectorGuard, guard } from "./ui-errors.ts";
@@ -19,6 +20,7 @@ export function botsHandlers(
   | "getBot"
   | "getBotProviderInstances"
   | "sendBotMessage"
+  | "setBotMessageReaction"
   | "getBotDraft"
   | "saveBotDraft"
   | "watchBotConversation"
@@ -79,13 +81,7 @@ export function botsHandlers(
         return create(ui.ListProviderInstancesResponseSchema, { instances });
       }),
 
-    sendBotMessage: (r) =>
-      guard(async () =>
-        create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r, await core.attachmentLimits) }),
-      ),
-
-    getBotDraft: (r) => guard(() => core.bots.run((s) => s.draft(core[coreState].options.userId, r.botId))),
-    saveBotDraft: (r) => guard(() => core.bots.run((s) => s.saveDraft(core[coreState].options.userId, r))),
+    ...botInputHandlers(core),
 
     watchBotConversation: (r, context) => core.bots.watch(r.botId, context.signal, r.incremental, r.cursor, r),
 
@@ -155,6 +151,29 @@ export function botsHandlers(
       connectorGuard(async () =>
         create(bots.TestBotMcpServerResponseSchema, { tools: await core.bots.testServer(r.serverId) }),
       ),
+  };
+}
+
+function botInputHandlers(
+  core: GatewayCore,
+): Pick<UiHandlers, "sendBotMessage" | "setBotMessageReaction" | "getBotDraft" | "saveBotDraft"> {
+  return {
+    sendBotMessage: (r) =>
+      guard(async () =>
+        create(bots.SendBotMessageResponseSchema, { turnId: await core.bots.send(r, await core.attachmentLimits) }),
+      ),
+
+    setBotMessageReaction: (r) =>
+      guard(async () => {
+        const result = await core.bots.run((s) => s.setUserMessageReaction(core[coreState].options.userId, r));
+
+        if (result.changed) core.bots.dispatchInput(result.steer);
+
+        return create(EmptySchema);
+      }),
+
+    getBotDraft: (r) => guard(() => core.bots.run((s) => s.draft(core[coreState].options.userId, r.botId))),
+    saveBotDraft: (r) => guard(() => core.bots.run((s) => s.saveDraft(core[coreState].options.userId, r))),
   };
 }
 

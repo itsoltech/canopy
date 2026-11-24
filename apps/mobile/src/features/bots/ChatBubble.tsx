@@ -9,7 +9,7 @@ import { MascotAvatar } from "./BotAvatar";
 import { botInk } from "./bot-ink";
 import { MessageSpans, mentionElements } from "../composer/MessageText";
 import { QuotePreview } from "../quotes/QuotePreview";
-import { TextActions } from "../viewers/TextActions";
+import { ChatMessageActions, type SetMessageReaction } from "./ChatMessageActions";
 import { MessageAttachments } from "../attachments/MessageAttachments";
 
 /**
@@ -26,6 +26,7 @@ export function ChatBubble({
   showName,
   gutter,
   onReply,
+  onSetReaction,
 }: {
   message: ChatMessageView;
   sender: ParticipantView | undefined;
@@ -35,6 +36,7 @@ export function ChatBubble({
   showName: boolean;
   gutter: boolean;
   onReply?: ((message: ChatMessageView) => void) | undefined;
+  onSetReaction?: SetMessageReaction | undefined;
 }) {
   const c = useColors();
   const [actions, setActions] = useState(false);
@@ -88,7 +90,11 @@ export function ChatBubble({
         <Pressable
           accessibilityLabel={`${mine ? "You" : (sender?.name ?? "Unknown")}: ${accessibleText}`}
           accessibilityState={{ busy: message.delivery === "sending" }}
-          accessibilityHint="Long press for message actions"
+          accessibilityHint={
+            message.reactions && !mine && onSetReaction
+              ? "Long press to react or open message actions"
+              : "Long press for message actions"
+          }
           onLongPress={() => setActions(true)}
           accessibilityActions={[{ name: "activate", label: "Message actions" }]}
           onAccessibilityAction={() => setActions(true)}
@@ -108,8 +114,10 @@ export function ChatBubble({
         {message.attachments?.length ? (
           <MessageAttachments files={message.attachments} pending={message.delivery === "sending"} />
         ) : null}
-        <TextActions
-          text={message.text || message.quotes?.map((q) => q.text).join("\n\n") || ""}
+        <ChatMessageActions
+          message={message}
+          mine={mine}
+          onSetReaction={onSetReaction}
           visible={actions}
           onClose={() => setActions(false)}
           onReply={onReply ? () => onReply(message) : undefined}

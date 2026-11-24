@@ -98,6 +98,7 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
         mentions: m.mentions,
         quotes: m.quotes,
         attachments: m.attachments,
+        reactions: m.reactionsAvailable ? m.reactions : undefined,
       },
     };
   });

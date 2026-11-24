@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): web i desktop obsługują dodawanie i cofanie reakcji w prywatnej rozmowie z botem.
+
 Status (2026-11-24): pusty kompozytor istniejącego wątku w web i desktopie
 pokazuje tekst i główną akcję w jednym wierszu.
 
@@ -2206,6 +2208,16 @@ komputerem 15 s, pozostałe zapisy 35 s. Jawny limit danej operacji ma pierwsze�
 `MarkThreadSeen` jest best effort: HTTP potwierdza przyjęcie od razu, BFF utrzymuje
 jedno RPC na wątek oraz najwyższy oczekujący numer, z limitem 256 aktywnych wątków.
 Niepowodzenie markera nie trafia do UI ani do logu błędów operacji użytkownika.
+
+### Reakcje na wiadomości bota
+
+`PUT /api/bots/:botId/messages/:messageId/reactions` wywołuje `SetBotMessageReaction`
+z emoji i docelowym stanem `active`. Identyfikatory pochodzą ze ścieżki.
+Aplikacja mobilna wywołuje to samo RPC bezpośrednio. Gateway sprawdza właściciela,
+rozmowę i kierunek wiadomości. Zapis zwraca pustą odpowiedź. Nowy stan wiadomości
+przychodzi przez `WatchBotConversation`, również w przyrostowej aktualizacji po jej ID.
+`BotMessage.reactions_available` pozwala klientowi pokazać wybór reakcji przy
+obsługiwanych wiadomościach. `BotMessage.reactions` zawiera wybrane emoji.
 
 ### Szkice i załączniki botów
 

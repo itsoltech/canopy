@@ -5,7 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
-  import type { ChatEntry, ChatMessageView, ConversationView } from "@canopy/domain/bot-chat";
+  import type { ChatEntry, ConversationView } from "@canopy/domain/bot-chat";
   import AvatarStack from "../components/AvatarStack.svelte";
   import BotAvatar, { type AvatarSize } from "../components/BotAvatar.svelte";
   import BotComposer from "../components/BotComposer.svelte";
@@ -103,7 +103,13 @@
     }, 900);
   }
 
-  const react = (message: ChatMessageView) => (log = `React to “${message.text.slice(0, 40)}”.`);
+  function react(messageId: string, emoji: string, active: boolean) {
+    const entry = entries.direct.find((row) => row.kind === "message" && row.message.id === messageId);
+
+    if (entry?.kind !== "message") return;
+    const others = (entry.message.reactions ?? []).filter((value) => value !== emoji);
+    entry.message.reactions = active ? [...others, emoji] : others;
+  }
 
   const mascotIds = Array.from(
     { length: 21 },

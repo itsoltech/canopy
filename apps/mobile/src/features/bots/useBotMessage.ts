@@ -115,5 +115,11 @@ export function useBotMessage(id: string, live: boolean, onSend: () => void, sou
     setError,
     send,
     reply,
+    setReaction:
+      client && online && live
+        ? async (messageId: string, emoji: string, active: boolean) => {
+            await client.api.setBotMessageReaction({ botId: id, messageId, emoji, active }, { timeoutMs: 20_000 });
+          }
+        : undefined,
   };
 }
