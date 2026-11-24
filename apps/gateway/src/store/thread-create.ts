@@ -155,6 +155,25 @@ function replayCreation(
   });
 }
 
+/** Pin inherited placement and policy while the fork or side thread is being created. */
+function lockCreationSources(sql: SqlClient.SqlClient, ownerUserId: string, request: ui.CreateThreadRequest) {
+  return Effect.gen(function* () {
+    const sourceIds = [request.parentThreadId, request.forkThreadId].filter(Boolean);
+
+    if (!sourceIds.length) return;
+
+    const sourcePolicies = yield* sql<Pick<ThreadRow, "settings" | "cwd" | "worktree_id" | "id">>`
+      SELECT settings,cwd,worktree_id,id FROM threads WHERE id=ANY(${sourceIds}::uuid[]) AND owner_user_id=${ownerUserId}::uuid
+      ORDER BY id FOR SHARE`;
+
+    if (sourcePolicies.some(threadSandbox)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
+
+    return !request.parentThreadId && request.forkAtTurnId
+      ? sourcePolicies.find((row) => row.id === request.forkThreadId)
+      : undefined;
+  });
+}
+
 export function threadCreation(
   sql: SqlClient.SqlClient,
   self: () => Pick<ThreadStore, "thread"> & Pick<WorktreeStore, "ownWorktree">,
@@ -180,16 +199,7 @@ export function threadCreation(
 
           if (!provider) return yield* Effect.fail(new Invalid("unknown provider"));
           const id = movedId ?? Bun.randomUUIDv7();
-          const sourceIds = [request.parentThreadId, request.forkThreadId].filter(Boolean);
-
-          if (sourceIds.length) {
-            const sourcePolicies = yield* sql<Pick<ThreadRow, "settings">>`
-              SELECT settings FROM threads WHERE id=ANY(${sourceIds}::uuid[]) AND owner_user_id=${ownerUserId}::uuid
-              ORDER BY id FOR SHARE`;
-
-            if (sourcePolicies.some(threadSandbox))
-              return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
-          }
+          const forkPlacement = yield* lockCreationSources(sql, ownerUserId, request);
 
           if (request.sandboxProfileDigest && request.sandboxProfileDigest !== sandboxProfile?.digest)
             return yield* Effect.fail(new Invalid(DRAFT_SANDBOX_RESELECT));
@@ -279,6 +289,13 @@ export function threadCreation(
               ? scratchCwd(workspace.root_path, id, style)
               : (requested ?? workspace.root_path));
 
+          const worktreeId = worktree?.id ?? inherited?.worktree_id ?? null;
+
+          if (forkPlacement && (forkPlacement.cwd !== cwd || forkPlacement.worktree_id !== worktreeId))
+            return yield* Effect.fail(
+              new Invalid("The source thread switched worktrees. Retry the fork in its current directory."),
+            );
+
           const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
 
           const audience = yield* creationAudience(sql, request.parentThreadId, forkSource, request, automated);
@@ -296,7 +313,7 @@ export function threadCreation(
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${preparationFingerprint ? null : cwd},
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
-                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null}, ${audience})`;
+                          ${worktreeId}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null}, ${audience})`;
 
           if (automated?.startedByBot)
             yield* sql`INSERT INTO bot_started_threads(thread_id, bot_id) VALUES (${id}::uuid, ${automated.startedByBot}::uuid)`;

@@ -1,5 +1,7 @@
 # Konto GitHub i pull requesty
 
+Status (2026-11-24): zmiana worktree odświeża kontekst Git wątku i zachowuje wcześniejsze powiązania z PR.
+
 Status (2026-11-22): potwierdzanie merge do sprzątania worktree sprawdza dostęp konektora do projektu (§5).
 Odświeżenie jednego PR aktualizuje projekcje wątków z aktywnym powiązaniem do tego PR (§3).
 Aktualizacja (2026-11-24): widok PR w web i desktopie respektuje Thread width (§7).
@@ -593,7 +595,7 @@ Sam UUID, GitHub node ID, repo ID lub URL nigdy nie jest uprawnieniem do odczytu
 niezależnie od nowej gałęzi i źródła wykrycia. Ręczne Link świadomie go usuwa, po ponownej
 weryfikacji repo. Transakcja auto-link sprawdza tombstone ponownie pod blokadą.
 Oddzielna historia kontekstu checkoutu zapisuje zmiany repo/head ref/pełnego SHA i czas;
-nie zmieniamy niezmiennych `threads.cwd` ani `worktree_id`.
+operacje GitHub zachowują bieżące przypisanie wątku do checkoutu.
 
 Tokeny szyfrujemy istniejącymi `encryptSecret/decryptSecret` (`store/secrets.ts`), z key ID
 i kontrolą owner przed odszyfrowaniem, według `connectors/sealing.ts`. Nie wchodzą do cache DTO.

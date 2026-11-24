@@ -151,6 +151,95 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17: threads, turns and t
       await query(inWorktree, [id(), w.project, w.user, w.worker, w.workspace, "/data/worktrees/repo/a", live]);
     });
 
+    test("a running turn switches only its own placement and retains its source until it ends", async () => {
+      const w = await world();
+      const elsewhere = await world();
+      const root = await mainThread(w);
+      const forkPoint = await completedTurn(w, root, ["parent"]);
+      const fork = await sideThread(w, { parent: root, root, forkSource: root, forkAfterTurn: forkPoint });
+      const turn = id();
+      const tree = id();
+      const otherTree = id();
+
+      const insertTree = `INSERT INTO worktrees (id,owner_user_id,project_id,workspace_id,worker_id,repo_root,path,branch)
+        VALUES ($1,$2,$3,$4,$5,'/repo','/trees/feature','feature')`;
+
+      await query(insertTree, [tree, w.user, w.project, w.workspace, w.worker]);
+      await query(insertTree, [otherTree, elsewhere.user, elsewhere.project, elsewhere.workspace, elsewhere.worker]);
+      await query(`UPDATE threads SET provider_thread_id='session', settings='{"branchNote":"old"}' WHERE id=$1`, [
+        fork,
+      ]);
+
+      const start = `INSERT INTO turns (id,thread_id,ordinal,status,trigger,input,started_at)
+                     VALUES ($1,$2,$3,'running','provider','{}',now())`;
+
+      await query(start, [turn, fork, 1]);
+      const switchTree = `SELECT cwd,worktree_id FROM switch_thread_worktree($1,$2,$3,$4,$5,$6,$7,$8)`;
+      const args = [w.user, w.worker, fork, turn, "/repo", null, tree, "/repo"];
+
+      for (const [index, replacement] of [
+        [0, elsewhere.user],
+        [1, w.otherWorker],
+        [2, root],
+        [3, forkPoint],
+        [4, "/stale"],
+        [5, tree],
+        [6, otherTree],
+        [7, "/other-workspace-root"],
+      ] as const) {
+        const stale = [...args];
+        stale[index] = replacement;
+        expect(await query(switchTree, stale)).toBeEmpty();
+      }
+
+      await query(
+        `INSERT INTO github_git_contexts(owner_user_id,thread_id,context) VALUES($1,$2,'{"branch":"main"}')`,
+        [w.user, fork],
+      );
+      await query(
+        `INSERT INTO github_detection_jobs(owner_user_id,thread_id,lease_id,lease_until)
+        VALUES($1,$2,$3,now()+interval '1 minute')`,
+        [w.user, fork, id()],
+      );
+      await query(`UPDATE worktrees SET removal_token=$2 WHERE id=$1`, [tree, id()]);
+      expect(await query(switchTree, args)).toBeEmpty();
+      await query(`UPDATE worktrees SET removal_token=NULL,removed_at=now() WHERE id=$1`, [tree]);
+      expect(await query(switchTree, args)).toBeEmpty();
+      await query(`UPDATE worktrees SET removed_at=NULL WHERE id=$1`, [tree]);
+      expect(await query(switchTree, args)).toEqual([{ cwd: "/trees/feature", worktree_id: tree }]);
+      expect(
+        await query(
+          `SELECT provider_thread_id,fork_source_thread_id,settings->>'branchNote' AS note
+        FROM threads WHERE id=$1`,
+          [fork],
+        ),
+      ).toEqual([{ provider_thread_id: "session", fork_source_thread_id: root, note: null }]);
+      expect(
+        await query(`SELECT context FROM github_git_contexts WHERE thread_id=$1 ORDER BY id DESC LIMIT 1`, [fork]),
+      ).toEqual([{ context: {} }]);
+      expect(await query(`SELECT lease_id FROM github_detection_jobs WHERE thread_id=$1`, [fork])).toEqual([
+        { lease_id: null },
+      ]);
+      expect(await query(`SELECT cwd FROM threads WHERE id=$1`, [root])).toEqual([{ cwd: "/repo" }]);
+      expect(await query(`SELECT worktree_switch_source_cwd FROM turns WHERE id=$1`, [turn])).toEqual([
+        { worktree_switch_source_cwd: "/repo" },
+      ]);
+      const back = [w.user, w.worker, fork, turn, "/trees/feature", tree, null, "/repo"];
+      expect(await query(switchTree, back)).toBeEmpty();
+      expect(await failure(`UPDATE threads SET worktree_id=NULL,cwd='/repo' WHERE id=$1`, [fork])).toContain(
+        "immutable",
+      );
+      await query(`UPDATE turns SET status='completed',first_seq=1,last_seq=1 WHERE id=$1`, [turn]);
+      const next = id();
+      await query(start, [next, fork, 2]);
+      back[3] = next;
+      expect(await query(switchTree, back)).toEqual([{ cwd: "/repo", worktree_id: null }]);
+      const cleanup = `SELECT worktree_has_switched_turn(w) AS busy FROM worktrees w WHERE id=$1`;
+      expect(await query(cleanup, [tree])).toEqual([{ busy: true }]);
+      await query(`UPDATE turns SET status='completed',first_seq=2,last_seq=2 WHERE id=$1`, [next]);
+      expect(await query(cleanup, [tree])).toEqual([{ busy: false }]);
+    });
+
     test("a preparing thread admits work only after attaching an available worktree", async () => {
       const w = await world();
       const thread = id();

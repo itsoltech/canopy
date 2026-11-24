@@ -12,13 +12,15 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { create } from "@bufbuild/protobuf";
 import { ThreadSecretReceiptSchema, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@canopy/contracts";
 
 import { projectSecretGuard, projectSecretValues, redactSecretText, secretPatterns } from "./project-secret-guard.ts";
 import { ProjectSecretTurns } from "./project-secret-turns.ts";
+import { isWithin } from "../git/worktrees.ts";
+import { canonicalPath } from "../git/checkout-paths.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const activeStores = new Set<ThreadSecretFiles>();
@@ -93,7 +95,11 @@ export class ThreadSecretFiles {
     values.add(value);
     this.#redactions.set(threadId, values);
   }
-  apply(delivery: ThreadSecretDelivery, beforeProjectWrite?: () => boolean): ThreadSecretReceipt {
+  apply(
+    delivery: ThreadSecretDelivery,
+    beforeProjectWrite?: () => boolean,
+    ...localWorkspaces: (string | undefined)[]
+  ): ThreadSecretReceipt {
     const receipt = create(ThreadSecretReceiptSchema, {
       requestId: delivery.requestId,
       threadId: delivery.threadId,
@@ -149,14 +155,15 @@ export class ThreadSecretFiles {
       }
 
       if (!delivery.cwd) return receipt;
-      const cwd = existsSync(delivery.cwd) ? realpathSync(delivery.cwd) : resolve(delivery.cwd);
-      const within = relative(cwd, realpathSync(this.root));
+      const root = realpathSync(this.root);
 
-      if (
-        !within ||
-        (!within.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && within !== ".." && !isAbsolute(within))
-      )
-        return receipt;
+      // A worktree switch can leave the current harness in the previous cwd until the next turn.
+      for (const cwd of new Set([delivery.cwd, ...localWorkspaces])) {
+        if (!cwd) continue;
+        const workspace = canonicalPath(cwd);
+
+        if (isWithin(workspace, root) || isWithin(root, workspace)) return receipt;
+      }
 
       if (previous?.revision === delivery.revision) {
         if (existsSync(file)) {

@@ -43,9 +43,15 @@ async function readHeadFile(dir: string): Promise<GitHead | undefined> {
   return /^[0-9a-f]{40,64}$/.test(head) ? { branch: "", detachedCommit: head.slice(0, 7) } : undefined;
 }
 
+interface ThreadCheckout {
+  cwd: string;
+  gitDir?: string;
+  pending?: Promise<void>;
+}
+
 interface Checkout {
   readonly gitDir: string;
-  readonly threads: Set<string>;
+  readonly threads: Map<string, string>;
   watcher?: FSWatcher;
   head?: GitHead;
   timer?: ReturnType<typeof setTimeout>;
@@ -59,35 +65,38 @@ interface Checkout {
  */
 export class HeadTracker {
   readonly #checkouts = new Map<string, Checkout>();
-  readonly #threads = new Map<string, string>();
-  readonly #resolving = new Map<string, Promise<void>>();
+  readonly #threads = new Map<string, ThreadCheckout>();
   #closed = false;
 
   constructor(readonly send: (heads: ThreadGitHeadInit[]) => void) {}
 
   /** A thread works in `cwd`; outside a git checkout nothing is tracked. */
   track(threadId: string, cwd: string): Promise<void> {
-    if (this.#closed || this.#threads.has(threadId)) return Promise.resolve();
-    const pending = this.#resolving.get(threadId);
+    if (this.#closed) return Promise.resolve();
+    const previous = this.#threads.get(threadId);
 
-    if (pending) return pending;
+    if (previous?.cwd === cwd) return previous.pending ?? Promise.resolve();
 
-    const run = Promise.resolve()
+    this.untrack(threadId);
+    const binding: ThreadCheckout = { cwd };
+    this.#threads.set(threadId, binding);
+    binding.pending = Promise.resolve()
       .then(async () => {
         const dir = await gitDirOf(cwd);
 
-        if (!dir || this.#closed || this.#threads.has(threadId) || this.#resolving.get(threadId) !== run) return;
-        this.#threads.set(threadId, dir);
+        if (!dir || this.#closed || this.#threads.get(threadId) !== binding) return;
+        binding.gitDir = dir;
         const known = this.#checkouts.get(dir);
 
         if (known) {
-          known.threads.add(threadId);
-          this.#report(known);
+          known.threads.set(threadId, cwd);
+
+          if (known.head) this.send(this.#messages(known, known.head));
 
           return;
         }
 
-        const checkout: Checkout = { gitDir: dir, threads: new Set([threadId]), retries: 0 };
+        const checkout: Checkout = { gitDir: dir, threads: new Map([[threadId, cwd]]), retries: 0 };
         this.#checkouts.set(dir, checkout);
 
         try {
@@ -102,28 +111,27 @@ export class HeadTracker {
         await this.#read(checkout, true);
       })
       .finally(() => {
-        if (this.#resolving.get(threadId) === run) this.#resolving.delete(threadId);
+        delete binding.pending;
+
+        if (!binding.gitDir && this.#threads.get(threadId) === binding) this.#threads.delete(threadId);
       });
 
-    this.#resolving.set(threadId, run);
-
-    return run;
+    return binding.pending;
   }
 
   /** A turn of the thread ended: read its HEAD now. */
   async check(threadId: string): Promise<void> {
-    await this.#resolving.get(threadId);
-    const checkout = this.#checkouts.get(this.#threads.get(threadId) ?? "");
+    await this.#threads.get(threadId)?.pending;
+    const checkout = this.#checkouts.get(this.#threads.get(threadId)?.gitDir ?? "");
 
     if (checkout) await this.#read(checkout, false);
   }
 
   untrack(threadId: string): void {
-    this.#resolving.delete(threadId);
-    const dir = this.#threads.get(threadId);
+    const dir = this.#threads.get(threadId)?.gitDir;
+    this.#threads.delete(threadId);
 
     if (!dir) return;
-    this.#threads.delete(threadId);
     const checkout = this.#checkouts.get(dir);
     checkout?.threads.delete(threadId);
 
@@ -135,7 +143,7 @@ export class HeadTracker {
 
   /** Everything known, after a (re)connection: the gateway may have missed changes while the link was down. */
   snapshot(): void {
-    const heads = [...this.#checkouts.values()].flatMap((c) => (c.head ? [this.#message(c, c.head)] : []));
+    const heads = [...this.#checkouts.values()].flatMap((c) => (c.head ? this.#messages(c, c.head) : []));
 
     if (heads.length) this.send(heads);
   }
@@ -174,14 +182,12 @@ export class HeadTracker {
     const changed = head.branch !== checkout.head?.branch || head.detachedCommit !== checkout.head?.detachedCommit;
     checkout.head = head;
 
-    if (changed || always) this.send([this.#message(checkout, head)]);
+    if (changed || always) this.send(this.#messages(checkout, head));
   }
 
-  #report(checkout: Checkout): void {
-    if (checkout.head) this.send([this.#message(checkout, checkout.head)]);
-  }
+  #messages(checkout: Checkout, head: GitHead): ThreadGitHeadInit[] {
+    const byCwd = Map.groupBy([...checkout.threads], ([, cwd]) => cwd);
 
-  #message(checkout: Checkout, head: GitHead): ThreadGitHeadInit {
-    return { threadIds: [...checkout.threads], branch: head.branch, detachedCommit: head.detachedCommit };
+    return [...byCwd].map(([cwd, threads]) => ({ ...head, cwd, threadIds: threads.map(([id]) => id) }));
   }
 }

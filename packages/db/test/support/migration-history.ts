@@ -207,4 +207,5 @@ export const expectedSchemaMigrations = [
   "210_bot_approval_restricted_thread",
   "211_project_secrets",
   "212_project_image",
+  "213_thread_worktree_switch",
 ];

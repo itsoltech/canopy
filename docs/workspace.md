@@ -3,7 +3,14 @@
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 Aktualizacja (2026-11-24): widok PR i `Rendered` plików Markdown korzystają z Thread width w web/desktop.
 
-Status (2026-11-23): **zaimplementowane, układ v3**. Karta pliku w web i desktopie
+Status (2026-11-24): **zaimplementowane, układ v3**. Po zmianie worktree wątku
+otwarte podsumowanie i Diff w web/desktop od razu pobierają stan nowego checkoutu,
+również gdy oba katalogi mają tę samą nazwę gałęzi. Files w web/desktop i mobile
+czyści poprzednie drzewo i przepina obserwację zmian. Zamyka czyste karty plików,
+a niezapisane szkice zachowuje do skopiowania albo odrzucenia. Po odrzuceniu
+i przeładowaniu szkicu odczytuje plik o tej samej ścieżce względnej w nowym katalogu.
+
+Karta pliku w web i desktopie
 odtwarza wideo strumieniowo z komputera wątku. Canopy Desktop pokazuje postęp
 pobierania plików z rozmowy. Osobne okno Preview zachowuje
 ramkę przy powiększaniu podglądu i nie przerywa transmisji po pojedynczym błędzie

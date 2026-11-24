@@ -50,19 +50,18 @@ export const coreRewindMethods: CoreRewindMethods = {
 
     if (spec.sandboxProfile) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
 
-    const files =
-      point.thread.provider === "claude"
-        ? await connection.sendCommand(
-            {
-              case: "rewindThread",
-              value: create(RewindThreadSchema, {
-                ...rewindCommand(point, spec),
-                preview: true,
-              }),
-            },
-            30_000,
-          )
-        : undefined;
+    const files = !point.filesUnavailable
+      ? await connection.sendCommand(
+          {
+            case: "rewindThread",
+            value: create(RewindThreadSchema, {
+              ...rewindCommand(point, spec),
+              preview: true,
+            }),
+          },
+          30_000,
+        )
+      : undefined;
 
     return create(ui.ThreadRewindPreviewSchema, {
       messages: point.suffix.filter((turn) => turn.trigger === "user" && !turn.withdrawn).length,
@@ -71,10 +70,9 @@ export const coreRewindMethods: CoreRewindMethods = {
       filesAvailable: Boolean(files?.ok && files.rewind?.filesAvailable),
       files: files?.rewind?.files ?? [],
       filesDetail:
+        point.filesUnavailable ||
         files?.rewind?.filesDetail ||
-        (point.thread.provider === "claude"
-          ? "Checkpoints cover the agent's file edits, excluding shell commands and subagents. Older messages may have no checkpoint."
-          : "Files stay as they are."),
+        "Checkpoints cover the agent's file edits, excluding shell commands and subagents. Older messages may have no checkpoint.",
     });
   },
   async rewindThread(this: GatewayCore, request) {

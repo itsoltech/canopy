@@ -3,10 +3,11 @@ import { basename, isAbsolute, join, relative, sep } from "node:path";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { CreateWorktree, RenameWorktreeBranch, WorktreeInfoSchema, QueryProgress } from "@canopy/contracts";
 import { WORKTREE_CHECKOUT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
-import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch } from "./git.ts";
+import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch, withLocalGitPolicy } from "./git.ts";
 import { listGitRefs, repoRoot } from "./refs.ts";
 import { addWorktree } from "./add-worktree.ts";
 import type { FailedWorktreeCleanup } from "./failed-worktree-cleanup.ts";
+import { canonicalPath } from "./checkout-paths.ts";
 
 export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 
@@ -27,6 +28,15 @@ export function isWithin(root: string, path: string): boolean {
   const rel = relative(root, path);
 
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
+}
+
+export function assertWorktreeDestination(path: string, secretsRoot: string, creatingChild = false): void {
+  const checkout = canonicalPath(path);
+  const secrets = realpathSync(secretsRoot);
+
+  // An unused child of an ancestor is safe. freeFolder guarantees it has no existing contents.
+  if (isWithin(secrets, checkout) || (!creatingChild && isWithin(checkout, secrets)))
+    throw new GitError("WORKTREE_UNSAFE", "Choose a worktree outside the worker’s private secret storage.");
 }
 
 /**
@@ -65,21 +75,26 @@ async function commitOf(cwd: string, ref: string): Promise<string | undefined> {
 }
 
 /** Names of the branches on every remote (`origin/feat/x` → `feat/x`), as this repository last fetched them. */
-async function remoteBranches(cwd: string): Promise<Set<string>> {
+async function remoteBranches(cwd: string, required = false): Promise<Set<string>> {
   const listed = await git(cwd, ["for-each-ref", "--format=%(refname:strip=3)", "refs/remotes"]);
+
+  if (required && !listed.ok) throw new GitError("WORKTREE_FAILED", "Could not check locally known remote branches.");
 
   return new Set(listed.ok ? listed.stdout.split("\n").filter((name) => name && name !== "HEAD") : []);
 }
 
 /** `wanted`, else `wanted-2`, `wanted-3`, ...: the first name no local or remote branch has. */
-async function freeBranch(cwd: string, wanted: string): Promise<string> {
-  if (!(await validBranch(cwd, wanted))) throw new GitError("BAD_BRANCH", `${wanted} is not a valid branch name`);
-  const remote = await remoteBranches(cwd);
+async function freeBranch(cwd: string, wanted: string, exact = false): Promise<string> {
+  if (!(await validBranch(cwd, wanted, exact)))
+    throw new GitError("BAD_BRANCH", `${wanted} is not a valid branch name`);
+  const remote = await remoteBranches(cwd, exact);
 
   for (let n = 1; n <= MAX_SUFFIX; n++) {
     const name = n === 1 ? wanted : `${wanted}-${n}`;
 
     if (!remote.has(name) && !(await commitOf(cwd, `refs/heads/${name}`))) return name;
+
+    if (exact) throw new GitError("BRANCH_EXISTS", "That branch already exists. Choose a different name.");
   }
 
   throw new GitError("BRANCH_EXISTS", `${wanted} and its numbered variants already exist`);
@@ -166,11 +181,31 @@ export async function createWorktree(
   request: CreateWorktree,
   progress?: WorktreeProgress,
   cleanup?: FailedWorktreeCleanup,
+  secretsRoot?: string,
 ): Promise<WorktreeInfoInit> {
+  const create = () => performCreate(managedRoot, request, progress, cleanup, secretsRoot);
+
+  return request.agentRequested ? withLocalGitPolicy(create) : create();
+}
+
+async function performCreate(
+  managedRoot: string,
+  request: CreateWorktree,
+  progress?: WorktreeProgress,
+  cleanup?: FailedWorktreeCleanup,
+  secretsRoot?: string,
+): Promise<WorktreeInfoInit> {
+  if (request.agentRequested && (request.startFromRemote || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(request.baseRef)))
+    throw new GitError("BAD_REF", "Agent worktrees require a local base commit.");
+
   progress?.({ step: "check_workspace", status: "running" });
   const repo = await repoRoot(request.repoPath);
 
   if (!repo) throw new GitError("NOT_A_REPOSITORY", `${request.repoPath} is not in a git repository`);
+  const folder = folderName(basename(repo));
+
+  if (request.agentRequested && secretsRoot)
+    assertWorktreeDestination(join(request.location || managedRoot, folder), secretsRoot, true);
   const root = worktreeRoot(managedRoot, request.location);
   const base = request.baseRef || (await listGitRefs(repo, request.remote || "origin")).defaultBranch || "HEAD";
 
@@ -186,10 +221,10 @@ export async function createWorktree(
   progress?.({ step: "create_worktree", status: "running" });
   const commit = await commitOf(repo, start);
 
-  if (!commit)
+  if (!commit || (request.agentRequested && commit !== request.baseRef))
     throw new GitError("BAD_REF", "The base ref changed during worktree creation. Select a base ref and retry.");
-  const branch = await freeBranch(repo, request.branch);
-  const parent = join(root, folderName(basename(repo)));
+  const branch = await freeBranch(repo, request.branch, request.agentRequested);
+  const parent = join(root, folder);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
 
   if (!isWithin(root, realpathSync(parent)))
@@ -197,11 +232,14 @@ export async function createWorktree(
   const path = await freeFolder(repo, parent);
 
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
+
+  if (request.agentRequested && secretsRoot) assertWorktreeDestination(path, secretsRoot);
   await addWorktree(
     repo,
     { path, branch, commit },
     request.checkoutStartDeadlineMs ? WORKTREE_CHECKOUT_TIMEOUT_MS : undefined,
     cleanup,
+    request.agentRequested,
   );
 
   // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.

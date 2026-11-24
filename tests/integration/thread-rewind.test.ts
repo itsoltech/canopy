@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, isMessage } from "@bufbuild/protobuf";
 import {
   CommandResultSchema,
+  ListGitRefsSchema,
   MentionKind,
   Provider,
   RewindThreadSchema,
@@ -75,7 +76,12 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
   };
 
   beforeAll(async () => {
-    gw = await startTestGateway({ worker: { claude: true, hello: { capabilities: ["thread_rewind_v1"] } } });
+    gw = await startTestGateway({
+      worker: {
+        claude: true,
+        hello: { capabilities: ["thread_rewind_v1", "thread_worktree_switch_v1", "git_worktree_discovery"] },
+      },
+    });
     installRewind();
     projectId = (await gw.api.createProject({ name: "Rewind" })).project!.id;
     workspaceId = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo/rewind" }))
@@ -280,6 +286,118 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
       expect(after.thread.provider_thread_id).toBe(before.thread.provider_thread_id);
       expect(after.turns.every((turn) => !turn.rewind_id)).toBe(true);
     });
+
+  test("Claude retains the switched worktree across rewind and Undo and fences earlier file checkpoints", async () => {
+    const thread = await createThread(Provider.CLAUDE);
+    const threadId = thread.id;
+    const before = await history(threadId);
+    const earlier = before.turns[0]!.id;
+    const cwd = before.thread.cwd!;
+    const destination = `${cwd}-feature`;
+
+    const worktrees = [
+      { path: cwd, branch: "main", headCommit: "a".repeat(40) },
+      { path: destination, branch: "feature", headCommit: "a".repeat(40) },
+    ];
+
+    gw.worker.handlers.set("listGitRefs", (value, reply) => {
+      if (!isMessage(value, ListGitRefsSchema)) throw new Error("expected listGitRefs command");
+      const checkout = worktrees.find((tree) => tree.path === value.repoPath);
+      reply(true, {
+        gitRefs: {
+          isRepo: Boolean(checkout),
+          repoRoot: checkout?.path ?? "",
+          worktrees: checkout && !value.branchesOnly ? worktrees : [],
+        },
+      });
+    });
+    gw.worker.holdTurns = true;
+
+    try {
+      const switching = (await gw.api.sendMessage({ threadId, text: "Switch", clientRequestId: "switch" })).turn!;
+      await eventually(
+        () => history(threadId),
+        (state) => state.turns.some((t) => t.id === switching.id && t.status === "running"),
+      );
+      const request = { threadId, turnId: switching.id, clientRequestId: "rewind-switch", stopRunning: true };
+      expect((await gw.api.prepareThreadRewind(request)).filesAvailable).toBe(true);
+
+      const switched = await gw.worker.callTool({
+        threadId,
+        turnId: switching.id,
+        tool: "switch_worktree",
+        args: { path: destination, continuation: "Continue" },
+      });
+
+      expect(switched.content).toContain(destination);
+      expect(switched.isError).toBe(false);
+      gw.worker.finish(threadId, switching.id);
+
+      const running = await eventually(
+        () => history(threadId),
+        (state) => state.turns.some((t) => t.trigger === "agent_bus" && t.status === "running"),
+      );
+
+      const continuation = running.turns.find((t) => t.trigger === "agent_bus")!;
+      const seen = commands.length;
+
+      for (const turnId of [earlier, switching.id]) {
+        const preview = await gw.api.prepareThreadRewind({ threadId, turnId });
+        expect(preview.filesAvailable).toBe(false);
+        expect(preview.filesDetail).toContain("switched worktrees");
+        expect(preview.running).toBe(true);
+      }
+
+      expect(await failure(gw.api.rewindThread({ ...request, restoreFiles: true }))).toContain("switched worktrees");
+      expect(commands).toHaveLength(seen);
+      const edit = await gw.api.rewindThread(request);
+      expect(edit.status).toBe("completed");
+      expect(commands.at(-1)?.cancelledTurnIds).toContain(continuation.id);
+      expect((await gw.api.prepareThreadRewind({ threadId, turnId: earlier })).filesAvailable).toBe(false);
+      const undo = await gw.api.restoreThreadRewind({ threadId, rewindId: edit.rewindId });
+      expect(undo.status).toBe("restored");
+      expect(commands.at(-1)).toMatchObject({
+        thread: { cwd: destination },
+        restoreProviderThreadId: before.thread.provider_thread_id,
+        restoreFiles: false,
+        checkpointId: "",
+      });
+      const restored = await history(threadId);
+      expect(restored.thread.cwd).toBe(destination);
+      expect(restored.turns.find((t) => t.id === continuation.id)).toMatchObject({
+        status: "interrupted",
+        rewind_id: null,
+      });
+
+      gw.worker.holdTurns = false;
+
+      const next = (await gw.api.sendMessage({ threadId, text: "New checkout", clientRequestId: "after-switch" }))
+        .turn!;
+
+      await eventually(
+        () => history(threadId),
+        (state) => state.turns.some((t) => t.id === next.id && t.status === "completed"),
+      );
+      expect((await gw.api.prepareThreadRewind({ threadId, turnId: next.id })).filesAvailable).toBe(true);
+
+      const applied = await gw.api.rewindThread({
+        threadId,
+        turnId: next.id,
+        clientRequestId: "restore-in-new-worktree",
+        restoreFiles: true,
+      });
+
+      expect(applied.status).toBe("completed");
+      expect(commands.at(-1)).toMatchObject({
+        thread: { cwd: destination },
+        restoreFiles: true,
+        checkpointId: next.id,
+      });
+    } finally {
+      gw.worker.holdTurns = false;
+      gw.worker.handlers.delete("listGitRefs");
+    }
+  });
 
   test("new turns use only the replacement session; repeated rewinds use original boundary sessions", async () => {
     const thread = await createThread();

@@ -38,6 +38,9 @@ export function automationMode(name: string): ui.WorkspaceMode {
   }
 }
 
+export const UNSAFE_WORKTREE_DESTINATION =
+  "This worktree overlaps the worker’s private secret storage. Choose another worktree.";
+
 const WORKTREE_REFUSALS = new Map([
   ["GIT_TIMEOUT", "Git timed out while creating the worktree."],
   ["GIT_OUTPUT_LIMIT", "Git exceeded its output limit while creating the worktree."],
@@ -45,6 +48,11 @@ const WORKTREE_REFUSALS = new Map([
   ["GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation."],
   ["WORKTREE_CHECKOUT_FAILED", "Git could not check out the worktree. Check the Git settings and filters."],
   ["WORKTREE_FAILED", "Git could not create the worktree."],
+  ["WORKTREE_FILTER_UNSUPPORTED", "This checkout uses Git filters. Create the worktree manually."],
+  ["WORKTREE_SPARSE_UNSUPPORTED", "Agent worktree creation does not support sparse checkout."],
+  ["WORKTREE_UNSAFE", UNSAFE_WORKTREE_DESTINATION],
+  ["BRANCH_EXISTS", "That branch already exists. Choose a new name or switch to its existing worktree by path."],
+  ["BAD_BRANCH", "Choose a valid Git branch name."],
   ["BAD_REF", "The base ref is not a branch or commit in this repository."],
   ["NOT_A_REPOSITORY", "The workspace is not in a Git repository."],
 ]);
@@ -54,7 +62,7 @@ const CLEANUP_INCOMPLETE = " Canopy could not finish cleanup. Check the worktree
 const CHECKOUT_TIMEOUT_DETAIL =
   /^Git timed out after \d{1,10}(?:\.\d{1,3})? s while creating the worktree\. The limit was \d{1,10}(?:\.\d{1,3})? s\.$/;
 
-function spawnWorktreeRefusal(cause: unknown): string | undefined {
+export function createWorktreeRefusal(cause: unknown): string | undefined {
   if (cause instanceof WorkerQueryError) {
     // Before workers distinguished the limits, this code covered both.
     if (cause.code === "GIT_TIMEOUT" && cause.message === "git exceeded its time or output limit")
@@ -112,7 +120,7 @@ export async function prepareSpawnWorkspace(core: GatewayCore, caller: ThreadRow
   try {
     return await corePrepareWorkspace(core, request);
   } catch (cause) {
-    const refusal = mode === ui.WorkspaceMode.NEW_WORKTREE && spawnWorktreeRefusal(cause);
+    const refusal = mode === ui.WorkspaceMode.NEW_WORKTREE && createWorktreeRefusal(cause);
 
     if (refusal) throw new BusRefusal(refusal);
     throw cause;

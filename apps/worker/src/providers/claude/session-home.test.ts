@@ -138,6 +138,8 @@ test("fork and rewind retain the source home after policy changes and journal re
   const transcript = seed(original, source.threadId);
   const before = readFileSync(transcript.path, "utf8");
   const child = spec();
+  source.cwd = child.cwd = join(root, "new-worktree");
+  mkdirSync(source.cwd);
   await withRuntime(
     root,
     changed,
@@ -329,7 +331,7 @@ test("a legacy used session without a transcript fails, while explicit empty rew
           const resume = await claudeSessionHomes(journal).resume(
             thread,
             home,
-            async (sessionId, dir) => (await getSessionMessages(sessionId, { dir })).length > 0,
+            async (sessionId) => (await getSessionMessages(sessionId)).length > 0,
           );
 
           expect(resume).toBe(false);

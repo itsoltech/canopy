@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
-import { authorizeBusCall, type BusFacts, type ThreadNode } from "./policy.ts";
-import { agentBusToolsFor, decodeAgentBusCall, type AgentBusCall } from "./tools.ts";
+import { agentBusToolsFor, authorizeBusCall, type BusFacts, type ThreadNode } from "./policy.ts";
+import { decodeAgentBusCall, type AgentBusCall } from "./tools.ts";
 
 const node = (id: string, ancestorIds: string[], extra: Partial<ThreadNode> = {}): ThreadNode => ({
   id,

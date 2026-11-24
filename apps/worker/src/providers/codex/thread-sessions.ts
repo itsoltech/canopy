@@ -4,11 +4,11 @@ import { Effect, Semaphore } from "effect";
 import { threadParams as paramsOf } from "./thread-params.ts";
 
 import { CodexThreadError, fail, type Entry, type CodexThreadContext } from "./thread-types.ts";
+import { releaseCodexPlacement, unloadCodexThread } from "./thread-unload.ts";
 import { registerThread } from "./thread-registry.ts";
 import { dynamicTools } from "./dynamic-tools.ts";
 import { assertWarmSandbox, codexSandboxProfile, verifySandboxResponse } from "./sandbox-profile.ts";
 import { importedPath, noRollout, previousRollout, rememberCliHome, unsubscribeThread } from "./thread-path.ts";
-import { unloadCodexThread } from "./thread-unload.ts";
 
 const hasProjectSecretHistory = (ctx: CodexThreadContext, threadId: string, nativeId: string) =>
   ctx.journal
@@ -87,6 +87,8 @@ function reconfigureThread(ctx: CodexThreadContext, spec: ThreadSpec, entry: Ent
       return entry;
     }
 
+    yield* requireEmptyRollout(ctx, spec, entry.codexId);
+
     // An empty session has no rollout until its first turn.
     const started = yield* startThread(ctx, spec, params, operation);
     yield* verifySandboxResponse(ctx, spec, profile, started);
@@ -94,10 +96,26 @@ function reconfigureThread(ctx: CodexThreadContext, spec: ThreadSpec, entry: Ent
 
     if (!protectedSession) ctx.projectSecrets?.release(spec.threadId);
 
-    const replacement = registerThread(ctx, spec.threadId, started.thread.id, started.thread.path, profile);
+    const replacement = registerThread(ctx, spec, started.thread.id, started.thread.path, profile);
     yield* announceThread(ctx, replacement, entry.codexId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 
     return replacement;
+  });
+}
+
+/** Codex may replace an empty thread after restart, but a completed turn or a workspace switch proves it had history. */
+function requireEmptyRollout(ctx: CodexThreadContext, spec: ThreadSpec, id: string, moved = false) {
+  return Effect.gen(function* () {
+    const used = yield* ctx.journal
+      .hasCodexSessionHistory(spec.threadId, id)
+      .pipe(Effect.mapError(fail(spec.threadId, "journal")));
+
+    if (moved || used)
+      return yield* new CodexThreadError({
+        threadId: spec.threadId,
+        operation: "resume",
+        message: "Codex could not find this thread’s session history. Restore its rollout before continuing.",
+      });
   });
 }
 
@@ -203,7 +221,7 @@ function resumeStoredThread(
       yield* verifySandboxResponse(ctx, spec, profile, resumed);
       yield* resumeInstructions(ctx, spec, resumed.thread.id, params.developerInstructions);
 
-      const entry = registerThread(ctx, spec.threadId, resumed.thread.id, resumed.thread.path, profile);
+      const entry = registerThread(ctx, spec, resumed.thread.id, resumed.thread.path, profile);
 
       if (privatePath) entry.privateRollout = privatePath;
 
@@ -256,8 +274,66 @@ function replaceProtectedThread(
     );
 
     yield* verifySandboxResponse(ctx, spec, profile, started);
-    const entry = registerThread(ctx, spec.threadId, started.thread.id, started.thread.path, profile);
+    const entry = registerThread(ctx, spec, started.thread.id, started.thread.path, profile);
     yield* announceThread(ctx, entry, previousId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
+
+    return entry;
+  });
+}
+
+function ensureSession(ctx: CodexThreadContext, spec: ThreadSpec, recoveryContext = "") {
+  return Effect.gen(function* () {
+    const loaded = ctx.byPlatform.get(spec.threadId);
+    const previousId = loaded?.codexId || spec.providerThreadId;
+    const moved = loaded && loaded.cwd !== spec.cwd;
+
+    if (moved) yield* releaseCodexPlacement(ctx, spec, loaded);
+
+    if (previousId && (yield* hasProjectSecretHistory(ctx, spec.threadId, previousId)))
+      return yield* replaceProtectedThread(ctx, spec, previousId, recoveryContext, moved ? undefined : loaded);
+
+    if (loaded && !moved) {
+      if (ctx.projectSecrets && !ctx.projectSecrets.matches(ctx, spec, loaded.codexId))
+        return yield* reconfigureThread(ctx, spec, loaded, "project secrets");
+
+      const profile = yield* codexSandboxProfile(ctx, spec);
+      yield* assertWarmSandbox(spec, loaded, profile);
+
+      return loaded;
+    }
+
+    if (!spec.providerThreadId) {
+      return yield* new CodexThreadError({
+        threadId: spec.threadId,
+        operation: "resume",
+        message: "thread was never created on Codex",
+      });
+    }
+
+    const { params, profile } = yield* prepareThread(ctx, spec, "resume");
+
+    const resumed = yield* resumeStoredThread(ctx, spec, params, profile);
+
+    if (resumed) return resumed;
+
+    yield* requireEmptyRollout(ctx, spec, spec.providerThreadId, Boolean(loaded));
+
+    // Codex writes a thread's rollout with its first turn: a thread that never had one is gone with the
+    // process that created it. Nothing is lost by starting it again; the gateway keeps the platform
+    // thread and takes the new Codex id (thread_ready replaces the old one).
+    const started = yield* startThread(
+      ctx,
+      spec,
+      {
+        ...params,
+        developerInstructions: [params.developerInstructions, recoveryContext].filter(Boolean).join("\n\n"),
+      },
+      "resume",
+    );
+
+    yield* verifySandboxResponse(ctx, spec, profile, started);
+    const entry = registerThread(ctx, spec, started.thread.id, started.thread.path, profile);
+    yield* announceThread(ctx, entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 
     return entry;
   });
@@ -269,60 +345,9 @@ export function threadSessions(ctx: CodexThreadContext) {
 
   const register = registerThread.bind(undefined, ctx);
 
-  const ensureLoaded = (spec: ThreadSpec, recoveryContext = "") =>
-    Effect.gen(function* () {
-      const loaded = byPlatform.get(spec.threadId);
-      const previousId = loaded?.codexId || spec.providerThreadId;
-
-      if (previousId && (yield* hasProjectSecretHistory(ctx, spec.threadId, previousId)))
-        return yield* replaceProtectedThread(ctx, spec, previousId, recoveryContext, loaded);
-
-      if (loaded) {
-        if (ctx.projectSecrets && !ctx.projectSecrets.matches(ctx, spec, loaded.codexId))
-          return yield* reconfigureThread(ctx, spec, loaded, "project secrets");
-
-        const profile = yield* codexSandboxProfile(ctx, spec);
-        yield* assertWarmSandbox(spec, loaded, profile);
-
-        return loaded;
-      }
-
-      if (!spec.providerThreadId) {
-        return yield* new CodexThreadError({
-          threadId: spec.threadId,
-          operation: "resume",
-          message: "thread was never created on Codex",
-        });
-      }
-
-      const { params, profile } = yield* prepareThread(ctx, spec, "resume");
-
-      const resumed = yield* resumeStoredThread(ctx, spec, params, profile);
-
-      if (resumed) return resumed;
-
-      // Codex writes a thread's rollout with its first turn: a thread that never had one is gone with the
-      // process that created it. Nothing is lost by starting it again; the gateway keeps the platform
-      // thread and takes the new Codex id (thread_ready replaces the old one).
-      const started = yield* startThread(
-        ctx,
-        spec,
-        {
-          ...params,
-          developerInstructions: [params.developerInstructions, recoveryContext].filter(Boolean).join("\n\n"),
-        },
-        "resume",
-      );
-
-      yield* verifySandboxResponse(ctx, spec, profile, started);
-      const entry = register(spec.threadId, started.thread.id, started.thread.path, profile);
-      yield* announceThread(ctx, entry, spec.providerThreadId).pipe(Effect.mapError(fail(spec.threadId, "journal")));
-
-      return entry;
-    }).pipe(loading.withPermit);
-
   return {
-    ensureLoaded,
+    ensureLoaded: (spec: ThreadSpec, recoveryContext?: string) =>
+      ensureSession(ctx, spec, recoveryContext).pipe(loading.withPermit),
     reconfigure: (spec: ThreadSpec, entry: Entry) => reconfigureThread(ctx, spec, entry),
     rewind: Effect.fn("CodexThreads.rewind")(function* (request: RewindThread) {
       const spec = request.thread;
@@ -355,7 +380,7 @@ export function threadSessions(ctx: CodexThreadContext) {
 
         yield* verifySandboxResponse(ctx, spec, profile, response);
         yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
-        const entry = register(spec.threadId, response.thread.id, response.thread.path, profile);
+        const entry = register(spec, response.thread.id, response.thread.path, profile);
 
         if (privatePath) entry.privateRollout = privatePath;
 
@@ -381,7 +406,7 @@ export function threadSessions(ctx: CodexThreadContext) {
       yield* verifySandboxResponse(ctx, spec, profile, response);
 
       if (!request.empty) yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
-      register(spec.threadId, response.thread.id, response.thread.path, profile);
+      register(spec, response.thread.id, response.thread.path, profile);
 
       return { providerThreadId: response.thread.id };
     }),
@@ -414,7 +439,7 @@ export function threadSessions(ctx: CodexThreadContext) {
       yield* verifySandboxResponse(ctx, spec, profile, response);
 
       if (fork) yield* resumeInstructions(ctx, spec, response.thread.id, params.developerInstructions);
-      const entry = register(spec.threadId, response.thread.id, response.thread.path, profile);
+      const entry = register(spec, response.thread.id, response.thread.path, profile);
       yield* announceThread(ctx, entry).pipe(Effect.mapError(fail(spec.threadId, "journal")));
 
       return entry.codexId;

@@ -107,10 +107,12 @@ test.skipIf(!Bun.which("claude"))(
       provider: Provider.CLAUDE,
       providerProfileId: "fixture",
       providerThreadId: sessionId,
-      cwd: join(home, "project"),
+      cwd: join(root, "new-worktree"),
       model: "claude-sonnet-4-5",
       permissionMode: PermissionMode.READ_ONLY,
     });
+
+    mkdirSync(spec.cwd);
 
     const program = Effect.gen(function* () {
       const threads = yield* ClaudeThreads;

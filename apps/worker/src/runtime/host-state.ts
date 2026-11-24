@@ -159,6 +159,8 @@ export class HostState {
   readonly imports: WorkerImport;
   /** Working directory per thread (from the commands' ThreadSpec): view_image's scope. */
   readonly cwds = new Map<string, string>();
+  /** Committed destination while the active provider still owns its previous directory. */
+  readonly nextWorkspaces = new Map<string, string>();
   readonly removingPaths = new Set<string>();
   readonly switchingPaths = new Set<string>();
   /** Managed git worktree roots (docs/worktrees.md, "Położenie"). */

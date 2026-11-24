@@ -33,6 +33,12 @@ export interface BusHost {
   /** Sends CreateThread for a new thread (with its fork point) and announces it. */
   startThread(row: ThreadRow): Promise<void>;
   prepareWorkspace?(caller: ThreadRow, args: AgentBusArgs["spawn_thread"]): Promise<ui.CreateThreadRequest>;
+  switchWorktree(
+    source: CallSource,
+    caller: ThreadRow,
+    args: AgentBusArgs["switch_worktree"],
+    hops: number,
+  ): Promise<JsonValue>;
   nameWorkspace?(thread: ThreadRow, prompt: string): Promise<void>;
   /** A turn was queued in a thread: announce it and start it when the thread is free. */
   queued(threadId: string, turn: TurnRow): Promise<void>;
@@ -91,6 +97,7 @@ export const STORES_ITS_CALL = new Set([
   "render_visual",
   "render_html",
   "spawn_thread",
+  "switch_worktree",
   "send_message",
   "message_delegating_bot",
   "schedule_wakeup",

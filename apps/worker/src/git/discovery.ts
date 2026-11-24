@@ -2,7 +2,7 @@ import { realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { GitWorktreeSchema, type GitWorktree } from "@canopy/contracts";
-import { freshGit, gitOk, GitError } from "./git.ts";
+import { freshGit, gitOk, GitError, withLocalGitPolicy } from "./git.ts";
 
 const TIMEOUT_MS = 3_000;
 const CACHE_MS = 2_000;
@@ -62,7 +62,7 @@ export class WorktreeDiscovery {
     const cached = this.#cache.get(key);
 
     if (!fresh && cached && cached.until > Date.now()) return cached.result;
-    const result = freshGit(() => this.#read(key));
+    const result = freshGit(() => withLocalGitPolicy(() => this.#read(key)));
 
     if (this.#cache.size >= 64) this.#cache.clear();
     this.#cache.set(key, { until: Date.now() + CACHE_MS, result });

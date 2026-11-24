@@ -240,3 +240,26 @@ linuxTest("Codex refuses an unqualified runtime or an enabled project config bef
     await Promise.all([unqualified.runtime.dispose(), mixed.runtime.dispose()]);
   }
 });
+
+linuxTest("Codex keeps a used session bound to its history when the rollout disappears", async () => {
+  const { runtime, spec, trace } = fixture({ emptyRollout: true });
+  spec.providerThreadId = crypto.randomUUID();
+
+  try {
+    const journal = await runtime.runPromise(Journal);
+    await runtime.runPromise(
+      journal.noteHarness(spec.threadId, "past-turn", {
+        harness: "codex",
+        transcript: "past-rollout",
+        sessionId: spec.providerThreadId,
+        offset: 0,
+        providerTurn: "native-turn",
+      }),
+    );
+    const threads = await runtime.runPromise(CodexThreads);
+    await expect(runtime.runPromise(threads.startTurn(spec, "resume", input))).rejects.toThrow("session history");
+    expect(trace().map((entry) => entry["method"])).not.toContain("thread/start");
+  } finally {
+    await runtime.dispose();
+  }
+});

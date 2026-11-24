@@ -41,6 +41,8 @@ export async function busExecute(
   switch (call.tool) {
     case SETTINGS_GUIDE_TOOL:
       return findCanopySettings(call.args);
+    case "switch_worktree":
+      return hostContext[busState].host.switchWorktree(source, caller, call.args, hops);
     case "show_images":
       return hostContext[busState].host.showImages(source, caller, call.args);
     case "import_image_reply":
@@ -106,13 +108,10 @@ export async function busExecute(
       return busRead(hostContext, source, call);
 
     case "list_threads": {
-      const options = {
-        ...(call.args.query !== undefined && { query: call.args.query }),
-        ...(call.args.limit !== undefined && { limit: call.args.limit }),
-      };
+      const { scope = "children", ...options } = call.args;
 
       return {
-        threads: (await store((s) => s.listThreads(caller, call.args.scope ?? "children", options))).map((thread) => ({
+        threads: (await store((s) => s.listThreads(caller, scope, options))).map((thread) => ({
           ...thread,
         })),
       };

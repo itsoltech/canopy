@@ -147,8 +147,8 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await s`UPDATE threads SET moved_to=${target.nodeId},deleted_at=now() WHERE id=${moved}`;
   await s`INSERT INTO computer_redirects(owner_user_id,kind,item_id,from_node_id,home_node_id,basis,moved_at)
     VALUES(${localOwner},'thread',${moved},${source.nodeId},${target.nodeId},'local_move',now())`;
-  await s`INSERT INTO turns(id,thread_id,ordinal,status,trigger,author_user_id,input,first_seq,last_seq)
-    VALUES(${turn},${thread},1,'completed','user',${localOwner},'{}',1,1)`;
+  await s`INSERT INTO turns(id,thread_id,ordinal,status,trigger,author_user_id,input,first_seq,last_seq,worktree_switch_source_cwd)
+    VALUES(${turn},${thread},1,'completed','user',${localOwner},'{}',1,1,'/previous-checkout')`;
   await s`UPDATE threads SET provider_thread_id='current-fixture-session' WHERE id=${thread}`;
   await s`INSERT INTO threads(id,project_id,owner_user_id,kind,root_thread_id,runtime,provider,worker_id,workspace_id,cwd,status,fork_source_thread_id,fork_after_turn_id)
     VALUES(${fork},${sourceProject},${localOwner},'main',${fork},'worker','codex',${worker},${workspace},'/fixture','idle',${thread},${turn})`;
@@ -326,8 +326,11 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
     deadline_preserved: true,
   });
   expect(await sql`SELECT workspace_id,branch FROM checkout_heads`).toEqual([]);
-  const [point] = await sql`SELECT provider_session_id FROM turns WHERE id=${f.turn}`;
-  expect(point?.provider_session_id).toBe("session-" + f.thread);
+  const [point] = await sql`SELECT provider_session_id,worktree_switch_source_cwd FROM turns WHERE id=${f.turn}`;
+  expect(point).toEqual({
+    provider_session_id: "session-" + f.thread,
+    worktree_switch_source_cwd: "/previous-checkout",
+  });
   const [fork] = await sql`SELECT fork_after_turn_id FROM threads WHERE id=${f.fork}`;
   expect(fork?.fork_after_turn_id).toBe(f.turn);
 

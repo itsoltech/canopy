@@ -119,7 +119,8 @@ export class ClaudeRuntimes {
         ),
       profile: (id) => (profile.id === (id || "native") ? profile : undefined),
       publish: (event) => this.ctx.ops.publish(event),
-      allowProviderTurn: (threadId) =>
+      allowProviderTurn: (threadId, cwd) =>
+        (this.ctx.state.nextWorkspaces.get(threadId) ?? this.ctx.state.cwds.get(threadId)) === cwd &&
         !this.ctx.state.closedThreads.has(threadId) &&
         !this.ctx.state.unloadingThreads.has(threadId) &&
         !this.ctx.state.rewindingThreads.has(threadId),

@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
 import type { JsonObject } from "../json.ts";
 import { agentBusToolSpecs } from "./tool-specs.ts";
-import { AGENT_BUS_TOOLS, agentBusToolsFor, decodeAgentBusCall } from "./tools.ts";
+import { AGENT_BUS_TOOLS, decodeAgentBusCall } from "./tools.ts";
+import { agentBusToolsFor } from "./policy.ts";
 
 const THREAD = "0196f0c1-0000-7000-8000-000000000000";
 
@@ -57,7 +58,13 @@ describe("tool sets per level", () => {
   test("main thread gets everything; side threads cannot spawn, control or answer for others", () => {
     expect(agentBusToolsFor(0)).not.toContain("message_delegating_bot");
     expect(agentBusToolsFor(1, true)).toContain("message_delegating_bot");
-    expect([...agentBusToolsFor(0, true)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
+    expect([...agentBusToolsFor(0, true, true)].sort() as string[]).toEqual(Object.keys(AGENT_BUS_TOOLS).sort());
+
+    for (const depth of [0, 1]) {
+      expect(agentBusToolsFor(depth)).not.toContain("switch_worktree");
+      expect(agentBusToolsFor(depth, false, true)).toContain("switch_worktree");
+    }
+
     expect(agentBusToolsFor(1).sort()).toEqual([
       "ask_user",
       "cancel_pr_watch",
@@ -92,6 +99,28 @@ describe("tool sets per level", () => {
 });
 
 describe("decodeAgentBusCall", () => {
+  test("switch_worktree accepts one destination, with an optional bounded continuation", () => {
+    for (const args of [
+      { branch: "feat/über" },
+      { branch: "alternate", continuation: "Implement the other approach here." },
+      { path: "/work/space with spaces" },
+      { path: "C:\\worktrees\\alternate", continuation: "Run the tests." },
+      { path: "\\\\computer\\share\\tree" },
+    ]) {
+      const result = decodeAgentBusCall("switch_worktree", JSON.stringify(args));
+      expect(Result.isSuccess(result) && result.success).toEqual({ tool: "switch_worktree", args });
+    }
+
+    expect(failure("switch_worktree", {})).toContain("exactly one");
+    expect(failure("switch_worktree", { branch: "alt", path: "/work" })).toContain("exactly one");
+    expect(failure("switch_worktree", { continuation: "Continue" })).toContain("exactly one");
+    expect(failure("switch_worktree", { branch: " " })).toContain("branch");
+    expect(failure("switch_worktree", { path: "../alternate" })).toContain("path");
+    expect(failure("switch_worktree", { branch: "alt", continuation: " " })).toContain("continuation");
+    expect(failure("switch_worktree", { branch: "alt", continuation: "x".repeat(100_001) })).toContain("continuation");
+    expect(failure("switch_worktree", { path: "/work", thread_id: THREAD })).toContain("excess property");
+  });
+
   test("valid calls decode to typed arguments", () => {
     const spawn = decodeAgentBusCall(
       "spawn_thread",

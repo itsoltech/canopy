@@ -1,4 +1,5 @@
 export {
+  agentBusToolsFor,
   authorizeBusCall,
   DEFAULT_BUS_LIMITS,
   permissionRank,
@@ -23,7 +24,6 @@ export {
 
 export {
   AGENT_BUS_TOOLS,
-  agentBusToolsFor,
   decodeAgentBusCall,
   isAgentBusTool,
   SPAWN_PERMISSION_MODES,

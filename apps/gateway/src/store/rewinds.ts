@@ -97,8 +97,8 @@ export function rewindStore(sql: SqlClient.SqlClient, store: () => ThreadStore &
 
           if (threadSandbox(point.thread)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
 
-          if (request.restoreFiles && point.thread.provider !== "claude")
-            return yield* Effect.fail(new Invalid("Files stay as they are. Choose conversation only."));
+          if (request.restoreFiles && point.filesUnavailable)
+            return yield* Effect.fail(new Invalid(`${point.filesUnavailable} Choose conversation only.`));
 
           if (point.thread.rewind_pending_id)
             return yield* Effect.fail(new Invalid("This thread is already rewinding."));

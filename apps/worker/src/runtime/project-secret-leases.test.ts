@@ -27,6 +27,7 @@ import { WorkerHost } from "./host.ts";
 import { projectSecretGuard } from "./project-secret-guard.ts";
 import { ProjectSecretTurns } from "./project-secret-turns.ts";
 import { ThreadSecretFiles, threadSecretOutputGuard } from "./thread-secrets.ts";
+import { applyLinkSecretDelivery } from "./session.ts";
 
 const temp = tempDirs();
 
@@ -200,7 +201,13 @@ test("project requests fail locally when unsafe, fence delayed replies, and keep
     const waiting = ops.callTool(first);
     expect(sent).toEqual([first.callId]);
 
-    const receipt = state.secrets.apply(delivery);
+    // The gateway already bound the new checkout, while the active harness still sees the secret store in its cwd.
+    state.cwds.set(threadId, dataDir);
+    state.nextWorkspaces.set(threadId, delivery.cwd);
+    expect(applyLinkSecretDelivery(state, link, delivery).rejected).toBe(true);
+    state.cwds.set(threadId, delivery.cwd);
+    state.nextWorkspaces.delete(threadId);
+    const receipt = applyLinkSecretDelivery(state, link, delivery);
     expect(receipt.applied).toBe(true);
     const saved = JSON.stringify({ status: "saved", file: receipt.file });
 

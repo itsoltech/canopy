@@ -53,7 +53,12 @@ class DirectoryCache {
       } else if (change.revoked) {
         this.trees.get(change.threadId)?.dispose();
         this.trees.delete(change.threadId);
-      } else this.trees.get(change.threadId)?.invalidate();
+      } else {
+        const tree = this.trees.get(change.threadId);
+
+        if (change.checkoutChanged) tree?.clear();
+        tree?.invalidate();
+      }
     });
   }
 
@@ -382,6 +387,7 @@ export class WorkspaceDirectory {
     this.nodes.clear();
     this.expanded.clear();
     this.rootIdentity = "";
+    this.watchStatus = "";
     this.notify();
   }
 

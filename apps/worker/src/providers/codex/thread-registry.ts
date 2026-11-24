@@ -1,4 +1,4 @@
-import type { Mention } from "@canopy/contracts";
+import type { Mention, ThreadSpec } from "@canopy/contracts";
 import { Semaphore } from "effect";
 import type { ThreadEventInit } from "../../journal/index.ts";
 import { CodexEventMapper } from "./mapping.ts";
@@ -9,12 +9,13 @@ import type { SandboxEvidence } from "./sandbox-profile.ts";
 
 export function registerThread(
   ctx: CodexThreadContext,
-  platformId: string,
+  spec: ThreadSpec,
   codexId: string,
   rolloutPath: string | null,
   sandboxProfile?: SandboxEvidence,
 ): Entry {
   const { byPlatform, byCodex } = ctx;
+  const platformId = spec.threadId;
   const pendingTurns: string[] = [];
   const codexToPlatform = new Map<string, string>();
   const platformToCodex = new Map<string, string>();
@@ -47,6 +48,7 @@ export function registerThread(
   const entry: Entry = {
     sandboxProfile,
     platformId,
+    cwd: spec.cwd,
     codexId,
     mapper,
     pendingTurns,

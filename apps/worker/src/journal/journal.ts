@@ -97,6 +97,7 @@ export class Journal extends Context.Service<
   Journal,
   {
     readonly journalId: string;
+    hasCodexSessionHistory(threadId: string, sessionId: string): Effect.Effect<boolean, JournalError>;
     codexCliHome(id: string): Effect.Effect<string | undefined, JournalError>;
     rememberCodexCliHome(id: string, home: string): Effect.Effect<void, JournalError>;
     claudeSessionHome: ReturnType<typeof claudeSessionTracking>["claudeSessionHome"];
@@ -273,11 +274,22 @@ function botAdmission(db: Database, append: (botId: string, event: ThreadEventIn
   });
 }
 
-function codexCliHomes(
+function codexSessions(
   db: Database,
   attempt: <A>(operation: string, run: () => A) => Effect.Effect<A, JournalError>,
-): Pick<Journal["Service"], "codexCliHome" | "rememberCodexCliHome"> {
+): Pick<Journal["Service"], "codexCliHome" | "rememberCodexCliHome" | "hasCodexSessionHistory"> {
+  // The turn_harness row is removed on turn end. Keep proof of a nonempty rollout across ACK and restart.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS codex_session_history (thread_id TEXT, session_id TEXT, PRIMARY KEY (thread_id, session_id));
+    CREATE TRIGGER IF NOT EXISTS codex_session_used AFTER INSERT ON turn_harness WHEN new.harness='codex'
+    BEGIN INSERT OR IGNORE INTO codex_session_history VALUES (new.thread_id, new.session_id); END;
+    INSERT OR IGNORE INTO codex_session_history SELECT thread_id, session_id FROM turn_harness WHERE harness='codex';
+  `);
+  const used = db.query("SELECT 1 FROM codex_session_history WHERE thread_id=? AND session_id=?");
+
   return {
+    hasCodexSessionHistory: (threadId, sessionId) =>
+      attempt("hasCodexSessionHistory", () => used.get(threadId, sessionId) !== null),
     codexCliHome: (id) =>
       attempt(
         "codexCliHome",
@@ -385,7 +397,7 @@ function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: stri
 
   return Journal.of({
     ...homes,
-    ...codexCliHomes(db, attempt),
+    ...codexSessions(db, attempt),
     ...commandTracking(db, attempt),
     hasStartedTurn: turns.hasStartedTurn,
     wasInterrupted: turns.wasInterrupted,

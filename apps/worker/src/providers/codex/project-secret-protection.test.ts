@@ -76,7 +76,6 @@ function mockModel(mode: "classic" | "code", grant: () => Promise<void>) {
   const keys: (string | null)[] = [];
   let upgrades = 0;
   const steps = toolSteps(mode);
-  const leadIn = mode === "classic" ? 1 : 0;
 
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -90,8 +89,8 @@ function mockModel(mode: "classic" | "code", grant: () => Promise<void>) {
       const i = requests.push(body);
       keys.push(request.headers.get("authorization"));
 
-      if (i === leadIn + 1) await grant();
-      const call = steps[i - leadIn - 1]?.(body);
+      if (i === 2) await grant();
+      const call = steps[i - 2]?.(body);
 
       const item = call
         ? { ...call, id: `fixture-tool-${i}`, call_id: `call-${i}` }
@@ -131,15 +130,18 @@ for (const mode of ["classic", "code"] as const)
     async () => {
       const dir = temp("canopy-codex-project-secret-");
       const cwd = join(dir, "project");
+      const nextCwd = join(dir, "new-worktree");
       mkdirSync(cwd);
+      mkdirSync(nextCwd);
 
       const spec = create(ThreadSpecSchema, {
         threadId: crypto.randomUUID(),
         provider: Provider.CODEX,
-        cwd,
+        cwd: mode === "classic" ? cwd : nextCwd,
         model: mode === "classic" ? "gpt-5.5" : "gpt-6.1-sol",
         permissionMode: PermissionMode.FULL_AUTO,
         enableAgentBus: true,
+        enableWorktreeSwitch: true,
         projectSecretsConfigured: mode === "code",
       });
 
@@ -216,7 +218,7 @@ for (const mode of ["classic", "code"] as const)
 
         if (mode === "classic") spec.projectSecretsConfigured = false;
         yield* threads.startTurn(
-          spec,
+          { ...spec, cwd: nextCwd },
           nextTurnId,
           create(UserInputSchema, { text: "Continue from the safe session." }),
         );
@@ -232,18 +234,18 @@ for (const mode of ["classic", "code"] as const)
             mark = () => Effect.runPromise(journal.markProjectSecretTurn(spec.threadId, turnId));
             spec.providerThreadId = yield* threads.create(spec);
 
-            if (mode === "classic") {
-              yield* threads.startTurn(
-                spec,
-                ordinaryTurnId,
-                create(UserInputSchema, { text: "Before project secrets were enabled." }),
-              );
-              const first = yield* Effect.promise(() => ordinary.promise);
+            yield* threads.startTurn(
+              spec,
+              ordinaryTurnId,
+              create(UserInputSchema, { text: "Before the first project secret grant." }),
+            );
+            const first = yield* Effect.promise(() => ordinary.promise);
 
-              expect(first.body.value).toMatchObject({ outcome: TurnOutcome.COMPLETED });
-              expect(guard().isReady()).toBe(false);
-              spec.projectSecretsConfigured = true;
-            }
+            expect(first.body.value).toMatchObject({ outcome: TurnOutcome.COMPLETED });
+            expect(guard().isReady()).toBe(spec.projectSecretsConfigured);
+            // Classic enables protection in place; code mode moves an already protected session.
+            spec.projectSecretsConfigured = true;
+            spec.cwd = cwd;
 
             yield* threads.startTurn(spec, turnId, create(UserInputSchema, { text: "Read the fixture" }));
             const finished = yield* Effect.promise(() => end.promise);
@@ -272,16 +274,17 @@ for (const mode of ["classic", "code"] as const)
 
         expect(guard().isReady()).toBe(false);
         expect(replacements).toEqual([spec.providerThreadId]);
-        expect(model.requests).toHaveLength(mode === "classic" ? 7 : 3);
+        expect(model.requests).toHaveLength(mode === "classic" ? 7 : 4);
         expect(model.upgrades()).toBe(0);
         expect(model.keys.every((key) => key === "Bearer fixture")).toBe(true);
         expect(model.requests.every((request) => !request.includes(synthetic))).toBe(true);
         expect(outputs(model.requests.at(-2)).includes("[REDACTED]")).toBe(true);
         expect(outputs(model.requests.at(-1))).toBe("[]");
         expect(model.requests.at(-1)).toContain("Continue from the safe session.");
+        expect(model.requests.at(-1)).toContain(nextCwd);
+        expect(model.requests[1]).toContain("Before the first project secret grant.");
 
         if (mode === "classic") {
-          expect(model.requests[1]).toContain("Before project secrets were enabled.");
           expect(outputs(model.requests[2])).toContain("A project secret was redacted from the tool result.");
           expect(outputs(model.requests[2])).toContain("[REDACTED] PUBLIC_COMPLETE");
           expect(outputs(model.requests[3])).toContain("[REDACTED] PUBLIC_START");

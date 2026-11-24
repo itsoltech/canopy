@@ -97,6 +97,7 @@ export async function coreWorkerQuery(
   timeoutMs: number,
   options?: {
     commandId?: string;
+    requiredCapability?: string;
     progress?: (progress: CloneProgress) => void;
     queryProgress?: (progress: QueryProgress) => void;
   },
@@ -110,6 +111,9 @@ export async function coreWorkerQuery(
 
     throw new UnavailableError(`${worker?.name || "the worker"} is offline`);
   }
+
+  if (options?.requiredCapability && !connection.hello.capabilities.includes(options.requiredCapability))
+    throw new InvalidError("Update this worker to use this Git operation.");
 
   const result = await connection.sendCommand(
     kind,

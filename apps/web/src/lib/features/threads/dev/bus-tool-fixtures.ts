@@ -4,6 +4,12 @@ import { bus, GALLERY_THREAD_ID, OTHER, SIDE, summary } from "./tool-fixture-kit
 /** Agent bus calls over threads: read, spawn, message, wait and list. */
 export const busThreadItems = (): Item[] => [
   bus(
+    "switch-worktree",
+    "switch_worktree",
+    { branch: "feat/alternate" },
+    { cwd: "/workspace/worktrees/alternate", branch: "feat/alternate" },
+  ),
+  bus(
     "read-thread",
     "read_thread",
     { thread_id: OTHER, limit: 10 },

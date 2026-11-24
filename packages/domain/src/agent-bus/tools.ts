@@ -10,6 +10,7 @@ import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./com
 import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
 import { SETTINGS_GUIDE_TOOL, settingsGuide } from "./settings-guide.ts";
+import { switchWorktree } from "./worktree.ts";
 
 export { RequestSecret } from "./secrets.ts";
 
@@ -258,6 +259,7 @@ export const AGENT_BUS_TOOLS = {
   ...IMAGE_TOOLS,
   ...VISUAL_TOOLS,
   [SETTINGS_GUIDE_TOOL]: settingsGuide,
+  switch_worktree: switchWorktree,
   ...SECRET_TOOLS,
   list_agents: define({
     name: "list_agents",
@@ -381,22 +383,6 @@ export const AGENT_BUS_TOOLS = {
   // CI checks of the thread's linked pull requests (watch, list, cancel): pr-checks.ts.
   ...PR_CHECK_TOOLS,
 } as const;
-
-/** Tools that only make sense for a thread that can have side threads (level 0). */
-const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
-  "spawn_thread",
-  "interrupt_thread",
-  "close_thread",
-  "list_interactions",
-  "answer_interaction",
-]);
-
-/** Tool names offered to a thread at the given depth (0 = main thread, 1 = side thread). */
-export function agentBusToolsFor(depth: number, hasDelegatingBot = false): AgentBusToolName[] {
-  return AGENT_BUS_TOOL_NAMES.filter(
-    (name) => (name !== "message_delegating_bot" || hasDelegatingBot) && (depth === 0 || !ORCHESTRATOR_ONLY.has(name)),
-  );
-}
 
 export type AgentBusToolName = keyof typeof AGENT_BUS_TOOLS;
 

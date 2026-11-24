@@ -147,6 +147,7 @@ export interface FiredSchedule {
 export interface TurnInput {
   readonly note: string;
   readonly message: string;
+  readonly permissionCeiling?: SpawnPermissionMode;
 }
 
 export function inputJson(input: TurnInput): string {
@@ -154,6 +155,7 @@ export function inputJson(input: TurnInput): string {
     text: input.message ? `${input.note}\n\n${input.message}` : input.note,
     note: input.note,
     message: input.message,
+    ...(input.permissionCeiling && { permissionCeiling: input.permissionCeiling }),
   });
 }
 

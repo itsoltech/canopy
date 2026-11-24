@@ -1,5 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-24): `switch_worktree` zmienia katalog własnego wątku w obrębie repozytorium
+workspace’u. `branch` tworzy nową gałąź od bieżącego commita, a `path` wskazuje istniejący checkout.
+Opcjonalne `continuation` kolejkuje następną turę po przełączeniu [wątku do worktree](worktrees.md#zmiana-worktree-przez-agenta).
+
 Status (2026-11-24): wątek może poznać nazwy sekretów projektu i poprosić
 o czasowy plik na swoim workerze. Uprawnienie i termin są związane z wywołującą
 turą. [Sekrety projektów i wątków](secrets.md)

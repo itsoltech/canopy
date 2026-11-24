@@ -123,13 +123,24 @@ export async function selectWorktree(core: GatewayCore, request: ui.CreateThread
   if (!selected || selected.unavailableReason || selected.locked || selected.prunable || selected.missing)
     throw new InvalidError(selected?.unavailableReason || "Worktree unavailable. Refresh and choose a worktree.");
 
-  if (existing) return coreRun(core, (s) => s.ownWorktree(owner, existing.id, project.id, workspace.id));
+  return adoptWorktree(core, workspace, selected, existing);
+}
+
+export function adoptWorktree(
+  core: GatewayCore,
+  workspace: ui.Workspace,
+  selected: ui.ThreadWorktree,
+  existing?: WorktreeRow,
+) {
+  const owner = core[coreState].options.userId;
+
+  if (existing) return coreRun(core, (s) => s.ownWorktree(owner, existing.id, workspace.projectId, workspace.id));
 
   return coreRun(core, (s) =>
     s.insertWorktree({
       id: selected.id,
       owner_user_id: owner,
-      project_id: project.id,
+      project_id: workspace.projectId,
       workspace_id: workspace.id,
       worker_id: workspace.workerId,
       repo_root: selected.repoRoot,

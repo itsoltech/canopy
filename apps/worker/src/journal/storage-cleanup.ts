@@ -76,6 +76,7 @@ export function storageCleanup(db: Database, attempt: Attempt) {
           Date.now(),
           threadId,
         );
+        db.query("DELETE FROM codex_session_history WHERE thread_id=?").run(threadId);
         db.query("DELETE FROM retry_requests WHERE thread_id=?").run(threadId);
       }),
   };

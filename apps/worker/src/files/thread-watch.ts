@@ -1,4 +1,10 @@
-import type { ThreadFilesWatch, ThreadFilesUpdate } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import {
+  ThreadFileChangeKind,
+  ThreadFilesUpdateSchema,
+  type ThreadFilesWatch,
+  type ThreadFilesUpdate,
+} from "@canopy/contracts";
 import { CommandError } from "../runtime/host-types.ts";
 import { directoryPath, directoryRefused } from "./thread-directory-path.ts";
 import { CheckoutFiles } from "./checkout-files.ts";
@@ -21,6 +27,7 @@ interface Subscription {
   checkout?: CheckoutFiles;
   cancellation: AbortController;
   pending: Promise<void>;
+  send(update: ThreadFilesUpdate): void;
 }
 
 /** No journal, outbox, disk polling, content or persistent replay. */
@@ -64,7 +71,7 @@ export class ThreadFilesWatcher {
 
     for (const path of request.files) watchPath(path, true);
     const finished = Promise.withResolvers<void>();
-    const entry: Subscription = { request, cancellation: new AbortController(), pending: finished.promise };
+    const entry: Subscription = { request, cancellation: new AbortController(), pending: finished.promise, send };
     this.#subscriptions.set(request.subscriptionId, entry);
     this.#opening.add(entry);
     const epoch = this.#epoch;
@@ -107,11 +114,21 @@ export class ThreadFilesWatcher {
       }
   }
 
-  async closeThread(threadId: string) {
+  async closeThread(threadId: string, keepWorkspace?: string) {
     const pending: Promise<void>[] = [];
 
     for (const entry of new Set([...this.#subscriptions.values(), ...this.#opening])) {
-      if (entry.request.threadId !== threadId) continue;
+      if (entry.request.threadId !== threadId || entry.request.workspace === keepWorkspace) continue;
+
+      if (keepWorkspace && !entry.cancellation.signal.aborted)
+        entry.send(
+          create(ThreadFilesUpdateSchema, {
+            subscriptionId: entry.request.subscriptionId,
+            rootIdentity: entry.checkout?.rootIdentity ?? entry.request.rootIdentity,
+            revalidateRequired: true,
+            changes: [{ kind: ThreadFileChangeKind.ROOT_CHANGED }],
+          }),
+        );
       pending.push(entry.pending);
       entry.cancellation.abort();
 

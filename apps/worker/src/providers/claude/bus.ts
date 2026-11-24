@@ -39,6 +39,7 @@ export interface ClaudeBusOptions {
   readonly threadId: string;
   readonly depth: number;
   readonly enableMemory?: boolean;
+  readonly enableWorktreeSwitch?: boolean;
   readonly hasDelegatingBot?: boolean;
   /** Agent bus tools (ThreadSpec.enable_agent_bus); view_image is there either way when viewImage is set. */
   readonly agentBus: boolean;
@@ -67,8 +68,8 @@ function timedCall(options: ClaudeBusOptions, call: AgentToolCall): Promise<Agen
   return options.callTool(call, AbortSignal.timeout(Math.max(0, deadline - Date.now())));
 }
 
-export function claudeBusToolNames(depth: number, hasDelegatingBot = false): string[] {
-  return agentBusToolsFor(depth, hasDelegatingBot).map((name) => `mcp__${BUS_SERVER}__${name}`);
+export function claudeBusToolNames(depth: number, hasDelegatingBot = false, enableWorktreeSwitch = false): string[] {
+  return agentBusToolsFor(depth, hasDelegatingBot, enableWorktreeSwitch).map((name) => `mcp__${BUS_SERVER}__${name}`);
 }
 
 export const CLAUDE_VIEW_IMAGE_TOOL = `mcp__${BUS_SERVER}__${VIEW_IMAGE_TOOL}`;
@@ -139,7 +140,9 @@ function viewImageTool(view: (path: string) => Promise<ViewImageResult>, redact:
 
 function busTools(options: ClaudeBusOptions): BusTool[] {
   return [
-    ...(options.agentBus ? agentBusToolSpecs(agentBusToolsFor(options.depth, options.hasDelegatingBot)) : []),
+    ...(options.agentBus
+      ? agentBusToolSpecs(agentBusToolsFor(options.depth, options.hasDelegatingBot, options.enableWorktreeSwitch))
+      : []),
     ...threadMemoryTools(options.enableMemory),
   ].map((spec) => platformTool(spec, remoteToolHandler(options, spec.name)));
 }

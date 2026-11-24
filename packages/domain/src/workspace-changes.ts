@@ -27,6 +27,12 @@ class WorkspaceChanges {
   readonly threads = new Map<string, Changes>();
   constructor(readonly store: WorkspaceStore) {
     store.watchFiles((change) => {
+      if (change?.checkoutChanged) {
+        this.threads.get(change.threadId)?.changeCheckout();
+
+        return;
+      }
+
       if (change && !change.revoked) return;
 
       for (const [id, thread] of this.threads) {
@@ -81,6 +87,13 @@ class Changes {
     this.#connection?.abort();
     this.#connection = undefined;
     this.#signature = "";
+  }
+
+  changeCheckout() {
+    this.stop();
+    this.#root = "";
+    this.#cursor = "";
+    this.restart();
   }
 
   restart() {

@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
   type AgentToolCall,
@@ -29,6 +30,8 @@ import { redactToolOutput } from "../providers/secret-tool-output.ts";
 function isImagePublication(call: AgentToolCall): boolean {
   return call.toolName === "show_images" && !call.connectorAccountId && !call.botId;
 }
+
+const switchedWorkspace = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ cwd: Schema.String })));
 
 function isProjectSecretCall(call: AgentToolCall): boolean {
   return call.toolName === "request_secret" && !call.connectorAccountId && projectSecretRequest(call.argumentsJson);
@@ -173,6 +176,23 @@ export class HostEvents {
 
   async callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
     const result = await this.#requestTool(call, signal);
+
+    if (
+      !result.isError &&
+      call.toolName === "switch_worktree" &&
+      !call.connectorAccountId &&
+      !call.botId &&
+      this.ctx.state.running.has(`${call.threadId}/${call.turnId}`)
+    ) {
+      const target = switchedWorkspace(result.resultJson);
+
+      if (Option.isSome(target) && isAbsolute(target.value.cwd)) {
+        // Owner views follow the committed binding immediately. The active harness keeps its own cwd.
+        this.ctx.state.nextWorkspaces.set(call.threadId, target.value.cwd);
+        void this.ctx.state.heads.track(call.threadId, target.value.cwd);
+        await this.ctx.ops.rebindFileWatch(call.threadId, target.value.cwd);
+      }
+    }
 
     if (result.isError || !call.connectorAccountId || call.botId || !result.attachments.length) return result;
 

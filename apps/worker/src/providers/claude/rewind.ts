@@ -62,9 +62,7 @@ export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeo
         if (request.preview) return files;
 
         if (request.restoreProviderThreadId) {
-          const original = await runtime.inHome(instance.home, () =>
-            getSessionInfo(request.restoreProviderThreadId, { dir: spec.cwd }),
-          );
+          const original = await runtime.inHome(instance.home, () => getSessionInfo(request.restoreProviderThreadId));
 
           if (!original) throw new Error("The original agent session is unavailable. The rewind remains in place.");
 
@@ -83,7 +81,6 @@ export function claudeRewind(ctx: ClaudeThreadContext, runtime: ReturnType<typeo
 
         const fork = await runtime.inHome(instance.home, () =>
           forkSession(request.sourceProviderThreadId, {
-            dir: spec.cwd,
             upToMessageId: request.afterProviderTurnRef,
           }),
         );

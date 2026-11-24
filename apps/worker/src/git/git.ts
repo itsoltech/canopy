@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { addAbortListener } from "node:events";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
-import { gitReadEnv, runGitScan, withoutGitHooks } from "./read-policy.ts";
+import { gitReadArgv, gitReadEnv, runGitScan, withoutGitHooks } from "./read-policy.ts";
 import type { GitFamily } from "@canopy/domain/diagnostics";
 import {
   WORKTREE_CHECKOUT_TIMEOUT_MS,
@@ -18,6 +18,20 @@ import {
 
 const freshness = new AsyncLocalStorage<boolean>();
 export const freshGit = <T>(run: () => Promise<T>): Promise<T> => freshness.run(true, run);
+
+// Apply the same policy to every nested Git call, including settlement and rollback.
+const localExecutable = new AsyncLocalStorage<string>();
+
+export async function withLocalGitPolicy<T>(run: () => Promise<T>): Promise<T> {
+  // Resolve from the worker, before changing cwd. Windows also searches the child process's cwd for bare names.
+  const executable = Bun.which(process.platform === "win32" ? "git.exe" : "git");
+
+  if (!executable)
+    throw new GitError("GIT_UNAVAILABLE", "Git could not start on the worker. Check the Git installation.");
+
+  return localExecutable.run(executable, run);
+}
+
 const deadline = new AsyncLocalStorage<{ signal: AbortSignal; worktreeSettleBy?: number }>();
 
 /** Complete data recovery even after the original mutation deadline expires. */
@@ -94,6 +108,7 @@ export class GitError extends Error {
 }
 
 export interface GitResult {
+  readonly code: number | null;
   readonly ok: boolean;
   readonly stdout: string;
   readonly stderr: string;
@@ -164,13 +179,19 @@ export async function git(
   const processSignal = input?.finishAfterAdmission ? undefined : signal;
   const scanSignal = scan ? (processSignal ?? AbortSignal.timeout(timeoutMs)) : processSignal;
 
+  const restricted = localExecutable.getStore();
+
+  const argv = restricted
+    ? gitReadArgv(scan ? scanArgs : args, ["-c", "log.showSignature=false", "-c", "maintenance.auto=false"], restricted)
+    : scan
+      ? ["git", ...scanArgs]
+      : ["git", ...(read ? withoutGitHooks : []), "-c", "diff.autoRefreshIndex=false", ...args];
+
   const command = {
     // git diff can refresh worktree index stat entries even with GIT_OPTIONAL_LOCKS=0.
-    argv: scan
-      ? ["git", ...scanArgs]
-      : ["git", ...(read ? withoutGitHooks : []), "-c", "diff.autoRefreshIndex=false", ...args],
+    argv,
     cwd,
-    env: { ...(scan ? gitReadEnv() : process.env), ...GIT_ENV, ...input?.env },
+    env: { ...(scan || restricted ? gitReadEnv() : process.env), ...GIT_ENV, ...input?.env },
     timeoutMs,
     ...(input?.maxBytes !== undefined && { maxBytes: input.maxBytes }),
     ...(scanSignal && { signal: scanSignal }),
@@ -209,7 +230,7 @@ export async function git(
 
     failed = result.code !== 0;
 
-    return { ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
+    return { code: result.code, ok: result.code === 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
     if (signal?.aborted && (!input?.finishAfterAdmission || !(error instanceof ProcessTimeoutError)))
       throw expiry(error);
@@ -243,8 +264,10 @@ export async function gitOk(cwd: string, args: readonly string[], code: string, 
 }
 
 /** A branch name git accepts (`check-ref-format --branch`), or undefined. */
-export async function validBranch(cwd: string, name: string): Promise<boolean> {
-  if (!name || name.startsWith("-")) return false;
+export async function validBranch(cwd: string, name: string, exact = false): Promise<boolean> {
+  if (!name || name.startsWith("-") || name.includes("\0")) return false;
 
-  return (await git(cwd, ["check-ref-format", "--branch", name])).ok;
+  const result = await git(cwd, ["check-ref-format", "--branch", name]);
+
+  return result.ok && (!exact || result.stdout.trimEnd() === name);
 }

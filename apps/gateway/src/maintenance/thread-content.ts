@@ -15,9 +15,9 @@ interface Compaction {
 const COMPACTIONS: readonly Compaction[] = [
   {
     table: "turns",
-    set: "input='{}'::jsonb,usage=NULL,error=NULL,error_code=NULL,interrupt_reason=NULL,resume_reason=NULL",
+    set: "input='{}'::jsonb,usage=NULL,error=NULL,error_code=NULL,interrupt_reason=NULL,resume_reason=NULL,worktree_switch_source_cwd=NULL",
     pending:
-      "input<>'{}'::jsonb OR usage IS NOT NULL OR error IS NOT NULL OR error_code IS NOT NULL OR interrupt_reason IS NOT NULL OR resume_reason IS NOT NULL",
+      "input<>'{}'::jsonb OR usage IS NOT NULL OR error IS NOT NULL OR error_code IS NOT NULL OR interrupt_reason IS NOT NULL OR resume_reason IS NOT NULL OR worktree_switch_source_cwd IS NOT NULL",
   },
   {
     table: "turn_steers",

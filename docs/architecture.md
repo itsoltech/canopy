@@ -7,6 +7,7 @@ interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja 
 z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket Mode
 z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
 nasłuchiwania przez prywatną rozmowę z botem.
+Aktualizacja (2026-11-24): wątki projektowe Codexa i Claude mogą zmieniać worktree przez szynę agentów.
 Aktualizacja (2026-11-22): dostęp wątków do konektorów wynika z grantów projektów.
 Aktualizacja (2026-11-23): wątki poza projektami korzystają z osobnego grantu No project.
 Statystyki zużycia zawierają szacunki według stawek API OpenAI i xAI.
@@ -289,7 +290,7 @@ Edge device zwykle stoi za NAT-em, ma dynamiczne IP lub jest laptopem. Gateway n
 | Runtime | Worker na edge device | Ukryta sesja harnessu na workerze z ustawienia Runs on; kolejka tur, rozmowa i narzędzia w gatewayu |
 | Silnik | Claude Agent SDK, Codex app-server, Grok CLI przez ACP | Te same oficjalne harnessy; narzędzia platformy przez Canopy MCP |
 | Pliki i shell | Tak, w `cwd` wątku (w dozwolonych katalogach workera) | Brak dostępu do projektów i plików użytkownika workera. Przełącznik Files ogranicza narzędzia plikowe do prywatnego scratch rozmowy (200 MiB) i daje `download_file` oraz wysyłanie plików jako załączników; Web access włącza natywne narzędzia sieciowe harnessu ([bots.md](bots.md#dostęp-do-sieci-i-izolowane-pliki)) |
-| Miejsce uruchomienia | wątek: worker + workspace + `cwd`, niezmienne | Runs on + izolowany home i scratch per rozmowa; zmiana Runs on nie przenosi scratch |
+| Miejsce uruchomienia | wątek przypisany do workera i workspace’u, z możliwością zmiany worktree | Runs on + izolowany home i scratch per rozmowa; zmiana Runs on nie przenosi scratch |
 | Poświadczenia | Login CLI na workerze albo klucz proxy z `WorkerConfig` | Login instancji lub proxy obsługiwane przez harness; brak credentiali w kontekście bota |
 | Transkrypt | `thread_events` + projekcja `thread_items` | Journal workera → `bot_harness_events` → `bot_messages` w rozmowie bota |
 

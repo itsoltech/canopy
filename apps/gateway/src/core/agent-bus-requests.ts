@@ -85,6 +85,9 @@ export const busRequestsMethods: BusRequestsMethods = {
         : failure(request.callId, stored.error ?? "failed");
     }
 
+    if (request.toolName === "switch_worktree" && !supplied.turnId)
+      return failure(request.callId, "Switch worktrees from the active turn.");
+
     const context = await bindToolSource(this[busState].host, supplied, stored);
 
     if (!context.ok) return failure(request.callId, context.reason);

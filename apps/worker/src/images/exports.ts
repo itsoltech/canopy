@@ -22,7 +22,7 @@ interface ImageExport {
 /** Two bounded exports per worker, one per thread. No bytes or descriptors survive a reconnect/restart. */
 export class ThreadImageExports {
   readonly #exports = new Map<string, ImageExport>();
-  readonly #scopes = new Map<string, { cwd: string; attachments: string; roots: ImageRoot[] }>();
+  readonly #scopes = new Map<string, { cwd: string; attachments: string; roots: [ImageRoot, ImageRoot] }>();
   readonly #attachmentsRoot: ImageRoot | undefined;
   #localTemp: ImageRoot | undefined;
 
@@ -33,15 +33,22 @@ export class ThreadImageExports {
     this.#attachmentsRoot = attachmentsRoot ? pinImageRoot(attachmentsRoot) : undefined;
   }
 
-  /** Called before the harness starts; later turns verify the original assignment instead of trusting a new target. */
+  /** Only a gateway thread spec assigns roots. Rebinding the workspace keeps the original attachment pin. */
   assign(threadId: string, cwd: string, attachments: string): void {
     this.#attachmentsRoot?.verify();
     const known = this.#scopes.get(threadId);
 
     if (known) {
-      if (known.cwd !== cwd || known.attachments !== attachments) throw rootChanged();
+      if (known.attachments !== attachments) throw rootChanged();
+      const [workspaceRoot, attachmentRoot] = known.roots;
+      attachmentRoot.verify();
 
-      for (const root of known.roots) root.verify();
+      if (known.cwd === cwd) workspaceRoot.verify();
+      else {
+        const root = pinImageRoot(cwd);
+        this.close(threadId);
+        this.#scopes.set(threadId, { cwd, attachments, roots: [root, attachmentRoot] });
+      }
     } else this.#scopes.set(threadId, { cwd, attachments, roots: [pinImageRoot(cwd), pinImageRoot(attachments)] });
   }
 

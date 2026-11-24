@@ -3,6 +3,16 @@
 Status (2026-11-24): fork użytkownika przekazuje zapisany tryb uprawnień źródła.
 Gateway sprawdza capability `full_access` również przy dostawie komendy utworzenia forka.
 
+## Katalog kolejnej tury
+
+Status (2026-11-24): worker ogłasza `thread_worktree_switch_v1`. Gateway udostępnia narzędzie
+`switch_worktree` przez `ThreadSpec.enable_worktree_switch` i sprawdza capability przed operacją.
+`CreateWorktree.agent_requested` wymaga dokładnej nazwy gałęzi i lokalnego commita źródłowego.
+Kolejny `StartTurn` przekazuje docelowy cwd. Raporty `ThreadGitHead` zawierają katalog, którego dotyczył
+odczyt. Gateway sprawdza go przy zapisie HEAD, również gdy raport przyszedł już po przełączeniu.
+Po przełączeniu dalsze komendy sesji wymagają zgodnego workera także przy ponownej dostawie.
+Szczegóły opisuje [zmiana worktree przez agenta](worktrees.md#zmiana-worktree-przez-agenta).
+
 ## Dostawa sekretu projektu
 
 Status (2026-11-24): worker obsługujący czasowe przydziały ogłasza

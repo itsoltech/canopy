@@ -136,6 +136,9 @@
   });
 
   const thread = $derived(view.thread);
+
+  workspaceState.bindCheckout(() => thread);
+
   const preparationRequestId = $derived(thread?.preparationRequestId);
   const readHandoff = threadCreationHandoff(() => ({ threadId, requestId: preparationRequestId }));
   const handoff = $derived(readHandoff());

@@ -21,8 +21,12 @@ export function applyLinkSecretDelivery(state: HostState, link: GatewayLink, del
       rejected: Boolean(delivery.turnId),
     });
 
-  return state.secrets.apply(delivery, () =>
-    state.options.runtime.runSync(Journal.use((j) => j.markProjectSecretTurn(delivery.threadId, delivery.turnId))),
+  return state.secrets.apply(
+    delivery,
+    () =>
+      state.options.runtime.runSync(Journal.use((j) => j.markProjectSecretTurn(delivery.threadId, delivery.turnId))),
+    state.cwds.get(delivery.threadId),
+    state.nextWorkspaces.get(delivery.threadId),
   );
 }
 

@@ -619,6 +619,8 @@ message ThreadSpec {
   bool enable_memory = 15;
   // Czy lokalny projekt ma zapisany sekret. Bez nazw i wartości.
   bool project_secrets_configured = 16;
+  // Narzędzie switch_worktree dostępne w przydzielonym katalogu projektu.
+  bool enable_worktree_switch = 17;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 43;
   // Wewnętrzny znormalizowany snapshot. Na linku wysyłany w ProfiledThread.
@@ -2130,6 +2132,8 @@ message ListGitRefs {
   repeated string known_paths = 5;
   // git_branch_switch_v1: bez odkrywania innych worktree; worktrees_only zwraca wtedy wyłącznie korzeń.
   bool branches_only = 6;
+  // thread_worktree_switch_v1: przed przełączeniem sprawdź położenie katalogu docelowego względem magazynu sekretów workera.
+  bool validate_worktree_destination = 7;
 }
 
 message SwitchThreadBranch {
@@ -2198,6 +2202,8 @@ message CreateWorktree {
   // With worktree_checkout_deadline_v1, the last time checkout may start (Unix milliseconds).
   // Omitted by older gateways, which only wait for the legacy checkout budget.
   int64 checkout_start_deadline_ms = 7;
+  // Agent-requested checkout of a local commit, with an exact branch name and restricted Git execution.
+  bool agent_requested = 8;
 }
 
 // Zmiana nazwy gałęzi worktree (pod korzeniem), tylko gdy nadal jest w nim wybrana i nie ma upstreamu.
@@ -2224,6 +2230,8 @@ message ThreadGitHead {
   string branch = 2;
   // Skrócony commit odłączonego HEAD.
   string detached_commit = 3;
+  // Katalog z ThreadSpec tej grupy. Chroni przed opóźnionym raportem sprzed zmiany worktree.
+  string cwd = 4;
 }
 
 // Bezwzględna ścieżka istniejącego katalogu (np. katalogu wątku), którą gateway wybrał po

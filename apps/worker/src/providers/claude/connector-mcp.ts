@@ -12,30 +12,39 @@ export function claudeConnectorRefresh(
   initialRevision = "",
   initialDelegatingBot = false,
   initialMemory = false,
+  initialSwitch = false,
 ) {
   let catalog: string | undefined = JSON.stringify([
     connectorSessionCatalog(initial),
     initialRevision,
     initialDelegatingBot,
     initialMemory,
+    initialSwitch,
   ]);
 
-  const toolNames = (tools: readonly ConnectorTool[], delegatingBot: boolean, memory: boolean) => [
+  const toolNames = (
+    tools: readonly ConnectorTool[],
+    delegatingBot: boolean,
+    memory: boolean,
+    worktreeSwitch: boolean,
+  ) => [
     ...threadMemoryTools(memory).map((t) => t.name),
     ...tools.map((t) => t.name),
+    ...(worktreeSwitch ? ["switch_worktree"] : []),
     ...(delegatingBot ? ["message_delegating_bot"] : []),
   ];
 
-  let previous = toolNames(initial, initialDelegatingBot, initialMemory);
+  let previous = toolNames(initial, initialDelegatingBot, initialMemory, initialSwitch);
 
   return async (
     tools: readonly ConnectorTool[],
     revision = initialRevision,
     delegatingBot = initialDelegatingBot,
     memory = initialMemory,
+    worktreeSwitch = initialSwitch,
   ) => {
-    const next = JSON.stringify([connectorSessionCatalog(tools), revision, delegatingBot, memory]);
-    const names = toolNames(tools, delegatingBot, memory);
+    const next = JSON.stringify([connectorSessionCatalog(tools), revision, delegatingBot, memory, worktreeSwitch]);
+    const names = toolNames(tools, delegatingBot, memory, worktreeSwitch);
 
     try {
       if (catalog !== next) {

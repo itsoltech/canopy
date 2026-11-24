@@ -3,6 +3,7 @@ import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { GoalDirective, PermissionMode, type ThreadSpec, type UserInput } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SteerError, type TurnSettings } from "../turn-input.ts";
+import { codexThreadCwd } from "./thread-params.ts";
 import { codexUserInput } from "./input.ts";
 
 import { CodexThreadError, fail, type CodexThreadContext } from "./thread-types.ts";
@@ -78,9 +79,12 @@ export function threadTurns(
       if (input.mentions.length > 0 || settings?.connectorNote)
         entry.mentions.set(turnId, { text: input.text, mentions: input.mentions });
 
+      const cwd = spec.enableWorktreeSwitch && !spec.sandboxProfile ? codexThreadCwd(spec.cwd) : undefined;
+
       const response = yield* codex
         .request("turn/start", {
           threadId: entry.codexId,
+          ...(cwd && { cwd, runtimeWorkspaceRoots: [cwd] }),
           clientUserMessageId: turnId,
           input: [
             ...codexUserInput(input),

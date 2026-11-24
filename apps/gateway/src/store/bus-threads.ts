@@ -85,18 +85,20 @@ const spawn = (
       if (!(yield* lockedOwnerModule(sql, caller.owner_user_id, "threads")))
         return yield* Effect.fail(new Invalid(moduleDisabledMessage("threads")));
 
-      const parent = (yield* sql<Pick<ThreadRow, "settings">>`
-        SELECT settings FROM threads WHERE id=${caller.id}::uuid AND owner_user_id=${caller.owner_user_id}::uuid FOR UPDATE`)[0];
+      const parent = (yield* sql<Pick<ThreadRow, "settings" | "cwd" | "worktree_id">>`
+        SELECT settings,cwd,worktree_id FROM threads WHERE id=${caller.id}::uuid AND owner_user_id=${caller.owner_user_id}::uuid FOR UPDATE`)[0];
 
-      if (parent && threadSandbox(parent)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
+      if (!parent) return yield* Effect.fail(new Invalid("Parent thread not found."));
+
+      if (threadSandbox(parent)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
       const notify = args.notify ?? true;
       yield* insertCall(sql, { source, tool: "spawn_thread", args, status: "completed", hops, notify });
       const id = Bun.randomUUIDv7();
       const inherit = !placement?.workspaceMode || placement.workspaceMode === ui.WorkspaceMode.INHERIT_PARENT;
-      const worktreeId = inherit ? caller.worktree_id : placement?.worktreeId || null;
+      const worktreeId = inherit ? parent.worktree_id : placement?.worktreeId || null;
 
       const cwd = inherit
-        ? caller.cwd
+        ? parent.cwd
         : placement?.cwd ||
           (yield* sql<{
             root_path: string;

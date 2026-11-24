@@ -1,5 +1,6 @@
+import { AgentTool, type ui } from "@canopy/contracts";
+import { threadCheckoutKey } from "./git-heads.ts";
 import { fileLocation } from "./file-references.ts";
-import { AgentTool } from "@canopy/contracts";
 import { restoreWorkspace, workspaceMetadata } from "./workspace-storage.ts";
 import {
   WorkspaceFile,
@@ -20,6 +21,13 @@ import {
 
 export type { WorkspaceEntry, WorkspaceTab } from "./workspace-modules.ts";
 
+interface WorkspaceChange {
+  threadId: string;
+  path: string;
+  revoked?: boolean;
+  checkoutChanged?: boolean;
+}
+
 export const WORKSPACE_TAB_LIMIT = 12;
 const DRAFT_BYTES = 4 * 1024 * 1024;
 
@@ -37,6 +45,7 @@ export class Workspace {
     mode: "files",
     tool: AgentTool.BROWSER,
   };
+  checkout = "";
   active = "thread";
   error = "";
   #recent: string[] = [];
@@ -88,6 +97,7 @@ export class Workspace {
 
     const existing = this.files.find(
       (tab) =>
+        !tab.document.rootChanged &&
         tab.document.target.threadId === target.threadId &&
         (tab.document.path === next.path ||
           tab.document.target.path === next.path ||
@@ -185,6 +195,8 @@ export class Workspace {
     const duplicate = this.files.find(
       (other) =>
         other !== tab &&
+        !other.document.rootChanged &&
+        !tab.document.rootChanged &&
         other.document.target.threadId === tab.document.target.threadId &&
         other.document.path === tab.document.path,
     );
@@ -208,7 +220,7 @@ export class Workspace {
 /** Bounded per-device store, separate from transcript warming. Persist callbacks receive metadata only. */
 export class WorkspaceStore {
   readonly api: WorkspaceFileApi;
-  readonly #fileListeners = new Set<(change: { threadId: string; path: string; revoked?: boolean } | null) => void>();
+  readonly #fileListeners = new Set<(change: WorkspaceChange | null) => void>();
   readonly views = new Map<string, Workspace>();
   #listeners = new Set<() => void>();
   #version = 0;
@@ -249,7 +261,7 @@ export class WorkspaceStore {
     };
   }
 
-  watchFiles(listener: (change: { threadId: string; path: string; revoked?: boolean } | null) => void): () => void {
+  watchFiles(listener: (change: WorkspaceChange | null) => void): () => void {
     this.#fileListeners.add(listener);
 
     return () => this.#fileListeners.delete(listener);
@@ -263,10 +275,12 @@ export class WorkspaceStore {
   getVersion = (): number => this.#version;
 
   private async guard<T>(threadId: string, run: () => Promise<T>): Promise<T> {
+    const checkout = this.views.get(threadId)?.checkout;
+
     try {
       return await run();
     } catch (cause) {
-      if (cause instanceof WorkspaceAccessRevoked) {
+      if (cause instanceof WorkspaceAccessRevoked && this.views.get(threadId)?.checkout === checkout) {
         const view = this.views.get(threadId);
 
         for (const tab of view?.files ?? []) tab.document.dispose();
@@ -294,6 +308,25 @@ export class WorkspaceStore {
     }
 
     return view;
+  }
+
+  bindCheckout(view: Workspace, thread: ui.Thread): void {
+    if (thread.id !== view.threadId || !thread.cwd) return;
+    const checkout = threadCheckoutKey(thread);
+
+    if (view.checkout === checkout) return;
+    const previous = view.checkout;
+    view.checkout = checkout;
+
+    if (previous) {
+      for (const tab of view.files) {
+        if (!view.close(tab.id)) tab.document.invalidateRoot(thread.cwd);
+      }
+    }
+
+    // A directory cache can outlive an evicted tab model. Reset it even on the first confirmed checkout.
+    for (const listener of this.#fileListeners) listener({ threadId: thread.id, path: "", checkoutChanged: true });
+    this.notify(true);
   }
 
   touch(view: Workspace): void {

@@ -83,7 +83,7 @@ export function sessionTurns(ctx: ClaudeThreadContext, record: ReturnType<typeof
   const suppressWake = async (session: Session, message: SDKMessage) => {
     if (session.turn || !startsTurn(message)) return false;
 
-    if (!suppressed.has(session) && options.allowProviderTurn?.(session.threadId) !== false) return false;
+    if (!suppressed.has(session) && options.allowProviderTurn?.(session.threadId, session.cwd) !== false) return false;
 
     if (!suppressed.has(session)) {
       suppressed.add(session);
@@ -94,7 +94,7 @@ export function sessionTurns(ctx: ClaudeThreadContext, record: ReturnType<typeof
           value: {
             level: NoticeLevel.INFO,
             code: "continuation_suppressed",
-            message: "Automatic follow-up skipped because this thread is archived or deleted.",
+            message: "Automatic follow-up skipped because this session is no longer active in this workspace.",
           },
         },
       });

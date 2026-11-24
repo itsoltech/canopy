@@ -135,6 +135,8 @@ export function codexProjectSecretProtection(launch: CodexAppServerLaunch, userA
     const thread = threads.get(threadId);
 
     if (!thread) return;
+    // An inference request may still be reading its body when the native session leaves this workspace.
+    thread.retired = true;
     thread.guard.reset();
     threads.delete(threadId);
     paths.delete(thread.path);

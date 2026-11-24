@@ -7,6 +7,7 @@ import {
   interactionsOf,
   summariesOf,
   transcriptOf,
+  worktreeSwitchFacts,
   type ThreadSummary,
 } from "@canopy/domain/tools";
 import { statusLook } from "@canopy/domain/status-look";
@@ -185,6 +186,8 @@ export function BusBody({
           />
         </>
       );
+    case "switch_worktree":
+      return <Facts lines={worktreeSwitchFacts(args, result)} />;
     case "send_message":
       return (
         <>

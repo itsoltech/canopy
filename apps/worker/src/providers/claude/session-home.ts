@@ -50,10 +50,10 @@ export function claudeSessionHomes(journal: Journal["Service"]) {
   const resume = async (
     spec: ThreadSpec,
     home: string,
-    exists: (sessionId: string, cwd: string, home: string) => Promise<boolean>,
+    exists: (sessionId: string, home: string) => Promise<boolean>,
   ): Promise<boolean> => {
     const sessionId = spec.providerThreadId || spec.threadId;
-    const found = await exists(sessionId, spec.cwd, home);
+    const found = await exists(sessionId, home);
 
     if (found) {
       await Effect.runPromise(journal.rememberClaudeSession(spec.threadId, sessionId));

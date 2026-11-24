@@ -22,6 +22,7 @@
     interactionsOf,
     summariesOf,
     transcriptOf,
+    worktreeSwitchFacts,
   } from "@canopy/domain/tools";
   import { scheduleOf, schedulesOf } from "./tools/bus-schedules.ts";
   import { watchCallFacts } from "@canopy/domain/pr-check-display";
@@ -88,6 +89,7 @@
 
   const known = new Set([
     "spawn_thread",
+    "switch_worktree",
     "send_message",
     "wait_threads",
     "get_thread",
@@ -146,6 +148,10 @@
       str(args["interactions"]) === "human" ? "Its questions go to you" : "Its questions come to this agent",
       args["notify"] === false && "No message when it finishes",
     ])}
+  {:else if tool === "switch_worktree"}
+    <div class="min-w-0 wrap-anywhere">
+      {@render facts(worktreeSwitchFacts(args, result))}
+    </div>
   {:else if tool === "send_message"}
     {#if str(args["prompt"])}{@render well("Message", str(args["prompt"]))}{/if}
     {#if !call.isError && !running}{@render facts([

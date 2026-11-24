@@ -1,6 +1,8 @@
 import { create } from "@bufbuild/protobuf";
-import { AgentToolResultSchema, InteractionResponseSchema } from "@canopy/contracts";
-import { Effect } from "effect";
+import { AgentToolResultSchema, InteractionResponseSchema, Provider, type ThreadSpec } from "@canopy/contracts";
+import { Context, Effect } from "effect";
+import { instanceKey } from "./instance-runtimes.ts";
+import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { CommandError } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -8,6 +10,41 @@ import type { HostContext } from "./host-context.ts";
 /** Archive fences admission immediately; the durable unload command acknowledges only completed cleanup. */
 export class ThreadResources {
   constructor(readonly ctx: HostContext) {}
+
+  assignThreadWorkspace(spec: ThreadSpec): void {
+    const { state, ops } = this.ctx;
+    const id = spec.threadId;
+    const next = state.nextWorkspaces.get(id);
+
+    if (next && next !== spec.cwd)
+      throw new CommandError("WORKTREE_CHANGED", "This command belongs to the thread’s previous worktree.", true);
+
+    ops.checkCwd(spec.cwd);
+    const previous = state.cwds.get(id);
+
+    if (previous && previous !== spec.cwd) {
+      const busy =
+        [...state.running].some((key) => key.startsWith(`${id}/`)) ||
+        [...state.claude.values()].some((handle) =>
+          Context.get(handle.context, ClaudeThreads).backgroundTasks().has(id),
+        ) ||
+        [...state.codex.values()].some((handle) => Context.get(handle.context, CodexThreads).backgroundTasks().has(id));
+
+      if (busy)
+        throw new CommandError(
+          "WORKTREE_BUSY",
+          "Finish work in the previous worktree before starting another turn.",
+          true,
+        );
+    }
+
+    state.imageExports.assign(id, spec.cwd, state.files.threadDir(id));
+    state.cwds.set(id, spec.cwd);
+    state.nextWorkspaces.delete(id);
+    void state.heads.track(id, spec.cwd);
+    state.threadProviders.set(id, spec.provider);
+    state.threadInstances.set(id, instanceKey(Provider[spec.provider]!.toLowerCase(), spec.providerProfileId));
+  }
 
   async prepareThread(threadId: string): Promise<void> {
     const current = this.ctx.state.turnAdmissions.current(threadId);
@@ -49,6 +86,7 @@ export class ThreadResources {
     state.markdownImages.closeThread(threadId);
     state.imageExports.closeThread(threadId);
     state.secrets.closeThread(threadId);
+    state.nextWorkspaces.delete(threadId);
     this.#cancelRequests(threadId);
 
     const closing = this.#release(threadId)

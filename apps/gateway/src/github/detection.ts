@@ -107,7 +107,7 @@ export class GitHubDetection {
       const context = await this.context(thread);
 
       if (!context?.headOid || !(await this.core.github.threadsEnabled())) return;
-      const saved = await run((s) => s.detectionSaveContext(owner, thread.thread_id, context));
+      const saved = await run((s) => s.detectionSaveContext(owner, thread.thread_id, thread.cwd, context, lease));
       const targets = await this.discovery.targets(context, thread.git_origin);
 
       if (targets) {

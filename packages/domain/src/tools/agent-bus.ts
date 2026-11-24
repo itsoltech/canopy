@@ -43,6 +43,12 @@ const LOOKS = new Map<string, Look>(
       tried: "start a subagent",
       icon: "sparkles",
     },
+    switch_worktree: {
+      doing: "Switching worktree",
+      done: "Switched worktree",
+      tried: "switch worktree",
+      icon: "git-branch",
+    },
     message_delegating_bot: {
       doing: "Messaging the delegating bot",
       done: "Messaged the delegating bot",
@@ -364,6 +370,19 @@ export function deliveryOf(args: JsonObject, result: JsonObject): string {
   if (asked === "steer" && done === "queue") return "Nothing was running there, so it runs as the next turn";
 
   return done === "steer" ? "Joins the turn that is running now" : "Runs as the next turn";
+}
+
+/** Show the requested destination until the gateway returns the worktree bound to this thread. */
+export function worktreeSwitchFacts(args: JsonObject, result: JsonObject): string[] {
+  const cwd = str(result["cwd"]);
+  const branch = str(result["branch"]);
+  const detached = str(result["detached_commit"]);
+
+  if (cwd)
+    return [detached ? `Detached at ${detached}` : branch && `Branch ${branch}`, cwd, "The next turn starts here"];
+  const requested = str(args["branch"]);
+
+  return [requested ? `New branch ${requested}` : str(args["path"])];
 }
 
 /**

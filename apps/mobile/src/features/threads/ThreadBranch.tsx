@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
 import type { GitRef, ui } from "@canopy/contracts";
-import { branchSwitchReason, distinctUpstream, headLabel } from "@canopy/domain/git-heads";
+import { branchSwitchReason, distinctUpstream, headLabel, threadCheckoutKey } from "@canopy/domain/git-heads";
 import { nodeRef } from "@canopy/domain/computers";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
@@ -15,7 +15,7 @@ export function ThreadBranch({ thread, worker }: { thread: ui.Thread; worker?: u
   const home = computers.find((home) => home.nodeId === thread.nodeId || nodeRef(home.nodeId) === thread.nodeId);
   const reason = branchSwitchReason(thread, worker, home) || (!online ? "Reconnect to switch branches." : "");
 
-  return <ThreadBranchPicker key={`${thread.id}:${reason}`} thread={thread} reason={reason} />;
+  return <ThreadBranchPicker key={`${threadCheckoutKey(thread)}:${reason}`} thread={thread} reason={reason} />;
 }
 
 function ThreadBranchPicker({ thread, reason }: { thread: ui.Thread; reason: string }) {

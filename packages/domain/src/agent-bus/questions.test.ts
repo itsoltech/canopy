@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
 import { agentBusToolSpecs } from "./tool-specs.ts";
-import { agentBusToolsFor, decodeAgentBusCall } from "./tools.ts";
+import { decodeAgentBusCall } from "./tools.ts";
+import { agentBusToolsFor } from "./policy.ts";
 import { decodeUserAnswers, questionAnswerInput, questionResult, type UserQuestion } from "./questions.ts";
 
 const question: UserQuestion = {

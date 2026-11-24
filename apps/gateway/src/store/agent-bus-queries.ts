@@ -272,7 +272,11 @@ export const scheduleSelect = `
  * A running turn may override the thread's default. Once it ends, its mode only caps the default.
  * A default changed since dispatch also caps a running turn.
  */
-export const callerMode = (sql: SqlClient.SqlClient, source: CallSource, caller: ThreadRow) =>
+export const callerMode = (
+  sql: SqlClient.SqlClient,
+  source: Pick<CallSource, "threadId" | "turnId">,
+  caller: ThreadRow,
+) =>
   sql<{ permission_mode: string; thread_permission_mode: string; status: string }>`
     SELECT coalesce(nullif(u.permission_mode, ''), previous.permission_mode) AS permission_mode,
            u.thread_permission_mode, u.status

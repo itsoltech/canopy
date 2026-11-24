@@ -63,11 +63,7 @@ export async function threadMemoryCall(core: GatewayCore, call: AgentToolCall, c
 
             if (!thread) return;
 
-            const mode = yield* callerMode(
-              sql,
-              { threadId: call.threadId, turnId: call.turnId, callId: call.callId, itemId: call.itemId },
-              thread,
-            );
+            const mode = yield* callerMode(sql, call, thread);
 
             return { projectId: thread.project_id, canWrite: mode !== "read_only" };
           }),

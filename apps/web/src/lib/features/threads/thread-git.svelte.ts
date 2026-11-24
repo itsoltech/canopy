@@ -1,6 +1,6 @@
 import { untrack } from "svelte";
 import type { ui } from "@canopy/contracts";
-import { GitStatusReadError, threadGitStatus, pullThreadOrigin } from "./git-status.ts";
+import { GitStatusReadError, threadGitStatus, threadGitStatusKey, pullThreadOrigin } from "./git-status.ts";
 import { queries } from "#lib/shared/queries.svelte.ts";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 
@@ -32,7 +32,7 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
   const data = $derived(
     result?.threadId === thread().id
       ? result.value
-      : queries.snapshot<ui.ThreadGitStatusResponse>(`GetThreadGitStatus:${thread().id}`).data,
+      : queries.snapshot<ui.ThreadGitStatusResponse>(threadGitStatusKey(thread())).data,
   );
 
   const refreshKey = $derived(gitRefreshKey(thread()));
@@ -58,7 +58,7 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
     failureAction = "read";
 
     try {
-      const value = await threadGitStatus(threadId, controller.signal);
+      const value = await threadGitStatus(thread(), controller.signal);
 
       if (!controller.signal.aborted) result = { threadId, value };
     } catch (cause) {
@@ -101,7 +101,7 @@ export function useThreadGit(thread: () => ui.Thread, available: () => boolean) 
     failureAction = "pull";
 
     try {
-      const value = await pullThreadOrigin(threadId);
+      const value = await pullThreadOrigin(thread());
 
       if (version !== mutation) return;
       result = { threadId, value };

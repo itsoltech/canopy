@@ -27,6 +27,20 @@ export class BranchCommands {
   async getThreadGitStatus(kind: Extract<Command["kind"], { case: "getThreadGitStatus" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.cwd);
 
+    // Re-establish the live HEAD watch after a worker restart even before the next provider turn.
+    const { threadId, cwd } = kind.value;
+    const { state } = this.ctx;
+
+    const destination = state.nextWorkspaces.get(threadId);
+
+    if (
+      threadId &&
+      (!destination || destination === cwd) &&
+      !state.closedThreads.has(threadId) &&
+      !state.unloadingThreads.has(threadId)
+    )
+      void state.heads.track(threadId, cwd);
+
     try {
       const root = canonicalCheckoutRoot(kind.value.cwd);
 
@@ -70,7 +84,9 @@ export class BranchCommands {
     this.ctx.ops.checkCwd(request.cwd);
     const known = request.threadId ? state.cwds.get(request.threadId) : undefined;
 
-    if (known && realpathSync(known) !== realpathSync(request.cwd))
+    // With an expected checkout the gateway holds the current binding lock. The native
+    // session can still be parked in the previous cwd until its next turn.
+    if (!request.expectedCheckout && known && realpathSync(known) !== realpathSync(request.cwd))
       throw new CommandError("INVALID_CHECKOUT", "This thread uses another directory. Refresh the thread.", true);
 
     const root = await repoRoot(request.cwd);
