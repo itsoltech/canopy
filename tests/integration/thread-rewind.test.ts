@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { create, isMessage } from "@bufbuild/protobuf";
 import {
   CommandResultSchema,
+  ListGitRefsSchema,
   MentionKind,
   Provider,
   RewindThreadSchema,
@@ -293,18 +294,23 @@ describe.skipIf(!dockerAvailable)("in-place durable thread rewind", () => {
     const earlier = before.turns[0]!.id;
     const cwd = before.thread.cwd!;
     const destination = `${cwd}-feature`;
-    gw.worker.handlers.set("listGitRefs", (_value, reply) =>
+
+    const worktrees = [
+      { path: cwd, branch: "main", headCommit: "a".repeat(40) },
+      { path: destination, branch: "feature", headCommit: "a".repeat(40) },
+    ];
+
+    gw.worker.handlers.set("listGitRefs", (value, reply) => {
+      if (!isMessage(value, ListGitRefsSchema)) throw new Error("expected listGitRefs command");
+      const checkout = worktrees.find((tree) => tree.path === value.repoPath);
       reply(true, {
         gitRefs: {
-          isRepo: true,
-          repoRoot: cwd,
-          worktrees: [
-            { path: cwd, branch: "main", headCommit: "a".repeat(40) },
-            { path: destination, branch: "feature", headCommit: "a".repeat(40) },
-          ],
+          isRepo: Boolean(checkout),
+          repoRoot: checkout?.path ?? "",
+          worktrees: checkout && !value.branchesOnly ? worktrees : [],
         },
-      }),
-    );
+      });
+    });
     gw.worker.holdTurns = true;
 
     try {
