@@ -280,6 +280,7 @@ export const SERVED = new Set([
   "SetScheduleStatus",
   "GetInstanceWorker",
   "GetWorkerEnvironment",
+  "ArchiveWorkerSkill",
   "SetWorkerEnvironmentOverride",
   "GetComputerUpdates",
   "RequestComputerUpdate",
@@ -298,6 +299,7 @@ export const UPDATE_METHODS = new Set(["GetComputerUpdates", "RequestComputerUpd
 export const WORKER_SETTINGS = new Set([
   "GetInstanceWorker",
   "GetWorkerEnvironment",
+  "ArchiveWorkerSkill",
   "SetWorkerEnvironmentOverride",
   "RenameWorker",
   "SetInstanceWorker",

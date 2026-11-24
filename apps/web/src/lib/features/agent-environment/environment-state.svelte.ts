@@ -102,9 +102,9 @@ export class EnvironmentState {
     await this.mutate("DELETE", "", encode(ui.DeleteInstructionDocumentRequestSchema, body));
   }
 
-  async resolve(file: EnvironmentFileStatus, action: string): Promise<void> {
+  async resolve(workerId: string, file: EnvironmentFileStatus, action: string): Promise<void> {
     const body = create(ui.ResolveEnvironmentDriftRequestSchema, {
-      workerId: this.workerId,
+      workerId,
       targetId: file.targetId,
       action,
       observedChecksum: file.observedChecksum,

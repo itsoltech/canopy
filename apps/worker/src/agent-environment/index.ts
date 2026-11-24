@@ -10,8 +10,7 @@ import { InstructionLedger } from "./ledger.ts";
 import { instructionTargets, type EnvironmentHomes } from "./targets.ts";
 import { reconcileInstruction } from "./reconcile.ts";
 import { SkillLedger } from "./skill-ledger.ts";
-import { skillTargets } from "./skill-targets.ts";
-import { reconcileSkill } from "./skill-reconcile.ts";
+import { inventorySkills } from "./skill-inventory.ts";
 import { validateSkillFiles, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
 import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
 import { WorkerPlugins } from "./plugins.ts";
@@ -23,6 +22,7 @@ export class WorkerAgentEnvironment {
   readonly plugins: WorkerPlugins;
   #desired: AgentEnvironmentDesired | undefined;
   #last = "";
+  #previousLocal: AgentEnvironmentReport["skills"] = [];
   #timer: ReturnType<typeof setInterval>;
 
   constructor(
@@ -136,15 +136,10 @@ export class WorkerAgentEnvironment {
     }
 
     try {
-      for (const target of skillTargets(desired, this.options.homes(), this.skills)) {
-        const status = reconcileSkill(
-          target,
-          this.skills,
-          desired.skillResolutions.find((r) => r.targetId === target.targetId),
-        );
-
-        report.skills.push(status);
-      }
+      const inventory = inventorySkills(desired, this.options.homes(), this.skills, this.#previousLocal);
+      report.skills = inventory.skills;
+      report.skillInventoryScanned = inventory.scanned;
+      this.#previousLocal = report.skills.filter((status) => !status.skillId && status.scope === "device");
     } catch (error) {
       report.skills.push(
         create(AgentEnvironmentReportSchema, {

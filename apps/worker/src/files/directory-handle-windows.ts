@@ -13,6 +13,30 @@ const native = () =>
 
 let library: ReturnType<typeof native> | undefined;
 
+/** The returned handle prevents a checked directory from being renamed while its children are accessed. */
+export function pinWindowsDirectory(path: string): bigint {
+  const { symbols } = (library ??= native());
+  const encoded = Buffer.from(`${path}\0`, "utf16le");
+  // OPEN_REPARSE_POINT | BACKUP_SEMANTICS, sharing reads/writes but never rename/delete.
+  const handle = symbols.CreateFileW(ptr(encoded), 0x80000000, 3, null, 3, 0x02200000, 0n);
+
+  if (handle === 0xffffffffffffffffn) throw directoryRefused();
+  const tag = Buffer.alloc(8);
+
+  if (symbols.GetFileInformationByHandleEx(handle, 9, ptr(tag), tag.length)) {
+    const attributes = tag.readUInt32LE(0);
+
+    if (attributes & 0x10 && !(attributes & 0x400)) return handle;
+  }
+
+  symbols.CloseHandle(handle);
+  throw directoryRefused();
+}
+
+export function releaseWindowsDirectory(handle: bigint): void {
+  (library ??= native()).symbols.CloseHandle(handle);
+}
+
 /** Pin every ancestor without FILE_SHARE_DELETE, then enumerate metadata on the final HANDLE. */
 export async function openWindowsDirectory(target: DirectoryTarget): Promise<DirectoryHandle> {
   const { symbols } = (library ??= native());
@@ -23,18 +47,7 @@ export async function openWindowsDirectory(target: DirectoryTarget): Promise<Dir
   try {
     for (const part of ["", ...relative(root, target.path).split(/[\\/]/).filter(Boolean)]) {
       path = join(path, part);
-      const encoded = Buffer.from(`${path}\0`, "utf16le");
-      // OPEN_REPARSE_POINT | BACKUP_SEMANTICS; sharing permits reads/writes, never rename/delete.
-      const handle = symbols.CreateFileW(ptr(encoded), 0x80000000, 3, null, 3, 0x02200000, 0n);
-
-      if (handle === 0xffffffffffffffffn) throw directoryRefused();
-      pins.push(handle);
-      const tag = Buffer.alloc(8);
-
-      if (!symbols.GetFileInformationByHandleEx(handle, 9, ptr(tag), tag.length)) throw directoryRefused();
-      const attributes = tag.readUInt32LE(0);
-
-      if (!(attributes & 0x10) || attributes & 0x400) throw directoryRefused();
+      pins.push(pinWindowsDirectory(path));
     }
 
     const current = await directoryPath(target.root, target.directory);

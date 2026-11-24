@@ -6,7 +6,6 @@
   import InstructionLibrary from "#lib/features/agent-environment/InstructionLibrary.svelte";
   import SkillsLibrary from "#lib/features/agent-environment/SkillsLibrary.svelte";
   import MarketplaceLibrary from "#lib/features/agent-environment/MarketplaceLibrary.svelte";
-  import ComputerPlugins from "#lib/features/agent-environment/ComputerPlugins.svelte";
   import EnvironmentComputer from "#lib/features/agent-environment/EnvironmentComputer.svelte";
   import EnvironmentNotices from "#lib/features/agent-environment/EnvironmentNotices.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -21,6 +20,8 @@
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
 
   let { data }: PageProps = $props();
+  let topics: ReturnType<typeof SettingsTopics> | undefined;
+  let skillLibrary: ReturnType<typeof SkillsLibrary> | undefined;
   const overview = useOverview();
   const records = workerRecords(overview);
 
@@ -33,9 +34,7 @@
   const summary = $derived(librarySummary(state.snapshot, state.workers));
   const selectedWorker = $derived(records.workers.find((w) => w.id === state.workerId) ?? records.workers[0]);
 
-  const worker = $derived(
-    state.snapshot.workers.find((w) => w.workerId === state.workerId) ?? state.snapshot.workers[0],
-  );
+  const worker = $derived(state.snapshot.workers.find((w) => w.workerId === selectedWorker?.id));
 </script>
 
 <div class="settings-stack">
@@ -47,6 +46,7 @@
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}
   {#if state.notice}<Alert>{state.notice}</Alert>{/if}
   <SettingsTopics
+    bind:this={topics}
     label="Agent environment settings"
     topics={[
       { id: "instructions", label: "Instructions", content: instructions },
@@ -68,7 +68,7 @@
 
 {#snippet skills()}
   {#if state.snapshot.skills.length}{@render status(summary.skills)}{/if}
-  <SkillsLibrary environment={state} notInstalled={summary.notInstalled} />
+  <SkillsLibrary bind:this={skillLibrary} environment={state} notInstalled={summary.notInstalled} />
 {/snippet}
 
 {#snippet plugins()}
@@ -78,38 +78,49 @@
 
 {#snippet computers()}
   <section class="grid min-w-0 gap-3" aria-label="Environment computers">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-lg font-semibold text-balance">Computers & preview</h2>
-      {#if !selectedWorker?.nodeId}<Button
-          size="sm"
-          variant="ghost"
-          disabled={state.busy}
-          onclick={() => state.refresh()}>Refresh status</Button
-        >{/if}
-    </div>
     {#if selectedWorker}
-      <Field label="Computer" class="min-w-0"
-        ><Select
-          class="min-w-0"
-          name="environment-computer"
-          bind:value={state.workerId}
-          options={records.options()}
-        /></Field
-      >
+      <div class="flex flex-wrap items-end gap-2">
+        <Field label="Computer" class="min-w-48 flex-1"
+          ><Select
+            class="min-w-0"
+            name="environment-computer"
+            value={selectedWorker.id}
+            disabled={state.busy}
+            onchange={(id) => {
+              state.notice = "";
+              state.error = "";
+              state.workerId = id;
+            }}
+            options={records.options()}
+          /></Field
+        >
+        {#if !selectedWorker.nodeId}
+          {#if worker}<div class="flex min-h-8 items-center">
+              <Badge tone={worker.online ? "emerald" : "neutral"}>{worker.online ? "Online" : "Offline"}</Badge>
+            </div>{/if}
+          <Button size="sm" variant="ghost" disabled={state.busy} onclick={() => state.refresh()}>Refresh status</Button
+          >
+        {/if}
+      </div>
       {#if selectedWorker.nodeId}
         {#key selectedWorker.id}<RemoteEnvironment
             workerId={selectedWorker.id}
             readOnly={records.readOnly(selectedWorker.id)}
           />{/key}
       {:else if worker}
-        <div class="flex flex-wrap gap-2">
-          <Badge>{worker.online ? "Online" : "Offline"}</Badge><Badge>This computer's workers</Badge>
-        </div>
-        {#key worker.workerId}<EnvironmentComputer {worker} {state} />{/key}
-        {#key worker.workerId}<ComputerPlugins {worker} environment={state} />{/key}
+        {#key worker.workerId}<EnvironmentComputer
+            {worker}
+            {state}
+            onadd={(name) => {
+              topics?.selectTopic("skills");
+              skillLibrary?.addLocalSkill(name, worker.workerId);
+            }}
+          />{/key}
+      {:else}
+        <Alert>Waiting for this worker to report its environment.</Alert>
       {/if}
     {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-        Add a worker in Settings → Workers to preview and sync instructions.
+        Add a worker in Settings → Workers to manage its agent environment.
       </p>{/if}
   </section>
 {/snippet}

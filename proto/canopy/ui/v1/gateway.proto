@@ -426,6 +426,7 @@ service GatewayService {
   rpc ListWorkerRecords(ListWorkerRecordsRequest) returns (ListWorkerRecordsResponse);
   rpc GetInstanceWorker(GetInstanceWorkerRequest) returns (GetInstanceWorkerResponse);
   rpc GetWorkerEnvironment(GetWorkerEnvironmentRequest) returns (WorkerEnvironmentResponse);
+  rpc ArchiveWorkerSkill(ArchiveWorkerSkillRequest) returns (WorkerEnvironmentResponse);
   rpc SetWorkerEnvironmentOverride(SetWorkerEnvironmentOverrideRequest) returns (WorkerEnvironmentResponse);
   // Import z CLI agentów (cli_import.proto, docs/import.md): tylko workery tego komputera.
   rpc ScanImport(ScanImportRequest) returns (ScanImportResponse);

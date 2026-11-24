@@ -38,7 +38,8 @@ function native() {
 }
 
 let library: ReturnType<typeof native> | undefined;
-const cstring = (value: string) => Buffer.from(`${value}\0`);
+export const unixDirectorySymbols = () => (library ??= native()).symbols;
+export const directoryCString = (value: string) => Buffer.from(`${value}\0`);
 
 const revision = (fd: number) => {
   const info = fstatSync(fd, { bigint: true });
@@ -50,9 +51,9 @@ const revision = (fd: number) => {
 export async function openUnixDirectory(target: DirectoryTarget): Promise<DirectoryHandle> {
   if (!["linux", "darwin"].includes(process.platform) || !["x64", "arm64"].includes(process.arch))
     throw directoryRefused();
-  const { symbols } = (library ??= native());
+  const symbols = unixDirectorySymbols();
   const flags = constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW | (mac ? 0x1000000 : 0x80000);
-  let fd = symbols.openat(mac ? -2 : -100, cstring("/"), flags);
+  let fd = symbols.openat(mac ? -2 : -100, directoryCString("/"), flags);
 
   if (fd < 0) throw directoryRefused();
 
@@ -69,7 +70,7 @@ export async function openUnixDirectory(target: DirectoryTarget): Promise<Direct
       }
 
       if (depth === parts.length) break;
-      const next = symbols.openat(fd, cstring(parts[depth]!), flags);
+      const next = symbols.openat(fd, directoryCString(parts[depth]!), flags);
 
       if (next < 0) throw directoryRefused();
       closeSync(fd);
@@ -96,7 +97,7 @@ export async function openUnixDirectory(target: DirectoryTarget): Promise<Direct
           if (name === "." || name === "..") continue;
 
           // AT_SYMLINK_NOFOLLOW: metadata cannot traverse a substituted leaf symlink.
-          if (symbols.fstatat(owned, cstring(name), ptr(metadata), mac ? 0x20 : 0x100) !== 0) continue;
+          if (symbols.fstatat(owned, directoryCString(name), ptr(metadata), mac ? 0x20 : 0x100) !== 0) continue;
 
           return child(name, metadata);
         }
@@ -125,13 +126,13 @@ function child(name: string, info: Buffer): DirectoryChild {
 
   return {
     name,
-    kind: kind(type),
+    kind: unixEntryKind(type),
     size: info.readBigInt64LE(mac ? 96 : 48),
     modifiedMs: info.readBigInt64LE(modified) * 1000n + info.readBigInt64LE(modified + 8) / 1_000_000n,
   };
 }
 
-function kind(type: number): DirectoryChild["kind"] {
+export function unixEntryKind(type: number): DirectoryChild["kind"] {
   switch (type) {
     case 0x4000:
       return "directory";

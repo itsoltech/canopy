@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): web i desktop pobierają listę skilli z domu wybranego workera
+i umożliwiają archiwizację lokalnej kopii na połączonym komputerze ze wspólną konfiguracją.
+
 Status (2026-11-24): web i desktop łączą subagenta z wątkiem nadrzędnym po
 `Thread.parent_thread_id` w indeksie wszystkich projektów. Obejmuje to delegację
 do **No project** na połączonym komputerze.
@@ -3294,6 +3297,10 @@ Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
 Workery innych komputerów grupy: GET `/api/workers/:id/environment` (`GetWorkerEnvironment`)
 zwraca podgląd, raport, wyjątki maszyn, rewizję domu oraz wybór elementów zapisanej biblioteki.
 PUT tego samego adresu (`SetWorkerEnvironmentOverride`) zmienia lub usuwa jeden wyjątek.
+POST `/api/workers/:id/environment/skills/archive` (`ArchiveWorkerSkill`) przyjmuje
+`target_id`, `archive_token` i `expected_revision` z raportu domu. Zwraca
+`WorkerEnvironmentResponse` dla workera wskazanego w URL. Kolejny raport workera zawiera
+wynik operacji.
 `WorkerEnvironmentOverride.item` jest globalnym kluczem biblioteki; `version_hash` skilla wskazuje
 treść niezależnie od lokalnych numerów wersji. Plugin nie obsługuje przypinania wersji per worker.
 Żądanie wymaga rewizji odczytanej z domu, a gateway po obu stronach sprawdza łącze i właściciela workera.

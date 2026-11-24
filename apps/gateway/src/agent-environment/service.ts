@@ -11,13 +11,14 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
-import type { WorkerLink } from "../worker-link/index.ts";
+import type { WorkerConnection, WorkerLink } from "../worker-link/index.ts";
 import { automaticTags, checkDocument, compose, foreignWorkers, manualTags } from "./composition.ts";
 import { documents, EnvironmentDatabase, revision, workers } from "./database.ts";
 import { putDocument, removeDocument, setTags } from "./mutations.ts";
 import { resolveDrift } from "./drift.ts";
 import { skills, skillVersion } from "./skill-database.ts";
 import { EnvironmentSkills } from "./skills.ts";
+import { validSkillInventory } from "./skill-archive.ts";
 import { skillApplies } from "./skill-assignment.ts";
 import { EnvironmentSources } from "./sources.ts";
 import type { SourceOptions } from "./source-discovery.ts";
@@ -28,6 +29,8 @@ import { EnvironmentPlugins, desiredPlugins } from "./plugins.ts";
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
   readonly skills: EnvironmentSkills;
+  /** Only an accepted report on this live connection can authorize a local copy move. */
+  readonly skillReports = new WeakMap<WorkerConnection, symbol>();
   readonly sources: EnvironmentSources;
   readonly marketplaces: EnvironmentMarketplaces;
   readonly plugins: EnvironmentPlugins;
@@ -87,6 +90,11 @@ export class AgentEnvironment {
     for (const worker of snapshot.workers) {
       const connection = this.options.link.connections.get(worker.workerId);
       worker.online = Boolean(connection?.isOpen);
+
+      if (worker.report && (!connection?.isOpen || !this.skillReports.has(connection))) {
+        for (const skill of worker.report.skills) skill.archiveToken = "";
+      }
+
       worker.supported = connection?.isOpen
         ? connection.hello.capabilities.includes("agent_environment_v1")
         : worker.supported;
@@ -204,39 +212,39 @@ export class AgentEnvironment {
 
       if (!connection?.isOpen || !connection.hello.capabilities.includes("agent_environment_v1")) continue;
 
-      const pending = await this.db.run(
-        Effect.gen(function* () {
-          const sql = yield* SqlClient.SqlClient;
-
-          const rows = yield* sql<{
-            resolutions: JsonValue;
-          }>`SELECT resolutions FROM worker_environments WHERE worker_id = ${worker.workerId}::uuid`;
-
-          return fromJson(AgentEnvironmentDesiredSchema, rows[0]?.resolutions ?? {});
-        }),
-      );
-
-      connection.send({
-        case: "agentEnvironment",
-        value: {
-          revision: snapshot.revision,
-          instructions: worker.preview,
-          resolutions: pending.resolutions,
-          skills: connection.hello.capabilities.includes("agent_skills_v1")
-            ? await this.skills.desired(snapshot.skills, worker)
-            : [],
-          skillResolutions: connection.hello.capabilities.includes("agent_skills_v1") ? pending.skillResolutions : [],
-          plugins: connection.hello.capabilities.includes("agent_plugins_v1")
-            ? desiredPlugins(snapshot.plugins, worker)
-            : [],
-          pluginResolutions: connection.hello.capabilities.includes("agent_plugins_v1")
-            ? pending.pluginResolutions
-            : [],
-        },
-      });
+      const desired = await this.desired(snapshot, worker, connection);
+      connection.send({ case: "agentEnvironment", value: desired });
     }
 
     return snapshot;
+  }
+
+  async desired(snapshot: ui.AgentEnvironmentSnapshot, worker: ui.EnvironmentWorker, connection: WorkerConnection) {
+    const pending = await this.db.run(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
+
+        const rows = yield* sql<{
+          resolutions: JsonValue;
+        }>`SELECT resolutions FROM worker_environments WHERE worker_id = ${worker.workerId}::uuid`;
+
+        return fromJson(AgentEnvironmentDesiredSchema, rows[0]?.resolutions ?? {});
+      }),
+    );
+
+    return create(AgentEnvironmentDesiredSchema, {
+      revision: snapshot.revision,
+      instructions: worker.preview,
+      resolutions: pending.resolutions,
+      skills: connection.hello.capabilities.includes("agent_skills_v1")
+        ? await this.skills.desired(snapshot.skills, worker)
+        : [],
+      skillResolutions: connection.hello.capabilities.includes("agent_skills_v1") ? pending.skillResolutions : [],
+      plugins: connection.hello.capabilities.includes("agent_plugins_v1")
+        ? desiredPlugins(snapshot.plugins, worker)
+        : [],
+      pluginResolutions: connection.hello.capabilities.includes("agent_plugins_v1") ? pending.pluginResolutions : [],
+    });
   }
 
   /** The authenticated Hello supplies facts. Manual tags are never overwritten by discovery. */
@@ -294,34 +302,50 @@ export class AgentEnvironment {
     this.options.changed();
   }
 
-  async report(workerId: string, report: AgentEnvironmentReport): Promise<void> {
+  async report(connection: WorkerConnection, report: AgentEnvironmentReport): Promise<void> {
+    const { workerId, registrationEpoch } = connection;
+
+    if (!registrationEpoch || !connection.isOpen || this.options.link.connections.get(workerId) !== connection) return;
+    this.skillReports.delete(connection);
+
     // Bound an authenticated but untrusted worker's report before persisting or exposing any block to the UI.
     if (
       report.files.length > 128 ||
       report.skills.length > 512 ||
-      report.plugins.length > 512 ||
-      Buffer.byteLength(JSON.stringify(toJson(AgentEnvironmentReportSchema, report))) > 128 * 1024 * 1024
+      !validSkillInventory(report.skills) ||
+      report.plugins.length > 512
     )
       return;
     const owner = this.options.userId;
     const json = JSON.stringify(toJson(AgentEnvironmentReportSchema, report));
-    await this.db.run(
+
+    if (Buffer.byteLength(json) > 128 * 1024 * 1024) return;
+
+    const stored = await this.db.run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        yield* sql.withTransaction(
+
+        return yield* sql.withTransaction(
           Effect.gen(function* () {
             yield* sql`SELECT revision FROM agent_environments WHERE owner_user_id = ${owner}::uuid FOR UPDATE`;
             const current = yield* revision(sql, owner);
 
             if (report.revision > current) return;
-            yield* sql`UPDATE worker_environments e SET report = ${json}::jsonb, reported_at = now(),
+
+            const rows = yield* sql`UPDATE worker_environments e SET report = ${json}::jsonb, reported_at = now(),
           resolutions = CASE WHEN ${report.revision} = ${current} THEN '{}'::jsonb ELSE resolutions END
-          FROM workers w WHERE w.id = e.worker_id AND w.id = ${workerId}::uuid AND w.owner_user_id = ${owner}::uuid
-          AND COALESCE((e.report->>'revision')::bigint, 0) <= ${report.revision}`;
+          FROM workers w JOIN worker_connections c ON c.worker_id=w.id
+          WHERE w.id = e.worker_id AND w.id = ${workerId}::uuid AND w.owner_user_id = ${owner}::uuid
+          AND w.revoked_at IS NULL AND w.archived_at IS NULL AND c.epoch = ${registrationEpoch}
+          AND COALESCE((e.report->>'revision')::bigint, 0) <= ${report.revision} RETURNING e.worker_id`;
+
+            return rows.length > 0;
           }),
         );
       }),
     );
+
+    if (stored && report.skills.some((s) => s.archiveToken)) this.skillReports.set(connection, Symbol());
     this.options.changed();
   }
 }

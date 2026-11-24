@@ -3,22 +3,122 @@
   import { ui, type EnvironmentSkillStatus } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { encode } from "#lib/shared/wire.ts";
-  import Badge from "#lib/shared/ui/Badge.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
+  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import SkillDiff from "./SkillDiff.svelte";
+  import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import ComputerSkillRow from "./ComputerSkillRow.svelte";
+  import {
+    agentLabel,
+    awaitingArchive,
+    archiveLocation,
+    canArchive,
+    computerSkills,
+    skillSection,
+    skillSections,
+    type SkillLibraryEntry,
+  } from "./computer-skills.ts";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
 
   let {
     worker,
     environment,
+    library,
+    onarchive,
+    onadd,
+    busy = false,
     class: className,
-  }: { worker: ui.EnvironmentWorker; environment: EnvironmentState; class?: ClassValue } = $props();
+  }: {
+    worker: ui.EnvironmentWorker;
+    environment?: EnvironmentState;
+    library?: readonly SkillLibraryEntry[] | undefined;
+    onarchive?: ((file: EnvironmentSkillStatus) => Promise<boolean>) | undefined;
+    onadd?: ((name: string) => void) | undefined;
+    busy?: boolean;
+    class?: ClassValue;
+  } = $props();
 
-  const pending = $derived(worker.report?.revision !== worker.desiredRevision);
+  const entries = $derived(
+    library ??
+      environment?.snapshot.skills.map((s) => ({
+        id: s.id,
+        name: s.name,
+        artifactName: s.artifact?.name ?? "",
+      })),
+  );
 
-  async function resolve(file: EnvironmentSkillStatus, action: string) {
-    await environment.mutate(
+  const files = $derived(worker.report?.skills ?? []);
+  const groups = $derived(computerSkills(files, entries));
+  const pending = $derived(!worker.report || worker.report.revision !== worker.desiredRevision);
+  const unavailable = $derived(!worker.skillsSupported || !worker.online || !!worker.compositionError || pending);
+  const saving = $derived(Boolean(busy || environment?.busy));
+  const blocked = $derived(unavailable || saving);
+  const revision = $derived(environment?.snapshot.revision ?? worker.desiredRevision);
+
+  type Decision = { name: string; revision: bigint; workerId: string } & (
+    | { action: "disable"; skill: ui.LibrarySkill }
+    | { action: "archive" | "overwrite"; file: EnvironmentSkillStatus }
+  );
+
+  let decision = $state.raw<Decision>();
+  let confirming = $state(false);
+  let submitting = $state(false);
+  let lastArchive = $state.raw<EnvironmentSkillStatus>();
+  const archiveReport = $derived(files.find((file) => lastArchive && file.targetId === lastArchive.targetId));
+  const archivePending = $derived(!!lastArchive && !!archiveReport && awaitingArchive(archiveReport, lastArchive));
+
+  const archiveConfirmed = $derived(
+    !pending &&
+      !worker.compositionError &&
+      (!!archiveReport?.owned ||
+        archiveReport?.status === "removed" ||
+        (!archiveReport && worker.report?.skillInventoryScanned)),
+  );
+
+  const stale = $derived.by(() => {
+    if (!decision || decision.revision !== revision || decision.workerId !== worker.workerId || unavailable)
+      return true;
+
+    if (decision.action === "disable") return !worker.skillIds.includes(decision.skill.id);
+    const original = decision.file;
+    const current = files.find((f) => f.targetId === original.targetId);
+
+    return (
+      !current ||
+      current.status !== original.status ||
+      current.owned !== original.owned ||
+      current.observedChecksum !== original.observedChecksum ||
+      current.archiveToken !== original.archiveToken ||
+      current.desiredChecksum !== original.desiredChecksum ||
+      current.path !== original.path
+    );
+  });
+
+  function confirmFile(name: string, file: EnvironmentSkillStatus, action: "archive" | "overwrite") {
+    if (blocked) return;
+    decision = { action, file, name, revision, workerId: worker.workerId };
+    confirming = true;
+  }
+
+  async function resolve(file: EnvironmentSkillStatus, action: "archive" | "keep" | "overwrite" | "import") {
+    if (blocked) return;
+
+    if (action === "archive") {
+      if (!canArchive(file)) return;
+
+      lastArchive = undefined;
+
+      if (onarchive) {
+        if (await onarchive(file)) lastArchive = file;
+
+        return;
+      }
+    }
+
+    if (!environment) return;
+
+    const saved = await environment.mutate(
       "POST",
       "/skills/resolve",
       encode(
@@ -27,52 +127,183 @@
           workerId: worker.workerId,
           targetId: file.targetId,
           action,
-          observedChecksum: file.observedChecksum,
-          expectedRevision: environment.snapshot.revision,
+          observedChecksum: action === "archive" ? file.archiveToken : file.observedChecksum,
+          expectedRevision: revision,
         }),
       ),
     );
+
+    if (saved && action === "archive") lastArchive = file;
   }
+
+  async function confirm() {
+    if (!decision || stale || saving || submitting) return;
+    submitting = true;
+
+    if (decision.action === "disable" && environment) {
+      const skill = decision.skill;
+      const workerId = decision.workerId;
+      const existing = skill.overrides.find((o) => o.workerId === workerId);
+
+      const request = create(ui.SaveLibrarySkillRequestSchema, {
+        expectedRevision: decision.revision,
+        skill: {
+          ...skill,
+          artifact: undefined,
+          overrides: [
+            ...skill.overrides.filter((o) => o.workerId !== workerId),
+            create(ui.SkillMachineOverrideSchema, { workerId, disabled: true, version: existing?.version ?? 0n }),
+          ],
+        },
+      });
+
+      if (await environment.mutate("POST", "/skills", encode(ui.SaveLibrarySkillRequestSchema, request)))
+        environment.notice = `Disabled “${skill.name}” on ${worker.name}.`;
+    } else if (decision.action !== "disable") {
+      await resolve(decision.file, decision.action);
+    }
+
+    confirming = false;
+    submitting = false;
+  }
+
+  const buttonLabel = $derived(
+    decision?.action === "archive"
+      ? "Archive local copy"
+      : decision?.action === "overwrite"
+        ? decision.file.desiredChecksum
+          ? "Use library version"
+          : "Remove managed files"
+        : "Disable skill",
+  );
 </script>
 
 <section class={["grid min-w-0 gap-4", className]} aria-label="Skills on this computer">
-  <h3 class="text-base font-semibold text-balance">Skills on this computer</h3>
-  {#if !worker.skillsSupported}<Alert tone="warning"
-      >Update this worker to sync skills. Its instruction support is unchanged.</Alert
-    >
-  {:else if pending}<Alert>Waiting for this computer to report the saved skills.</Alert>{/if}
-  {#each worker.report?.skills ?? [] as file (file.targetId)}
-    {@const skill = environment.snapshot.skills.find((s) => s.id === file.skillId)}
-    <div class="grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10">
-      <div class="flex flex-wrap items-center gap-2 text-base sm:text-sm">
-        <p class="min-w-0 flex-1 font-medium wrap-anywhere">
-          {skill?.name ?? "Removed skill"} · {file.harness} · v{file.version.toString()}
+  <h3 class="text-base font-semibold">Skills on this computer</h3>
+  {#if !worker.skillsSupported && worker.supported}
+    <Alert tone="warning">Update the worker on this computer to sync skills.</Alert>
+  {:else if worker.skillsSupported && worker.online && !worker.compositionError}
+    {#if pending}
+      <p class="text-sm text-muted" role="status">Waiting for the latest skill report…</p>
+    {:else if !worker.report?.skillInventoryScanned}
+      <p class="text-sm text-muted">
+        The worker did not report a complete local skill list. Check access to the CLI directories and the worker
+        version.
+      </p>
+    {/if}
+  {/if}
+  {#if lastArchive}
+    <div class="grid gap-1 text-sm">
+      <p role="status">
+        {archiveConfirmed
+          ? `Archived “${lastArchive.localName}”.`
+          : archiveReport && !archivePending && archiveReport.status === "error"
+            ? `Could not confirm the archive of “${lastArchive.localName}”. Review its location below.`
+            : `Archive requested for “${lastArchive.localName}”.`}
+      </p>
+      <Disclosure>
+        {#snippet summary()}<span class="text-muted">Recovery location</span>{/snippet}
+        <div class="flex min-w-0 items-start gap-2 pt-2">
+          <p class="min-w-0 flex-1 font-mono wrap-anywhere select-text">{archiveLocation(lastArchive)}</p>
+          <CopyButton text={archiveLocation(lastArchive)} label="Copy recovery location" />
+        </div>
+      </Disclosure>
+    </div>
+  {/if}
+  {#each skillSections as section (section)}
+    {@const rows = groups.filter((group) => skillSection(group) === section)}
+    {#if rows.length}
+      <section class="grid min-w-0 gap-1 text-base sm:text-sm" aria-label={section}>
+        <h4 class="font-medium">{section} <span class="ml-1 text-muted tabular-nums">{rows.length}</span></h4>
+        <div class="divide-y divide-divider border-t border-divider">
+          {#each rows as group (group.key)}
+            {@const skill = environment?.snapshot.skills.find((s) => s.id === group.skillId)}
+            <ComputerSkillRow
+              {group}
+              busy={blocked}
+              waitingTarget={archivePending ? lastArchive?.targetId : undefined}
+              onadd={onadd ? () => onadd?.(group.name) : undefined}
+              onarchive={environment || onarchive ? (file) => confirmFile(group.name, file, "archive") : undefined}
+              onresolve={environment
+                ? (file, action) => {
+                    if (action === "overwrite") confirmFile(group.name, file, action);
+                    else void resolve(file, action);
+                  }
+                : undefined}
+              ondisable={skill && worker.skillIds.includes(skill.id)
+                ? () => {
+                    decision = { action: "disable", skill, name: skill.name, revision, workerId: worker.workerId };
+                    confirming = true;
+                  }
+                : undefined}
+            />
+          {/each}
+        </div>
+      </section>
+    {/if}
+  {/each}
+  {#if !groups.length && worker.report && !pending && worker.skillsSupported && !worker.compositionError}
+    <p class="text-sm text-muted">
+      {worker.skillIds.length
+        ? "The worker has not reported any assigned skill locations."
+        : worker.report.skillInventoryScanned
+          ? "No local or assigned skills found."
+          : "No skills assigned to this computer."}
+    </p>
+  {/if}
+</section>
+
+<Dialog bind:open={confirming} title={`${buttonLabel}?`} dismissible={!saving && !submitting}>
+  {#if decision}
+    <div class="grid min-w-0 gap-3 text-base sm:text-sm">
+      {#if decision.action === "disable"}
+        <p>
+          This turns off “{decision.name}” for all assigned agents on {worker.name}. Canopy removes its installed files
+          when the computer syncs. Local copies stay on disk.
         </p>
-        <Badge
-          tone={file.status === "applied"
-            ? "emerald"
-            : file.status === "error"
-              ? "rose"
-              : file.status === "drift"
-                ? "amber"
-                : "neutral"}>{file.status}</Badge
+      {:else}
+        {#if decision.action === "archive"}
+          <p>
+            Move the local copy of “{decision.file.localName}” out of the {agentLabel(decision.file.harness)} skills directory
+            on {worker.name}.
+          </p>
+        {:else if decision.file.desiredChecksum}
+          <p>
+            Replace local edits to “{decision.name}” at this location with the assigned library version. This discards
+            edits to managed files.
+          </p>
+        {:else}
+          <p>Remove the managed files for “{decision.name}” from this location, including your local edits.</p>
+        {/if}
+        <p class="font-mono text-sm wrap-anywhere select-text">{decision.file.path}</p>
+        {#if decision.action === "archive"}
+          <p>
+            {decision.file.desiredChecksum
+              ? "Canopy installs the assigned library version in its place."
+              : "New sessions that load skills from this directory no longer find this copy."}
+          </p>
+          {#if decision.file.localLink}
+            <p>Only the link moves. Its target stays in place.</p>
+          {:else}
+            <p>Links to this directory may stop working when it moves.</p>
+          {/if}
+          <div>
+            <p class="text-sm font-medium">Recovery location</p>
+            <div class="flex min-w-0 items-start gap-2">
+              <p class="min-w-0 flex-1 font-mono text-sm wrap-anywhere select-text">{archiveLocation(decision.file)}</p>
+              <CopyButton text={archiveLocation(decision.file)} label="Copy recovery location" />
+            </div>
+          </div>
+        {/if}
+      {/if}
+      {#if confirming && stale && !saving && !submitting}
+        <Alert>Close this dialog and review the latest report before making changes.</Alert>
+      {/if}
+      <div class="flex flex-wrap justify-end gap-2">
+        <Button data-autofocus disabled={saving || submitting} onclick={() => (confirming = false)}>Cancel</Button>
+        <Button variant="danger" disabled={stale} loading={saving || submitting} onclick={confirm}>{buttonLabel}</Button
         >
       </div>
-      <p class="font-mono text-base break-all sm:text-sm">{file.path}</p>
-      {#if file.status === "drift" || file.status === "kept"}
-        <Disclosure open={file.status === "drift"}>
-          {#snippet summary()}<p class="text-base sm:text-sm">Compare skill versions</p>{/snippet}
-          <SkillDiff
-            class="pt-4"
-            {file}
-            expected={file.desiredFiles}
-            busy={environment.busy || !worker.online || pending}
-            onresolve={(action) => resolve(file, action)}
-          />
-        </Disclosure>
-      {:else if file.status === "error"}<Alert tone="error">{file.detail}</Alert>{/if}
     </div>
-  {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-      {worker.skillIds.length ? "Assigned skills appear after the first sync." : "No skills assigned to this computer."}
-    </p>{/each}
-</section>
+  {/if}
+</Dialog>

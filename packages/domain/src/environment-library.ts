@@ -45,7 +45,7 @@ export function assignedWorkers(
 export function workerSyncState(worker: ui.EnvironmentWorker): "Synced" | "Syncing" | "Error" {
   const statuses = [
     ...(worker.report?.files ?? []),
-    ...(worker.report?.skills ?? []),
+    ...(worker.report?.skills ?? []).filter((f) => f.skillId || !f.localName),
     ...(worker.report?.plugins ?? []),
   ];
 
@@ -73,7 +73,7 @@ export function libraryItemState(
     const files =
       kind === "instructions"
         ? (w.report?.files ?? []).filter((f) => !f.harness || f.harness === harness)
-        : (w.report?.[kind] ?? []).filter((f) => !f.skillId || f.skillId === id);
+        : (w.report?.[kind] ?? []).filter((f) => f.skillId === id || (!f.skillId && !f.localName));
 
     if (files.some(hasSyncError)) return "Error";
 

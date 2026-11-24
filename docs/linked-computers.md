@@ -1,5 +1,8 @@
 # Połączone komputery
 
+Status (2026-11-24): na połączonym komputerze ze wspólną konfiguracją web i desktop pokazują
+lokalne kopie skilli i pozwalają przenieść wybraną kopię do archiwum na tym komputerze.
+
 Status (2026-11-24): szczegóły wątku w web i desktopie pokazują subagentów z połączonych
 komputerów także wtedy, gdy rodzic i subagent pracują w różnych projektach.
 Indeks wątków zachowuje powiązanie po archiwizacji subagenta.
@@ -2953,6 +2956,11 @@ workery z grupy konfiguracji, pogrupowane według komputera. Podgląd i wyjątki
 z domu przez `GetWorkerEnvironment`; nie stanowią replikowanej biblioteki. `SetWorkerEnvironmentOverride`
 zmienia tylko wyjątek wskazanego workera, z rewizją odczytaną z domu. Przypięcie wersji skilla wskazuje
 hash treści zamiast lokalnego numeru wersji; plugin podąża za zatwierdzoną wersją biblioteki.
+Dla skilli dom zwraca także identyfikator używany w raporcie i nazwę katalogu artefaktu.
+Widok komputera dopasowuje lokalne kopie do biblioteki domu. `ArchiveWorkerSkill` przekazuje
+identyfikator celu, token kopii z raportu i oczekiwaną rewizję domu. Dom zleca
+aktywnemu workerowi archiwizację tej kopii i zwraca widok wybranego workera. Po wykonaniu
+operacji widok odświeża raport. Archiwizacja zachowuje definicję i przypisania skilla.
 Przy niedostępnym domu lista workera pozostaje widoczna, a zmiany są zablokowane z powodem obecności.
 
 **Konto źródła.** `source.credentialAccountId` jest lokalnym id konta connectora. Zapis tłumaczy je na
@@ -3006,6 +3014,7 @@ Edycja ustawień workera z innego komputera to wywołanie do domu przez trasę e
 `RefreshProviders`, `InstallCli`, `CheckCliUpdates`, `StartProviderLogin` i `ListDirectory`.
 `GetInstanceWorker` odczytuje bez sekretów nadpisania instancji i odziedziczony runtime domu;
 `GetWorkerEnvironment` i `SetWorkerEnvironmentOverride` obsługują podgląd i wyjątki środowiska.
+`ArchiveWorkerSkill` dotyczy pojedynczej kopii skilla na wskazanym workerze.
 Dom wykonuje je własnymi handlerami jako właściciel tego gatewaya. Każde id workera i workspace'u musi
 należeć do domu. Żądanie mieszające komputery jest odrzucane.
 W `SetInstanceWorkers` pole `all_workers` jest wspólne, a workery innych komputerów dostają

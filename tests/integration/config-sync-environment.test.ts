@@ -10,7 +10,7 @@ import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.t
 import { wireItem } from "../../apps/gateway/src/config-sync/merge.ts";
 import type { ConfigRow } from "../../apps/gateway/src/config-sync/persistence.ts";
 import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
-import { librarySkill, skillFiles, skillMachine } from "./support/agent-skills.ts";
+import { librarySkill, skillFiles, skillMachine, writeUserSkill } from "./support/agent-skills.ts";
 import { sourceRepository } from "./support/skill-sources.ts";
 import { eventually, failure } from "./support/gateway.ts";
 
@@ -73,6 +73,64 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
     await worker?.runtime.dispose();
     await a?.close();
     await b?.close();
+  }, 30_000);
+
+  test("a linked archive checks the home worker and its current report, then removes only that device copy", async () => {
+    const workerId = qualifyId(worker.workerId, b.node);
+    const folder = join(worker.deviceHomes.claude, "skills", "local-review");
+    const sibling = join(worker.deviceHomes.agents, "local-review");
+    writeUserSkill(folder);
+    writeUserSkill(sibling);
+    await b.gateway.core.environment.sync(worker.workerId);
+
+    const read = () => a.gateway.api.getWorkerEnvironment({ workerId });
+
+    const ready = await eventually(
+      read,
+      (r) =>
+        r.worker?.report?.revision === r.revision &&
+        !!r.worker.report.skills.find((s) => s.path === folder)?.archiveToken,
+    );
+
+    const file = ready.worker?.report?.skills.find((s) => s.path === folder);
+    expect(file?.status).toBe("local");
+    expect(file?.archiveToken).toMatch(/^[a-f0-9]{64}$/);
+
+    const request = {
+      workerId,
+      targetId: file!.targetId,
+      archiveToken: file!.archiveToken,
+      expectedRevision: ready.revision,
+    };
+
+    await expect(a.gateway.api.archiveWorkerSkill({ ...request, archiveToken: "a".repeat(64) })).rejects.toThrow();
+    expect(
+      await failure(a.gateway.api.archiveWorkerSkill({ ...request, workerId: qualifyId(a.gateway.workerId, b.node) })),
+    ).toContain("isn't on this computer");
+    expect(existsSync(folder)).toBe(true);
+
+    const saved = await a.gateway.api.archiveWorkerSkill(request);
+    expect(saved.worker?.workerId).toBe(workerId);
+    expect(saved.revision).toBe(ready.revision);
+
+    const acknowledged = await eventually(
+      read,
+      (r) => r.worker?.report?.revision === saved.revision && !r.worker.report.skills.some((s) => s.path === folder),
+    );
+
+    expect(acknowledged.worker?.report?.skills.some((s) => s.path === folder)).toBe(false);
+    expect(acknowledged.worker?.report?.skills.some((s) => s.path === sibling && !!s.archiveToken)).toBe(true);
+    expect(existsSync(folder)).toBe(false);
+
+    const recovery = join(
+      worker.deviceHomes.claude,
+      ".canopy-skill-archive",
+      request.archiveToken,
+      "local-review",
+      "SKILL.md",
+    );
+
+    expect(readFileSync(recovery, "utf8")).toBe(readFileSync(join(sibling, "SKILL.md"), "utf8"));
   }, 30_000);
 
   test("a document, a skill and a plugin from A arrive on B with the same hash-verified content", async () => {
@@ -201,6 +259,8 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
     const workerId = qualifyId(worker.workerId, b.node);
     let state = await a.gateway.api.getWorkerEnvironment({ workerId });
     const skill = state.items.find((i) => i.kind === "skill" && i.name === "Code review")!;
+    expect(skill.artifactName).toBe("code-review");
+    expect(skill.localId).toBe(qualifyId((await skillNamed(b, "Code review"))!.id, b.node));
     const selected = skill.versions[0]!;
     state = await a.gateway.api.setWorkerEnvironmentOverride({
       workerId,
@@ -273,6 +333,9 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
   test("nothing crosses a link with sharing off, content included; reconnecting catches up", async () => {
     await b.sharing(a.node, false);
     await wait(() => !configAllowed(a.links, b.node));
+    expect(await failure(a.gateway.api.archiveWorkerSkill({ workerId: qualifyId(worker.workerId, b.node) }))).toContain(
+      "Share configuration",
+    );
     await a.gateway.api.saveInstructionDocument({
       document: { name: "Private while apart", harness: "claude", platformHome: true, selector: { everyone: true } },
       expectedRevision: (await library(a)).revision,

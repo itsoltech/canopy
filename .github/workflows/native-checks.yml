@@ -44,6 +44,8 @@ jobs:
       - name: OAuth address fallback on macOS
         if: runner.os == 'macOS'
         run: bun test ./tests/integration/connector-oauth-egress.test.ts
+      - name: Inventory and archive device skills on the native filesystem
+        run: bun test ./tests/integration/device-skill-inventory.test.ts
       - name: Read verified directory entries on macOS
         if: runner.os == 'macOS'
         run: bun test ./tests/integration/thread-directory-race.test.ts

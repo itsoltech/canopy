@@ -17,6 +17,8 @@ Plugins i Computers, kompaktowe wiersze, menu akcji i tryb zaznaczania skilli.
 Aktualizacja (2026-11-24): import Git z `--skill` lub podaną ścieżką skilla
 pobiera tylko metadane potrzebne do wyboru i pliki wybranych skilli, gdy serwer
 Git obsługuje filtrowanie obiektów.
+Aktualizacja (2026-11-24): zakładka **Computers** w web/desktop pokazuje lokalne skille
+i pozwala odłożyć wybraną kopię do archiwum na komputerze.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -73,8 +75,12 @@ w bibliotece nie instaluje go na workerach. Instalację zleca dopiero przypisani
 wszystkie komputery, wybrane workery albo tagi. Licznik przypisań obejmuje także
 komputery offline; nie jest potwierdzeniem zapisu plików.
 
-W web/desktop zakładka **Computers** otwiera **Computers & preview** ze zbiorczym statusem
-komputera i szczegółami problemów.
+W web/desktop zakładka **Computers** zaczyna się od wyboru komputera i listy skilli.
+Wiersze grupują instalacje tego samego skilla i rozróżniają sesje Canopy oraz CLI
+urządzenia. Własność kopii i obecność jej nazwy w bibliotece to osobne informacje.
+Podgląd instrukcji, pluginy i tagi mają osobne sekcje. Z komputera obsługiwanego
+przez bieżący gateway można otworzyć formularz dodawania lokalnego skilla. W nim
+użytkownik wybiera folder lub ZIP i przegląda pliki przed zapisaniem w bibliotece.
 Wiersz przypisanego elementu pokazuje **Error**, gdy raport zawiera problem
 dotyczący tego skilla, pluginu lub harnessu instrukcji. Błąd wyznaczenia celów
 dla całej kategorii dotyczy wszystkich jej wierszy na tym komputerze.
@@ -370,7 +376,8 @@ Rzeczywiste cele (również każdy jawny shadow home / own-login instancji):
 
 `CODEX_HOME` nie izoluje user skills w `~/.agents/skills`. Włączenie „Device CLI too”
 może udostępnić te skille także innym zgodnym harnessom urządzenia. Canopy nie
-kopiuje prywatnego katalogu user skills do platformy i nie modyfikuje cudzych skilli.
+kopiuje prywatnego katalogu user skills do platformy. Automatyczna synchronizacja
+zachowuje lokalne wpisy użytkownika. Ich przeniesienie do archiwum wymaga osobnej decyzji.
 Zmiany dostępności dotyczą nowych sesji; testy nie uruchamiają płatnych modeli.
 Adapter Claude odrzuca symlinki oraz dodatkowe komponenty obok `skills/` w korzeniu
 lokalnego pluginu Canopy: nie aktywuje przypadkowych hooks, MCP ani manifestu,
@@ -401,11 +408,30 @@ usunięcie własnych plików. Edycja lokalna blokuje również usunięcie; decyz
 dostępna mimo usunięcia definicji. Offline worker dostaje najnowszy pełny stan.
 
 `ResolveSkillDrift` przyjmuje worker/target ID, expected revision, obejrzany checksum
-i keep/overwrite/import. Keep wiąże zachowanie plików z obserwowanym i oczekiwanym
+i keep/overwrite/import/archive. Keep wiąże zachowanie plików z obserwowanym i oczekiwanym
 stanem. Overwrite wymaga aktualnego CAS oraz własności Canopy. Import waliduje
 zarządzane pliki, tworzy nową wersję i przypina ją **tylko tej maszynie**;
 pozostałe zachowują wersje. Import nie obejmuje prywatnych dodatków. Rozstrzygnięcia
 są jednorazowe; ponowna identyczna lokalna edycja wymaga nowej decyzji.
+
+### Lokalne kopie skilli
+
+Worker raportuje również nazwy i lokalizacje skilli wykrytych w katalogach CLI
+Claude, Codexa i Groka. Skan obejmuje katalog `skills` w domu Codexa i wspólny
+`~/.agents/skills`. Wpisy spoza biblioteki nie uczestniczą w obliczaniu stanu
+synchronizacji przypisań. Worker sprawdza metadane katalogów i dowiązań. Raport inwentaryzacji nie zawiera treści prywatnych plików.
+Pole `skill_inventory_scanned` pozwala odróżnić pełny skan od niepełnych danych
+lub raportu starszego workera. Worker pomija ukryte wpisy, ogranicza liczbę
+raportowanych lokalizacji do 512 i nie wystawia tokenu do przeniesienia kopii,
+której metadanych nie udało się sprawdzić w budżecie skanu.
+
+Archiwizacja wymaga potwierdzenia wybranej ścieżki i aktualnego tokenu
+`archive_token` wystawionego przez workera. Gateway sprawdza właściciela i raport z bieżącego połączenia. Wysyła
+decyzję jednorazowo do tego workera. Worker odkłada wpis do
+`.canopy-skill-archive/<token>/<nazwa>` obok katalogu `skills`.
+Przy dowiązaniu przenosi sam wpis. Odłożenie lokalnej kopii zwalnia miejsce
+dla przypisanej wersji Canopy, jeśli przypisanie nadal obejmuje ten cel.
+Kopię można odzyskać, przenosząc ją z archiwum z powrotem pod wolną ścieżkę.
 
 BFF: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
 Foldery są kodowane base64 w JSON: produkcyjny web wymaga `BODY_SIZE_LIMIT=50M`
