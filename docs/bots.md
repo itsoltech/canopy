@@ -1,5 +1,13 @@
 # Boty
 
+Status (2026-11-24): przy pierwszym zwykłym wejściu do Bots po ponownym
+uruchomieniu web/desktop otwiera ostatnio wyświetloną rozmowę z botem, jeśli
+aktualna lista potwierdza jego dostępność. Profil klienta zapamiętuje
+identyfikator rozmowy osobno dla każdego gatewaya. Przy braku dostępnego bota
+pozostaje ekran Bots z opcją tworzenia, a linki do konkretnych rozmów i akcja
+Create bot zachowują swój cel. Przywrócenie rozmowy nie uruchamia tury.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): kilka subskrypcji wyniku tej samej lokalnej tury kolejkuje
 jeden raport dla danego bota i tego samego zakresu rozmowy lub rutyny.
 Dostępność w kanałach określa [promocja wydań](release.md).
