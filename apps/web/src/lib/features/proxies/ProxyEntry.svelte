@@ -36,6 +36,7 @@
     const target = section;
 
     if (!target || route.url.hash !== `#${sectionId}`) return;
+
     const frame = requestAnimationFrame(() => {
       target.scrollIntoView({ block: "start" });
       target.focus({ preventScroll: true });
