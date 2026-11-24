@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-24): desktop zapisuje lokalne zdarzenia aktualizatora i etap zamykania aplikacji.
+Na Windows kolejne pobranie różnicowe korzysta z pliku odpowiadającego poprzedniej mapie bloków.
+
 Status (2026-11-24): przeciągnięcie odsyłacza w oknie aplikacji nie wyświetla jego adresu.
 Kliknięcie logo w nagłówku paska bocznego pozostawia bieżący widok otwarty.
 
@@ -1350,8 +1353,13 @@ Zachowanie platform wynika ze źródeł przypiętej biblioteki:
 
 Samo ponowne wywołanie biblioteki nie wystarcza do bezpiecznej podmiany:
 `DownloadedUpdateHelper` usuwa wspólny `pending` przy innym SHA-512, a `executeDownload`
-czyści go po błędzie/anulowaniu. Nasze adaptery używają dwóch naprzemiennych katalogów
-cache (główny i `replacement`) i zachowują poprzedni helper do pełnego sukcesu.
+czyści go po błędzie/anulowaniu. Adaptery zachowują poprzedni gotowy plik do zakończenia kolejnego pobrania.
+Na macOS i Linuksie przełączają się między katalogiem głównym a `replacement`.
+Na Windows pierwsza paczka trafia do katalogu głównego. Kolejne paczki trafiają
+naprzemiennie do `replacement` i `replacement-2`. Pobieranie różnicowe używa
+gotowej paczki z jej mapą bloków. Jeśli mapa jest niedostępna, updater próbuje
+użyć `installer.exe` z cache instalacji i mapy dla zainstalowanej wersji.
+Jeśli nie uda się pobrać różnic, biblioteka nadal może pobrać i zweryfikować cały instalator.
 Błąd przywraca helper i pozostawia poprzedni plik. Na macOS finalizacja cache poprzedza
 podmianę proxy/feedu. Zwykłe zamknięcie i osłona Quit pozostają bez automatycznej instalacji.
 Warstwa podmiany przekazuje do biblioteki obiekt `DownloadExecutorResult` z plikiem
@@ -1366,6 +1374,16 @@ Dokumentacja aktualizacji oraz źródła **electron-updater 6.8.11**.
 [NSIS](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/NsisUpdater.ts),
 [AppImage](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/AppImageUpdater.ts),
 [deb](https://github.com/electron-userland/electron-builder/blob/electron-updater%406.8.11/packages/electron-updater/src/DebUpdater.ts).
+
+**Diagnostyka aktualizatora.** W `logs/desktop.log` rekordy `app update` obejmują
+rozpoczęcie pobierania, przejście na pełny plik, gotowość paczki oraz fazę i rozpoznany
+kod błędu. Przed zatrzymaniem usług desktop zapisuje rodzaj zamknięcia (`quit` lub
+`install`), fazę aktualizatora, wersję bieżącą i docelową oraz dostępny procent
+pobrania. Osobny wpis wskazuje żądanie z menu, zasobnika, zamknięcia ostatniego
+okna, sygnału SIGINT/SIGTERM lub aktualizatora. Skrót klawiaturowy ma istniejące
+wpisy `quit-guard`. Wymuszone zakończenie procesu może uprzedzić zapis. Do logu
+trafiają wybrane zdarzenia i kody błędów; adresy pobrań, nagłówki HTTP, treść
+odpowiedzi i stosy wywołań aktualizatora są pomijane.
 
 **Windows — zakres i ograniczenia.** `oneClick: false`,
 `allowToChangeInstallationDirectory: true` i `perMachine: false` pozostają bez zmian:

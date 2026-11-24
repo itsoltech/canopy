@@ -2,8 +2,8 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-24), w tym kompaktowego powiadomienia po
-aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
+Status: opis zaimplementowanego kodu (2026-11-24), w tym diagnostyki przerwanych aktualizacji
+desktopu, kompaktowego powiadomienia po aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
 pobierania i ponownego łączenia workera,
 przekazania nadzoru workera
 przed obsługą wątków po aktualizacji, zbiorczego sprawdzania sesji zamkniętych wątków
@@ -489,6 +489,12 @@ Gateway zapisuje stan i komendę w `desktop_updates` (migracja `0058`) oraz audy
 dla poświadczenia desktopu; przerwana próba po restarcie kończy się błędem,
 a start docelowej wersji po restarting — sukcesem. Nieczytelna historia blokuje
 zdalne odtwarzanie, zachowując plik i możliwość uruchomienia aplikacji.
+
+Po przerwaniu żądania i powrocie na starszej wersji komunikat podaje ostatni
+zapisany etap (sprawdzanie, pobieranie, oczekiwanie na koniec pracy lub restart).
+Jeśli aplikacja zdążyła zapisać końcowy błąd, po restarcie zachowuje jego powód.
+Ustalenie, co wywołało zamknięcie aplikacji, wymaga
+dodatkowych zdarzeń z [lokalnego logu desktopu](desktop.md#automatyczne-aktualizacje-desktopu).
 
 **Check now** na gatewayu wysyła też `DesktopUpdateCommand.check` do każdej sparowanej,
 podłączonej aplikacji (bez trwającego żądania, z włączonym updaterem; najwyżej raz na 10 s

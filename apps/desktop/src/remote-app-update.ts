@@ -41,6 +41,21 @@ const updater = (update: DesktopUpdateStatus) => ({
     !update.updateVersion,
 });
 
+function interruptedUpdateReason(phase: string) {
+  switch (phase) {
+    case "checking":
+      return "Canopy closed while checking for the update. Retry the update.";
+    case "downloading":
+      return "Canopy closed before the download finished. Retry the update.";
+    case "waiting_idle":
+      return "Canopy closed while waiting for work to finish. Retry the update.";
+    case "restarting":
+      return "Canopy restarted before it reached the requested version. Retry the update.";
+    default:
+      return "Canopy closed before the update finished. Retry the update.";
+  }
+}
+
 /** Main-process policy around the normal updater. The file survives lost replies and app restarts. */
 export class RemoteAppUpdate {
   get active() {
@@ -82,9 +97,9 @@ export class RemoteAppUpdate {
     if (this.state.requestId && !["idle", "succeeded", "failed"].includes(this.state.phase)) {
       const version = this.boundary.status().version;
       this.state.version = version;
+      const previousPhase = this.state.phase;
       this.state.phase = reachedUpdateVersion(version, this.state.targetVersion) ? "succeeded" : "failed";
-      this.state.reason =
-        this.state.phase === "failed" ? "The app restarted before the update completed. Request it again." : "";
+      this.state.reason = this.state.phase === "failed" ? interruptedUpdateReason(previousPhase) : "";
       this.persist();
     }
 

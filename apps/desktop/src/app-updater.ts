@@ -1,35 +1,13 @@
-import { AppImageUpdater, MacUpdater, NsisUpdater, type AppUpdater } from "electron-updater";
+import { AppImageUpdater, MacUpdater, type AppUpdater } from "electron-updater";
 import type { DownloadExecutorTask } from "electron-updater/out/AppUpdater.js";
 import type { UpdateDownloadedEvent } from "electron-updater";
-import { StagedDownloads } from "./staged-downloads.ts";
+import { cancellable, StagedDownloads } from "./staged-downloads.ts";
 import { DownloadedUpdateHelper } from "electron-updater/out/DownloadedUpdateHelper.js";
-import { CancellationError } from "builder-util-runtime";
+import { StagedNsisUpdater } from "./staged-nsis-updater.ts";
 import { app } from "electron";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { MacUpdateFeed } from "./mac-update-feed.ts";
-import { checkWindowsUpdateInstall } from "./update-install.ts";
-
-/** Cancelled attempts must not commit files or replace the native macOS feed when they settle late. */
-function cancellable(task: DownloadExecutorTask): DownloadExecutorTask {
-  const check = () => {
-    if (task.downloadUpdateOptions.cancellationToken.cancelled) throw new CancellationError();
-  };
-
-  return {
-    ...task,
-    task: async (...args) => {
-      check();
-      await task.task(...args);
-      check();
-    },
-    done: async (event) => {
-      check();
-      await task.done?.(event);
-      check();
-    },
-  };
-}
 
 class StagedMacUpdater extends MacUpdater {
   private readonly downloads = new StagedDownloads();
@@ -90,35 +68,6 @@ class StagedMacUpdater extends MacUpdater {
       (cause: unknown) => {
         this.emit("error", cause instanceof Error ? cause : new Error("Could not prepare the app update"));
       },
-    );
-  }
-}
-
-class StagedNsisUpdater extends NsisUpdater {
-  private readonly downloads = new StagedDownloads();
-  constructor(directory?: string) {
-    super();
-
-    if (directory) this.downloadedUpdateHelper = new DownloadedUpdateHelper(directory);
-  }
-  get manualInstaller() {
-    return this.installerPath;
-  }
-  checkInstall() {
-    checkWindowsUpdateInstall(
-      resolve(process.execPath, ".."),
-      this.downloadedUpdateHelper?.downloadedFileInfo?.isAdminRightsRequired ?? false,
-    );
-  }
-  protected override executeDownload(task: DownloadExecutorTask) {
-    task = cancellable(task);
-
-    return this.downloads.run(
-      this.downloadedUpdateHelper,
-      (helper) => {
-        this.downloadedUpdateHelper = helper;
-      },
-      () => super.executeDownload(task),
     );
   }
 }

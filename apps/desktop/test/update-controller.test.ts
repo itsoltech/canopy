@@ -547,3 +547,35 @@ test("persisted overlap reports the live peer phase while genuine installation f
   ready.resolve(false);
   await checking;
 });
+
+test("an interrupted download retains its last phase across subsequent restarts", () => {
+  const { controller } = fixture();
+  const path = join(tempDir("canopy-interrupted-update-"), "update.json");
+  writeFileSync(
+    path,
+    toJsonString(
+      ui.DesktopUpdateStateSchema,
+      create(ui.DesktopUpdateStateSchema, {
+        requestId: "requested",
+        phase: "downloading",
+        targetVersion: "0.3.0-nightly.9",
+      }),
+    ),
+  );
+
+  const boundary = {
+    status: () => controller.status(),
+    check: () => controller.checkRemote(),
+    drain: async () => false,
+    notify() {},
+    restart() {},
+    report: async () => {},
+  };
+
+  for (let start = 0; start < 2; start++) {
+    expect(new RemoteAppUpdate(path, boundary).snapshot()).toMatchObject({
+      phase: "failed",
+      reason: "Canopy closed before the download finished. Retry the update.",
+    });
+  }
+});

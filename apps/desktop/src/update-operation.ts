@@ -4,6 +4,8 @@ export const updateTimeouts = { prepare: 60_000, check: 60_000, download: 30 * 6
 
 export class UpdateResumed extends Error {}
 
+export class UpdateTimeout extends Error {}
+
 /** Bounds even promises that ignore cancellation; the controller retires their updater before retrying. */
 export class UpdateOperation {
   readonly abort = new AbortController();
@@ -42,7 +44,7 @@ export class UpdateOperation {
     this.watchStall();
   }
   private expire = () => {
-    this.abort.abort(new Error("Update timed out. Check the connection, then retry."));
+    this.abort.abort(new UpdateTimeout("Update timed out. Check the connection, then retry."));
   };
   private watchStall() {
     this.cancelStall?.();
