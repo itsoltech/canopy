@@ -106,7 +106,8 @@
     secret = false,
     shell = false,
     shellUnavailable,
-    compact = false,
+    compact: fold = false,
+    collapseWhenIdle = false,
     panelsLabel,
     onexpand,
     ongoal,
@@ -154,6 +155,7 @@
     shell?: boolean;
     shellUnavailable?: string | undefined;
     compact?: boolean;
+    collapseWhenIdle?: boolean;
     panelsLabel?: string | undefined;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
     /** "Set a goal" in the "+" menu. */
@@ -227,6 +229,7 @@
 
   const steerMode = $derived(Boolean(onqueue) && !stopMode && hasContent);
   let dragging = $state(false);
+  const compact = $derived(fold || (collapseWhenIdle && !value && !hasContent && !dragging));
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
 
   const canMentionFile = $derived(Boolean(fileThreadId && sources && !disabled && !readonly && !secret && !shellMode));
@@ -432,11 +435,6 @@
         />
       {/if}
     </div>
-    {#if shell}
-      <p class="min-h-5 px-4 text-xs/5 text-rose-700 dark:text-rose-300" role="status">
-        {#if shellMode}{shellUnavailable ?? "Runs as a shell command when delivered."}{/if}
-      </p>
-    {/if}
     <input type="hidden" {name} value={shell && value.trimStart().startsWith("!") ? value.trimEnd() : trimmed.text} />
     {#if trimmed.mentions.length > 0}<input
         type="hidden"
@@ -444,6 +442,11 @@
         value={JSON.stringify(mentionsToWire(draft ? draft.wire(trimmed.mentions) : trimmed.mentions))}
       />{/if}
     <ComposerFold open={!compact}>
+      {#if shell}
+        <p class="min-h-5 px-4 text-xs/5 text-rose-700 dark:text-rose-300" role="status">
+          {#if shellMode}{shellUnavailable ?? "Runs as a shell command when delivered."}{/if}
+        </p>
+      {/if}
       <div
         class="flex min-h-13 flex-wrap items-center gap-2 p-2.5 pr-[calc(var(--composer-send-width)+--spacing(5))] pl-3 @max-[24rem]/composer:gap-1"
       >
@@ -477,7 +480,11 @@
         {@render controls?.()}
       </div>
     </ComposerFold>
-    <div class="t-composer-send absolute right-2.5 bottom-2.5 flex items-center gap-1" {@attach followSendWidth}>
+    <div
+      class="t-composer-send absolute right-2.5 bottom-2.5 flex items-center gap-1"
+      data-keeps-compact={compact || undefined}
+      {@attach followSendWidth}
+    >
       {#if deliveryNotice}<HintIcon label="Message delivery information" text={deliveryNotice} />{/if}
       <ResizeSlot>
         {#if steerMode && onqueue}

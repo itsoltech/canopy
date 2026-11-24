@@ -21,6 +21,8 @@ export interface PositionOptions {
   readonly padding?: number;
   /** Follow transforms that move the anchor without resizing it (for example the composer). */
   readonly followMotion?: boolean;
+  /** Measure without the height limit from the previous placement. */
+  readonly measureNaturalHeight?: boolean;
 }
 
 export interface Position {
@@ -111,6 +113,8 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 
 /** Position `floating` once (it must be rendered, e.g. an open popover). */
 export function positionNow(anchor: Element, floating: HTMLElement, options?: PositionOptions): Position {
+  if (options?.measureNaturalHeight) floating.style.removeProperty("--float-available-height");
+
   const position = computePosition(
     anchor.getBoundingClientRect(),
     { width: floating.offsetWidth, height: floating.offsetHeight },
