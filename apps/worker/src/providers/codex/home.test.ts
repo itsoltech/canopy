@@ -16,8 +16,10 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tempDir } from "@canopy/testing";
+import { Provider } from "@canopy/contracts";
+import { botSessionInstanceKey } from "../../bots/session.ts";
+import { migrateCodexLogins } from "../../runtime/codex-login-migration.ts";
 import { deviceCodexHome, prepareCodexHome, prepareCodexInstanceHome } from "./home.ts";
-import { removeLegacyCodexHardLinks } from "./legacy-login.ts";
 
 const base = tempDir("canopy-codex-home-test-");
 
@@ -205,6 +207,70 @@ describe("prepareCodexHome", () => {
     expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
   });
 
+  test.skipIf(process.getuid?.() === 0)("keeps a bot's live hard link if Windows denies the replacement", () => {
+    const dataDir = mkdtempSync(join(base, "denied-migration-"));
+    const deviceHome = device(true);
+    const source = join(deviceHome, "auth.json");
+    const path = join(dataDir, "bots", "bot", botSessionInstanceKey(Provider.CODEX, "native"), "home");
+    const target = join(path, "auth.json");
+
+    const config = {
+      codex: { enabled: true, linkDeviceLogin: true },
+      profiles: [{ config: { id: "native", kind: "native" as const } }],
+    };
+
+    mkdirSync(path, { recursive: true });
+    linkSync(source, target);
+    const windows = process.platform === "win32";
+
+    if (windows) execFileSync("icacls", [path, "/deny", "*S-1-1-0:(WD)"]);
+    else chmodSync(path, 0o500);
+
+    try {
+      migrateCodexLogins(config, dataDir, deviceHome, "win32");
+      const denied = prepareCodexHome({ dataDir, path, deviceCodexHome: deviceHome, linkDeviceLogin: true }, "win32");
+
+      expect(denied.linkFailed).toBe(true);
+      expect(denied.problem).toContain("Windows could not link the Codex login.");
+      expect(lstatSync(target).isFile()).toBe(true);
+      expect(statSync(target, { bigint: true }).ino).toBe(statSync(source, { bigint: true }).ino);
+      expect(statSync(source).nlink).toBe(2);
+      expect(readdirSync(path)).toEqual(["auth.json"]);
+    } finally {
+      if (windows) execFileSync("icacls", [path, "/remove:d", "*S-1-1-0"]);
+      else chmodSync(path, 0o700);
+    }
+
+    migrateCodexLogins(config, dataDir, deviceHome, "win32");
+    expect(lstatSync(target).isSymbolicLink()).toBe(true);
+    expect(lstatSync(join(path, "auth.lock")).isSymbolicLink()).toBe(true);
+    expect(statSync(source).nlink).toBe(1);
+  });
+
+  test("keeps the active hard link when the bot's shared write lock cannot be installed", () => {
+    const dataDir = mkdtempSync(join(base, "blocked-migration-"));
+    const deviceHome = device(true);
+    const source = join(deviceHome, "auth.json");
+    const path = join(dataDir, "bots", "bot", botSessionInstanceKey(Provider.CODEX, "native"), "home");
+    const target = join(path, "auth.json");
+    const lock = join(path, "auth.lock");
+    mkdirSync(path, { recursive: true });
+    linkSync(source, target);
+    writeFileSync(lock, "independent file");
+
+    migrateCodexLogins(
+      { codex: { enabled: true, linkDeviceLogin: true }, profiles: [{ config: { id: "native", kind: "native" } }] },
+      dataDir,
+      deviceHome,
+      "win32",
+    );
+
+    expect(lstatSync(target).isFile()).toBe(true);
+    expect(statSync(source).nlink).toBe(2);
+    expect(readFileSync(lock, "utf8")).toBe("independent file");
+    expect(readdirSync(path).sort()).toEqual(["auth.json", "auth.lock"]);
+  });
+
   test("a replaced device login recovers the managed thread home and preserves the old file", () => {
     const dataDir = mkdtempSync(join(base, "orphan-link-"));
     const deviceHome = device(true);
@@ -232,25 +298,46 @@ describe("prepareCodexHome", () => {
     const sourceHome = device(true);
     const source = join(sourceHome, "auth.json");
     const ownHome = join(dataDir, "homes", "codex-own");
-    const botHome = join(dataDir, "bots", "bot", "conversations", "conversation", "instance", "home");
-    const privateBot = join(dataDir, "bots", "bot", "own-instance", "home");
+    const nativeKey = botSessionInstanceKey(Provider.CODEX, "native");
+    const ownKey = botSessionInstanceKey(Provider.CODEX, "own");
+    const botHome = join(dataDir, "bots", "bot", "conversations", "conversation", nativeKey, "home");
+    const privateBot = join(dataDir, "bots", "bot", ownKey, "home");
+    const inactive = join(dataDir, "bots", "bot", "inactive", "home");
     const custom = mkdtempSync(join(base, "custom-shadow-"));
     const worktree = join(dataDir, "worktrees", "project");
 
-    for (const home of [ownHome, botHome, privateBot, worktree]) mkdirSync(home, { recursive: true });
+    for (const home of [ownHome, botHome, privateBot, inactive, worktree]) mkdirSync(home, { recursive: true });
     const ownAuth = join(ownHome, "auth.json");
     writeFileSync(ownAuth, "own-login");
     writeFileSync(join(worktree, "auth.json"), "project-file");
     linkSync(source, join(botHome, "auth.json"));
     linkSync(source, join(custom, "auth.json"));
+    linkSync(source, join(inactive, "auth.json"));
     linkSync(ownAuth, join(privateBot, "auth.json"));
     const aliasedSource = join(dataDir, "homes", "codex-source-alias");
     symlinkSync(sourceHome, aliasedSource, "junction");
 
-    removeLegacyCodexHardLinks(dataDir, [sourceHome, ownHome], [custom, aliasedSource], "win32");
+    migrateCodexLogins(
+      {
+        codex: { enabled: true, linkDeviceLogin: true },
+        profiles: [
+          { config: { kind: "native", id: "native" } },
+          { config: { kind: "native", id: "custom", runtime: { shadowHomePath: custom } } },
+          { config: { kind: "native", id: "own", runtime: { ownLogin: true } } },
+          { config: { kind: "native", id: "alias", runtime: { shadowHomePath: aliasedSource } } },
+        ],
+      },
+      dataDir,
+      sourceHome,
+      "win32",
+    );
 
-    for (const home of [botHome, privateBot, custom])
-      expect(lstatSync(join(home, "auth.json"), { throwIfNoEntry: false })).toBeUndefined();
+    for (const home of [botHome, privateBot, custom]) {
+      expect(lstatSync(join(home, "auth.json")).isSymbolicLink()).toBe(true);
+      expect(lstatSync(join(home, "auth.lock")).isSymbolicLink()).toBe(true);
+    }
+
+    expect(lstatSync(join(inactive, "auth.json"), { throwIfNoEntry: false })).toBeUndefined();
     expect(statSync(source).nlink).toBe(1);
     expect(readFileSync(source, "utf8")).toBe('{"tokens":{}}');
     expect(statSync(ownAuth).nlink).toBe(1);

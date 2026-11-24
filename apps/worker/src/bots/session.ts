@@ -15,6 +15,10 @@ const SavedSession = Schema.Struct({
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function botSessionInstanceKey(provider: Provider, profileId: string): string {
+  return createHash("sha256").update(`${provider}/${profileId}`).digest("hex");
+}
+
 function directory(parent: string, name: string): string {
   const path = join(parent, name);
 
@@ -36,7 +40,7 @@ export function botSession(
     throw new Error("Invalid bot, turn or conversation id");
   const bot = directory(directory(options.dataDir, "bots"), input.botId);
   const root = input.conversationId ? directory(directory(bot, "conversations"), input.conversationId) : bot;
-  const instance = createHash("sha256").update(`${input.provider}/${input.profileId}`).digest("hex");
+  const instance = botSessionInstanceKey(input.provider, input.profileId);
   const path = directory(root, instance);
   // Provider changes share files only within this conversation; private history keeps its existing path.
   const workspace = new BotWorkspace(directory(root, "workspace"));

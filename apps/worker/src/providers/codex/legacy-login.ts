@@ -1,5 +1,5 @@
 import { existsSync, lstatSync, realpathSync, statSync, unlinkSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { isLegacyHardLink } from "../home.ts";
 
 const managedLogins = [
@@ -22,15 +22,14 @@ export function isManagedCodexLogin(dataDir: string, home: string): boolean {
 
 /**
  * Inactive instances and bot conversations can still keep the device file hard-linked.
- * Remove only names we can prove are aliases of a current login in a different location.
+ * Reconcile only names we can prove are aliases of a current login in a different location.
  */
-export function removeLegacyCodexHardLinks(
+export function migrateLegacyCodexHardLinks(
   dataDir: string,
   sourceHomes: readonly string[],
   shadowHomes: readonly string[],
-  platform = process.platform,
+  replace: (home: string, auth: string) => boolean,
 ): void {
-  if (platform !== "win32") return;
   const sources = new Set<string>();
   let hasHardLink = false;
 
@@ -71,8 +70,10 @@ export function removeLegacyCodexHardLinks(
 
       if (!configured && relative(path, canonical) !== "") continue;
 
-      if (!loginPaths.some((source) => relative(source, canonical) === "") && isLegacyHardLink(canonical, loginPaths))
-        unlinkSync(canonical);
+      if (loginPaths.some((source) => relative(source, canonical) === "") || !isLegacyHardLink(canonical, loginPaths))
+        continue;
+
+      if (!replace(dirname(path), canonical)) unlinkSync(canonical);
     } catch {
       // This may be a removed or inaccessible home. Preparation also reconciles the file when it is next used.
     }

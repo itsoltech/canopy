@@ -1,5 +1,8 @@
 # Boty przez oficjalne harnessy
 
+Aktualizacja (2026-11-24): odmowa utworzenia dowiązania symbolicznego loginu
+Codexa na Windows pozostawia poprzednie powiązanie zapisanej rozmowy.
+
 Aktualizacja (2026-11-23): na Windowsie istniejące rozmowy botów Codex przechodzą
 z twardych dowiązań na dowiązania symboliczne przy użyciu bieżącego loginu instancji.
 Na wszystkich systemach plikowa blokada zapisu loginu jest współdzielona z instancją.
@@ -208,6 +211,7 @@ ustawia `cli_auth_credentials_store="file"` i dowiązuje symbolicznie ten plik o
 katalogu logowania wybranej instancji. Istniejąca rozmowa zachowuje sesję przy
 migracji dowiązania. Na Windowsie udostępnienie loginu botowi wymaga uprawnienia
 do tworzenia dowiązań symbolicznych, które zapewnia m.in. tryb dewelopera.
+Po odmowie worker zachowuje istniejące powiązanie i zgłasza błąd uruchomienia bota.
 Zmiana HOME nie zmienia źródła ani dowiązania.
 Konfiguracja instancji nie jest kopiowana. Magazyny `keyring` i `auto` są osobnymi
 trybami CLI: bezpośredni wpis keyringu jest identyfikowany hashem kanonicznego

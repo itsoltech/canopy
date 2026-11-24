@@ -1,5 +1,8 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-24): migracja logowania na Windows zachowuje istniejące
+dowiązanie, gdy nie można utworzyć dowiązania symbolicznego loginu lub jego blokady.
+
 Aktualizacja (2026-11-24): adapter chroni granty sekretów projektu w
 zweryfikowanych sesjach CLIProxyAPI przez HTTP. Po oznaczonej turze następna
 tura zachowuje wątek Canopy i otwiera nową sesję Codexa z instrukcjami
@@ -451,8 +454,13 @@ wartość z konfiguracji uruchomionego procesu, jeśli model ją obsługuje.
    i [przebieg odświeżenia](https://github.com/openai/codex/blob/rust-v0.171.0/codex-rs/login/src/auth/manager.rs#L3744-L3791).
    Codex może
    atomowo zastąpić plik źródłowy podczas zapisu logowania lub odświeżenia.
-   Przy wczytaniu konfiguracji na Windowsie worker usuwa rozpoznane twarde
-   dowiązania także z nieaktywnych katalogów instancji i botów. Na każdym systemie,
+   Przy wczytaniu konfiguracji na Windowsie worker rozpoznaje twarde dowiązania
+   także w nieaktywnych katalogach instancji i botów. Jeśli konfiguracja nadal
+   wskazuje to samo źródło, worker zachowuje istniejący plik do czasu przygotowania
+   dowiązań symbolicznych loginu i jego blokady. Odmowa utworzenia dowiązania
+   pozostawia poprzednie powiązanie, ale izolowany Codex zgłasza błąd, ponieważ
+   twarde dowiązanie może blokować zapis lub przestać wskazywać bieżący login.
+   Worker usuwa rozpoznane aliasy, których konfiguracja już nie używa. Na każdym systemie,
    jeśli wybrano login urządzenia, jego źródło jest dostępne, a po
    wymianie pliku źródłowego w zarządzanym katalogu pozostał odłączony
    `auth.json`, worker podczas przygotowania katalogu zachowuje go jako

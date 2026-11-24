@@ -95,6 +95,18 @@ export function prepareCodexHome(options: CodexHomeOptions, platform = process.p
     recoverLegacyLogin: () =>
       (platform === "win32" || (options.linkDeviceLogin && existsSync(join(deviceHome, "auth.json")))) &&
       isManagedCodexLogin(options.dataDir, path),
+    prepareLink: () => {
+      try {
+        linkCodexWriteLock(path, deviceHome);
+      } catch (cause) {
+        const denied =
+          windowsLinkDenied(cause) && Predicate.hasProperty(cause, "syscall") && cause.syscall === "symlink";
+
+        return denied ? codexLoginProblems.windows : codexLoginProblems.lock;
+      }
+
+      return undefined;
+    },
     linkProblem: (cause) => (windowsLinkDenied(cause) ? codexLoginProblems.windows : codexLoginProblems.link),
     missingLogin: "no Codex login on this device; run `codex login` or use a CLIProxyAPI profile",
   });
@@ -103,19 +115,6 @@ export function prepareCodexHome(options: CodexHomeOptions, platform = process.p
 
   if (options.ownLogin || !options.linkDeviceLogin) {
     if (lstatSync(lock, { throwIfNoEntry: false })?.isSymbolicLink()) unlinkSync(lock);
-  } else if (home.login === "linked") {
-    try {
-      linkCodexWriteLock(path, deviceHome);
-    } catch (cause) {
-      const denied = windowsLinkDenied(cause) && Predicate.hasProperty(cause, "syscall") && cause.syscall === "symlink";
-
-      return {
-        path,
-        login: "none",
-        linkFailed: true,
-        problem: denied ? codexLoginProblems.windows : codexLoginProblems.lock,
-      };
-    }
   }
 
   return home;
