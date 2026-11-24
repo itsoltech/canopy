@@ -24,6 +24,7 @@ import {
 import { targetKind, requireAgentModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { receivedAgentSender } from "./agents-senders.ts";
+import { ConfigIds } from "../api/routed-config.ts";
 import { threadNotice } from "../bots/thread-notice.ts";
 import { receiveDelegatingBotMessage } from "./delegating-bot.ts";
 import { botDeliveryOrigin } from "./bot-delivery-origin.ts";
@@ -294,8 +295,14 @@ async function spawnReceivedThread(
     .flatMap((p) => p.workspaces.map((w) => ({ project: p.id, workspace: w })))
     .find((w) => w.workspace.id === request.workspaceId);
 
-  if (!workspace || (request.projectId && request.projectId !== workspace.project))
-    return fail("Workspace not found on this computer");
+  if (!workspace) return fail("Workspace not found on this computer");
+
+  if (request.projectId && request.projectId !== workspace.project) {
+    const projects = await (await ConfigIds.for(hostContext.core, node)).projects();
+
+    if (!projects.known.has(request.projectId) || projects.toLocal(request.projectId) !== workspace.project)
+      return fail("Workspace not found on this computer");
+  }
 
   if (!own.workers.some((w) => w.id === workspace.workspace.workerId && w.online))
     return fail("The target worker is offline; no work was queued");

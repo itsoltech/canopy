@@ -52,7 +52,8 @@ export interface AgentsTransportMethods {
   ): Promise<JsonValue>;
   redirect(args: Arguments): void;
   peer(ref: string): Promise<string>;
-  sameHome(node: string, args: Arguments): Promise<void>;
+  /** Validate the destination and return the project reference its home can resolve. */
+  sameHome(node: string, args: Arguments): Promise<string>;
   ui<D extends DescMessage>(
     name: string,
     request: Message,
@@ -183,7 +184,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     return (await this.core.computers.resolve(node)).node_id;
   },
 
-  async sameHome(this: LinkedAgents, node: string, args: Arguments): Promise<void> {
+  async sameHome(this: LinkedAgents, node: string, args: Arguments): Promise<string> {
     const projects = await (await ConfigIds.for(this.core, node)).projects();
 
     for (const key of ["workspace_id", "project_id", "thread_id", "bot_id", "worker_id", "request_id"]) {
@@ -195,6 +196,12 @@ export const agentsTransportMethods: AgentsTransportMethods = {
 
       if (splitId(value).node !== nodeRef(node)) return fail("Choose targets on the same linked computer");
     }
+
+    const project = args["project_id"];
+
+    if (!Predicate.isString(project)) return "";
+
+    return projects.known.has(project) ? projects.toGlobal(project) : splitId(project).id;
   },
 
   async ui<D extends DescMessage>(

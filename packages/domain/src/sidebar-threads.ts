@@ -43,8 +43,9 @@ export function sidebarThreads(
   const sides = new Map<string, ui.Thread[]>();
   const snoozedSides = new Map<string, ui.Thread[]>();
 
-  for (const t of eligible) {
-    if (!isSide(t) || !ids.has(t.parentThreadId)) continue;
+  // A visible parent's activity includes its subagents, even on a worker or project outside the filter.
+  for (const t of threads) {
+    if (!ids.has(t.parentThreadId) || t.deletedAt || (!t.spawnedByAgent && !ids.has(t.id))) continue;
 
     const parentSnoozed = snoozedIds.has(t.parentThreadId);
 

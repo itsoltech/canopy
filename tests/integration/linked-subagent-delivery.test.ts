@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
-import { Provider, ui, type AgentToolResult } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { ItemStatus, Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import type { JsonValue } from "@canopy/domain";
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
@@ -54,7 +55,11 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
   const tool = (home: ConfigComputer, thread: string, turn: string, args: JsonValue, callId = crypto.randomUUID()) =>
     home.gateway.worker.callTool({ threadId: thread, turnId: turn, tool: "send_message", args, callId });
 
-  const start = async (notify = false, hops = 0) => {
+  const start = async (
+    notify = false,
+    hops = 0,
+    placement: { workspace_id: string; project_id?: string } = { workspace_id: qualifyId(workspaceB, b.node) },
+  ) => {
     a.gateway.worker.holdTurns = true;
     b.gateway.worker.holdTurns = true;
 
@@ -87,7 +92,7 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
         turnId: running!.id,
         callId: spawnId,
         tool: "spawn_thread",
-        args: { workspace_id: qualifyId(workspaceB, b.node), title: "Linked child", prompt: "work", notify },
+        args: { ...placement, title: "Linked child", prompt: "work", notify },
       }),
     );
 
@@ -119,6 +124,134 @@ describe.skipIf(!dockerAvailable)("linked parent-child messages", () => {
   afterAll(async () => {
     await Promise.allSettled([a?.close(), b?.close()]);
   });
+
+  test("project parent keeps its linked scratch child in both overview indexes after close and reconnect", async () => {
+    const scratch = (await b.gateway.core.overview()).projects.find((p) => p.kind === "scratch")!;
+    const workspace = scratch.workspaces.find((w) => w.workerId === b.gateway.workerId)!;
+    const remoteWorkspace = qualifyId(workspace.id, b.node);
+    const sourceScratch = (await a.gateway.core.overview()).projects.find((p) => p.kind === "scratch")!;
+    expect(sourceScratch.id).not.toBe(scratch.id);
+    const pair = await start(false, 0, { workspace_id: remoteWorkspace, project_id: sourceScratch.id });
+    const remoteChild = qualifyId(pair.child, b.node);
+    const remoteParent = qualifyId(pair.parent, a.node);
+    const child = (await b.gateway.api.getThread({ threadId: pair.child })).thread!;
+    expect(child).toMatchObject({
+      projectId: scratch.id,
+      workspaceId: workspace.id,
+      parentThreadId: remoteParent,
+      spawnedByAgent: true,
+      kind: ui.ThreadKind.SIDE,
+      rootThreadId: pair.child,
+    });
+
+    b.gateway.worker.finish(pair.child, pair.childTurn, "Scratch result");
+
+    const [finished] = await eventually(
+      () => turns(b, pair.child),
+      (rows) => rows[0]?.status === "completed",
+    );
+
+    expect(finished?.status).toBe("completed");
+
+    const closed = await a.gateway.worker.callTool({
+      threadId: pair.parent,
+      turnId: pair.parentTurn,
+      tool: "close_thread",
+      args: { thread_id: remoteChild },
+    });
+
+    expect(closed.isError).toBe(false);
+
+    const mirrored = await eventually(
+      () => a.links.mirror.thread(b.node, pair.child),
+      (t) => t?.status === "archived",
+      15_000,
+    );
+
+    expect(mirrored?.status).toBe("archived");
+
+    const offlineIndex = await a.links.mirror.threads(
+      b.node,
+      create(ui.ListThreadsRequestSchema, { sidebarOnly: true }),
+    );
+
+    expect(offlineIndex.find((t) => t.id === remoteChild)?.parentThreadId).toBe(remoteParent);
+
+    for (const [viewer, childId, parentId] of [
+      [a, remoteChild, pair.parent],
+      [b, pair.child, remoteParent],
+    ] as const) {
+      const index = await eventually(
+        () => viewer.gateway.api.listThreads({ sidebarOnly: true }),
+        (list) => list.threads.some((t) => t.id === childId && t.status === "archived"),
+        15_000,
+      );
+
+      expect(index.threads.find((t) => t.id === childId)).toMatchObject({
+        parentThreadId: parentId,
+        lastMessage: "Scratch result",
+        status: "archived",
+      });
+
+      const stream = viewer.gateway.api.watchOverview(
+        { includeSnapshot: true },
+        { signal: AbortSignal.timeout(10_000) },
+      );
+
+      let snapshot: ui.MobileOverviewSnapshot | undefined;
+
+      for await (const update of stream) {
+        if (update.change.case === "mobileSnapshot") {
+          snapshot = update.change.value;
+          break;
+        }
+      }
+
+      expect(snapshot?.threads.find((t) => t.id === childId)).toMatchObject({
+        parentThreadId: parentId,
+        status: "archived",
+      });
+    }
+  }, 60_000);
+
+  test("the parent's spawn card links to the local child when opened on the child's computer", async () => {
+    const pair = await start();
+    const resultJson = JSON.stringify({ thread_id: qualifyId(pair.child, b.node) });
+    const itemId = "spawn-card";
+
+    a.gateway.worker.emit(pair.parent, pair.parentTurn, {
+      case: "itemCompleted",
+      value: {
+        item: {
+          itemId,
+          status: ItemStatus.COMPLETED,
+          content: { case: "agentBusCall", value: { callId: pair.spawnId, toolName: "spawn_thread", resultJson } },
+        },
+      },
+    });
+
+    const stream = b.gateway.api.watchThread(
+      { threadId: qualifyId(pair.parent, a.node) },
+      { signal: AbortSignal.timeout(10_000) },
+    );
+
+    for await (const { change } of stream) {
+      const item =
+        change.case === "snapshot"
+          ? change.value.items.find((entry) => entry.item?.itemId === itemId)?.item
+          : change.case === "event" && change.value.event?.body.case === "itemCompleted"
+            ? change.value.event.body.value.item
+            : undefined;
+
+      if (item?.itemId === itemId && item.content.case === "agentBusCall") {
+        expect(item.content.value).toMatchObject({ targetThreadId: pair.child, resultJson });
+
+        return;
+      }
+    }
+
+    throw new Error("The linked parent's spawn card did not arrive");
+  }, 30_000);
 
   test("omitted delivery joins the running turn in both directions; explicit queue stays queued", async () => {
     const pair = await start();

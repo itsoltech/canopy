@@ -153,7 +153,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
     requireLinkedChainCapacity(actor.hops, true);
 
     const node = await this.peer(ref);
-    await this.sameHome(node, args);
+    const projectId = await this.sameHome(node, args);
 
     if (call.tool === "spawn_thread") {
       if (threadSandbox(caller)) return fail(SANDBOX_DERIVATION_UNAVAILABLE);
@@ -199,7 +199,7 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
             ui.CreateThreadRequestSchema,
             create(ui.CreateThreadRequestSchema, {
               workspaceId: splitId(call.args.workspace_id!).id,
-              projectId: call.args.project_id ? splitId(call.args.project_id).id : "",
+              projectId,
               title: call.args.title,
               initialMessage: call.args.prompt,
               provider: Match.value(provider).pipe(

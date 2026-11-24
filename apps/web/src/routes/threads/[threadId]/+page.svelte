@@ -169,19 +169,9 @@
   // A thread whose home is a linked computer: read and driven there, unusable while that computer is away.
   const away = $derived(thread?.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
 
-  // The tree comes from the live thread index (side threads spawned by agents appear as they start);
-  // this thread's own stream is fresher for itself.
-  const threads = $derived.by(() => {
-    const all = [...overview.threads.values()].filter((t) => t.projectId === thread?.projectId);
-
-    if (!thread) return all;
-
-    return all.some((t) => t.id === thread.id) ? all.map((t) => (t.id === thread.id ? thread : t)) : [...all, thread];
-  });
-
   // The tree and the subagents keep their value while an event elsewhere leaves them unchanged.
   const [keepTree, keepSubagents] = [retainTree(), retainSubagents()];
-  const tree = $derived(keepTree(thread ? treeOf(threads, thread) : undefined));
+  const tree = $derived(keepTree(thread ? treeOf(overview.threads, thread) : undefined));
 
   const rewind = $derived((void threadId, new ThreadRewind()));
 
@@ -233,8 +223,8 @@
   }));
 
   // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
-  const subagents = $derived(keepSubagents(thread ? subagentsOf(threads, thread.id) : []));
-  const parent = $derived(thread?.parentThreadId ? threads.find((t) => t.id === thread.parentThreadId) : undefined);
+  const subagents = $derived(keepSubagents(thread && tree ? subagentsOf(tree.sides, thread.id) : []));
+  const parent = $derived(thread?.parentThreadId ? overview.threads.get(thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
 
   const closed = $derived(

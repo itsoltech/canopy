@@ -1,10 +1,11 @@
-import { ScalarType, type DescMessage, type Message } from "@bufbuild/protobuf";
+import { isMessage, ScalarType, type DescMessage, type Message } from "@bufbuild/protobuf";
 
 import { isReflectMessage, reflect } from "@bufbuild/protobuf/reflect";
 
-import { MentionKind } from "@canopy/contracts";
+import { AgentBusCallSchema, MentionKind } from "@canopy/contracts";
 
 import { isEntityId, nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
+import { parseObject, str } from "@canopy/domain/json";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
@@ -143,6 +144,13 @@ export function qualify(desc: DescMessage, message: Message, nodeId: string): vo
     (id, field) => (field === "proxy_id" ? id : qualifyId(id, nodeId)),
     (d, message) => {
       if (STAMPED.has(d.typeName)) reflect(d, message).set(d.field["nodeId"]!, nodeId);
+
+      // A stored spawn result can carry its only child link in the originating computer's JSON.
+      if (isMessage(message, AgentBusCallSchema) && message.toolName === "spawn_thread" && !message.targetThreadId) {
+        const child = str(parseObject(message.resultJson)["thread_id"]);
+
+        if (isEntityId(child)) message.targetThreadId = child;
+      }
     },
   );
 }

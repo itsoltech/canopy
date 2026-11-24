@@ -222,6 +222,7 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
               AND t.deleted_at IS NULL AND (cardinality($5::text[]) = 0 OR (t.moved_to IS NULL AND t.memory_audience = ANY($5)))
               AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
                 (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id AND parent.archived_at IS NOT NULL)) OR
+                (t.remote_parent_kind = 'thread' AND t.remote_parent_ref IS NOT NULL AND NOT t.remote_parent_detached) OR
                 (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id
                   AND parent.owner_user_id = t.owner_user_id AND parent.archived_at IS NULL AND parent.deleted_at IS NULL)))
                 ELSE ($3::boolean OR t.archived_at IS NULL) END)

@@ -46,15 +46,24 @@ export function threadForest(threads: readonly ui.Thread[]): ThreadTree[] {
     .map((main) => ({ main, sides: (sides.get(main.id) ?? []).sort(byCreation) }));
 }
 
-/** The tree the given thread belongs to: the same tree `threadForest` builds, without building the others. */
-export function treeOf(threads: readonly ui.Thread[], thread: ui.Thread): ThreadTree {
-  const rootId = isSide(thread) && thread.parentThreadId ? thread.parentThreadId : thread.id;
-  const main = threads.find((t) => t.id === rootId);
+/** Parent references span projects and computers. The open thread's stream is fresher than the index. */
+export function treeOf(threads: ReadonlyMap<string, ui.Thread>, thread: ui.Thread): ThreadTree {
+  const main = thread.parentThreadId ? threads.get(thread.parentThreadId) : thread;
 
   // A main that is itself a side thread of a listed one is no root of the forest.
-  if (!main || (isSide(main) && threads.some((t) => t.id === main.parentThreadId))) return { main: thread, sides: [] };
+  if (!main || (isSide(main) && threads.has(main.parentThreadId))) return { main: thread, sides: [] };
 
-  return { main, sides: threads.filter((t) => isSide(t) && t.parentThreadId === rootId).sort(byCreation) };
+  const sides: ui.Thread[] = [];
+
+  for (const entry of threads.values()) {
+    const side = entry.id === thread.id ? thread : entry;
+
+    if (side.parentThreadId === main.id) sides.push(side);
+  }
+
+  if (thread.parentThreadId === main.id && !threads.has(thread.id)) sides.push(thread);
+
+  return { main, sides: sides.sort(byCreation) };
 }
 
 const sameTree = (a: ThreadTree | undefined, b: ThreadTree | undefined): boolean =>

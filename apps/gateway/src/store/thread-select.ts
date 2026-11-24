@@ -57,7 +57,7 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
                    ORDER BY u.ordinal DESC LIMIT 1) AS last_turn_status,
                  coalesce((SELECT r.marked_unread FROM thread_reads r WHERE r.user_id = t.owner_user_id AND r.thread_id = t.id), false) AS marked_unread,
                  (SELECT a.title FROM threads a WHERE a.id = t.archived_by_thread_id AND a.deleted_at IS NULL) AS archived_by_thread_title,
-                 CASE WHEN t.kind = 'side' THEN
+                 CASE WHEN t.kind = 'side' OR t.remote_parent_ref IS NOT NULL THEN
                    (SELECT left(m.content->'agentMessage'->>'text', ${LAST_MESSAGE_PREVIEW}) FROM thread_items m
                      WHERE m.thread_id = t.id AND m.type = 'agent_message' ORDER BY m.first_seq DESC LIMIT 1) END AS last_message,
                  (SELECT (ft.ordinal - (SELECT count(*) FROM turns w WHERE w.thread_id = ft.thread_id AND w.withdrawn IS NOT NULL AND w.ordinal < ft.ordinal))::int

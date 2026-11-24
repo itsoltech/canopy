@@ -1,5 +1,9 @@
 # Połączone komputery
 
+Status (2026-11-24): szczegóły wątku w web i desktopie pokazują subagentów z połączonych
+komputerów także wtedy, gdy rodzic i subagent pracują w różnych projektach.
+Indeks wątków zachowuje powiązanie po archiwizacji subagenta.
+
 Status (2026-11-23): wyszukiwanie zgłoszeń i pull requestów pod `#` korzysta z konektorów domu wybranego wątku lub workspace.
 
 Status (2026-11-23): `send_message` bota bez załączników akceptuje identyfikator z przyrostkiem
@@ -270,6 +274,14 @@ kopii. Dzięki temu nie ma scalania historii, a nic nie wykonuje się dwa razy.
 Tworzenie wątku na workerze komputera B z UI komputera A jest wywołaniem do B; B zostaje właścicielem.
 Szyna agentów przekracza granicę tak samo: `spawn_thread` na workerze B tworzy wątek na B z rodzicem
 na A, a raporty i pytania wracają przez łącze.
+Jeśli agent wybierze workspace **No project** na B, subagent pracuje w katalogu
+scratch tego workera. Można go otworzyć na obu komputerach w **Thread details → Subagents**
+wątku nadrzędnego lub przez kartę `spawn_thread` w jego historii. Karta kieruje do domu
+dziecka także przy otwieraniu starszej rozmowy. Powiązanie wynika z identyfikatora rodzica
+i nie wymaga wspólnego projektu.
+Przy włączonym udostępnianiu konfiguracji agent może przekazać identyfikator projektu
+z `list_agents` wraz z identyfikatorem workspace’u. Komputer B rozwiązuje alias i sprawdza,
+czy wskazany workspace należy do tego projektu.
 
 ### Tożsamość projektu według git origin
 
