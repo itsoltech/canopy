@@ -227,9 +227,13 @@ rozpoznawanej metody logowania powoduje błąd tury. Boty proxy używają klucza
 skonfigurowanego dla endpointu.
 
 Przy każdym `account/chatgptAuthTokens/refresh` worker porównuje trasę wybranej
-instancji z trasą bota sprawdzoną na początku tury. Następnie wywołuje
-`getAuthStatus` z `refreshToken:false`.
-Codex może sam odświeżyć token już podczas tego odczytu. Jeśli odpowiedź
+instancji z trasą bota sprawdzoną na początku tury. Przez `accountSession/list`
+z `refreshWorkspaceMetadata:false` sprawdza zapisanego aktywnego użytkownika
+i obszar roboczy bez żądania odświeżenia OAuth. Codex 0.164 i 0.165 nie obsługują
+tego RPC. Po potwierdzonej odmowie metody te wersje przechodzą do bezpośredniego
+odczytu statusu. Worker następnie wywołuje `getAuthStatus` z `refreshToken:false`.
+Codex może sam odświeżyć token podczas tego odczytu, zanim starsza wersja
+zwróci tożsamość do sprawdzenia. Jeśli odpowiedź
 zawiera aktualny token tego samego obszaru roboczego ChatGPT i użytkownika,
 różny od tokenu odrzuconego w turze, worker używa go bez wymuszania odświeżenia.
 Jeśli odczyt potwierdza tożsamość, lecz token nadal wymaga wymiany, worker

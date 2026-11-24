@@ -311,17 +311,14 @@ function chat(body: JsonObject, n: number): Response {
   return new Response(`${sse(chunks, false)}data: [DONE]\n\n`, { headers: { "content-type": "text/event-stream" } });
 }
 
-export function startFakeModel(): FakeModel {
+export function fakeModelHandler() {
   const requests: string[] = [];
   let n = 0;
 
-  const server = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    fetch: async (request) => {
-      const path = new URL(request.url).pathname;
-
-      if (request.method === "GET")
+  return {
+    requests,
+    respond(method: string, path: string, raw: string): Response {
+      if (method === "GET")
         return Response.json({
           object: "list",
           data: [
@@ -330,10 +327,9 @@ export function startFakeModel(): FakeModel {
           ],
           models: [],
         });
-      const raw = await request.text();
       requests.push(raw);
 
-      if (process.env["FAKE_MODEL_DEBUG"]) console.error("fake-model", request.method, path, raw.length);
+      if (process.env["FAKE_MODEL_DEBUG"]) console.error("fake-model", method, path, raw.length);
       let body: JsonObject = {};
 
       try {
@@ -354,7 +350,21 @@ export function startFakeModel(): FakeModel {
 
       return Response.json({});
     },
+  };
+}
+
+export function startFakeModel(): FakeModel {
+  const model = fakeModelHandler();
+
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(request) {
+      const { method } = request;
+
+      return model.respond(method, new URL(request.url).pathname, method === "GET" ? "" : await request.text());
+    },
   });
 
-  return { url: server.url.href.replace(/\/$/, ""), requests, stop: () => server.stop(true) };
+  return { url: server.url.href.replace(/\/$/, ""), requests: model.requests, stop: () => server.stop(true) };
 }

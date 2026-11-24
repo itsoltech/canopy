@@ -1,13 +1,13 @@
 import { expect, spyOn, test } from "bun:test";
 import * as fs from "node:fs";
 import { lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { Provider, RunBotTurnSchema } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { tempDirs } from "@canopy/testing";
 import { Effect, Schema } from "effect";
-import { startFakeModel } from "../import/fixtures/fake-model.ts";
+import { fakeModelHandler } from "../import/fixtures/fake-model.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { profileBotLogin } from "../providers/codex/profile-auth.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
@@ -72,23 +72,73 @@ function writeLogin(home: string, login: ReturnType<typeof fictionalLogin>) {
   renameSync(staged, file);
 }
 
-function cleanBotFiles(root: string, forbidden: readonly string[]): boolean {
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    const path = join(root, entry.name);
+function scanIfPresent<A>(read: () => A): A | undefined {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+function readFixtureFile(path: string, live: boolean) {
+  return scanIfPresent(() => {
+    try {
+      return readFileSync(path);
+    } catch (error) {
+      // SQLite locks bytes in its WAL index on Windows. The database and WAL still contain all row data.
+      if (
+        live &&
+        process.platform === "win32" &&
+        path.endsWith(".sqlite-shm") &&
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "EBUSY"
+      )
+        return undefined;
+      throw error;
+    }
+  });
+}
+
+function cleanFixtureFiles(
+  root: string,
+  forbidden: readonly string[],
+  live: boolean,
+  sourceAuthFile?: string,
+): boolean {
+  for (const entry of scanIfPresent(() => readdirSync(root)) ?? []) {
+    const path = join(root, entry);
     const stat = lstatSync(path, { throwIfNoEntry: false });
 
     if (!stat) continue;
 
-    if (stat.isSymbolicLink() || entry.name.startsWith("auth.json")) return false;
+    if (stat.isSymbolicLink()) {
+      // Native Linux Codex creates executable aliases while the source probe is running.
+      if (
+        sourceAuthFile &&
+        process.platform === "linux" &&
+        /^tmp\/arg0-linux\/codex-arg0[^/]+\/(?:apply_patch|applypatch|codex-linux-sandbox)$/u.test(
+          relative(dirname(sourceAuthFile), path),
+        )
+      )
+        continue;
 
-    if (stat.isDirectory() && !cleanBotFiles(path, forbidden)) return false;
+      return false;
+    }
+
+    if (!sourceAuthFile && entry.startsWith("auth.json")) return false;
+
+    if (stat.isDirectory() && !cleanFixtureFiles(path, forbidden, live, sourceAuthFile)) return false;
 
     // Read binary data too, including SQLite and a live WAL if the CLI creates one.
     if (stat.isFile()) {
       if (stat.nlink !== 1) return false;
-      const contents = readFileSync(path);
 
-      if (forbidden.some((token) => contents.includes(token))) return false;
+      if (path === sourceAuthFile) continue;
+      const contents = readFixtureFile(path, live);
+
+      if (contents && forbidden.some((token) => contents.includes(token))) return false;
     }
   }
 
@@ -101,18 +151,32 @@ function localBackend(
     ReturnType<typeof fictionalLogin>,
     ReturnType<typeof fictionalLogin>,
   ],
-  botFilesClean: () => boolean,
+  fixtureFilesClean: () => boolean,
 ) {
-  const responses = startFakeModel();
+  const model = fakeModelHandler();
   const authAttempts: number[] = [];
+  const failures = new Set<string>();
   let refreshes = 0;
   let clean = true;
   let rejectSecond = false;
+
+  function scanFiles() {
+    try {
+      clean &&= fixtureFilesClean();
+    } catch (error) {
+      clean = false;
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      const errno = Schema.is(Schema.String)(code) && /^E[A-Z0-9]+$/u.test(code) ? ` (${code})` : "";
+      failures.add(`live file scan${errno}`);
+    }
+  }
 
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     error() {
+      failures.add("HTTP handler");
+
       return new Response(null, { status: 500 });
     },
     async fetch(request) {
@@ -120,6 +184,7 @@ function localBackend(
 
       if (request.method === "POST" && path === "/oauth/token") {
         refreshes++;
+        scanFiles();
         const refresh = readRefresh(await request.json()).refresh_token;
 
         if (refresh === logins[1].refresh_token && rejectSecond) return Response.json(logins[2]);
@@ -133,24 +198,37 @@ function localBackend(
       const bearer = request.headers.get("authorization");
       const generation = logins.findIndex((login) => bearer === `Bearer ${login.access_token}`);
       authAttempts.push(generation);
-      clean &&= botFilesClean();
+      scanFiles();
 
-      if (request.headers.get("chatgpt-account-id") !== accountId || generation < 0)
+      if (request.headers.get("chatgpt-account-id") !== accountId || generation < 0) {
+        failures.add("model authorization");
+
         return new Response(null, { status: 403 });
+      }
 
       if (generation === 1 && rejectSecond) return new Response(null, { status: 401 });
 
-      const bytes = new Uint8Array(await request.arrayBuffer());
-      const body = request.headers.get("content-encoding") === "zstd" ? Bun.zstdDecompressSync(bytes) : bytes;
+      try {
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        const body = request.headers.get("content-encoding") === "zstd" ? Bun.zstdDecompressSync(bytes) : bytes;
+        const response = model.respond(request.method, path, new TextDecoder().decode(body));
 
-      return fetch(`${responses.url}/v1/responses`, { method: "POST", body });
+        if (!response.ok) failures.add(`model response ${response.status}`);
+
+        return response;
+      } catch {
+        failures.add("model request decoding");
+
+        return new Response(null, { status: 500 });
+      }
     },
   });
 
   return {
     url: server.url.origin,
     authAttempts,
-    requests: responses.requests,
+    failures,
+    requests: model.requests,
     get refreshes() {
       return refreshes;
     },
@@ -160,9 +238,7 @@ function localBackend(
     rejectSecond() {
       rejectSecond = true;
     },
-    async stop() {
-      await Promise.all([server.stop(true), responses.stop()]);
-    },
+    stop: () => server.stop(true),
   };
 }
 
@@ -188,11 +264,14 @@ test.skipIf(!enabled)(
     const executable = fixtureExecutable();
     const root = temp("canopy-bot-profile-auth-");
     const source = join(root, "profile");
+    const sourceAuthFile = join(source, "auth.json");
     mkdirSync(source);
     const logins = [fictionalLogin(), fictionalLogin(), fictionalLogin()] as const;
     const forbidden = logins.flatMap(({ access_token, refresh_token }) => [access_token, refresh_token]);
     const botDirs = join(root, "bots");
-    const backend = localBackend(logins, () => cleanBotFiles(botDirs, forbidden));
+    const checkBotFiles = (live = false) => cleanFixtureFiles(botDirs, forbidden, live);
+    const checkSourceFiles = (live = false) => cleanFixtureFiles(source, forbidden, live, sourceAuthFile);
+    const backend = localBackend(logins, () => checkBotFiles(true) && checkSourceFiles(true));
 
     const input = create(RunBotTurnSchema, {
       botId: crypto.randomUUID(),
@@ -315,13 +394,16 @@ test.skipIf(!enabled)(
                 outcome = error instanceof BotHarnessFailure && error.code === "auth_required" ? error.code : "failed";
               }
 
-              expect(outcome, `Expected bot outcome for ${text} after model requests ${backend.authAttempts}`).toBe(
-                expected,
-              );
+              const diagnostics = `model generations ${backend.authAttempts}, fixture failures ${[...backend.failures]}`;
+              expect(outcome, `Expected bot outcome for ${text} after ${diagnostics}`).toBe(expected);
+              expect(backend.clean, `Bot or profile files failed audit during ${text} after ${diagnostics}`).toBe(true);
               expect(admittedLogin, "Selected profile delivered a credential").toBe(expected === "completed");
               expect(completed, "Expected mock model reply").toBe(expected === "completed");
               expect(cleanEvents, "Worker event contained credentials").toBe(true);
-              expect(cleanBotFiles(botDirs, forbidden), "Bot persisted credentials or created a link").toBe(true);
+              expect(checkBotFiles(), "Bot persisted credentials or created a link").toBe(true);
+              expect(checkSourceFiles(), "Profile persisted credentials outside its login file or created a link").toBe(
+                true,
+              );
             };
 
             await turn("FIXTURE_FIRST");
@@ -329,12 +411,12 @@ test.skipIf(!enabled)(
             await turn("FIXTURE_SECOND");
             backend.rejectSecond();
             await turn("FIXTURE_REFRESHED");
-            const refreshed = readFileSync(join(source, "auth.json"), "utf8");
+            const refreshed = readFileSync(sourceAuthFile, "utf8");
             expect(refreshed.includes(logins[2].refresh_token)).toBe(true);
             writeFileSync(botConfig, features);
             await turn("FIXTURE_MISMATCHED_ROUTE", "auth_required");
             writeFileSync(botConfig, config);
-            unlinkSync(join(source, "auth.json"));
+            unlinkSync(sourceAuthFile);
             await turn("FIXTURE_SIGNED_OUT", "auth_required");
           });
         }).pipe(Effect.scoped),
@@ -343,7 +425,7 @@ test.skipIf(!enabled)(
       expect(backend.authAttempts).toEqual([0, 1, 1, 2]);
       expect(backend.refreshes).toBe(1);
       expect(deniedSymlink.mock.calls.length).toBe(0);
-      expect(backend.clean, "Bot persisted credentials or created a link during inference").toBe(true);
+      expect([...backend.failures], "Loopback backend failures").toEqual([]);
       expect(backend.requests).toHaveLength(3);
       const second = backend.requests[1] ?? "";
       expect(second.includes("FIXTURE_FIRST") && second.includes("FIXTURE_SECOND")).toBe(true);

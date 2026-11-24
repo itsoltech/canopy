@@ -23,6 +23,7 @@ export interface CodexBotLoginScope {
 const credential = Schema.String.check(Schema.makeFilter((value) => /^\S+$/u.test(value)));
 const optionalClaim = Schema.optionalKey(Schema.NullOr(credential));
 const authNamespace = "https://api.openai.com/auth";
+const versionWithoutAccountSessions = /^[^\s/]+\/0\.16[45]\.(?:0|[1-9]\d*)(?:\s|$)/u;
 
 const JwtClaims = Schema.Struct({
   [authNamespace]: Schema.Struct({
@@ -37,6 +38,18 @@ const AuthStatus = Schema.Struct({
   requiresOpenaiAuth: Schema.Literal(true),
   authMethod: Schema.Literals(["apikey", "chatgpt"]),
   authToken: credential,
+});
+
+const AccountSessions = Schema.Struct({
+  activeSessionId: credential,
+  sessions: Schema.Array(
+    Schema.Struct({
+      sessionId: credential,
+      isActive: Schema.Boolean,
+      selectedWorkspaceAccountId: Schema.NullOr(credential),
+      userId: Schema.NullOr(credential),
+    }),
+  ),
 });
 
 function chatgptClaims(accessToken: string) {
@@ -84,6 +97,42 @@ const unavailable = () =>
 
 const refreshFailed = () => new Error("The selected Codex profile could not renew its ChatGPT access.");
 
+function checkRefreshOwner(codex: CodexAppServer["Service"], expected: CodexBotLoginScope) {
+  return Effect.gen(function* () {
+    // In current Codex this reads cached local metadata without requesting OAuth or workspace discovery.
+    const response = yield* codex.request("accountSession/list", { refreshWorkspaceMetadata: false }).pipe(
+      Effect.map(Option.some),
+      Effect.catch((error) =>
+        error.methodUnavailable && versionWithoutAccountSessions.test(codex.userAgent)
+          ? Effect.succeed(Option.none())
+          : Effect.fail(refreshFailed()),
+      ),
+      Effect.timeout("10 seconds"),
+      Effect.mapError(refreshFailed),
+    );
+
+    if (Option.isNone(response)) return;
+    const decoded = Option.getOrUndefined(Schema.decodeUnknownOption(AccountSessions)(response.value));
+
+    if (!decoded) return yield* Effect.fail(refreshFailed());
+
+    const active = decoded.sessions.filter(
+      (session) => session.isActive || session.sessionId === decoded.activeSessionId,
+    );
+
+    const [selected] = active;
+
+    if (
+      active.length !== 1 ||
+      !selected?.isActive ||
+      selected.sessionId !== decoded.activeSessionId ||
+      selected.selectedWorkspaceAccountId !== expected.chatgptAccountId ||
+      selected.userId !== expected.chatgptUserId
+    )
+      return yield* Effect.fail(refreshFailed());
+  });
+}
+
 function readLogin(codex: CodexAppServer["Service"], refresh: boolean) {
   return codex.request("getAuthStatus", { includeToken: true, refreshToken: refresh }).pipe(
     Effect.timeout("60 seconds"),
@@ -120,6 +169,8 @@ function lookupLogin(
 ): Effect.Effect<CodexBotLogin, Error> {
   return Effect.gen(function* () {
     yield* checkCodexBotAuthRoute(codex, destination);
+
+    if (scope) yield* checkRefreshOwner(codex, scope);
     const status = yield* readLogin(codex, false);
 
     if (!scope && status?.authMethod === "apikey") return { type: "apiKey", apiKey: status.authToken };

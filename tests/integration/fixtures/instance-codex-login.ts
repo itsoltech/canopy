@@ -105,6 +105,30 @@ export function instanceCodexLogin(home: string, send: (message: JsonObject) => 
       return true;
     }
 
+    if (method === "accountSession/list" && !bot && params["refreshWorkspaceMetadata"] === false) {
+      const tokens = existsSync(auth) ? readTokens(readFileSync(auth, "utf8")).tokens : undefined;
+      const sessionId = "fixture-session";
+
+      send({
+        id,
+        result: {
+          activeSessionId: tokens ? sessionId : null,
+          sessions: tokens
+            ? [
+                {
+                  sessionId,
+                  isActive: true,
+                  userId: `user-${tokens.account_id}`,
+                  selectedWorkspaceAccountId: tokens.account_id,
+                },
+              ]
+            : [],
+        },
+      });
+
+      return true;
+    }
+
     if (method === "getAuthStatus" && !bot && existsSync(auth)) {
       if (account === selectedAccount && !process.argv.includes(profileFlag)) {
         send({ id, error: { code: -32000, message: "Selected profile launch argument missing" } });

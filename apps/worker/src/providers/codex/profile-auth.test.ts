@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs, waitForProcessStopped } from "@canopy/testing";
+import type { JsonValue } from "@canopy/domain";
 import { Effect, Schema } from "effect";
 import type { CodexBotAuthRoute } from "./bot-auth-route.ts";
 import { codexBotLoginScope, profileBotLogin } from "./profile-auth.ts";
@@ -32,21 +33,24 @@ const status = (authToken: string | null, authMethod: string | null = "chatgpt",
 
 const Trace = Schema.fromJsonString(Schema.Struct({ pid: Schema.Int, method: Schema.String, refresh: Schema.Boolean }));
 
-function fixture() {
+function fixture(version = "0.172.0") {
   const root = tempDir("canopy-profile-auth-");
 
   const service = profileBotLogin({
     clientVersion: "test",
     launch: {
       command: [process.execPath, join(import.meta.dir, "fixtures/profile-auth.ts"), root],
-      env: { CODEX_HOME: root },
+      env: { CODEX_HOME: root, CODEX_FIXTURE_VERSION: version },
     },
   });
 
   return {
     service,
-    set: (first: ReturnType<typeof status>, renewed?: ReturnType<typeof status>, rpcError = false) =>
-      writeFileSync(join(root, "fixture.json"), JSON.stringify({ status: first, renewed, rpcError })),
+    set: (
+      first: ReturnType<typeof status>,
+      renewed?: ReturnType<typeof status>,
+      options?: { rpcError?: boolean; sessions?: JsonValue; sessionError?: { code: number; message: string } },
+    ) => writeFileSync(join(root, "fixture.json"), JSON.stringify({ status: first, renewed, ...options })),
     trace: () =>
       readFileSync(join(root, "requests.jsonl"), "utf8")
         .trim()
@@ -97,9 +101,70 @@ test("concurrent Codex refreshes share one probe and renewal on a profile", asyn
         ["initialize", false],
         ["config/read", false],
         ["configRequirements/read", false],
+        ["accountSession/list", false],
         ["getAuthStatus", false],
         ["getAuthStatus", true],
       ]);
+    }).pipe(Effect.scoped),
+  );
+});
+
+test("Codex 0.172 preflights the stored account even when the access claims match the bot", async () => {
+  const probe = fixture();
+
+  const selected = {
+    sessionId: "session-a",
+    isActive: true,
+    selectedWorkspaceAccountId: "workspace-a",
+    userId: "user-a",
+  };
+
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const readLogin = yield* probe.service;
+
+      for (const sessions of [
+        [{ ...selected, userId: "user-b" }],
+        [{ ...selected, selectedWorkspaceAccountId: "workspace-b" }],
+        [{ ...selected, userId: null }],
+        [selected, { ...selected, sessionId: "also-active" }],
+      ]) {
+        probe.set(status(valid), undefined, { sessions: { activeSessionId: selected.sessionId, sessions } });
+        const error = yield* Effect.flip(readLogin(destination, rejected));
+        expect(error.message).toContain("could not renew");
+      }
+
+      expect(probe.trace().filter((call) => call.method === "accountSession/list")).toHaveLength(4);
+      expect(probe.trace().some((call) => call.method === "getAuthStatus")).toBe(false);
+    }).pipe(Effect.scoped),
+  );
+});
+
+test("only confirmed unsupported account session listing on Codex 0.164 permits legacy renewal", async () => {
+  const old = fixture("0.164.0");
+  const modern = fixture();
+  const renewed = jwt(claims, "renewed");
+
+  const unsupported = {
+    code: -32600,
+    message: "Invalid request: unknown variant `accountSession/list`, expected one of `initialize`",
+  };
+
+  await Effect.runPromise(
+    Effect.gen(function* () {
+      const legacyLogin = yield* old.service;
+      const modernLogin = yield* modern.service;
+      old.set(status(valid), status(renewed), { sessionError: { code: -32600, message: "Unrelated bad request" } });
+      modern.set(status(valid), status(renewed), { sessionError: unsupported });
+      yield* Effect.flip(legacyLogin(destination, rejected));
+      yield* Effect.flip(modernLogin(destination, rejected));
+      expect(old.trace().some((call) => call.method === "getAuthStatus")).toBe(false);
+      expect(modern.trace().some((call) => call.method === "getAuthStatus")).toBe(false);
+
+      old.set(status(valid), status(renewed), { sessionError: unsupported });
+      const login = yield* legacyLogin(destination, rejected);
+      expect(login.type === "chatgptAuthTokens" && login.accessToken === renewed).toBe(true);
+      expect(old.trace().filter((call) => call.method === "getAuthStatus")).toHaveLength(2);
     }).pipe(Effect.scoped),
   );
 });
@@ -187,10 +252,10 @@ test("Codex fails closed for unsupported modes, versions, and malformed credenti
         expect((yield* Effect.flip(readLogin(destination))).message).toContain("no supported bot login");
       }
 
-      probe.set(status(valid), undefined, true);
+      probe.set(status(valid), undefined, { rpcError: true });
       const error = yield* Effect.flip(readLogin(destination));
       expect(error.message).toContain("CLI version");
-      expect(error.stack).not.toContain("fixture private credential");
+      expect(error.stack?.includes("fixture private credential") ?? false).toBe(false);
 
       probe.set(status("synthetic-key", "apikey"));
       const key = yield* readLogin(destination);

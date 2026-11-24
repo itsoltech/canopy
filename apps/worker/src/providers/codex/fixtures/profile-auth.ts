@@ -13,6 +13,8 @@ const config = Schema.decodeSync(
       status: Schema.Json,
       renewed: Schema.optionalKey(Schema.Json),
       rpcError: Schema.optionalKey(Schema.Boolean),
+      sessions: Schema.optionalKey(Schema.Json),
+      sessionError: Schema.optionalKey(Schema.Struct({ code: Schema.Int, message: Schema.String })),
     }),
   ),
 )(readFileSync(join(root, "fixture.json"), "utf8"));
@@ -33,7 +35,8 @@ for await (const line of readLines(Bun.stdin.stream())) {
   appendFileSync(join(root, "requests.jsonl"), `${JSON.stringify({ pid: process.pid, method, refresh })}\n`);
 
   if (method === "initialize") {
-    process.stdout.write(`${JSON.stringify({ id, result: { userAgent: "fixture/0.172.0" } })}\n`);
+    const userAgent = `fixture/${process.env["CODEX_FIXTURE_VERSION"]}`;
+    process.stdout.write(`${JSON.stringify({ id, result: { userAgent } })}\n`);
 
     continue;
   }
@@ -47,6 +50,21 @@ for await (const line of readLines(Bun.stdin.stream())) {
 
   if (method === "configRequirements/read") {
     process.stdout.write(`${JSON.stringify({ id, result: { requirements: null } })}\n`);
+
+    continue;
+  }
+
+  if (method === "accountSession/list" && params?.["refreshWorkspaceMetadata"] === false) {
+    const result = config.sessions ?? {
+      activeSessionId: "session-a",
+      sessions: [
+        { sessionId: "session-a", isActive: true, selectedWorkspaceAccountId: "workspace-a", userId: "user-a" },
+      ],
+    };
+
+    process.stdout.write(
+      `${JSON.stringify(config.sessionError ? { id, error: config.sessionError } : { id, result })}\n`,
+    );
 
     continue;
   }

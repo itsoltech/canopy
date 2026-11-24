@@ -23,6 +23,7 @@ export class CodexAppServerError extends Schema.TaggedError<CodexAppServerError>
   method: Schema.String,
   message: Schema.String,
   code: Schema.optional(Schema.Number),
+  methodUnavailable: Schema.optional(Schema.Boolean),
 }) {}
 
 export class CodexAppServerStartupError extends Schema.TaggedError<CodexAppServerStartupError>()(
@@ -30,9 +31,34 @@ export class CodexAppServerStartupError extends Schema.TaggedError<CodexAppServe
   { message: Schema.String },
 ) {}
 
-/** Requests the adapter uses, with their params and results (bindings from the pinned Codex version). */
+function appServerFailure(method: string, error: Error) {
+  const accountSessions = method === "accountSession/list";
+  const rpc = error instanceof RpcError ? error : undefined;
+
+  // Codex 0.164 reports unknown methods as a deserialization failure.
+  const methodUnavailable =
+    accountSessions &&
+    rpc &&
+    (rpc.code === -32601 ||
+      (rpc.code === -32600 &&
+        rpc.message.startsWith(
+          "accountSession/list: Invalid request: unknown variant `accountSession/list`, expected one of ",
+        )));
+
+  return new CodexAppServerError({
+    method,
+    message:
+      method === "getAuthStatus" || accountSessions ? "Codex could not read authentication status." : error.message,
+    ...(rpc && { code: rpc.code }),
+    ...(methodUnavailable && { methodUnavailable: true }),
+  });
+}
+
+/** Requests the adapter uses, with generated bindings where available. */
 export interface CodexMethods {
   getAuthStatus: { params: GetAuthStatusParams; result: GetAuthStatusResponse };
+  /** Experimental in Codex 0.166+. The caller validates only the selected account metadata. */
+  "accountSession/list": { params: { refreshWorkspaceMetadata: false }; result: JsonValue | undefined };
   "account/rateLimits/read": { params: v2.GetAccountRateLimitsParams; result: v2.GetAccountRateLimitsResponse };
   "mcpServerStatus/list": { params: v2.ListMcpServerStatusParams; result: v2.ListMcpServerStatusResponse };
   "account/read": { params: v2.GetAccountParams; result: v2.GetAccountResponse };
@@ -180,17 +206,7 @@ export class CodexAppServer extends Context.Service<
         const call = (method: string, params: InitializeParams | CodexMethods[keyof CodexMethods]["params"]) =>
           Effect.tryPromise({
             try: () => peer.request(method, decodeJson(JSON.parse(JSON.stringify(params)))),
-            catch: (error) =>
-              new CodexAppServerError({
-                method,
-                message:
-                  method === "getAuthStatus"
-                    ? "Codex could not read authentication status."
-                    : error instanceof Error
-                      ? error.message
-                      : String(error),
-                ...(error instanceof RpcError && { code: error.code }),
-              }),
+            catch: (error) => appServerFailure(method, error instanceof Error ? error : new Error(String(error))),
           });
 
         const initializeParams: InitializeParams = {
