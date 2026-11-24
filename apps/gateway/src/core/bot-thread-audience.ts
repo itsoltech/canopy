@@ -82,6 +82,39 @@ export async function requireThreadAudience(
   if (!rows.length) throw new Invalid(THREAD_AUDIENCE_ERROR);
 }
 
+/** An owner turn can request a one-time send to a local thread with a separate audience. */
+export async function authorizeBotThreadMessage(
+  core: GatewayCore,
+  turn: BotTurn,
+  call: StoredCall,
+  id: string,
+  audiences: readonly string[],
+  mode: "prepare" | "execute",
+) {
+  if (audiences.length) return requireThreadAudience(core, id, audiences, true);
+  const { actions, options } = core[coreState];
+
+  const [target] = await actions.run(
+    SqlClient.SqlClient.use(
+      (sql) => sql<{ id: string; title: string; restricted: boolean; approved: boolean }>`
+      SELECT t.id, t.title, t.memory_audience<>'' AS restricted,
+        EXISTS (SELECT 1 FROM bot_approvals a WHERE a.id=${call.id}::uuid AND a.bot_id=${turn.bot_id}::uuid
+          AND a.turn_id=${turn.id}::uuid AND a.restricted_thread_id=t.id AND a.kind='approval' AND a.status='approved'
+          AND a.answered_at IS NOT NULL AND a.allowed_by_rule IS NULL) AS approved
+      FROM threads t WHERE t.id=${id}::uuid AND t.owner_user_id=${options.userId}::uuid
+        AND t.deleted_at IS NULL AND t.moved_to IS NULL AND (t.memory_audience='' OR t.archived_at IS NULL)`,
+    ),
+  );
+
+  if (!target) throw new Invalid(THREAD_AUDIENCE_ERROR);
+
+  if (!target.restricted) return;
+
+  if (mode === "execute" && !target.approved) throw new Invalid("Sending to this thread needs your approval.");
+
+  return { id: target.id, title: target.title };
+}
+
 /** A private callback can answer its delivered question without opening the watched thread's transcript. */
 async function deliveredQuestion(core: GatewayCore, turn: BotTurn, call: StoredCall) {
   const id = call.arguments["thread_id"];
@@ -115,7 +148,12 @@ async function deliveredQuestion(core: GatewayCore, turn: BotTurn, call: StoredC
 }
 
 /** Check before any approval preview or history fetch. Remote history is attested by its own home. */
-export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, call: StoredCall) {
+export async function authorizeBotThreadCall(
+  core: GatewayCore,
+  turn: BotTurn,
+  call: StoredCall,
+  mode: "prepare" | "execute" = "execute",
+) {
   if (
     call.tool.source !== "platform" ||
     (!usesThreadConnection(call.tool.name) && call.tool.name !== "send_bot_message")
@@ -157,10 +195,10 @@ export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, c
   if (audiences.length) {
     const question = await deliveredQuestion(core, turn, call);
 
-    if (question) return question;
+    if (question) return { questionId: question };
   }
 
-  const writing = ["start_thread", "fork_thread", "send_message", "set_goal", "answer_interaction"].includes(name);
+  const writing = ["start_thread", "fork_thread", "set_goal", "answer_interaction"].includes(name);
 
   for (const key of ["thread_id", "parent_thread_id"]) {
     const target = call.arguments[key];
@@ -168,7 +206,13 @@ export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, c
     if (!Predicate.isString(target)) continue;
     const ref = core.computers?.redirects.map("thread", target) ?? target;
 
-    if (!splitId(ref).node) await requireThreadAudience(core, ref, audiences, writing);
+    if (splitId(ref).node) continue;
+
+    if (name === "send_message") {
+      const restrictedThread = await authorizeBotThreadMessage(core, turn, call, ref, audiences, mode);
+
+      if (restrictedThread) return { restrictedThread };
+    } else await requireThreadAudience(core, ref, audiences, writing);
   }
 
   return undefined;

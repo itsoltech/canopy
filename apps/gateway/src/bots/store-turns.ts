@@ -231,7 +231,15 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
   const rules = botRules(sql, core);
 
   return {
-    approval: (turn: BotTurn, call: StoredCall, prompt: string, question: boolean, expiresAt?: Date, phrase = "") =>
+    approval: (
+      turn: BotTurn,
+      call: StoredCall,
+      prompt: string,
+      question: boolean,
+      expiresAt?: Date,
+      phrase = "",
+      restrictedThreadId?: string,
+    ) =>
       sql.withTransaction(
         Effect.gen(function* () {
           yield* authorizeThreadAction(sql, turn.bot_id, call);
@@ -275,11 +283,15 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
           }
 
           const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid`)[0]!;
-          const { options, matched } = yield* rules.matchingRule(bot.owner_user_id, turn.bot_id, call, phrase);
-          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at, rule_options, allowed_by_rule, status)
+
+          const { options, matched } = restrictedThreadId
+            ? { options: [], matched: undefined }
+            : yield* rules.matchingRule(bot.owner_user_id, turn.bot_id, call, phrase);
+
+          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at, rule_options, allowed_by_rule, status, restricted_thread_id)
             VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb, ${expiresAt ?? null},
               ${JSON.stringify(options.map((o) => toJson(bots.BotApprovalRuleSchema, o)))}::jsonb,
-              ${matched ? JSON.stringify(toJson(bots.BotApprovalRuleSchema, matched)) : null}::jsonb, ${matched ? "approved" : "pending"}) ON CONFLICT(id) DO NOTHING`;
+              ${matched ? JSON.stringify(toJson(bots.BotApprovalRuleSchema, matched)) : null}::jsonb, ${matched ? "approved" : "pending"}, ${restrictedThreadId ?? null}::uuid) ON CONFLICT(id) DO NOTHING`;
 
           if (matched) yield* changed(turn.bot_id);
 

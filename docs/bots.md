@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-24): prywatna tura właściciela i zaplanowane wystąpienie jego rutyny
+mogą wysłać wiadomość do lokalnego wątku o innym zakresie po jednorazowej zgodzie.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): kolejna pobudka zaplanowana przez prywatną pobudkę tego samego
 bota zachowuje dostęp do delegacji z wcześniejszych pobudek w tym łańcuchu.
 Dostępność w kanałach określa [promocja wydań](release.md).
@@ -85,6 +89,15 @@ gdy właściciel ma włączone oba moduły. Gateway filtruje katalog przekazywan
 i sprawdza aktualne ustawienia przy wywołaniu, również w rozpoczętej turze i po
 wznowieniu. Bot zachowuje własne wiadomości, rutyny, przypomnienia i przyznane konektory.
 Gdy włączony jest wyłącznie moduł Bots, `list_schedules` i `cancel_schedule` obsługują własne przypomnienia bota.
+
+`send_message` w prywatnej turze właściciela lub w zaplanowanym wystąpieniu jego
+rutyny kieruje zwykłe wysyłki do wątków według polityki zgód bota. Do niezarchiwizowanego
+lokalnego wątku o odrębnym zakresie, np. delegowanego ze Slacka lub oznaczonego
+przez migrację starszych delegacji, może wysłać wiadomość po zgodzie właściciela
+na konkretny wątek, treść i załączniki. Karta jest wymagana także w Full auto
+i przy stałej regule dla `send_message`. Odbiorcy z dostępem do historii wątku
+mogą zobaczyć wysłaną treść. Rozmowy zewnętrzne i automatyczne kontynuacje nadal
+korzystają z zakresu swojej delegacji.
 
 W wątku uruchomionym przez bota agent może wywołać `message_delegating_bot({text})`,
 gdy potrzebuje przekazać pytanie, ustalenie lub wynik. Gateway ustala odbiorcę
@@ -763,8 +776,10 @@ już wyszedł przed wyłączeniem, nie można cofnąć.
 
 Rutyna jest zwykłą pozycją w trwałej kolejce `bot_turns`: jedna tura na bota,
 FIFO względem wiadomości użytkownika, bez przeplatania narzędzi z drugą turą.
-Prawdziwa zgoda/pytanie w rutynie zatrzymuje kolejkę jak zwykła zgoda i jest widoczne
-z oznaczeniem **From routine ‹title›**. Inne polityki akcji platformy i MCP pozostają.
+Zgoda lub pytanie w rutynie zatrzymuje kolejkę i jest widoczne z oznaczeniem
+**From routine ‹title›**. Zaplanowane wystąpienie rutyny korzysta z ustawionych
+grantów i bieżącej polityki zgód bota, w tym z jednorazowej zgody na wysyłkę do
+lokalnego wątku o odrębnym zakresie.
 
 ### Ukryty transkrypt i celowe efekty
 
@@ -1139,7 +1154,7 @@ opis `list_workers` mówi o tym wprost. Brak narzędzia do logowania lub rejestr
 | `get_thread` | Stan, miejsce, model, effort, permission | R |
 | `read_thread` | Ostatnie 100 wiadomości, widoczne turn ids (również odziedziczone) i oczekujące interakcje | R |
 | `start_thread` | Nowy wątek i prompt, atomowy watch wyniku | C; A dla jawnego `accept_edits`/`full_auto` |
-| `send_message` | Kolejka lub steer z fallbackiem, watch zakończenia | P |
+| `send_message` | Kolejka lub steer z fallbackiem, watch zakończenia | P lub A przy wysyłce do lokalnego wątku o odrębnym zakresie |
 | `rename_thread` | Jawny tytuł | P |
 | `set_thread_model` | Model i effort | A |
 | `interrupt_thread` | Przerwanie aktywnej tury przez outbox workera | P |

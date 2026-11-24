@@ -10,6 +10,7 @@ import { splitId } from "@canopy/domain/computers";
 import { runHandoff } from "./runtime-handoff.ts";
 import { botView, BotStore } from "./store.ts";
 import type { BotModel, BotSteerDelivery, BotTurn, ModelInput, StoredCall, ToolResult, ToolSpec } from "./types.ts";
+import type { PreparedBotTool } from "./types.ts";
 import type { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { runToolCall, turnInstructions, WAITING } from "./turn-steps.ts";
 import { HarnessTools } from "./harness-tools.ts";
@@ -32,7 +33,7 @@ export interface BotRuntimeOptions {
   platform: (turn: BotTurn, call: StoredCall) => Promise<ToolResult>;
   describeTool?: (tool: ToolSpec, args: JsonObject) => Promise<string>;
   /** Validates a call before an approval card exists; returns the card's wording when the tool has its own. */
-  prepareTool?: (turn: BotTurn, call: StoredCall) => Promise<{ prompt?: string } | undefined>;
+  prepareTool?: (turn: BotTurn, call: StoredCall) => Promise<PreparedBotTool | undefined>;
   log?: (message: string) => void;
   draining?: () => boolean;
   linkedTick?: () => Promise<void>;

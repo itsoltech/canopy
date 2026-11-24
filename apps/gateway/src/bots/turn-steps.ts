@@ -65,7 +65,9 @@ export async function runToolCall(
 
       if (
         result === undefined &&
-        (call.has_approval || needsApproval(policyTool, currentConfig.approvalPolicy, call.arguments))
+        (call.has_approval ||
+          prepared?.restrictedThreadId ||
+          needsApproval(policyTool, currentConfig.approvalPolicy, call.arguments))
       ) {
         const question = tool.name === "ask_user";
 
@@ -74,7 +76,7 @@ export async function runToolCall(
           : (prepared?.prompt ?? approvalPrompt(tool, call.arguments, phrase));
 
         const approval = await ctx
-          .run((s) => s.approval(turn, call, prompt, question, ctx.expiresAt, phrase))
+          .run((s) => s.approval(turn, call, prompt, question, ctx.expiresAt, phrase, prepared?.restrictedThreadId))
           .catch((cause: unknown) => {
             result = platformError(cause);
 

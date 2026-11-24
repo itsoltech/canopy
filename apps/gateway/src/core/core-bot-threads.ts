@@ -6,7 +6,12 @@ import { BotStore } from "../bots/store.ts";
 import type { BotTurn, StoredCall } from "../bots/types.ts";
 import { delegationPrompt } from "../bots/external-instructions.ts";
 import { coreRedeliver } from "./core-commands.ts";
-import { botThreadAudience, botThreadAudiences, requireThreadAudience } from "./bot-thread-audience.ts";
+import {
+  authorizeBotThreadMessage,
+  botThreadAudience,
+  botThreadAudiences,
+  requireThreadAudience,
+} from "./bot-thread-audience.ts";
 import { coreState, InvalidError } from "./core-context.ts";
 import { corePublishSteer } from "./core-messages.ts";
 import type { GatewayCore } from "./core.ts";
@@ -116,7 +121,14 @@ export const coreBotThreadsMethods: CoreBotThreadsMethods = {
     if (delivery !== "queue" && delivery !== "steer") throw new InvalidError("delivery must be queue or steer");
 
     const result = await this.botAction(turn, call, async () => {
-      await requireThreadAudience(this, threadId, await botThreadAudiences(this, turn, true), true);
+      await authorizeBotThreadMessage(
+        this,
+        turn,
+        call,
+        threadId,
+        await botThreadAudiences(this, turn, true),
+        "execute",
+      );
       const thread = await this.getThread(threadId);
       const attachmentIds = await copyConversationFiles(this, turn, call);
 

@@ -27,6 +27,7 @@ import sandboxProfileOutbox from "./0199_sandbox_profile_outbox.sql" with { type
 import botSteerSenders from "./0200_bot_steer_senders.sql" with { type: "text" };
 import connectorNoProject from "./0207_connector_no_project.sql" with { type: "text" };
 import projectColor from "./0208_project_color.sql" with { type: "text" };
+import botApprovalRestrictedThread from "./0210_bot_approval_restricted_thread.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
@@ -394,6 +395,7 @@ export const migrations = Migrator.fromRecord({
   ...mobilePushMigrations,
   "0207_connector_no_project": sqlFile(connectorNoProject),
   "0208_project_color": sqlFile(projectColor),
+  "0210_bot_approval_restricted_thread": sqlFile(botApprovalRestrictedThread),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

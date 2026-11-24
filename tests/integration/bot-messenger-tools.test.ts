@@ -146,6 +146,32 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     return card;
   }
 
+  async function delegate(route: MessengerRoute, title: string, conversation: string) {
+    const fixtureThread = await f.thread(Provider.CODEX);
+
+    const turnId = await begin(
+      route,
+      `TOOL:start_thread\nARGS:${JSON.stringify({
+        project_id: fixtureThread.projectId,
+        workspace_id: fixtureThread.workspaceId,
+        provider: "codex",
+        provider_instance: "native",
+        model: "fixture-model",
+        prompt: "Implement the standing task",
+        title,
+      })}`,
+      conversation,
+    );
+
+    const threads = async () => (await f.gw.api.listThreads({ projectId: fixtureThread.projectId })).threads;
+    const card = await pending(route.botId);
+    expect((await threads()).some((t) => t.title === title)).toBe(false);
+    await f.gw.api.answerBotApproval({ approvalId: card.id, approve: true });
+    expect((await finished(turnId))[0]?.text).toContain("thread_id");
+
+    return { thread: (await threads()).find((t) => t.title === title)!, fixtureThread };
+  }
+
   async function grant(bot: bots.Bot) {
     const account = (
       await f.gw.api.saveConnectorAccount({
@@ -247,34 +273,9 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
 
   test("a conversation can continue its delegated thread after a second computer links", async () => {
     const { bot, route } = await source(Provider.CODEX, "always");
-    const target = await f.thread(Provider.CODEX);
     const title = `External delegation ${bot.id}`;
     const conversation = `delegation-${bot.id}`;
-
-    const turnId = await begin(
-      route,
-      `TOOL:start_thread\nARGS:${JSON.stringify({
-        project_id: target.projectId,
-        workspace_id: target.workspaceId,
-        provider: "codex",
-        provider_instance: "native",
-        model: "fixture-model",
-        prompt: "Implement the standing task",
-        title,
-      })}`,
-      conversation,
-    );
-
-    const card = await pending(bot.id);
-    expect((await f.gw.api.listThreads({ projectId: target.projectId })).threads.some((t) => t.title === title)).toBe(
-      false,
-    );
-    await f.gw.api.answerBotApproval({ approvalId: card.id, approve: true });
-    expect((await finished(turnId))[0]?.text).toContain("thread_id");
-
-    const started = (await f.gw.api.listThreads({ projectId: target.projectId })).threads.find(
-      (t) => t.title === title,
-    )!;
+    const { thread: started, fixtureThread: target } = await delegate(route, title, conversation);
 
     expect(started.permissionMode).toBe(PermissionMode.ASK);
 
@@ -385,6 +386,96 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
       delete home.core.computers;
       delete home.core.network;
     }
+  }, 45_000);
+
+  test("owner routine and private chat need one-time approval to message a Slack-delegated thread", async () => {
+    const { bot, route } = await source(Provider.CODEX, "always");
+    const title = "Slack follow-up thread";
+    const { thread } = await delegate(route, title, `routine-target-${bot.id}`);
+    const { api, core, userId } = f.gw;
+
+    await api.updateBot({ botId: bot.id, configuration: { ...bot.configuration!, approvalPolicy: "full_auto" } });
+    const ruleId = Bun.randomUUIDv7();
+
+    // A broad send_message rule could already exist from an ordinary thread approval.
+    await f.query(
+      `INSERT INTO bot_approval_rules(id,bot_id,owner_user_id,kind,label,source)
+       VALUES ($1,$2,$3,'send_message','messaging threads','approval_card')`,
+      [ruleId, bot.id, userId],
+    );
+
+    const sendArgs = (text: string) => ({ thread_id: thread.id, text, delivery: "queue" });
+    const routineTitle = "Send a handoff update";
+    const approvedText = "The release checklist is up to date.\nNext step: wait for sign-off.";
+
+    const creation = await f.tool(bot.id, "create_routine", {
+      title: routineTitle,
+      instructions: `TOOL:send_message\nARGS:${JSON.stringify(sendArgs(approvedText))}`,
+      cron: "0 0 * * *",
+      timezone: "UTC",
+    });
+
+    await finished(creation.turnId);
+    const routine = (await f.read(bot.id)).routines.find((r) => r.title === routineTitle)!;
+    await f.query("UPDATE bot_routines SET next_run_at=now() WHERE id=$1", [routine.id]);
+    await core.bots.tick();
+
+    const targetTurns = (text: string) =>
+      f.query<{ status: string; bot_call_id: string }>(
+        "SELECT status,bot_call_id FROM turns WHERE thread_id=$1 AND input->>'text'=$2",
+        [thread.id, text],
+      );
+
+    const oneTimeApproval = async (matches: (card: bots.BotApproval) => boolean, text: string) => {
+      const card = await eventually(
+        async () => (await f.read(bot.id)).approvals.find((a) => a.status === "pending" && matches(a)),
+        Boolean,
+        10_000,
+      );
+
+      expect(card).toMatchObject({ botId: bot.id, kind: "approval", ruleOptions: [] });
+      expect(card?.allowedByRule).toBeUndefined();
+      expect(card?.prompt).toContain(title);
+      expect(card?.prompt).toContain(text);
+      expect(card?.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ label: "Sharing", value: "Others may see the message and files." }),
+          expect.objectContaining({ label: "Text", value: text }),
+        ]),
+      );
+      expect(await targetTurns(text)).toEqual([]);
+      expect(await f.query("SELECT restricted_thread_id FROM bot_approvals WHERE id=$1", [card!.id])).toEqual([
+        { restricted_thread_id: thread.id },
+      ]);
+
+      return card!;
+    };
+
+    const scheduled = await oneTimeApproval((card) => card.routineTitle === routine.title, approvedText);
+    expect(await f.query("SELECT routine_id,client_request_id FROM bot_turns WHERE id=$1", [scheduled.turnId])).toEqual(
+      [{ routine_id: routine.id, client_request_id: expect.stringContaining(`routine:${routine.id}:`) }],
+    );
+    const approved = await api.answerBotApproval({ approvalId: scheduled.id, approve: true });
+    expect(approved.approval?.status).toBe("approved");
+    await finished(scheduled.turnId);
+    expect(
+      await eventually(
+        () => targetTurns(approvedText),
+        (rows) => rows[0]?.status === "completed",
+        10_000,
+      ),
+    ).toEqual([{ status: "completed", bot_call_id: scheduled.id }]);
+    expect(f.inputs().some((input) => input.parts.some((part) => part.text === approvedText))).toBe(true);
+
+    const declinedText = "Please reopen the release checklist.";
+    const direct = await f.tool(bot.id, "send_message", sendArgs(declinedText));
+    const pendingDirect = await oneTimeApproval((card) => card.turnId === direct.turnId, declinedText);
+    expect(pendingDirect.routineTitle).toBe("");
+    const declined = await api.answerBotApproval({ approvalId: pendingDirect.id, approve: false });
+    expect(declined.approval?.status).toBe("discarded");
+    await finished(direct.turnId);
+    expect(await targetTurns(declinedText)).toEqual([]);
+    expect((await api.listBotApprovalRules({ botId: bot.id })).rules.map((rule) => rule.id)).toEqual([ruleId]);
   }, 45_000);
 
   test("external source instructions cannot administer owner configuration even with full auto", async () => {

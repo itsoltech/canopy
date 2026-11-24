@@ -6,7 +6,7 @@ import { Predicate } from "effect";
 import { Invalid } from "../store/store.ts";
 import { toUiQuote, type StoredQuote } from "../store/quotes.ts";
 import { storedMentions } from "./mentions.ts";
-import { approvalFields } from "./approval-fields.ts";
+import { approvalFields, threadSharingNotice } from "./approval-fields.ts";
 import type { BotRow } from "./types.ts";
 import { decodedRules } from "./store-rules.ts";
 import { toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
@@ -57,6 +57,7 @@ export interface ApprovalRow {
   arguments?: JsonObject;
   prepared?: boolean;
   preference_change?: boolean;
+  restricted_thread_id?: string | null;
 }
 
 export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration);
@@ -116,8 +117,11 @@ export const approvalView = (row: ApprovalRow) =>
         ? [{ label: "Proposed answer", value: row.prompt.slice(row.prompt.indexOf("\n") + 1) }]
         : row.arguments
           ? [
+              ...(row.restricted_thread_id ? [{ label: "Sharing", value: threadSharingNotice }] : []),
               ...approvalFields(row.arguments).filter((field) => field.label !== "Attachment ids"),
-              ...(row.prompt.includes("\nFiles:\n")
+              ...(Array.isArray(row.arguments["attachment_ids"]) &&
+              row.arguments["attachment_ids"].length &&
+              row.prompt.includes("\nFiles:\n")
                 ? [{ label: "Files", value: row.prompt.slice(row.prompt.lastIndexOf("\nFiles:\n") + 8) }]
                 : []),
             ]
