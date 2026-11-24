@@ -1,6 +1,7 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
+Aktualizacja (2026-11-24): widok PR i `Rendered` plików Markdown korzystają z Thread width w web/desktop.
 
 Status (2026-11-23): **zaimplementowane, układ v3**. Karta pliku w web i desktopie
 odtwarza wideo strumieniowo z komputera wątku. Canopy Desktop pokazuje postęp
@@ -222,6 +223,10 @@ jedno menu `⋯`: `Keep tab` (dla podglądu), `Reload`, `Go to line`, `Copy path
 `Move right`, `Close tab`, `Close other tabs`, `Close saved tabs`) i na końcu,
 po separatorze, `Delete file`. Pasek nie powtarza nazwy pliku w osobnym miejscu
 i nie ma dwóch identycznych przycisków kopiowania.
+
+W web i desktopie `Rendered` centruje treść Markdown zgodnie z Thread width.
+Pasek pliku i `Source`, także podczas edycji, zajmują całą dostępną szerokość
+karty. [Wygląd](appearance.md#szerokość-w-web-i-desktopie)
 
 W aplikacji mobilnej pasek edytowalnego pliku Markdown ma przełącznik **Edit**,
 **Source** i **Rendered**. Oba widoki podglądu korzystają z bieżącego szkicu.

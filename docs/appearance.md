@@ -5,6 +5,7 @@ oznaczeń nowych i zapisanych projektów. Appearance jest lokalne dla profilu
 przeglądarki, instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
 Aktualizacja (2026-11-24): domyślny font interfejsu web i desktop ma etykietę Inter.
 Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
+W web i desktopie Thread width obejmuje także widok PR i podgląd `Rendered` plików Markdown.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -134,6 +135,14 @@ Preload przekazuje je przez walidowane IPC do powłoki startowej, gdy nie ma
 cookie. Main stosuje te kolory podczas tworzenia okna i aktualizuje jego tło
 i nativeTheme po zmianie preferencji. W System chrom reaguje na systemowy
 schemat. Błąd zapisu opcjonalnego cache nie blokuje zmiany aktywnego wyglądu.
+
+## Szerokość w web i desktopie
+
+Settings → Appearance → Interface → Thread width ustawia szerokość rozmowy
+i jej kompozytora, widoku PR oraz podglądu `Rendered` plików Markdown.
+Comfortable ogranicza kolumnę do 48 rem, Wide do 60 rem, a Full width wypełnia
+dostępny obszar. Pasek pliku i widok `Source`, w tym edytor, zajmują całą
+dostępną szerokość karty.
 
 ## Typografia w web i desktopie
 

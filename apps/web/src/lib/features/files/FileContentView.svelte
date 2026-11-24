@@ -56,7 +56,13 @@
   </p>
 {:else if rendered}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="min-h-full p-4 focus-ring" tabindex="0" role="region" aria-label={name} data-select-content>
+  <div
+    class="mx-auto min-h-full w-full max-w-(--chat-width) p-4 focus-ring"
+    tabindex="0"
+    role="region"
+    aria-label={name}
+    data-select-content
+  >
     <WorkspaceMarkdown
       {text}
       path={file.path || file.relativePath || target.path}

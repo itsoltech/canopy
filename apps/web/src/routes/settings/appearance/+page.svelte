@@ -98,7 +98,7 @@
     {#if settings.moduleEnabled("threads")}
       <PreferenceRow
         title={threadWidthPreference.label}
-        description={threadWidthPreference.description}
+        description="Applies to threads, their message boxes, pull requests, and Markdown previews in file tabs."
         changed={chatWidth !== threadWidthPreference.defaultChoice}
         onreset={() =>
           settings.updateAppearance({ chatWidth: widthChoices[threadWidthPreference.defaultChoice].value })}

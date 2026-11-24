@@ -79,14 +79,16 @@
   style:--pr-chrome-height={`${pinned}px`}
   style:scroll-padding-top={`${pinned}px`}
 >
-  <div class="pointer-events-none relative h-0" aria-hidden="true">
-    <div bind:this={compactSize} class="absolute h-12 w-px"></div>
-    <div bind:this={expand} class="absolute top-(--pr-collapse-offset) h-px w-px"></div>
-    <div bind:this={collapse} class="absolute top-[calc(var(--pr-collapse-offset)+1rem)] h-px w-px"></div>
+  <div class="mx-auto w-full max-w-(--chat-width)">
+    <div class="pointer-events-none relative h-0" aria-hidden="true">
+      <div bind:this={compactSize} class="absolute h-12 w-px"></div>
+      <div bind:this={expand} class="absolute top-(--pr-collapse-offset) h-px w-px"></div>
+      <div bind:this={collapse} class="absolute top-[calc(var(--pr-collapse-offset)+1rem)] h-px w-px"></div>
+    </div>
+    <div bind:this={chrome} class="sticky top-[calc(-1*var(--pr-collapse-offset))] z-50 bg-surface">
+      {@render header(compact)}
+      <div bind:this={tabBar} class="bg-surface">{@render tabs()}</div>
+    </div>
+    {@render children()}
   </div>
-  <div bind:this={chrome} class="sticky top-[calc(-1*var(--pr-collapse-offset))] z-50 bg-surface">
-    {@render header(compact)}
-    <div bind:this={tabBar} class="bg-surface">{@render tabs()}</div>
-  </div>
-  {@render children()}
 </div>
