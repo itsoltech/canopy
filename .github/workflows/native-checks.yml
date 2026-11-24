@@ -38,6 +38,8 @@ jobs:
             test -s "$iconset/icon_${size}x${size}@2x.png"
           done
       - uses: ./.github/actions/setup-bun
+      - name: Tailscale CLI detection on the native filesystem
+        run: bun test ./tests/integration/tailscale-desktop-detection.test.ts
       - name: Resolve the installed Canopy bundle name and artwork with macOS
         if: runner.os == 'macOS'
         run: bun test ./apps/desktop/test/packaging.test.ts -t 'macOS packaging'
