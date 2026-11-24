@@ -8,7 +8,7 @@ Jeśli worker nie może dowiązać pliku loginu lub jego blokady, przy koncie
 i w błędzie tury pokazuje się przyczyna. Instancja ze zgłoszonym błędem
 udostępniania loginu ma status **Login unavailable**.
 
-Status (2026-11-23) obejmuje domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
+Status (2026-11-24) obejmuje widok limitów kont proxy w Providers, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
 Konta proxy mają osobny ręczny wybór planu w Settings → Proxies → Accounts (web i mobile).
 Wybór wygrywa z wykrywaniem i zasila ważoną pojemność; **Automatic** go usuwa.
@@ -292,7 +292,8 @@ od największego planu. Szerokość odcinka to udział jego jednostek planu w su
 pozostała część danego konta. Bezpośrednia instancja i nieznany plan liczą się jako 1.
 Przy więcej niż jednym koncie obok nazwy jest ich liczba („2 accounts”).
 Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
-Szczegóły instancji i kont zostają w Providers i Proxies
+Po wybraniu **Open provider settings** sekcja **Proxy limits** pokazuje odczyty
+poszczególnych kont używanych proxy. Limity bezpośrednie są w statusie instancji
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu
 nie ma wiersza. Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą
 alarmu. Dane pochodzą wyłącznie z przyrostowego overview; zegar aktualizuje tylko

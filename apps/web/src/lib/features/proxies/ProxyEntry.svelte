@@ -5,6 +5,7 @@
   import Badge from "#lib/shared/ui/Badge.svelte";
   import SensitiveUrl from "#lib/shared/ui/SensitiveUrl.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { proxyCall, proxyKinds } from "./proxies.ts";
   import ProxyMappings from "./ProxyMappings.svelte";
   import ProxyAccounts from "./ProxyAccounts.svelte";
@@ -27,6 +28,21 @@
   let deleting = $state(false);
   let result = $state<ui.TestProxyResponse>();
   let failure = $state<string>();
+  const route = useSettingsRoute();
+  const sectionId = $derived(`proxy-${proxy.id}`);
+  let section = $state<HTMLElement>();
+
+  $effect(() => {
+    const target = section;
+
+    if (!target || route.url.hash !== `#${sectionId}`) return;
+    const frame = requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "start" });
+      target.focus({ preventScroll: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  });
 
   async function testConnection() {
     testing = true;
@@ -58,7 +74,9 @@
 </script>
 
 <section
-  id={`proxy-${proxy.id}`}
+  bind:this={section}
+  id={sectionId}
+  tabindex="-1"
   aria-label={proxy.name}
   class={[
     "grid min-w-0 scroll-mt-4 gap-3 border-t border-zinc-950/10 py-3 first:border-0 dark:border-white/10",

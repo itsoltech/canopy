@@ -74,7 +74,7 @@ export function sanitizeProviderUsage(value: ProviderUsageSnapshot): ProviderUsa
   });
 }
 
-export function activeUsageWindows(snapshot: ProviderUsageSnapshot | undefined, now = Date.now()) {
+export function activeUsageWindows(snapshot: Pick<ProviderUsageSnapshot, "windows"> | undefined, now = Date.now()) {
   return snapshot?.windows.filter((w) => !w.resetsAt || timestampDate(w.resetsAt).getTime() > now) ?? [];
 }
 
