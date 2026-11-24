@@ -9,6 +9,7 @@ import type { MobileComposerState } from "../drafts/store";
 import type { ModelChoice } from "../models/catalog";
 import { modelSections, useModelCatalog } from "../models/catalog";
 import { effectiveThreadDefaults } from "@canopy/domain/new-thread-choices";
+import { newThreadDraftTarget } from "@canopy/domain/composer-drafts";
 import { usePersistentMessage } from "../drafts/usePersistentMessage";
 import { useWorkerPresence } from "../computers/presence";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
@@ -27,6 +28,9 @@ export function useNewThread() {
   const params = useLocalSearchParams<{ project?: string; workspace?: string }>();
   const [picks, setPicks] = useState<{ projectId?: string; workspaceId?: string; model?: string }>({});
   const initialLoading = !overview.loaded || (!settings.user && !settings.error);
+  const message = usePersistentMessage(newThreadDraftTarget);
+  const persistent = message.persistent;
+  const pending = persistent?.pendingCreate;
 
   const projects = overview.projectChoices;
   const presence = useWorkerPresence();
@@ -35,24 +39,16 @@ export function useNewThread() {
   const userDefaults = settings.user?.threadDefaults;
 
   const project =
-    projects.find((p) => p.projectIds.includes(picks.projectId ?? params.project ?? "")) ??
+    projects.find((p) => p.projectIds.includes(pending?.projectId ?? picks.projectId ?? params.project ?? "")) ??
     defaultProject(projects, overview.threads, userDefaults?.workspaceId ?? "");
 
   const defaults = effectiveThreadDefaults(userDefaults, project ? settings.projectDefaults(project.id) : undefined);
 
   const workspace = project
-    ? (project.workspaces.find((w) => w.id === (picks.workspaceId ?? params.workspace)) ??
-      defaultWorkspace(project, overview.threads, defaults.workspaceId, online))
+    ? (project.workspaces.find((w) => w.id === (pending?.workspaceId ?? picks.workspaceId ?? params.workspace)) ??
+      (pending ? undefined : defaultWorkspace(project, overview.threads, defaults.workspaceId, online)))
     : undefined;
 
-  const message = usePersistentMessage(
-    createMessage(ui.ComposerDraftTargetSchema, {
-      projectId: workspace?.projectId ?? "",
-      workspaceId: workspace?.id ?? "",
-    }),
-  );
-
-  const persistent = message.persistent;
   const permission = persistent?.choices.permissionMode;
 
   const worker = overview.workers.find((w) => w.id === workspace?.workerId);
@@ -140,8 +136,12 @@ export function useNewThread() {
     initialLoading,
     error,
     blocker,
-    pickProject: (projectId: string) => setPicks({ ...picks, projectId, workspaceId: undefined }),
-    pickWorkspace: (workspaceId: string) => setPicks({ ...picks, workspaceId }),
+    pickProject: (projectId: string) => {
+      if (!persistent?.locked) setPicks({ ...picks, projectId, workspaceId: undefined });
+    },
+    pickWorkspace: (workspaceId: string) => {
+      if (!persistent?.locked) setPicks({ ...picks, workspaceId });
+    },
     ...modelActions(persistent, choices, selected, effort, serviceTier),
     setPermission: (next: PermissionMode) => persistent?.setChoices({ permissionMode: next }),
     create,

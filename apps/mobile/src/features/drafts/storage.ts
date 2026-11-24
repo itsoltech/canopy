@@ -84,6 +84,14 @@ export async function prepareMobileDrafts(session: DeviceSession | null) {
     }
   }
 
+  const previousTarget = local.restoreNewThreadDraft();
+
+  if (previousTarget) {
+    await local.checkpoint();
+
+    if (!local.error) local.remove(previousTarget);
+  }
+
   return new MobileDrafts(local, session.deviceId, session.deviceName, async () => {
     local.flush();
     await writing;

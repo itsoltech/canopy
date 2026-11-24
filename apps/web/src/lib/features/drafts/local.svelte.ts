@@ -71,6 +71,14 @@ class WebDrafts {
           this.local.receive(stored.slice(key.length + 1), localStorage.getItem(stored));
       }
 
+      const previousTarget = this.local.restoreNewThreadDraft();
+
+      if (previousTarget) {
+        this.local.flush();
+
+        if (!this.local.error) this.local.remove(previousTarget);
+      }
+
       const receive = (event: StorageEvent) => {
         if (event.storageArea !== localStorage || !event.key?.startsWith(`${key}:`)) return;
         const targetKey = event.key.slice(key.length + 1);

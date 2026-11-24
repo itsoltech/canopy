@@ -5,6 +5,7 @@ import {
   ComposerLocalStore,
   composerTargetKey,
   hasComposerContent,
+  isUnplacedComposerTarget,
   sameComposerInput,
 } from "@canopy/domain/composer-drafts";
 import { AttachmentDraft } from "#lib/features/attachments/draft.svelte.ts";
@@ -61,9 +62,7 @@ export class WebComposerDraft {
       ? fromBinary(ui.SendMessageRequestSchema, entry.pendingSend)
       : undefined;
     this.pendingForm = entry.pendingForm;
-    this.quoteKey =
-      entry.draft?.target?.threadId ||
-      `composer:${composerTargetKey(entry.draft?.target ?? create(ui.ComposerDraftTargetSchema))}`;
+    this.quoteKey = entry.draft?.target?.threadId || `composer:${entry.draft?.id ?? crypto.randomUUID()}`;
     this.files = new AttachmentDraft(limits, { onUploaded: () => this.persist() });
     this.#restore(entry);
   }
@@ -274,7 +273,9 @@ export class WebComposerDraft {
     } catch (cause) {
       if (this.retired || this.id !== outgoing.id || this.locked) return outgoing;
 
-      if (cause instanceof HttpError && [404, 409].includes(cause.status)) {
+      const status = cause instanceof HttpError ? cause.status : 0;
+
+      if (status === 409 || (status === 404 && !isUnplacedComposerTarget(outgoing.target))) {
         const page = await listDrafts(draft.deviceId, "", "", [outgoing.id]);
         const move = page.moves.find((row) => row.id === outgoing.id);
 
@@ -317,14 +318,21 @@ export class WebComposerDraft {
       this.choices = { ...this.choices, permissionMode: PermissionMode.FULL_AUTO, sandboxProfile };
   }
   async publishForSend() {
-    if (this.#clearSandboxProfile || this.choices.sandboxProfile) {
+    const targetNeedsSave = () =>
+      this.revision && !this.#published && isUnplacedComposerTarget(this.#entry.draft?.target);
+
+    if (targetNeedsSave() || this.#clearSandboxProfile || this.choices.sandboxProfile) {
       await this.#saving;
 
       const pending = () =>
-        this.#clearSandboxProfile || !matchesPublishedSandbox(this.#published, this.choices.sandboxProfile);
+        targetNeedsSave() ||
+        this.#clearSandboxProfile ||
+        !matchesPublishedSandbox(this.#published, this.choices.sandboxProfile);
 
       if (this.revision && pending()) {
         await this.publish();
+
+        if (targetNeedsSave()) throw new Error("Could not save this draft. Retry before sending.");
 
         if (pending()) throw new Error("Could not save this draft’s sandbox choice. Retry before sending.");
       }
