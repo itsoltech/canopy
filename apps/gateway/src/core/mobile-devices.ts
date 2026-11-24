@@ -223,7 +223,8 @@ export class MobileDevices {
 
             const devices =
               yield* sql<DeviceRow>`INSERT INTO mobile_devices (id, owner_user_id, name, platform, token_hash, last_seen_at, pairing_version, client_kind)
-          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${request.platform}, ${digest(token)}, now(), 2, ${kind}) RETURNING *`;
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, ${name}, ${request.platform}, ${digest(token)},
+          CASE WHEN ${kind} = 'desktop' THEN NULL ELSE now() END, 2, ${kind}) RETURNING *`;
 
             const paired =
               yield* sql<PairingRow>`UPDATE mobile_pairings SET used_at = clock_timestamp(), device_id = ${devices[0]!.id}::uuid
@@ -251,7 +252,7 @@ export class MobileDevices {
 
   async authenticate(token: string) {
     if (!/^canopy_(device|desktop)_[A-Za-z0-9_-]{43}$/.test(token)) return undefined;
-    const { runtime, userId } = this.options;
+    const { runtime, userId, publish } = this.options;
 
     return mobileGuard(() =>
       runtime.runPromise(
@@ -262,14 +263,26 @@ export class MobileDevices {
           const rows = yield* sql<{
             id: string;
             client_kind: string;
-          }>`SELECT id, client_kind FROM mobile_devices WHERE token_hash = ${digest(token)}
+            last_seen_at: Date | null;
+          }>`SELECT id, client_kind, last_seen_at FROM mobile_devices WHERE token_hash = ${digest(token)}
         AND owner_user_id = ${userId}::uuid AND revoked_at IS NULL AND pairing_version = 2`;
 
           const row = rows[0];
 
           if (!row) return undefined;
-          yield* sql`UPDATE mobile_devices SET last_seen_at = now() WHERE id = ${row.id}::uuid
-        AND (last_seen_at IS NULL OR last_seen_at < now() - interval '1 minute')`;
+
+          if (row.client_kind === "desktop" && row.last_seen_at === null) {
+            // Only the first authenticated request changes the device from paired to seen.
+            const [firstSeen] = yield* sql<DeviceRow>`UPDATE mobile_devices SET last_seen_at = now()
+            WHERE id = ${row.id}::uuid AND revoked_at IS NULL AND last_seen_at IS NULL
+            RETURNING id, name, platform, created_at, last_seen_at, revoked_at, pairing_version, client_kind`;
+
+            if (firstSeen)
+              publish(create(ui.OverviewUpdateSchema, { change: { case: "mobileDevice", value: device(firstSeen) } }));
+          } else {
+            yield* sql`UPDATE mobile_devices SET last_seen_at = now() WHERE id = ${row.id}::uuid
+            AND (last_seen_at IS NULL OR last_seen_at < now() - interval '1 minute')`;
+          }
 
           return { deviceId: row.id, userId, clientKind: row.client_kind };
         }),

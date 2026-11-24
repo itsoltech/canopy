@@ -46,7 +46,10 @@
       : "Open Canopy on your phone and scan this QR code. Use a network both devices can reach."}
 >
   <div class="grid min-w-0 justify-items-center gap-5">
-    {#if paired}<Alert tone="info">Device paired.</Alert>
+    {#if paired && desktop}<Alert title="Desktop app invitation accepted">
+        Open Device access to check when the app last connected to this gateway.
+      </Alert>
+    {:else if paired}<Alert tone="info">Device paired.</Alert>
     {:else if !usable}<Alert tone="warning"
         >This code expired or was revoked. Close this window and create a new code.</Alert
       >
