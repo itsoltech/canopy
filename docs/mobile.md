@@ -67,8 +67,7 @@ w nagłówku ma bok 32 dp w każdym kanale. Wydania iOS korzystają z tych samyc
 projektów Icon Composer co macOS. Znak wodny
 kanału zaczyna się poniżej górnego bezpiecznego marginesu i zanika przed listą
 wątków i botów. W Nightly, Becie i Dev gradient pod drzewem obejmuje także tło paska stanu.
-Dzienny ping użycia ma przełącznik
-prywatności i pomija wysyłkę offline. Settings → Appearance
+Dzienny ping użycia wymaga ręcznego włączenia. Settings → Appearance
 zapisuje schemat kolorów, oba motywy i szerokość wątku w instalacji aplikacji.
 Karty edytowalnych plików Markdown mają tryby **Edit**, **Source** i **Rendered**.
 **Rendered** współdzieli renderer plików z web/desktop, w tym bezpieczny HTML,
@@ -232,8 +231,9 @@ nie usuwa plików workspace. Szczegóły: [database-retention.md](database-reten
 
 ## Dzienny ping użycia
 
-Canopy na iOS i Androidzie wysyła do tego samego raportu Umami co [desktop](desktop.md#dzienny-ping-użycia)
-jeden udany ping na dobę UTC. Po sparowaniu aplikacja sprawdza możliwość wysyłki
+Po włączeniu Canopy na iOS i Androidzie wysyła do tego samego raportu Umami co
+[desktop](desktop.md#dzienny-ping-użycia) jeden udany ping na dobę UTC.
+Po sparowaniu aplikacja sprawdza możliwość wysyłki
 na starcie, przy powrocie na pierwszy plan i po odzyskaniu łączności na pierwszym
 planie. Android wymaga potwierdzonego przez system dostępu do internetu. Na iOS
 Expo raportuje dostępność sieci, która może nie mieć drogi do Umami. Łączność
@@ -241,9 +241,9 @@ z gatewayem nie decyduje o wysyłce pingu. Żądanie ma limit 10 s. Po błędzie
 zdarzenie może ponowić próbę po co najmniej 15 minutach. Aplikacja nie odpytuje
 sieci cyklicznie. Deweloperskie sesje Metro pomijają ping.
 
-Przełącznik **Send daily usage ping** jest domyślnie włączony. Można go wyłączyć
-podczas parowania, przed pierwszą wysyłką, albo w **Settings → General → Privacy**.
-Wybór działa bez restartu i pozostaje lokalnie po zmianie parowania.
+Przełącznik **Send daily usage ping** jest domyślnie wyłączony. Można go zmienić
+podczas parowania albo w **Settings → General → Privacy**. Wybór działa bez
+restartu i pozostaje lokalnie po aktualizacji lub zmianie parowania.
 
 Sygnał zawiera wersję Canopy, platformę `ios` lub `android`, język,
 rozmiar ekranu w dp i rodzinę architektury CPU, jeśli klient ją rozpoznaje.

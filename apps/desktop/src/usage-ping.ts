@@ -7,6 +7,7 @@ import { writePrivateFile } from "./runtime/private-file.ts";
 
 const storedPing = Schema.Struct({
   enabled: Schema.Boolean,
+  consentRecorded: Schema.optional(Schema.Literal(true)),
   lastPingDate: Schema.optional(Schema.String),
 });
 
@@ -24,9 +25,12 @@ export class DesktopUsagePing {
 
   private read(): typeof storedPing.Type {
     try {
-      return decodeStoredPing(readFileSync(this.path, "utf8"));
+      const state = decodeStoredPing(readFileSync(this.path, "utf8"));
+
+      // Older builds also wrote enabled: true when reserving a day with the default setting.
+      return { ...state, enabled: state.consentRecorded === true && state.enabled };
     } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "ENOENT") return { enabled: true };
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return { enabled: false };
       throw error;
     }
   }
@@ -44,7 +48,7 @@ export class DesktopUsagePing {
     ipcMain.handle("canopy:set-usage-ping", (event, value: boolean) => {
       authorize(event);
       const enabled = decodeEnabled(value);
-      this.write({ ...this.read(), enabled });
+      this.write({ ...this.read(), enabled, consentRecorded: true });
 
       return enabled;
     });
@@ -69,7 +73,7 @@ export class DesktopUsagePing {
 
       if (!(await deliverPing())) {
         this.retryAfter = Date.now() + usagePingRetryMs;
-        this.write({ enabled: this.read().enabled });
+        this.write({ ...this.read(), lastPingDate: undefined });
       }
     } catch {
       // An unreadable preference must keep the ping off.
