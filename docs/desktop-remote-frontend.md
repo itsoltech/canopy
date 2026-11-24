@@ -13,6 +13,8 @@ Ustawienia Workers i Desktop pokazują lokalny stan workera oraz zapisany adres
 gatewaya. Dostęp do edycji tego adresu działa również podczas awarii (2026-11-24).
 Nowe i ponowne parowanie Desktopu odróżnia przyjęcie zaproszenia od pierwszego
 uwierzytelnionego połączenia w Settings → Devices (2026-11-24).
+Zdalny worker dołączony do Desktopu może odzyskać połączenie przez inną trasę
+swojego sparowanego gatewaya po utracie zapisanej trasy (2026-11-24).
 Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
@@ -140,6 +142,15 @@ adres HTTPS tego gatewaya. Zaproszenie z tym samym pinem zachowuje bieżący pro
 
 Nowa konfiguracja może dodatkowo przyjąć dotychczasowy token enrollmentu
 workera; jego link, journal, status i aktualizacje pozostają osobnym mechanizmem.
+Przy starcie kontroler przekazuje workerowi kandydatów tras z parowania i zapisany
+adres Desktopu przez prywatne środowisko procesu. Worker próbuje najpierw użyć
+swojego zapisanego adresu. Po błędzie dostępności WorkerLink może spróbować
+alternatyw, jeśli pin Desktopu zgadza się z zapisanym pinem workera. Każda
+alternatywa musi przedstawić ten certyfikat i przyjąć poświadczenie workera w
+`ProbeNetworkRoute`. Jeżeli jest alternatywa, oczekiwanie na pierwszy `Welcome`
+jest ograniczone do 30 s. Worker przełącza WorkerLink i UpdateService w pamięci,
+zachowując własne poświadczenie, tożsamość, journal i zapisany adres na następny
+start. Działające połączenie zachowuje swoją trasę.
 Nie wymagamy połączenia workera do otwarcia UI. Zmiana trybu nadal restartuje
 własne usługi po potwierdzeniu rzeczywistej zmiany. Zapis niezmienionego trybu
 i adresów oraz powrót do Settings (przycisk lub Escape) nie zapisują konfiguracji

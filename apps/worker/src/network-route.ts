@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
-import { create } from "@bufbuild/protobuf";
+import { create, fromJsonString } from "@bufbuild/protobuf";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
-import { NetworkRouteStatusSchema, WorkerLinkService, type NetworkRoutes } from "@canopy/contracts";
-import { createGrpcClientTransport, pinnedCertificate } from "@canopy/transport";
+import { NetworkRouteStatusSchema, WorkerLinkService, type NetworkRoutes, ui } from "@canopy/contracts";
+import { createGrpcClientTransport, pinnedCertificate, pinnedOrigins, type PinnedRoutes } from "@canopy/transport";
+import { installKind } from "@canopy/updater";
 import type { GatewayLink } from "./gateway-link/index.ts";
 import type { GatewayEndpoint, LocalConfig } from "./config/local.ts";
 import { saveMigratedConfig } from "./config/migration.ts";
@@ -18,6 +19,20 @@ export function endpointOptions(endpoint: GatewayEndpoint) {
   };
 }
 
+function readDesktopWorkerRoutes(value: string | undefined): PinnedRoutes | undefined {
+  if (!value) return undefined;
+
+  try {
+    const { fingerprint, addresses } = fromJsonString(ui.MobileRoutesSchema, value);
+
+    if (/^[a-f0-9]{64}$/.test(fingerprint)) return { fingerprint, addresses: pinnedOrigins(addresses) };
+  } catch {
+    // The saved worker route remains usable independently of the desktop's route hints.
+  }
+
+  return undefined;
+}
+
 /** Keeps serving the existing link while probing; a failed migration cannot fence it or change its config. */
 export class WorkerNetworkRoute {
   #local: LocalConfig;
@@ -26,6 +41,9 @@ export class WorkerNetworkRoute {
   #busy = false;
   #retryAt = 0;
   #lastOffer = "";
+  #desktopRetryAt = 0;
+  readonly #desktopRoutes: PinnedRoutes | undefined;
+  readonly #failedDesktopOrigins = new Set<string>();
 
   constructor(
     readonly options: {
@@ -38,10 +56,35 @@ export class WorkerNetworkRoute {
   ) {
     this.#local = options.local;
     this.#endpoint = options.local;
+    this.#desktopRoutes =
+      !options.localWorker && installKind() === "desktop"
+        ? readDesktopWorkerRoutes(process.env["CANOPY_DESKTOP_WORKER_ROUTES"])
+        : undefined;
   }
 
   get endpoint() {
     return this.#endpoint;
+  }
+
+  get desktopWelcomeTimeoutMs() {
+    const routes = this.#pairedRoutes;
+
+    if (
+      routes &&
+      [this.#local.gateway_url, ...routes.addresses].some((origin) => origin !== this.#endpoint.gateway_url)
+    )
+      return 30_000;
+
+    return undefined;
+  }
+
+  get #pairedRoutes() {
+    return this.#desktopRoutes?.fingerprint === this.#local.gateway_fingerprint ? this.#desktopRoutes : undefined;
+  }
+
+  connected() {
+    this.#failedDesktopOrigins.clear();
+    this.#desktopRetryAt = 0;
   }
 
   status() {
@@ -49,6 +92,51 @@ export class WorkerNetworkRoute {
       route: this.options.localWorker ? "local" : this.#endpoint.gateway_fingerprint ? "pinned" : "server",
       detail: this.#detail,
     });
+  }
+
+  /** Pairing only provides hints. Reuse the worker's own pin and prove its credential on the alternate route. */
+  async recoverDesktopRoute(error: ConnectError) {
+    const { signal } = this.options;
+    const desktopRoutes = this.#pairedRoutes;
+
+    if (!desktopRoutes || !routeUnavailable(error) || signal.aborted || this.#busy || Date.now() < this.#desktopRetryAt)
+      return false;
+
+    this.#failedDesktopOrigins.add(this.#endpoint.gateway_url);
+
+    const origins = [...new Set([this.#local.gateway_url, ...desktopRoutes.addresses])]
+      .filter((origin) => !this.#failedDesktopOrigins.has(origin))
+      .slice(0, 32);
+
+    if (!origins.length) return this.#deferDesktopRecovery();
+    this.#busy = true;
+    const probes = new AbortController();
+    const deadline = AbortSignal.any([signal, probes.signal, AbortSignal.timeout(5000)]);
+
+    try {
+      const target = await Promise.any(
+        origins.map((origin) => this.#verifyRoute(origin, desktopRoutes.fingerprint, deadline)),
+      );
+
+      if (signal.aborted) return false;
+      this.#endpoint = target;
+      this.#detail = "";
+      this.options.changed(target);
+
+      return true;
+    } catch {
+      return this.#deferDesktopRecovery();
+    } finally {
+      probes.abort();
+      this.#busy = false;
+    }
+  }
+
+  #deferDesktopRecovery() {
+    this.#failedDesktopOrigins.clear();
+    this.#desktopRetryAt = Date.now() + 30_000;
+
+    return false;
   }
 
   /** A persisted fallback must still meet the worker operator's transport policy at the time of the switch. */
@@ -117,19 +205,7 @@ export class WorkerNetworkRoute {
       let target: GatewayEndpoint;
 
       try {
-        const url = new URL(origin);
-
-        if (url.origin !== origin || url.protocol !== "https:") throw new Error("invalid secure origin");
-        const certificate = await pinnedCertificate(origin, routes.fingerprint, this.options.signal);
-        target = { gateway_url: origin, gateway_certificate: certificate, gateway_fingerprint: routes.fingerprint };
-        await createClient(WorkerLinkService, createGrpcClientTransport(endpointOptions(target))).probeNetworkRoute(
-          { workerId: this.#local.worker_id },
-          {
-            headers: { authorization: `Bearer ${this.#local.credential}` },
-            timeoutMs: 5000,
-            signal: this.options.signal,
-          },
-        );
+        target = await this.#verifyRoute(origin, routes.fingerprint, this.options.signal);
       } catch (error) {
         // Fixed diagnostic: transport errors may contain request headers or arbitrary peer text.
         failures.push(routeFailure(error instanceof Error ? error : undefined));
@@ -159,6 +235,24 @@ export class WorkerNetworkRoute {
     this.#report(link);
   }
 
+  async #verifyRoute(origin: string, fingerprint: string, signal: AbortSignal): Promise<GatewayEndpoint> {
+    const url = new URL(origin);
+
+    if (url.origin !== origin || url.protocol !== "https:") throw new Error("invalid secure origin");
+    const certificate = await pinnedCertificate(origin, fingerprint, signal);
+    const target = { gateway_url: origin, gateway_certificate: certificate, gateway_fingerprint: fingerprint };
+    await createClient(WorkerLinkService, createGrpcClientTransport(endpointOptions(target))).probeNetworkRoute(
+      { workerId: this.#local.worker_id },
+      {
+        headers: { authorization: `Bearer ${this.#local.credential}` },
+        timeoutMs: 5000,
+        signal,
+      },
+    );
+
+    return target;
+  }
+
   #localEndpoint(): GatewayEndpoint {
     return {
       gateway_url: this.#local.gateway_url,
@@ -175,6 +269,16 @@ export class WorkerNetworkRoute {
       /* The next Hello reports it. */
     }
   }
+}
+
+function routeUnavailable(error: ConnectError) {
+  if ([Code.Unavailable, Code.Aborted, Code.Canceled].includes(error.code)) return true;
+  const cause = error.cause;
+
+  // connect-node maps socket reachability errors such as ENETUNREACH to Internal.
+  if (error.code !== Code.Internal || !(cause instanceof Error) || !("code" in cause)) return false;
+
+  return ["ENETUNREACH", "EHOSTUNREACH", "ENETDOWN", "EHOSTDOWN", "EPIPE"].some((code) => code === cause.code);
 }
 
 function routeFailure(error: Error | undefined) {

@@ -379,6 +379,7 @@ while (!stopping.signal.aborted) {
       heldThreads: await runtime.runPromise(Journal.use((journal) => journal.heldThreads())),
       ...endpointOptions(endpoint),
       credential: local.credential,
+      welcomeTimeoutMs: networkRoute.desktopWelcomeTimeoutMs,
       pingIntervalMs: (local.ping_interval_seconds ?? 30) * 1_000,
       signal: shutdown.signal,
       hello: {
@@ -409,6 +410,7 @@ while (!stopping.signal.aborted) {
     }
 
     currentLink = link;
+    networkRoute.connected();
 
     if (link.heldThreads?.size)
       console.warn(
@@ -477,6 +479,8 @@ while (!stopping.signal.aborted) {
       error instanceof ConnectError && [Code.Unauthenticated, Code.PermissionDenied].includes(error.code) ? 115 : 114,
       1,
     );
+
+    if (error instanceof ConnectError && (await networkRoute.recoverDesktopRoute(error))) continue;
 
     if (networkRoute.failed()) continue;
     console.warn(`gateway link failed: ${error instanceof Error ? error.message : String(error)}`);

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { hostname } from "node:os";
 import { createClient } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
-import { routedPinnedTransport } from "@canopy/transport";
+import { routedPinnedTransport, type PinnedRoutes } from "@canopy/transport";
 import type { JsonValue } from "@canopy/domain";
 import type { DesktopStatus } from "@canopy/ui/desktop";
 import type { LocalBffTarget } from "@canopy/domain/bff-target";
@@ -63,6 +63,7 @@ export async function startDesktopWorker(options: {
   gatewayUrl: string;
   token?: string | undefined;
   fingerprint?: string | undefined;
+  fallbackRoutes?: PinnedRoutes | undefined;
   local: LocalBffTarget | undefined;
   logs: Logs;
   services: Supervisor;
@@ -124,12 +125,20 @@ export async function startDesktopWorker(options: {
 
   const status = join(directory, "status.json");
   writeFileSync(status, JSON.stringify({ status: "offline", time: Date.now() }), { mode: 0o600 });
+  const routes = options.fallbackRoutes;
   options.services.start({
     name: "worker",
     command: options.bun,
     args: [options.entry, "--config", configPath],
     cwd: dirname(options.entry),
-    env: { ...options.env, CANOPY_WORKER_STATUS_FILE: status, CANOPY_LOCAL_WORKER: local ? "1" : "0" },
+    env: {
+      ...options.env,
+      CANOPY_WORKER_STATUS_FILE: status,
+      CANOPY_LOCAL_WORKER: local ? "1" : "0",
+      ...(routes && {
+        CANOPY_DESKTOP_WORKER_ROUTES: JSON.stringify({ fingerprint: routes.fingerprint, addresses: routes.addresses }),
+      }),
+    },
     restart: true,
   });
 

@@ -22,6 +22,7 @@ export interface GatewayLinkOptions {
   readonly ca?: string | Buffer;
   readonly fingerprint?: string;
   readonly pingIntervalMs?: number;
+  readonly welcomeTimeoutMs?: number | undefined;
   readonly signal?: AbortSignal;
   /** Durable journals held after a legacy gateway's ingest drain; resumed by a safe Welcome. */
   readonly heldThreads?: readonly string[];
@@ -63,10 +64,24 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     }),
   );
 
+  const handshake = options.welcomeTimeoutMs === undefined ? undefined : new AbortController();
+
+  const signal =
+    handshake && options.signal
+      ? AbortSignal.any([handshake.signal, options.signal])
+      : (handshake?.signal ?? options.signal);
+
+  const deadline =
+    handshake &&
+    setTimeout(
+      () => handshake.abort(new ConnectError("WorkerLink Welcome timed out", Code.Unavailable)),
+      options.welcomeTimeoutMs,
+    );
+
   const responses = client
     .connect(outbound, {
       headers: { authorization: `Bearer ${options.credential}` },
-      ...(options.signal && { signal: options.signal }),
+      ...(signal && { signal }),
     })
     [Symbol.asyncIterator]();
 
@@ -76,7 +91,9 @@ export async function openGatewayLink(options: GatewayLinkOptions): Promise<Gate
     first = await responses.next();
   } catch (error) {
     outbound.close();
-    throw ConnectError.from(error);
+    throw ConnectError.from(handshake?.signal.reason ?? error);
+  } finally {
+    clearTimeout(deadline);
   }
 
   if (first.done || first.value.payload.case !== "welcome") {

@@ -1,6 +1,8 @@
 # Dostęp sieciowy (Network access)
 
 Aktualizacja (2026-11-24): w web/desktop port i odcisk certyfikatu są w zakładce **Connections**.
+Zdalny worker dołączony do Desktopu może użyć zweryfikowanej trasy ze swojego
+parowania po utracie zapisanej trasy (2026-11-24).
 
 Status (2026-11-23): w ustawieniach Network access można wybrać sieci, z których
 gateway przyjmuje połączenia. Wybór obowiązuje na listenerze TLS i w ogłoszeniach
@@ -253,6 +255,8 @@ Nieosiągalne adresy, błędny pin lub błąd zapisu pozostawiają działające 
 Settings → Workers pokazuje „Connected over the server port · secure route unavailable: …”.
 Ponowienie następuje po zmianie tras lub po 60 s. Po utracie wcześniej zapisanej trasy worker
 może wrócić do pierwotnego endpointu, jeśli jest to HTTPS, loopback lub jawnie zaufany origin.
+Worker dołączony do sparowanego Desktopu może dodatkowo wypróbować trasy tego
+gatewaya [bez zapisywania nowego adresu](desktop-remote-frontend.md#migracja-i-własny-worker).
 Ta reguła obejmuje zarówno WorkerLink, jak i UpdateService, także dla konfiguracji zapisanych przed
 aktualizacją. Gdy trasa zapasowa nie spełnia reguły, worker ponawia połączenie z przypiętym
 gatewayem. Przy dostępnej zaufanej trasie wyłączenie Network access zachowuje pracę i aktualizacje.

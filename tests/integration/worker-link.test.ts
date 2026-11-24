@@ -65,6 +65,31 @@ describe("WorkerLink over h2c (cleartext HTTP/2)", () => {
     expect(gateway.link.connections.size).toBe(0);
   });
 
+  test("the client deadline ends an incomplete Hello to Welcome handshake", async () => {
+    const waiting = Promise.withResolvers<void>();
+    let receivedHello = false;
+
+    const stalled = await startGateway({
+      link: {
+        welcome: async () => {
+          receivedHello = true;
+          await waiting.promise;
+
+          return { heartbeatIntervalSeconds: 15 };
+        },
+      },
+    });
+
+    try {
+      await expectConnectError(connectWorker(stalled.server.url, { welcomeTimeoutMs: 2000 }), Code.Unavailable);
+      expect(receivedHello).toBe(true);
+    } finally {
+      waiting.resolve();
+      await stalled.link.shutdown();
+      await stalled.server.close(0);
+    }
+  });
+
   test("credential invalidation also rejects a handshake already authenticated but waiting for config", async () => {
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
@@ -532,9 +557,9 @@ describe("WorkerLink over TLS (HTTP/2 + ALPN h2)", () => {
   });
 
   test("HTTP/2 PING keepalive keeps an idle stream open", async () => {
-    const link = await connectWorker(gateway.server.url, { ca: cert.cert, pingIntervalMs: 50 });
+    const link = await connectWorker(gateway.server.url, { ca: cert.cert, pingIntervalMs: 50, welcomeTimeoutMs: 2000 });
     const connection = await gateway.nextConnection();
-    await Bun.sleep(400);
+    await Bun.sleep(2200);
     expect(connection.isOpen).toBe(true);
 
     connection.send({ case: "eventAck", value: { threadId: "t-1", ackSeq: 1n } });

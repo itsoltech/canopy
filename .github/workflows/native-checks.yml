@@ -40,6 +40,9 @@ jobs:
       - uses: ./.github/actions/setup-bun
       - name: Tailscale CLI detection on the native filesystem
         run: bun test ./tests/integration/tailscale-desktop-detection.test.ts
+      - name: Remote Desktop worker recovers from losing its saved route on Windows
+        if: matrix.target == 'windows-x64'
+        run: bun test ./apps/desktop/test/remote-worker-route.integration.test.ts
       - name: Resolve the installed Canopy bundle name and artwork with macOS
         if: runner.os == 'macOS'
         run: bun test ./apps/desktop/test/packaging.test.ts -t 'macOS packaging'
