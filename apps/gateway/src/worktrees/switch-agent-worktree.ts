@@ -7,17 +7,43 @@ import { SqlClient } from "effect/sql";
 import { BusRefusal } from "../core/agent-bus-context.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreRun } from "../core/core-broadcast.ts";
 import { coreState } from "../core/core-context.ts";
-import { coreWorkerQuery } from "../core/core-mentions.ts";
+import { coreWorkerQuery, WorkerQueryError } from "../core/core-mentions.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { callerMode, insertCall, queueTurn, thread } from "../store/agent-bus-queries.ts";
 import { AgentBusStore, type CallSource, type ThreadRow } from "../store/index.ts";
 import { isAbsolutePath, normalizePath, pathStyle } from "../store/paths.ts";
 import { lockThreadWorktreeSource, switchThreadWorktree } from "../store/thread-worktree-switch.ts";
-import { createWorktreeRefusal } from "./automation.ts";
+import { createWorktreeRefusal, UNSAFE_WORKTREE_DESTINATION } from "./automation.ts";
 import { createWorktree, ownWorkspace } from "./core-worktrees.ts";
 import { adoptWorktree, discoverWorkspace, mergeWorktrees } from "./discovery.ts";
 
 type SwitchArgs = AgentBusArgs["switch_worktree"];
+
+async function checkoutRoot(
+  core: GatewayCore,
+  workerId: string,
+  repoPath: string,
+  validateWorktreeDestination = false,
+) {
+  try {
+    const result = await coreWorkerQuery(
+      core,
+      workerId,
+      {
+        case: "listGitRefs",
+        value: { repoPath, worktreesOnly: true, branchesOnly: true, validateWorktreeDestination },
+      },
+      5_000,
+      { requiredCapability: THREAD_WORKTREE_SWITCH_CAPABILITY },
+    );
+
+    return result.gitRefs?.repoRoot;
+  } catch (error) {
+    if (error instanceof WorkerQueryError && error.code === "WORKTREE_UNSAFE")
+      throw new BusRefusal(UNSAFE_WORKTREE_DESTINATION);
+    throw error;
+  }
+}
 
 async function switchTarget(core: GatewayCore, source: CallSource, caller: ThreadRow, args: SwitchArgs) {
   const { project, workspace, worker } = await ownWorkspace(core, caller.workspace_id ?? "");
@@ -30,17 +56,8 @@ async function switchTarget(core: GatewayCore, source: CallSource, caller: Threa
   if (!discovered?.isRepo || discovered.worktreesDetail)
     throw new BusRefusal("The worker could not verify the worktrees of this workspace.");
 
-  const currentRoot = await coreWorkerQuery(
-    core,
-    workspace.workerId,
-    {
-      case: "listGitRefs",
-      value: { repoPath: caller.cwd ?? "", worktreesOnly: true, branchesOnly: true },
-    },
-    5_000,
-  );
-
-  const current = discovered.worktrees.find((tree) => tree.path === currentRoot.gitRefs?.repoRoot);
+  const currentRoot = await checkoutRoot(core, workspace.workerId, caller.cwd ?? "");
+  const current = discovered.worktrees.find((tree) => tree.path === currentRoot);
 
   if (!current || current.unavailableReason || !current.headCommit)
     throw new BusRefusal("This thread's directory is outside the workspace repository or its worktree is unavailable.");
@@ -86,7 +103,16 @@ async function switchTarget(core: GatewayCore, source: CallSource, caller: Threa
     throw new BusRefusal("Choose an available worktree registered in this workspace repository.");
   const head = { branch: live.branch, detachedCommit: live.detached ? live.headCommit.slice(0, 12) : "" };
 
-  if (live.path === discovered.repoRoot) return { workspaceRoot: workspace.rootPath, id: null, ...head };
+  const verifyDestination = async (cwd: string) => {
+    if ((await checkoutRoot(core, workspace.workerId, cwd, true)) !== live.path)
+      throw new BusRefusal("The destination changed. Refresh and choose a worktree.");
+  };
+
+  if (live.path === discovered.repoRoot) {
+    await verifyDestination(workspace.rootPath);
+
+    return { workspaceRoot: workspace.rootPath, id: null, ...head };
+  }
 
   const rows = await coreRun(core, (s) =>
     s.listWorktrees(caller.owner_user_id, project.id, workspace.workerId, workspace.id),
@@ -97,6 +123,8 @@ async function switchTarget(core: GatewayCore, source: CallSource, caller: Threa
   );
 
   if (!selected) throw new BusRefusal("This worktree is no longer available.");
+
+  await verifyDestination(selected.path);
 
   const row = await adoptWorktree(
     core,

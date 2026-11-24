@@ -20,12 +20,16 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
 
 export const STARTED_BY_BOT = "EXISTS (SELECT 1 FROM bot_started_threads s WHERE s.thread_id = t.id)";
 
+const PROJECT_SECRETS_CONFIGURED = `t.runtime = 'worker' AND EXISTS (
+  SELECT 1 FROM projects p JOIN project_secrets s ON s.project_id=p.id
+    WHERE p.id=t.project_id AND p.owner_user_id=t.owner_user_id AND p.kind='project' AND p.archived_at IS NULL)`;
+
 export const listThreadSelect = (where: string, extraColumns = "") => threadSelect(where, extraColumns, true);
 
 /** The thread columns (ThreadRow) with the joined ones, for `FROM threads t` and the given clauses. */
 export const threadSelect = (where: string, extraColumns = "", metadata = false) => `
           -- An asynchronous question (wait=false) needs the user only once the agent has stopped working.
-          SELECT ${metadata ? LIST_COLUMNS : `t.*, ${STARTED_BY_BOT} AS started_by_bot`}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
+          SELECT ${metadata ? LIST_COLUMNS : `t.*, ${STARTED_BY_BOT} AS started_by_bot, ${PROJECT_SECRETS_CONFIGURED} AS project_secrets_configured`}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
                  (SELECT row_to_json(c) FROM (${COMPOSER_CHOICE_SELECT}) c) AS last_user_turn_choices,
                  (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns}
                  requests.pending_interactions, requests.has_pending_requests,

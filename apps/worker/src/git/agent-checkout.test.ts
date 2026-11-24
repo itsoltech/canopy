@@ -1,10 +1,14 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { CreateWorktreeSchema } from "@canopy/contracts";
+import { CreateWorktreeSchema, ListGitRefsSchema } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ManagedRuntime } from "effect";
+import { Journal } from "../journal/index.ts";
+import { HostState } from "../runtime/host-state.ts";
+import { HostContext } from "../runtime/host-context.ts";
 import { freshGit } from "./git.ts";
 import { createWorktree } from "./worktrees.ts";
 
@@ -99,4 +103,45 @@ test("a missing local blob fails and rolls back without fetching it from the pro
   expect(existsSync(blob)).toBe(false);
   expect(run(f.repo, "for-each-ref", "--format=%(refname)", "refs/heads")).toBe("refs/heads/main");
   expect(existsSync(f.marker)).toBe(false);
+});
+
+test("worktree destinations exclude the private secret store while manual Git discovery can still inspect the repo", async () => {
+  const f = fixture("");
+  const dataDir = join(f.repo, "private");
+  const runtime = ManagedRuntime.make(Journal.layer(join(dataDir, "journal.db")));
+  const state = new HostState({ runtime, dataDir, clientVersion: "test" });
+  const { ops } = new HostContext(state, { applyConfig: async () => ({}), sendPreviews: () => {} });
+  const alias = join(f.dir, "alias");
+  symlinkSync(state.secrets.root, alias, process.platform === "win32" ? "junction" : "dir");
+
+  const refs = (repoPath: string, validateWorktreeDestination: boolean) =>
+    ops.listGitRefs({
+      case: "listGitRefs",
+      value: create(ListGitRefsSchema, {
+        repoPath,
+        worktreesOnly: true,
+        branchesOnly: true,
+        validateWorktreeDestination,
+      }),
+    });
+
+  try {
+    await expect(refs(f.repo, true)).rejects.toMatchObject({ code: "WORKTREE_UNSAFE" });
+    await expect(refs(alias, true)).rejects.toMatchObject({ code: "WORKTREE_UNSAFE" });
+    expect((await refs(f.repo, false)).gitRefs?.repoRoot).toBe(f.repo);
+    const safe = join(f.repo, "project");
+    mkdirSync(safe);
+    expect((await refs(safe, true)).gitRefs?.repoRoot).toBe(f.repo);
+    f.request.location = join(alias, "new-location");
+    await expect(
+      ops.createWorktree({ case: "createWorktree", value: f.request }, crypto.randomUUID()),
+    ).rejects.toMatchObject({
+      code: "WORKTREE_UNSAFE",
+    });
+    expect(existsSync(f.request.location)).toBe(false);
+    expect(run(f.repo, "for-each-ref", "--format=%(refname)", "refs/heads")).toBe("refs/heads/main");
+  } finally {
+    state.secrets.close();
+    await runtime.dispose();
+  }
 });

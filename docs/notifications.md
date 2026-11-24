@@ -1,7 +1,8 @@
 # Powiadomienia wątków i botów
 
 Aktualizacja (2026-11-24): nowe sugestie Habits mają powiadomienie w aplikacji
-i licznik oczekujących sugestii w ustawieniach.
+i licznik oczekujących sugestii w ustawieniach. Gdy macOS blokuje powiadomienia,
+Canopy wskazuje, gdzie włączyć je w ustawieniach systemu.
 
 Status (2026-11-23): kod iOS/Android obsługuje push z podglądem szyfrowanym od
 gatewaya do telefonu. Funkcja wymaga nowego buildu natywnego i konfiguracji relaya.
@@ -11,7 +12,7 @@ Relay Canopy obsługuje też automatyczną ponowną atestację i odwołanie poś
 Alerty w aplikacji pomijają uśpione wątki w web/desktop i mobile. Na iOS i Androidzie
 baner powiadomienia można zamknąć przesunięciem w górę.
 Web/desktop wysyła powiadomienia tylko z włączonych modułów. Na macOS wybór alertów
-systemowych w ustawieniach Canopy wywołuje natywne pytanie o zgodę.
+systemowych wywołuje natywne pytanie, gdy system nadal czeka na decyzję.
 Powiadomienia wątków obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty web/desktop są kartami w prawym dolnym
 rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
@@ -172,11 +173,12 @@ więc zdarzenie w tle nie wywołuje okna systemowego.
 Settings → General → Notifications ([settings-map.md](settings-map.md)), osobno na
 urządzeniu (`localStorage`): **Thread notifications** i **Bot notifications** (Off,
 Notifications, Notifications with sound) oraz **In-app notifications**. Włączenie
-alertów o wątkach lub botach prosi o zgodę przeglądarki w webie albo systemu na macOS.
-Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy wybór został zapisany wcześniej,
-a macOS nadal czeka na decyzję, przycisk `Enable notifications` pod pierwszym
-włączonym wierszem wywołuje pytanie. Po odmowie Canopy wskazuje panel Notifications
-w ustawieniach systemu i sprawdza zgodę ponownie po powrocie do okna.
+alertów o wątkach lub botach wymaga zgody przeglądarki w webie albo systemu na macOS.
+Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy macOS nadal czeka na decyzję,
+wybór alertów wywołuje pytanie systemowe. Przy wcześniej zapisanym wyborze można
+je wywołać przyciskiem `Enable notifications`. Gdy macOS blokuje alerty, Canopy
+wskazuje **System Settings → Notifications → Canopy → Allow notifications** także
+przy wyłączonych alertach w Canopy. Po powrocie do okna ponownie sprawdza zgodę.
 Każdy wybór obejmuje wszystkie zdarzenia danego modułu. Preferencje „powiedz mi
 tylko gdy…” bot trzyma w instrukcjach
 ([bots.md](bots.md)).

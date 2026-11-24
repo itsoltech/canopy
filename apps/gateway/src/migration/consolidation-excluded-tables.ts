@@ -24,6 +24,8 @@ export const localOnlyTables = [
   "worker_ssh_hosts",
   "worker_secret_delivery_cursors",
   "worker_secret_replays",
+  "project_secrets",
+  "project_secret_leases",
   "worker_preview_uploads",
   "computer_identity",
   "computer_peers",

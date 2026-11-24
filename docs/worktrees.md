@@ -58,6 +58,7 @@ Przy checkoutcie wymagającym zewnętrznych filtrów (np. Git LFS) lub sparse ch
 worker zwraca przyczynę odmowy. Można przygotować checkout ręcznie.
 Argument `path` pozwala wybrać istniejący worktree, także utworzony wcześniej w terminalu, albo wrócić
 do głównego checkoutu workspace'u. Worker sprawdza rejestr Git tego repozytorium oraz rzeczywiste katalogi.
+Przed przełączeniem sprawdza też, czy katalog docelowy i prywatny magazyn sekretów workera są rozłączne.
 
 Po zapisaniu przypisania podsumowanie, diff i pliki wskazują nowy katalog. Wątek zachowuje historię
 i ustawienia. Przy odtwarzaniu plików z checkpointu Claude sprawdza, czy należą do bieżącego checkoutu.

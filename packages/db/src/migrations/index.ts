@@ -27,7 +27,7 @@ import sandboxProfileOutbox from "./0199_sandbox_profile_outbox.sql" with { type
 import botSteerSenders from "./0200_bot_steer_senders.sql" with { type: "text" };
 import connectorNoProject from "./0207_connector_no_project.sql" with { type: "text" };
 import projectColor from "./0208_project_color.sql" with { type: "text" };
-import threadWorktreeSwitch from "./0211_thread_worktree_switch.sql" with { type: "text" };
+import threadWorktreeSwitch from "./0212_thread_worktree_switch.sql" with { type: "text" };
 import botApprovalRestrictedThread from "./0210_bot_approval_restricted_thread.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
@@ -193,6 +193,7 @@ import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "t
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
+import projectSecrets from "./0211_project_secrets.sql" with { type: "text" };
 import { memoryMigrations } from "./memory.ts";
 import { mobilePushMigrations } from "./mobile-push.ts";
 import { createMigrator, sqlFile } from "./run.ts";
@@ -397,7 +398,8 @@ export const migrations = Migrator.fromRecord({
   "0207_connector_no_project": sqlFile(connectorNoProject),
   "0208_project_color": sqlFile(projectColor),
   "0210_bot_approval_restricted_thread": sqlFile(botApprovalRestrictedThread),
-  "0211_thread_worktree_switch": sqlFile(threadWorktreeSwitch),
+  "0211_project_secrets": sqlFile(projectSecrets),
+  "0212_thread_worktree_switch": sqlFile(threadWorktreeSwitch),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

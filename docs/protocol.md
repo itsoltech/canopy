@@ -10,6 +10,19 @@ odczyt. Gateway sprawdza go przy zapisie HEAD, również gdy raport przyszedł j
 Po przełączeniu dalsze komendy sesji wymagają zgodnego workera także przy ponownej dostawie.
 Szczegóły opisuje [zmiana worktree przez agenta](worktrees.md#zmiana-worktree-przez-agenta).
 
+## Dostawa sekretu projektu
+
+Status (2026-11-24): worker obsługujący czasowe przydziały ogłasza
+`project_secret_leases_v1`. Gateway przesyła wartość prywatnym komunikatem
+`ThreadSecretDelivery` z `turn_id` i terminem ważności. Potwierdzenie
+`ThreadSecretReceipt` wskazuje tę samą turę oraz rewizję przydziału;
+`rejected` pozwala workerowi zakończyć prośbę, gdy nie może udostępnić pliku.
+Gateway wiąże przydział z epoką połączenia workera. W tej samej epoce może
+ponowić dostawę. Po zerwaniu połączenia stary przydział służy już tylko do
+sprzątania; kolejne użycie wymaga świeżego przydziału.
+Stare workery zachowują obsługę ręcznych próśb o sekret. Szczegóły cyklu
+życia i ochrony wyjścia narzędzi opisują [sekrety](secrets.md).
+
 ## Profile Sandbox
 
 Status (2026-11-22): worker ogłasza addytywną capability `sandbox_profiles_v1`

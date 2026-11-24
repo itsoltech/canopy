@@ -22,6 +22,8 @@ import { RolloutTail } from "./rollout.ts";
 import type { codexConnectorMcp } from "./connector-mcp.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 import type { SandboxEvidence } from "./sandbox-profile.ts";
+import type { codexProjectSecretProtection } from "./project-secret-protection.ts";
+import { projectSecretGuard } from "../../runtime/project-secret-guard.ts";
 
 export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("CodexThreadError", {
   threadId: Schema.String,
@@ -120,6 +122,7 @@ export interface CodexThreadContext {
   byCodex: Map<string, Entry>;
   mcpSpecs: Map<string, ThreadSpec>;
   connectorMcp?: ReturnType<typeof codexConnectorMcp>;
+  projectSecrets?: NonNullable<ReturnType<typeof codexProjectSecretProtection>>;
   failure: string | undefined;
 }
 
@@ -129,6 +132,6 @@ export const fail = (threadId: string, operation: string) => (error: { message: 
   new CodexThreadError({
     threadId,
     operation,
-    message: error.message,
+    message: projectSecretGuard(threadId).redact(error.message),
     ...(isAppServerError(error) && { harness: true }),
   });

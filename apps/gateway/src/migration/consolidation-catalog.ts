@@ -102,7 +102,7 @@ export function consolidationCatalog(sql: Database) {
       id: number;
     }>`SELECT max(migration_id) AS id FROM public.schema_migrations`;
 
-    if (id < 211) return yield* Effect.fail(consolidationError("Both databases must have migration 0211 or newer."));
+    if (id < 212) return yield* Effect.fail(consolidationError("Both databases must have migration 0212 or newer."));
 
     const tables = yield* columns(sql);
 

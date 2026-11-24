@@ -16,6 +16,7 @@ import { BUS_SERVER } from "./mapping.ts";
 import type { JsonValue } from "@canopy/domain";
 import { Schema } from "effect";
 import { decodeJsonObject, isString } from "../json.ts";
+import { threadSecretOutputGuard } from "../../runtime/thread-secrets.ts";
 
 const decodeExtra = Schema.decodeUnknownSync(
   Schema.Struct({ _meta: Schema.optionalKey(Schema.UndefinedOr(Schema.JsonObject)) }),
@@ -84,7 +85,7 @@ export function claudeBusServer(options: ClaudeBusOptions): McpSdkServerConfigWi
       argumentSchema: z.looseObject({}),
       handler: remoteToolHandler(options, spec.name, spec.accountId),
     })),
-    ...(options.viewImage ? [viewImageTool(options.viewImage)] : []),
+    ...(options.viewImage ? [viewImageTool(options.viewImage, threadSecretOutputGuard(options.threadId).redact)] : []),
   ];
 
   const server = createSdkMcpServer({
@@ -121,17 +122,17 @@ function platformTool(spec: ToolJsonSpec, handler: SdkMcpToolDefinition["handler
   return { ...spec, inputSchema, argumentSchema, handler };
 }
 
-function viewImageTool(view: (path: string) => Promise<ViewImageResult>): BusTool {
+function viewImageTool(view: (path: string) => Promise<ViewImageResult>, redact: (text: string) => string): BusTool {
   return platformTool(viewImageSpec(), async (rawArgs) => {
     const args = decodeJsonObject(rawArgs);
     const result = await view(isString(args["path"]) ? args["path"] : "");
 
-    if (!result.ok) return { content: [{ type: "text" as const, text: result.message }], isError: true };
+    if (!result.ok) return { content: [{ type: "text" as const, text: redact(result.message) }], isError: true };
 
     return {
       content: [
         { type: "image" as const, data: result.base64, mimeType: result.mimeType },
-        { type: "text" as const, text: result.summary },
+        { type: "text" as const, text: redact(result.summary) },
       ],
     };
   });
@@ -170,7 +171,7 @@ function remoteToolHandler(
     );
 
     return {
-      content: [{ type: "text", text: result.content }],
+      content: [{ type: "text", text: threadSecretOutputGuard(options.threadId).redact(result.content) }],
       ...(result.isError && { isError: true }),
     };
   };

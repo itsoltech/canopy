@@ -1,5 +1,9 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): szczegóły projektu mają grupę Secrets do dodawania, podmiany
+i usuwania sekretów projektu. Wartości nie da się odczytać. Szczegóły wątku oznaczają
+przydział sekretu projektu i cofają go tylko w tym wątku.
+
 Status (2026-11-24): szkic nowego wątku zachowuje treść po zmianie projektu lub
 workera oraz po opuszczeniu kompozytora.
 
@@ -1428,6 +1432,25 @@ podglądu i potwierdzenia co web. Podgląd pokazuje adres witryny i pobrane plik
 Przegląd środowiska pokazuje podsumowanie zmian, skrypty/pliki wykonywalne,
 usunięte pliki oraz obie wersje treści. Przy wybraniu wersji skilla telefon
 pobiera jej niezmienny artefakt przed zatwierdzeniem; błąd pobrania blokuje zapis.
+
+Szczegóły zwykłego projektu tego gatewaya mają grupę **Secrets**
+(`ProjectSecrets`, `ProjectSecretForm`). Pojawia się, gdy `GetClientCapabilities.methods` zawiera
+`ListProjectSecrets`; projekt połączonego komputera i No project jej nie mają.
+Wiersze pokazują nazwę i czas `updated_at` z `ListProjectSecrets`, trzymane w pamięci
+współdzielonego odczytu ustawień. **Add secret** otwiera arkusz z nazwą i wartością.
+Wiersz otwiera arkusz z **Replace value** oraz **Delete secret…**. Usunięcie
+potwierdza okno „Delete secret?” (`confirmAction`). Nazwę i rozmiar sprawdzają wspólne reguły
+`PROJECT_SECRET_NAME_PATTERN` i `PROJECT_SECRET_MAX_BYTES` z `@canopy/domain`.
+Pole wartości ma `secureTextEntry`, bez autofill, korekty i sugestii. Wartość jest
+w refie i natywnym polu, nigdy w stanie React, snapshotach, szkicach ani diagnostyce.
+Wysłanie, zamknięcie arkusza i przejście aplikacji w tło ją czyszczą, a blokada aktualizacji chroni wpisywanie.
+Pole z `secureTextEntry` nie może być wielowierszowe i może gubić znaki nowej linii przy wklejaniu.
+**Paste value** czyta schowek przez `expo-clipboard` bezpośrednio do refu i zachowuje wartość
+dokładnie, także wielowierszową. Pole pokazuje wtedy „Value pasted” i **Clear value**. Podpowiedź
+pod polem kieruje wartości wielowierszowe do Paste.
+`PutProjectSecret` i `DeleteProjectSecret` cofają przydziały tej nazwy w wątkach
+([secrets.md](secrets.md)). Aktywny grant z niepustym `ThreadSecret.project_secret`
+pokazuje nazwę i etykietę „Project secret”, a Revoke kończy dostęp tylko w tym wątku.
 
 Prośby o sekret otwierają osobny arkusz „Thread secrets”. Pole jest zawsze zamaskowane,
 bez autofill, korekty i sugestii; wysłanie, zamknięcie lub przejście aplikacji w tło

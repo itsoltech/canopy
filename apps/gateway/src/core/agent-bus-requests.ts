@@ -27,14 +27,20 @@ import {
 import type { AgentBus } from "./agent-bus.ts";
 import { busExecute } from "./agent-bus-tools.ts";
 import { busCancel } from "./agent-bus-cancellation.ts";
+import type { WorkerConnection } from "../worker-link/index.ts";
 
 export interface BusRequestsMethods {
-  handle(request: AgentToolCall, workerId?: string): Promise<AgentToolResult>;
+  handle(request: AgentToolCall, workerId?: string, connection?: WorkerConnection): Promise<AgentToolResult>;
 }
 
 export const busRequestsMethods: BusRequestsMethods = {
   /** `workerId`: the worker the call came from; it speaks only for its own threads (messages now reach other workers). */
-  async handle(this: AgentBus, request: AgentToolCall, workerId?: string): Promise<AgentToolResult> {
+  async handle(
+    this: AgentBus,
+    request: AgentToolCall,
+    workerId?: string,
+    connection?: WorkerConnection,
+  ): Promise<AgentToolResult> {
     const supplied = toolSource(request);
 
     const calling = await this[busState].host
@@ -89,22 +95,15 @@ export const busRequestsMethods: BusRequestsMethods = {
 
     const decoded = decodeAgentBusCall(request.toolName, request.argumentsJson);
 
-    const refuse = async (reason: string, args: JsonValue | AgentBusCall["args"] = {}) => {
-      // The record is for audit and idempotency; the model gets its answer even if storing fails
-      // (e.g. a call naming a thread the gateway does not know).
-      if (isAgentBusTool(request.toolName)) {
-        await this[busState].host
-          .run(
-            AgentBusStore.use((s) => s.recordCall({ source, tool: request.toolName, args, ok: false, error: reason })),
-          )
-          .catch((cause: unknown) => console.error("agent bus: refused call not recorded", cause));
-      }
-
-      return failure(request.callId, reason);
-    };
+    const refuse = (reason: string, args?: JsonValue | AgentBusCall["args"]) =>
+      recordRefusal(this[busState].host, source, request.toolName, reason, args);
 
     if (Result.isFailure(decoded)) return refuse(decoded.failure, safeJson(request.argumentsJson));
     const call = decoded.success;
+    const projectLease = call.tool === "request_secret" && !!call.args.project_secret;
+
+    if (projectLease && (!supplied.turnId || supplied.turnId !== source.turnId))
+      return refuse("A project secret requires the calling thread's current turn.", call.args);
 
     const linked = await runLinkedTool(
       this[busState].host,
@@ -160,14 +159,18 @@ export const busRequestsMethods: BusRequestsMethods = {
         caller,
         hops,
         spawn?.ok ? spawn.target : callerTarget(caller, sourceTurn),
+        connection,
       );
 
       if (this[busState].host.extend && !(caller.memory_audience && call.tool === "list_threads"))
         result = await this[busState].host.extend(call, caller, result);
 
       if (!STORES_ITS_CALL.has(call.tool)) {
+        const recorded = projectLease ? {} : result;
         await this[busState].host.run(
-          AgentBusStore.use((s) => s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result })),
+          AgentBusStore.use((s) =>
+            s.recordCall({ source, tool: call.tool, args: call.args, ok: true, result: recorded }),
+          ),
         );
       }
 
@@ -179,7 +182,7 @@ export const busRequestsMethods: BusRequestsMethods = {
       // A concurrent duplicate of a spawn/send may have stored it first.
       const again = await this[busState].host.run(AgentBusStore.use((s) => s.storedCall(request.callId)));
 
-      if (again?.status === "completed" && again.source_thread_id === calling.id)
+      if (!projectLease && again?.status === "completed" && again.source_thread_id === calling.id)
         return ok(request.callId, again.result ?? {});
 
       const reason =
@@ -193,6 +196,23 @@ export const busRequestsMethods: BusRequestsMethods = {
     }
   },
 };
+
+async function recordRefusal(
+  host: BusHost,
+  source: CallSource,
+  tool: string,
+  reason: string,
+  args: JsonValue | AgentBusCall["args"] = {},
+) {
+  // A failed audit write must not hide the refusal.
+  if (isAgentBusTool(tool)) {
+    await host
+      .run(AgentBusStore.use((s) => s.recordCall({ source, tool, args, ok: false, error: reason })))
+      .catch((cause: unknown) => console.error("agent bus: refused call not recorded", cause));
+  }
+
+  return failure(source.callId, reason);
+}
 
 async function runLinkedTool(
   host: BusHost,

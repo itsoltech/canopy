@@ -4,6 +4,7 @@ Status (2026-11-24): zmiana worktree odświeża kontekst Git wątku i zachowuje 
 
 Status (2026-11-22): potwierdzanie merge do sprzątania worktree sprawdza dostęp konektora do projektu (§5).
 Odświeżenie jednego PR aktualizuje projekcje wątków z aktywnym powiązaniem do tego PR (§3).
+Aktualizacja (2026-11-24): widok PR w web i desktopie respektuje Thread width (§7).
 **v1 wdrożone**, z powiadamianiem agenta o konfliktach obserwowanego PR i wstrzymywaniem obserwacji
 po wyłączeniu modułu Threads: konta GitHub App i jawny fallback PAT, powiązania PR,
 pełny odczyt, komentarze i review, lifecycle, metadane, automatyczna archiwizacja wątków
@@ -1018,6 +1019,8 @@ Moduł Pull requests w panelu/arkuszu pokazuje listę powiązań i akcję **Open
 osobna trasa PR nadal jest dostępna. Rozmowa, szkic i pozycja przewijania pozostają
 zamontowane. Mobile ma własny ekran PR oraz kartę modułu workspace’u.
 Wewnątrz pełnego PR dostępne są zakładki Summary, Timeline i Code.
+W web i desktopie nagłówek, zakładki i treść tworzą wspólną kolumnę o szerokości
+wybranej w Thread width. [Wygląd](appearance.md#szerokość-w-web-i-desktopie)
 
 Web dodatkowo pokazuje ikonę stanu PR z kropką checków na karcie workspace’u
 (`PullRequestTabIcon`) i przy najnowszym PR w sidebarze (`SidebarThreadPullRequests`).
@@ -1032,7 +1035,7 @@ i treść. Pełny nagłówek zachowuje wysokość w układzie; po przewinięciu 
 przyklejony pasek 48 px ze stanem, repo i numerem, jednoliniowym tytułem
 (pełny w tooltipie), checkami, główną akcją, menu i zamknięciem. Zakładki przylegają
 pod nim; filtr Timeline i paski Code uwzględniają ich wspólną wysokość. Przyklejone
-wiersze malują nieprzezroczyste tło do krawędzi panelu, także w ciemnym motywie.
+wiersze malują nieprzezroczyste tło do krawędzi kolumny, także w ciemnym motywie.
 `IntersectionObserver` przełącza stan z histerezą 16 px, a `ResizeObserver` mierzy
 nagłówek i zakładki tylko przy zmianie rozmiaru. Przełączenie nie zmienia wysokości
 treści ani pozycji przewijania; krótki ruch używa tokenów i znika przy reduced motion.

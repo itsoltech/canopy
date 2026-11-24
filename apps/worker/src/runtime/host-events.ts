@@ -1,4 +1,3 @@
-import { Option, Schema } from "effect";
 import { isAbsolute } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -10,13 +9,23 @@ import {
   InteractionRequestSchema,
   type InteractionResponse,
   InteractionResponseSchema,
+  ItemStatus,
   type ThreadEvent,
 } from "@canopy/contracts";
 import type { GatewayLink } from "../gateway-link/index.ts";
+import { Option, Schema } from "effect";
 
 import type { HostContext } from "./host-context.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { gatewayToolRefusal } from "./tool-gates.ts";
+import {
+  projectSecretJournalValues,
+  projectSecretValues,
+  redactSecretText,
+  secretPatterns,
+} from "./project-secret-guard.ts";
+import { projectSecretRequest } from "./project-secret-tool.ts";
+import { redactToolOutput } from "../providers/secret-tool-output.ts";
 
 function isImagePublication(call: AgentToolCall): boolean {
   return call.toolName === "show_images" && !call.connectorAccountId && !call.botId;
@@ -24,10 +33,61 @@ function isImagePublication(call: AgentToolCall): boolean {
 
 const switchedWorkspace = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ cwd: Schema.String })));
 
+function isProjectSecretCall(call: AgentToolCall): boolean {
+  return call.toolName === "request_secret" && !call.connectorAccountId && projectSecretRequest(call.argumentsJson);
+}
+
+const savedProjectFile = Schema.decodeUnknownOption(
+  Schema.fromJsonString(Schema.Struct({ status: Schema.Literal("saved"), file: Schema.String })),
+);
+
+const PROJECT_SECRET_REQUEST_TIMEOUT_MS = 10_000;
+const interactionPayload = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Json));
+
+function safeInteractionRequest(request: InteractionRequest): InteractionRequest {
+  const patterns = secretPatterns(projectSecretJournalValues(request.threadId));
+
+  if (redactSecretText(request.requestJson, patterns) === request.requestJson) return request;
+  const payload = interactionPayload(request.requestJson);
+
+  const safe = Option.isSome(payload)
+    ? redactToolOutput(payload.value, (text) => redactSecretText(text, patterns))
+    : {};
+
+  return create(InteractionRequestSchema, { ...request, requestJson: JSON.stringify(safe) });
+}
+
+function projectSecretFailure(callId: string): AgentToolResult {
+  return create(AgentToolResultSchema, {
+    callId,
+    isError: true,
+    content:
+      "The project secret is unavailable. Canopy needs an active turn, a gateway connection, and a working tool output filter.",
+  });
+}
+
 export class HostEvents {
   constructor(readonly ctx: HostContext) {}
   publish(event: ThreadEvent): void {
-    const images = this.ctx.state.markdownImages;
+    const { markdownImages: images, secrets } = this.ctx.state;
+    const { body, threadId, turnId } = event;
+
+    // Image uploads may delay publication of turn_finished, but the harness turn has already ended.
+    if (body.case === "turnStarted") secrets.beginProjectTurn(threadId, turnId);
+
+    if (body.case === "turnFinished") secrets.finishProjectTurn(threadId, turnId);
+
+    if (body.case === "itemStarted" || body.case === "itemCompleted") {
+      const item = body.value.item;
+
+      if (item?.content.case === "backgroundTask")
+        secrets.trackProjectBackground(
+          threadId,
+          item.content.value.startedInTurnId || turnId,
+          item.itemId,
+          item.status === ItemStatus.IN_PROGRESS,
+        );
+    }
 
     if (
       images.hold(
@@ -79,6 +139,7 @@ export class HostEvents {
   }
 
   interact(request: InteractionRequest, signal?: AbortSignal): Promise<InteractionResponse> {
+    request = safeInteractionRequest(request);
     workerDiagnostics.turns.human(request.threadId, request.turnId);
     let completed = false;
 
@@ -157,8 +218,30 @@ export class HostEvents {
       return Promise.resolve(
         create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Thread closed" }),
       );
-    const { link, toolCalls } = this.ctx.state;
+    const { link, toolCalls, secrets } = this.ctx.state;
     const imagePublication = isImagePublication(call);
+    const projectSecret = isProjectSecretCall(call);
+
+    if (projectSecret) {
+      const turn = secrets.requestProjectTurnSignal(call.threadId, call.turnId);
+
+      if (!link || !turn || call.botId || signal?.aborted) return Promise.resolve(projectSecretFailure(call.callId));
+      const deadline = AbortSignal.timeout(PROJECT_SECRET_REQUEST_TIMEOUT_MS);
+      signal = AbortSignal.any(signal ? [signal, turn, deadline] : [turn, deadline]);
+    }
+
+    const privatePatterns = secretPatterns(
+      projectSecret ? projectSecretValues(call.threadId) : projectSecretJournalValues(call.threadId),
+    );
+
+    if (redactSecretText(call.argumentsJson, privatePatterns) !== call.argumentsJson)
+      return Promise.resolve(
+        create(AgentToolResultSchema, {
+          callId: call.callId,
+          isError: true,
+          content: "Canopy tools cannot receive a project secret or its private file path. Use it in a local command.",
+        }),
+      );
 
     if (imagePublication && !link)
       return Promise.resolve(
@@ -175,6 +258,17 @@ export class HostEvents {
     return new Promise((resolve) => {
       const abort = () => {
         const cancelled = create(AgentToolCallSchema, { ...call, cancelled: true });
+
+        if (projectSecret) {
+          toolCalls.delete(call.callId);
+          secrets.fenceProjectTurn(call.threadId, call.turnId);
+
+          if (this.ctx.state.link === link) this.ctx.ops.send({ case: "agentToolCall", value: cancelled });
+          resolve(projectSecretFailure(call.callId));
+
+          return;
+        }
+
         // Keep cancellation for reconnect until acknowledged by the gateway.
         this.ctx.state.toolCalls.set(call.callId, { call: cancelled, resolve: () => {} });
         this.ctx.ops.send({ case: "agentToolCall", value: cancelled });
@@ -206,12 +300,13 @@ export class HostEvents {
 
       toolCalls.set(call.callId, { call, resolve: finish });
 
-      if (imagePublication && link) {
+      if ((imagePublication || projectSecret) && link) {
         // Unlike replayable waits, image transfer is bound to the gateway connection that started it.
         try {
           link.send({ case: "agentToolCall", value: call });
         } catch {
-          this.toolResult(disconnectedImageResult(call.callId));
+          if (projectSecret) secrets.fenceProjectTurns();
+          this.toolResult(projectSecret ? projectSecretFailure(call.callId) : disconnectedImageResult(call.callId));
         }
       } else this.ctx.ops.send({ case: "agentToolCall", value: call });
     });
@@ -220,6 +315,7 @@ export class HostEvents {
   detachGateway(link: GatewayLink): boolean {
     if (this.ctx.state.link !== link) return false;
     this.ctx.state.link = undefined;
+    this.ctx.state.secrets.fenceProjectTurns();
 
     for (const { call } of this.ctx.state.toolCalls.values())
       if (isImagePublication(call)) this.toolResult(disconnectedImageResult(call.callId));
@@ -232,7 +328,16 @@ export class HostEvents {
 
     if (!pending) return;
     this.ctx.state.toolCalls.delete(result.callId);
-    pending.resolve(result);
+
+    const saved =
+      isProjectSecretCall(pending.call) && !result.isError ? savedProjectFile(result.content) : Option.none();
+
+    const { threadId, turnId } = pending.call;
+
+    const available =
+      Option.isNone(saved) || this.ctx.state.secrets.projectFileAvailable(threadId, turnId, saved.value.file);
+
+    pending.resolve(available ? result : projectSecretFailure(result.callId));
   }
 
   send(payload: Parameters<GatewayLink["send"]>[0]): void {

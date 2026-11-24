@@ -5,7 +5,7 @@ import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { PR_CHECK_TOOLS } from "./pr-checks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
-import { RequestSecret } from "./secrets.ts";
+import { SECRET_TOOLS, requestSecretProblem } from "./secrets.ts";
 import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./communication.ts";
 import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
@@ -260,17 +260,7 @@ export const AGENT_BUS_TOOLS = {
   ...VISUAL_TOOLS,
   [SETTINGS_GUIDE_TOOL]: settingsGuide,
   switch_worktree: switchWorktree,
-  request_secret: define({
-    name: "request_secret",
-    description:
-      "Ask the user for a secret in a private card and wait (renewable, durable). Never ask for secrets in chat. " +
-      "Returns only a private file path on this thread's worker, never the value. Read it inside a command, e.g. " +
-      "TOKEN=\"$(cat '<file>')\" program; never print, echo, log or read the value into model context. " +
-      "Available for 24 hours unless revoked. name is an optional env name hint, not an exported variable. " +
-      "If pending, call again with the returned request_id and the same metadata. Secrets are per thread; children must ask separately.",
-    args: RequestSecret,
-    mutates: true,
-  }),
+  ...SECRET_TOOLS,
   list_agents: define({
     name: "list_agents",
     description:
@@ -446,6 +436,7 @@ export function decodeAgentBusCall(name: string, argumentsJson: string): Result.
 
   const problem =
     (call.tool === "ask_user" && questionsProblem(call.args.questions)) ||
+    (call.tool === "request_secret" && requestSecretProblem(call.args)) ||
     (call.tool === "render_visual" && renderVisualProblem(call.args)) ||
     (call.tool === "render_html" && renderHtmlProblem(call.args));
 

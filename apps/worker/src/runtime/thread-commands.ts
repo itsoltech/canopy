@@ -273,6 +273,7 @@ export class ThreadCommands {
 
   async interruptTurn(kind: Extract<Command["kind"], { case: "interruptTurn" }>): Promise<CommandOutput> {
     const { threadId, turnId } = kind.value;
+    this.ctx.state.secrets.fenceProjectTurn(threadId, turnId);
 
     const shellRuns = [...this.ctx.state.shellRuns.values()].filter(
       (r) => r.threadId === threadId && r.turnId === turnId,

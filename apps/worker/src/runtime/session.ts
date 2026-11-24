@@ -6,9 +6,29 @@ import { Journal } from "../journal/index.ts";
 import type { NetworkRoutes } from "@canopy/contracts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { ThreadSecretReceiptSchema, ui, type ThreadSecretDelivery } from "@canopy/contracts";
+import type { HostState } from "./host-state.ts";
 import type { LogPullSource } from "@canopy/logs";
 import { workerTracing } from "../diagnostics/tracing.ts";
+
+export function applyLinkSecretDelivery(state: HostState, link: GatewayLink, delivery: ThreadSecretDelivery) {
+  if (state.link !== link)
+    return create(ThreadSecretReceiptSchema, {
+      requestId: delivery.requestId,
+      threadId: delivery.threadId,
+      turnId: delivery.turnId,
+      revision: delivery.revision,
+      rejected: Boolean(delivery.turnId),
+    });
+
+  return state.secrets.apply(
+    delivery,
+    () =>
+      state.options.runtime.runSync(Journal.use((j) => j.markProjectSecretTurn(delivery.threadId, delivery.turnId))),
+    state.cwds.get(delivery.threadId),
+    state.nextWorkspaces.get(delivery.threadId),
+  );
+}
 
 export interface SessionEnd {
   /** Set when the gateway asked to reconnect later (Drain). */
@@ -25,6 +45,7 @@ export async function serveLink(
   logs?: LogPullSource,
 ): Promise<SessionEnd> {
   host.attach(link);
+  void link.closed.then(() => host.detach(link));
   let drainDelayMs: number | undefined;
 
   try {
@@ -80,7 +101,7 @@ export async function serveLink(
           host.environment.apply(message.payload.value);
           break;
         case "threadSecretDelivery":
-          link.send({ case: "threadSecretReceipt", value: host.secrets.apply(message.payload.value) });
+          link.send({ case: "threadSecretReceipt", value: host.applySecretDelivery(link, message.payload.value) });
           break;
         case "config": {
           const report = await host.applyConfig(message.payload.value);
@@ -113,7 +134,7 @@ export async function serveLink(
           host.handleInteractionResponse(message.payload.value);
           break;
         case "agentToolResult":
-          host.handleAgentToolResult(message.payload.value);
+          host.handleAgentToolResult(message.payload.value, link);
           break;
         case "blobChunk":
           host.handleBlobChunk(message.payload.value);

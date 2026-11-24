@@ -11,6 +11,7 @@ import type { threadSessions } from "./thread-sessions.ts";
 import type { threadTurnSettings } from "./thread-catalog.ts";
 import { threadEvents } from "./thread-events.ts";
 import { refreshCodexConnectors } from "./connector-mcp.ts";
+import { projectSecretGuard } from "../../runtime/project-secret-guard.ts";
 
 export function threadTurns(
   ctx: CodexThreadContext,
@@ -29,6 +30,9 @@ export function threadTurns(
       settings?: TurnSettings,
     ) {
       if (settings?.canSubmit?.() === false) return "";
+      const admitted = byPlatform.get(spec.threadId)?.platformToCodex.get(turnId);
+
+      if (admitted) return admitted;
 
       if (
         spec.sandboxProfile &&
@@ -188,7 +192,10 @@ function threadSteering(ctx: CodexThreadContext) {
                   code: "STEER_NOT_RUNNING",
                   message: "the turn ended before the message could join it",
                 })
-              : new SteerError({ code: "STEER_REJECTED", message: error.message }),
+              : new SteerError({
+                  code: "STEER_REJECTED",
+                  message: projectSecretGuard(threadId).redact(error.message),
+                }),
           ),
         );
       entry.steered.add(inputId);

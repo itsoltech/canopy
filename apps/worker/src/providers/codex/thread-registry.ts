@@ -69,6 +69,7 @@ export function registerThread(
 
   byPlatform.set(platformId, entry);
   byCodex.set(codexId, entry);
+  ctx.projectSecrets?.bind(platformId, codexId, ctx.journal);
 
   return entry;
 }

@@ -1,5 +1,8 @@
 # Adapter Grok
 
+Aktualizacja (2026-11-24): adapter maskuje znane wartości sekretów w wynikach
+narzędzi dla modelu przez synchroniczny hook w izolowanej sesji ACP.
+
 Aktualizacja (2026-11-22): Usage pokazuje szacunkowy koszt tokenów Groka według
 podstawowych stawek API xAI. Gateway sprawdza grant projektu przy wywołaniu
 konektora z wątku.
@@ -86,6 +89,29 @@ dostępne. Samo `CLAUDE_CONFIG_DIR` nie przenosi globalnych reguł Claude czytan
 przez Groka; nie zastępujemy HOME ze względu na komendy użytkownika.
 
 Instancja CLIProxyAPI używa odizolowanego `GROK_HOME` i konfiguracji modelu z `env_key`, kluczem wyłącznie w env procesu. Nie przekazujemy klucza w argv, logach, repozytorium ani globalnej konfiguracji użytkownika. Tymczasowe pliki mają 0600, katalog 0700; cleanup po zakończeniu procesu. Backend `chat_completions` używa `/v1/chat/completions`, a katalog modeli `/v1/models`. Własny endpoint ma pierwszeństwo przed loginem urządzenia. Guard auth CLI wymaga dodatkowo `XAI_API_KEY` z tym samym kluczem; samo `env_key` nie wystarcza do utworzenia sesji.
+
+### Maskowanie sekretów w wynikach narzędzi
+
+Proces otrzymuje wpis w prywatnym `GROK_HOME/hooks/`, który prowadzi do
+unikalnego adresu HTTP workera na loopbackie. Wpis zawiera jedynie konfigurację
+hooka. Gotowość do wydania sekretu projektu wymaga Groka co najmniej 1.0.92
+w serii 1.x i rzeczywistego callbacku `UserPromptSubmit` z id bieżącej sesji ACP.
+Worker resetuje gotowość po zamknięciu procesu. Narzędzia wywołane w tej sesji
+przekazują wynik do synchronicznego `PostToolUse`. Zastąpienie tekstu dotyczy
+kontekstu modelu. Natywny lokalny transkrypt Groka może zachować oryginał.
+Test z lokalnym endpointem modelu na Groku 1.0.92 potwierdza gotowość przed
+pierwszym wywołaniem o sekret, maskowanie stdout i stderr po zwykłym
+i niezerowym wyjściu powłoki oraz historię po wznowieniu.
+Przy dostępnej wartości sekretu projektu hook odmawia uruchomienia powłoki jawnie w tle
+oraz startu narzędzia monitorującego.
+
+Hook działa wewnątrz istniejącej binarki workera i respektuje konfigurację
+zaufania do folderów. Linuksowy profil `read-only` Groka odrzuca prywatne
+hooki HTTP. W tym profilu adapter nie zgłasza gotowości do sekretów projektu.
+Podmiana błędów `PostToolUseFailure` zależy od ścieżki wykonania w Groku.
+Własne odpowiedzi MCP Canopy worker maskuje także u źródła, w tym błędy.
+Filtr obejmuje także ręczne sekrety tego wątku, które zachowują dotychczasową
+ścieżkę dostępu.
 
 ## Boty: izolacja zapisu sesji
 

@@ -15,11 +15,14 @@
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import ProjectColor from "#lib/features/projects/ProjectColor.svelte";
   import ProjectArchive from "#lib/features/projects/ProjectArchive.svelte";
+  import ProjectSecrets from "#lib/features/projects/secrets/ProjectSecrets.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import type { PageProps } from "./$types";
 
   const route = useSettingsRoute<PageProps["form"]>();
   const overview = useOverview();
   const settings = useSettings();
+  const capabilities = useGatewayCapabilities();
 
   const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
@@ -75,6 +78,13 @@
       { id: "workspaces", label: "Workspaces", content: workspaces },
       { id: "threads", label: "Threads", content: threadSettings },
       {
+        id: "secrets",
+        label: "Secrets",
+        content: secrets,
+        // Project secrets stay on the gateway that owns the project; a linked computer's project is managed there.
+        hidden: !!project.nodeId || capabilities?.supportsMethod("ListProjectSecrets") === false,
+      },
+      {
         id: "details",
         label: "Project details",
         content: details,
@@ -108,6 +118,9 @@
     </SettingsGroup>
 
     <AutoArchiveSettings projectId={project.id} />
+  {/snippet}
+  {#snippet secrets()}
+    {#key project.id}<ProjectSecrets projectId={project.id} />{/key}
   {/snippet}
   {#snippet details()}
     <SettingsGroup>

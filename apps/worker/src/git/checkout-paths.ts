@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 /** Metadata only: resolve aliases and stop at the nearest .git, including nested repositories. */
 export function matchingCheckoutPaths(root: string, paths: readonly string[]): string[] {
@@ -38,4 +38,20 @@ export function canonicalCheckoutRoot(path: string): string {
   }
 
   return current;
+}
+
+/** Resolve aliases even when the last components of a checkout have not been created or have disappeared. */
+export function canonicalPath(path: string): string {
+  let ancestor = path;
+
+  for (;;) {
+    try {
+      return join(realpathSync(ancestor), relative(ancestor, path));
+    } catch {
+      const parent = dirname(ancestor);
+
+      if (parent === ancestor) return path;
+      ancestor = parent;
+    }
+  }
 }

@@ -58,7 +58,18 @@ export function threadEvents(ctx: CodexThreadContext) {
       warnLateEvent(ctx, entry, notification);
 
       // Stop/steer can race rollout reconciliation and journal enrichment. The provider has already ended.
-      if (notification.method === "turn/completed") entry.finishedTurns.add(notification.params.turn.id);
+      if (notification.method === "turn/completed") {
+        entry.finishedTurns.add(notification.params.turn.id);
+
+        if (
+          ctx.projectSecrets &&
+          (yield* journal
+            .hasProjectSecretHistory(entry.platformId, entry.codexId)
+            .pipe(Effect.orElseSucceed(() => true)))
+        )
+          ctx.projectSecrets.retire(entry.platformId, entry.codexId);
+      }
+
       const notifications = [...(yield* fromRollout(entry, notification)), notification];
 
       const batches = [];
@@ -151,13 +162,24 @@ export function threadExit(ctx: CodexThreadContext) {
    */
   const settleAfterExit = (code: number | null) =>
     Effect.gen(function* () {
+      const protectedSession =
+        ctx.projectSecrets?.sawProjectSecret() ||
+        (yield* Effect.forEach([...byPlatform.values()], (entry) =>
+          journal.hasProjectSecretHistory(entry.platformId, entry.codexId),
+        ).pipe(
+          Effect.map((marked) => marked.some(Boolean)),
+          Effect.orElseSucceed(() => true),
+        ));
+
       // The last line that says what went wrong (warnings are noise here).
-      const stderr = codex
-        .stderrTail()
-        .split("\n")
-        .filter((line) => /error|panic|fatal/i.test(line))
-        .at(-1)
-        ?.slice(0, 500);
+      const stderr = protectedSession
+        ? undefined
+        : codex
+            .stderrTail()
+            .split("\n")
+            .filter((line) => /error|panic|fatal/i.test(line))
+            .at(-1)
+            ?.slice(0, 500);
 
       ctx.failure = `codex app-server exited (code ${code ?? "?"})${stderr ? `: ${stderr}` : ""}`;
       const running = new Set<string>();

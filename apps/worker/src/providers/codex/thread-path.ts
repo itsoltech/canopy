@@ -142,6 +142,7 @@ export function unsubscribeThread(ctx: CodexThreadContext, entry: Entry) {
     if (closed) entry.onClosed = closed.resolve;
 
     try {
+      ctx.projectSecrets?.reset(entry.platformId);
       const result = yield* ctx.codex.request("thread/unsubscribe", { threadId: entry.codexId });
 
       if (closed && result.status !== "notLoaded")

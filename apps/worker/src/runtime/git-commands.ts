@@ -4,7 +4,7 @@ import { Journal } from "../journal/index.ts";
 import { checkedWorktree, scanWorktree } from "../git/worktree-status.ts";
 import { cleanupRemovedBranch, recoverRemoval, removeWorktree } from "../git/remove-worktree.ts";
 import { existsSync, realpathSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { isWithin } from "../git/worktrees.ts";
 import {
   boundedGit,
@@ -17,8 +17,8 @@ import {
 } from "../git/git.ts";
 import { withProcessPriority } from "@canopy/process-governor";
 import { listGitRefs, repoRoot } from "../git/refs.ts";
-import { matchingCheckoutPaths } from "../git/checkout-paths.ts";
-import { createWorktree, renameWorktreeBranch } from "../git/worktrees.ts";
+import { canonicalPath, matchingCheckoutPaths } from "../git/checkout-paths.ts";
+import { assertWorktreeDestination, createWorktree, renameWorktreeBranch } from "../git/worktrees.ts";
 
 import { CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
@@ -67,6 +67,9 @@ export class GitCommands {
 
   async listGitRefs(kind: Extract<Command["kind"], { case: "listGitRefs" }>): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
+
+    if (kind.value.validateWorktreeDestination)
+      await gitStep(async () => assertWorktreeDestination(kind.value.repoPath, this.ctx.state.secrets.root));
 
     if (kind.value.branchesOnly)
       return gitStep(() =>
@@ -126,6 +129,7 @@ export class GitCommands {
               kind.value,
               (progress) => this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
               this.#failedCleanup,
+              this.ctx.state.secrets.root,
             ),
           ),
         );
@@ -333,22 +337,6 @@ export class GitCommands {
 
       return {};
     });
-  }
-}
-
-function canonicalPath(path: string): string {
-  // Resolve aliases even when a configured subdirectory of the checkout disappeared.
-  let ancestor = path;
-
-  for (;;) {
-    try {
-      return join(realpathSync(ancestor), relative(ancestor, path));
-    } catch {
-      const parent = dirname(ancestor);
-
-      if (parent === ancestor) return path;
-      ancestor = parent;
-    }
   }
 }
 

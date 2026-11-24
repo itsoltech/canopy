@@ -38,6 +38,9 @@ export function automationMode(name: string): ui.WorkspaceMode {
   }
 }
 
+export const UNSAFE_WORKTREE_DESTINATION =
+  "This worktree overlaps the worker’s private secret storage. Choose another worktree.";
+
 const WORKTREE_REFUSALS = new Map([
   ["GIT_TIMEOUT", "Git timed out while creating the worktree."],
   ["GIT_OUTPUT_LIMIT", "Git exceeded its output limit while creating the worktree."],
@@ -47,6 +50,7 @@ const WORKTREE_REFUSALS = new Map([
   ["WORKTREE_FAILED", "Git could not create the worktree."],
   ["WORKTREE_FILTER_UNSUPPORTED", "This checkout uses Git filters. Create the worktree manually."],
   ["WORKTREE_SPARSE_UNSUPPORTED", "Agent worktree creation does not support sparse checkout."],
+  ["WORKTREE_UNSAFE", UNSAFE_WORKTREE_DESTINATION],
   ["BRANCH_EXISTS", "That branch already exists. Choose a new name or switch to its existing worktree by path."],
   ["BAD_BRANCH", "Choose a valid Git branch name."],
   ["BAD_REF", "The base ref is not a branch or commit in this repository."],

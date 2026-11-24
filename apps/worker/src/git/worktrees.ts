@@ -7,6 +7,7 @@ import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch, withLo
 import { listGitRefs, repoRoot } from "./refs.ts";
 import { addWorktree } from "./add-worktree.ts";
 import type { FailedWorktreeCleanup } from "./failed-worktree-cleanup.ts";
+import { canonicalPath } from "./checkout-paths.ts";
 
 export type WorktreeInfoInit = MessageInitShape<typeof WorktreeInfoSchema>;
 
@@ -27,6 +28,15 @@ export function isWithin(root: string, path: string): boolean {
   const rel = relative(root, path);
 
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
+}
+
+export function assertWorktreeDestination(path: string, secretsRoot: string, creatingChild = false): void {
+  const checkout = canonicalPath(path);
+  const secrets = realpathSync(secretsRoot);
+
+  // An unused child of an ancestor is safe. freeFolder guarantees it has no existing contents.
+  if (isWithin(secrets, checkout) || (!creatingChild && isWithin(checkout, secrets)))
+    throw new GitError("WORKTREE_UNSAFE", "Choose a worktree outside the worker’s private secret storage.");
 }
 
 /**
@@ -171,8 +181,9 @@ export async function createWorktree(
   request: CreateWorktree,
   progress?: WorktreeProgress,
   cleanup?: FailedWorktreeCleanup,
+  secretsRoot?: string,
 ): Promise<WorktreeInfoInit> {
-  const create = () => performCreate(managedRoot, request, progress, cleanup);
+  const create = () => performCreate(managedRoot, request, progress, cleanup, secretsRoot);
 
   return request.agentRequested ? withLocalGitPolicy(create) : create();
 }
@@ -182,6 +193,7 @@ async function performCreate(
   request: CreateWorktree,
   progress?: WorktreeProgress,
   cleanup?: FailedWorktreeCleanup,
+  secretsRoot?: string,
 ): Promise<WorktreeInfoInit> {
   if (request.agentRequested && (request.startFromRemote || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(request.baseRef)))
     throw new GitError("BAD_REF", "Agent worktrees require a local base commit.");
@@ -190,6 +202,10 @@ async function performCreate(
   const repo = await repoRoot(request.repoPath);
 
   if (!repo) throw new GitError("NOT_A_REPOSITORY", `${request.repoPath} is not in a git repository`);
+  const folder = folderName(basename(repo));
+
+  if (request.agentRequested && secretsRoot)
+    assertWorktreeDestination(join(request.location || managedRoot, folder), secretsRoot, true);
   const root = worktreeRoot(managedRoot, request.location);
   const base = request.baseRef || (await listGitRefs(repo, request.remote || "origin")).defaultBranch || "HEAD";
 
@@ -208,7 +224,7 @@ async function performCreate(
   if (!commit || (request.agentRequested && commit !== request.baseRef))
     throw new GitError("BAD_REF", "The base ref changed during worktree creation. Select a base ref and retry.");
   const branch = await freeBranch(repo, request.branch, request.agentRequested);
-  const parent = join(root, folderName(basename(repo)));
+  const parent = join(root, folder);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
 
   if (!isWithin(root, realpathSync(parent)))
@@ -216,6 +232,8 @@ async function performCreate(
   const path = await freeFolder(repo, parent);
 
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
+
+  if (request.agentRequested && secretsRoot) assertWorktreeDestination(path, secretsRoot);
   await addWorktree(
     repo,
     { path, branch, commit },

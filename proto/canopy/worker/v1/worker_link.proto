@@ -143,6 +143,8 @@ message ThreadSecretDelivery {
   google.protobuf.Timestamp expires_at = 5;
   bool remove = 6;
   string cwd = 7;
+  // Set for a project secret lease; requires the project_secret_leases_v1 capability.
+  string turn_id = 8;
 }
 
 message ThreadSecretReceipt {
@@ -151,6 +153,9 @@ message ThreadSecretReceipt {
   uint32 revision = 3;
   string file = 4;
   bool applied = 5;
+  string turn_id = 6;
+  // The worker cannot securely apply this project secret lease in this turn.
+  bool rejected = 7;
 }
 
 // ---------- Handshake ----------
@@ -612,8 +617,10 @@ message ThreadSpec {
   bool has_delegating_bot = 14;
   // Pamięć projektu i workera dostępna z tej sesji. Gateway potwierdza zakres dla każdego wywołania.
   bool enable_memory = 15;
+  // Czy lokalny projekt ma zapisany sekret. Bez nazw i wartości.
+  bool project_secrets_configured = 16;
   // Narzędzie switch_worktree dostępne w przydzielonym katalogu projektu.
-  bool enable_worktree_switch = 16;
+  bool enable_worktree_switch = 17;
   // Puste = domyślne profilu; default = jawne standardowe wykonanie.
   string service_tier = 43;
   // Wewnętrzny znormalizowany snapshot. Na linku wysyłany w ProfiledThread.
@@ -2125,6 +2132,8 @@ message ListGitRefs {
   repeated string known_paths = 5;
   // git_branch_switch_v1: bez odkrywania innych worktree; worktrees_only zwraca wtedy wyłącznie korzeń.
   bool branches_only = 6;
+  // thread_worktree_switch_v1: przed przełączeniem sprawdź położenie katalogu docelowego względem magazynu sekretów workera.
+  bool validate_worktree_destination = 7;
 }
 
 message SwitchThreadBranch {

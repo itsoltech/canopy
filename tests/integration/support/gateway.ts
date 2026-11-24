@@ -29,6 +29,8 @@ import {
   type InteractionRequest,
   type InteractionResponse,
   type ProfileModelsSchema,
+  type ThreadSecretDelivery,
+  type ThreadSecretReceiptSchema,
   type WorkerConfig,
 } from "@canopy/contracts";
 import { migrate } from "@canopy/db";
@@ -120,6 +122,9 @@ export type CommandReplyExtra = Omit<MessageInitShape<typeof CommandResultSchema
 
 export interface ScriptedWorkerOptions {
   readonly onCommand?: (command: Command) => void;
+  readonly onSecretDelivery?: (
+    delivery: ThreadSecretDelivery,
+  ) => MessageInitShape<typeof ThreadSecretReceiptSchema> | undefined;
   readonly sandboxOffline?: boolean;
   readonly tracing?: WorkerTracing;
   readonly logs?: LogPullSource;
@@ -356,8 +361,13 @@ export class ScriptedWorker {
         continue;
       }
 
-      if (payload.case === "threadSecretDelivery" && this.secrets) {
-        this.link.send({ case: "threadSecretReceipt", value: this.secrets.apply(payload.value) });
+      if (payload.case === "threadSecretDelivery") {
+        const receipt =
+          payload.value.turnId || this.options.onSecretDelivery
+            ? this.options.onSecretDelivery?.(payload.value)
+            : this.secrets?.apply(payload.value);
+
+        if (receipt) this.link.send({ case: "threadSecretReceipt", value: receipt });
         continue;
       }
 

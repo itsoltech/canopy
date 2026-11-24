@@ -2237,7 +2237,7 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-24): konsolidacja wymaga migracji 0211 po obu stronach. Jeśli
+Status (2026-11-24): konsolidacja wymaga migracji 0212 po obu stronach. Jeśli
 wątek zmienił worktree, import zachowuje katalog, w którym działała tura
 przełączająca worktree. Zachowuje też powiązanie jednorazowej zgody bota z wątkiem docelowym w historii.
 Import zachowuje kolor projektu ze źródła lub celu zgodnie z decyzją przy konflikcie.

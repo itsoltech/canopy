@@ -1,5 +1,9 @@
 # Adapter Claude (Agent SDK)
 
+Aktualizacja (2026-11-24): adapter maskuje znane wartości sekretów w synchronicznych
+wynikach narzędzi przed wysłaniem ich do modelu. Gotowość do wydania sekretu projektu
+potwierdza bieżący proces podczas `UserPromptSubmit`.
+
 Aktualizacja (2026-11-22): nazwany profil Sandbox wymaga nowego procesu
 z obowiązkowym sandboxem powłoki i ścisłą listą domen. Warunki zgodności
 opisuje [Profile Sandbox](sandbox-profiles.md).
@@ -105,6 +109,34 @@ Pełne wiadomości nigdy nie giną: bez mapowania trafiają do dziennika jako `r
 - Przejście na `FULL_ACCESS` rozstrzyga oczekujące zgody `PERMISSION` tej tury; pytania i formularze pozostają do odpowiedzi. Inne zmiany nie zatwierdzają wcześniej przechwyconych natywnych operacji: komenda oczekująca na zgodę mogła powstać jeszcze bez sandboxa. Przyznana automatyzacja przez bridge ponownie sprawdza tryb, więc jej zgody zwalnia także `FULL_AUTO` ([automation-tools.md](automation-tools.md#grant-workera-i-uprawnienia-tury)). Nowy tryb dotyczy kolejnych operacji, nie cofa skutków komend już uruchomionych.
 - `AskUserQuestion` zawsze trafia do platformy jako pytanie (`QUESTION`), odpowiedź wraca jako `answers`.
 - Różnica względem Codexa: w `READ_ONLY` Codex może uruchamiać komendy w sandboxie tylko do odczytu, Claude nie uruchamia shella.
+
+## Maskowanie sekretów w wynikach narzędzi
+
+Worker uznaje filtr za gotowy po callbacku SDK `UserPromptSubmit` dla oczekiwanej
+sesji i komunikacie `init` od Claude Code 2.1.316 lub nowszego w serii 2.1.
+Gotowość wygasa z procesem. Synchroniczny `PostToolUse.updatedToolOutput` maskuje
+tekst wyników natywnych i MCP. Serwer MCP Canopy filtruje również własne
+odpowiedzi błędów przed przekazaniem ich do Claude. Filtr obejmuje także
+ręczne sekrety tego wątku, które zachowują dotychczasową ścieżkę dostępu.
+
+Przy znanej wartości sekretu adapter uruchamia polecenie Bash w osobnej
+powłoce pod kontrolą tego samego narzędzia i jego sandboxa. Dzięki temu stdout
+i stderr po niezerowym wyjściu trafiają do `PostToolUse`, które może je podmienić.
+Model widzi prawdziwy kod wyjścia w tekście stderr. Natywny status narzędzia
+oznacza powodzenie zewnętrznego polecenia, a zmiany stanu lokalnego powłoki
+pozostają w powłoce potomnej. Claude sprawdza oryginalne polecenie regułami
+uprawnień, a Canopy stosuje osłonę dopiero po przyznaniu zgody. Przy aktywnym
+sekrecie w trybie tylko do odczytu dostęp do plików zapewniają narzędzia odczytu.
+Aktywny sekret projektu blokuje jawne uruchomienie powłoki w tle i narzędzie
+monitorujące.
+
+Mechanizm obejmuje zwykłe niezerowe wyjście Bash. SDK zgłasza niektóre awarie
+wykonania, np. przerwanie samego narzędzia, przez `PostToolUseFailure`,
+które w Claude nie podmienia wyniku. Przy dostępnym sekrecie projektu hook
+odmawia wywołania natywnego PowerShell z powodu jego niefiltrowalnych
+błędów. Test z lokalnym endpointem modelu potwierdza
+pierwsze wywołanie o sekret, odczyt, stdout, stderr, błąd MCP, czysty
+transkrypt sprawdzanej sesji oraz wznowienie na Claude Code 2.1.331.
 
 ## Szyna agentów
 

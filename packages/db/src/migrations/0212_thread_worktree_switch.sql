@@ -153,7 +153,7 @@ ALTER TABLE agent_bus_calls ADD CONSTRAINT agent_bus_calls_tool_check CHECK (too
   'list_background_tasks', 'get_background_task', 'stop_background_task',
   'ask_user', 'get_answers', 'request_secret', 'show_images', 'import_image_reply', 'render_visual', 'render_html',
   'watch_pr_checks', 'list_pr_watches', 'cancel_pr_watch', 'link_pull_request', 'message_delegating_bot',
-  'find_canopy_settings', 'switch_worktree'
+  'find_canopy_settings', 'list_project_secrets', 'switch_worktree'
 )) NOT VALID;
 
 ALTER TABLE agent_bus_calls DROP CONSTRAINT agent_bus_calls_starts_turn;

@@ -8,9 +8,18 @@
   import { answerThreadSecret } from "../../api.ts";
   import PanelRow from "../PanelRow.svelte";
 
-  /** A saved secret in the thread panel: its label, until when the agent can read it, and Revoke. */
+  /**
+   * A saved secret in the thread panel: its label (a project secret's name), until when the agent can read it, and
+   * Revoke. Revoking a project secret ends only this thread's access; Project settings → Secrets deletes it.
+   */
   let { secret, onchange }: { secret: ui.ThreadSecret; onchange: (secret: ui.ThreadSecret) => void } = $props();
   let busy = $state(false);
+  const name = $derived(secret.projectSecret || secret.label || "Secret");
+
+  const until = (time: string) =>
+    secret.projectSecret
+      ? `The agent's commands can read this project secret until ${time}. Kept out of chat.`
+      : `The agent's commands can read this until ${time}. Kept out of chat.`;
 
   async function revoke() {
     busy = true;
@@ -28,19 +37,17 @@
 </script>
 
 <PanelRow icon="lock-closed">
-  <TruncatedText text={secret.label || "Secret"} />
+  <TruncatedText text={name} class={secret.projectSecret ? "font-mono" : undefined} />
   {#snippet aside()}
     <span class="flex shrink-0 items-center gap-1">
       {#if secret.expiresAt}<span
           class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"
-          {@attach tooltip(
-            `The agent's commands can read this until ${formatDateTime(secret.expiresAt)}. Kept out of chat.`,
-          )}>until {formatTime(secret.expiresAt)}</span
+          {@attach tooltip(until(formatDateTime(secret.expiresAt)))}>until {formatTime(secret.expiresAt)}</span
         >{/if}
       <IconButton
         icon="x-mark"
         size="sm"
-        label="Revoke {secret.label || 'secret'}"
+        label={secret.projectSecret ? `Revoke ${name} in this thread` : `Revoke ${name}`}
         loading={busy}
         onclick={() => void revoke()}
       />
