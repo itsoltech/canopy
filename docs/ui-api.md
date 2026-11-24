@@ -3,6 +3,8 @@
 Status (2026-11-24): w web i desktopie „Manage workers” w kompozytorze nowego wątku
 otwiera sekcję Workspaces wybranego projektu. Dla „No project” otwiera Settings → Workers.
 
+Status (2026-11-24): w web i desktopie lokalny wątek można przeciągnąć do Pinned przy każdym sposobie sortowania.
+
 Status (2026-11-23): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu GitHub w kompozytorze nowego i istniejącego wątku.
 
 Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
@@ -3296,14 +3298,20 @@ powtarzalny parametr `workerId` w BFF (`worker_ids` w gRPC), a kursor strony
 jest związany z tym wyborem. Pusty wybór obejmuje także wątki bez workera.
 Klient udostępnia wybór workerów, gdy gateway zgłasza `archive_worker_filter`
 w `GetClientCapabilities`. Starszy gateway obsługuje dotychczasowy filtr projektów.
-W Custom przeciąganie myszą zaczyna się po ruchu o 6 px; sam klik otwiera wątek.
-Wskaźnik pokazuje miejsce upuszczenia, krawędzie listy przewijają ją automatycznie,
-a górna strefa „Drop here to pin” podświetla przekroczenie progu przypinania.
-Wyciągnięcie z Pinned respektuje `confirm_unpin`; anulowanie nie zmienia ani pina,
-ani klucza. Menu wątku udostępnia „Move up/down/to top/to bottom”, a fokusowany
-wiersz obsługuje Alt+↑/↓/Home/End. Escape anuluje przeciąganie. Ruch wskaźnika
-zmienia tylko kopię wiersza i linię celu; lista kluczy zmienia się raz po zapisie.
-Istniejący FLIP `reorder` animuje widocznych sąsiadów i respektuje ograniczenie ruchu.
+W web i desktopie przeciąganie myszą zaczyna się po ruchu o 6 px. Sam klik otwiera
+wątek, a Escape anuluje gest. Podczas przeciągania u góry listy pojawia się strefa
+przypięcia, także przed pierwszym przypięciem. Upuszczenie tam lub na przypięty
+wiersz przenosi wątek do Pinned. Przy sortowaniu „Last activity” i „Created” o jego
+miejscu w sekcji decyduje wybrany tryb. Te gesty zapisują wyłącznie przypięcie.
+Wyciągnięcie wątku z Pinned do jego sekcji respektuje `confirm_unpin`.
+
+W „Custom” karta przez cały gest podąża za wskaźnikiem w punkcie chwycenia.
+Wiersz docelowy odsuwa się przy zaznaczonej krawędzi, a po zwolnieniu przycisku
+karta osiada we wskazanym miejscu. Krawędzie
+listy pozwalają przewijać ją podczas przeciągania. Po zapisie widoczne wiersze
+przesuwają się na nowe miejsca z uwzględnieniem systemowej preferencji ograniczenia
+ruchu. Menu udostępnia „Move up/down/to top/to bottom”, a wiersz z fokusem obsługuje
+Alt+↑/↓/Home/End.
 
 W Custom wątki są uporządkowane osobno według domu (lokalne najpierw, potem id
 komputera). Zdalna kolejność jest widoczna, ale edytowalna tylko w domu wątku;

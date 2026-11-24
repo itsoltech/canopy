@@ -1,86 +1,6 @@
 import type { Attachment } from "svelte/attachments";
 import type { SidebarOrder, MoveDirection } from "./sidebar-order.svelte.ts";
-
-interface Drag {
-  id: string;
-  pointer: number;
-  x: number;
-  y: number;
-  startX: number;
-  startY: number;
-  offset: number;
-  source: HTMLElement;
-  ghost?: HTMLElement;
-  target: string;
-  before: boolean;
-  valid: boolean;
-}
-
-function dragGhost(source: HTMLElement) {
-  const box = source.getBoundingClientRect();
-  const ghost = document.createElement("div");
-  ghost.className = "sidebar-drag-ghost density-chrome sidebar-scale";
-  ghost.inert = true;
-  ghost.setAttribute("aria-hidden", "true");
-  ghost.style.width = `${box.width}px`;
-  ghost.style.left = `${box.left}px`;
-  ghost.append(source.cloneNode(true));
-
-  for (const element of ghost.querySelectorAll("[id]")) element.removeAttribute("id");
-  document.body.append(ghost);
-
-  return ghost;
-}
-
-function paintDrag(
-  list: HTMLElement,
-  scroll: HTMLElement,
-  current: Drag,
-  order: SidebarOrder,
-  indicator: HTMLElement | undefined,
-) {
-  const viewport = scroll.getBoundingClientRect();
-
-  const inside =
-    current.x >= viewport.left &&
-    current.x <= viewport.right &&
-    current.y >= viewport.top &&
-    current.y <= viewport.bottom;
-
-  const delta = !inside ? 0 : current.y < viewport.top + 44 ? -1 : current.y > viewport.bottom - 44 ? 1 : 0;
-
-  if (delta) scroll.scrollTop += delta * 12;
-
-  const hit = inside
-    ? document.elementFromPoint(current.x, current.y)?.closest<HTMLElement>("[data-thread-id]")
-    : undefined;
-
-  const pin = inside && current.y < viewport.top + 44;
-  order.pinTarget = pin;
-  const target = hit && list.contains(hit) ? (hit.dataset["threadId"] ?? "") : "";
-  const box = hit?.getBoundingClientRect();
-  const before = !!box && current.y < box.top + box.height / 2;
-
-  if (target !== current.target || before !== current.before) {
-    current.target = target;
-    current.before = before;
-    current.valid = order.canDrop(current.id, target, before);
-  }
-
-  if (indicator) {
-    indicator.hidden = pin || !current.valid || !box;
-
-    if (box) {
-      indicator.style.width = `${box.width}px`;
-      indicator.style.transform = `translate(${box.left}px, ${before ? box.top : box.bottom}px)`;
-    }
-  }
-
-  if (current.ghost) {
-    current.ghost.style.transform = `translateY(${current.y - current.offset}px)`;
-    current.ghost.style.opacity = pin ? "0" : "";
-  }
-}
+import { SidebarDragPreview, threadRow } from "./sidebar-drag-preview.ts";
 
 const directions = new Map<string, MoveDirection>([
   ["ArrowUp", "up"],
@@ -89,155 +9,189 @@ const directions = new Map<string, MoveDirection>([
   ["End", "bottom"],
 ]);
 
-function moveByKeyboard(event: KeyboardEvent, order: SidebarOrder) {
+function moveByKeyboard(event: KeyboardEvent, list: HTMLElement, order: SidebarOrder) {
   if (!event.altKey || !order.custom || !(event.target instanceof Element)) return;
   const direction = directions.get(event.key);
-  const id = event.target.closest<HTMLElement>("[data-thread-id]")?.dataset["threadId"];
-  const thread = id && order.overview.threads.get(id);
+  const row = threadRow(list, event.target);
+  const thread = row && order.overview.threads.get(row.id);
 
   if (!direction || !thread) return;
   event.preventDefault();
   void order.move(thread, direction);
 }
 
-/** Pointer frames only move a ghost/indicator. The keyed Svelte list reflows once, after the move is committed. */
+interface Drag {
+  row: NonNullable<ReturnType<typeof threadRow>>;
+  pointer: number;
+  x: number;
+  y: number;
+  startX: number;
+  startY: number;
+  preview?: SidebarDragPreview;
+}
+
+class SidebarGesture {
+  readonly scroll: HTMLElement;
+  readonly listeners = new AbortController();
+  drag: Drag | undefined;
+  settling: SidebarDragPreview | undefined;
+  frame = 0;
+  suppressClick = false;
+
+  constructor(
+    readonly list: HTMLElement,
+    readonly order: SidebarOrder,
+  ) {
+    this.scroll = list.closest<HTMLElement>("nav") ?? list;
+    const { signal } = this.listeners;
+    list.addEventListener("pointerdown", this.down, { signal });
+    list.addEventListener("lostpointercapture", this.cancelPointer, { signal });
+    list.addEventListener("dragstart", this.preventNative, { signal });
+    list.addEventListener("selectstart", this.preventNative, { signal });
+    list.addEventListener("click", this.click, { signal, capture: true });
+    list.addEventListener("keydown", (event) => moveByKeyboard(event, list, order), { signal });
+    window.addEventListener("keydown", this.escape, { signal, capture: true });
+    window.addEventListener("blur", this.cancel, { signal });
+    window.addEventListener("pointermove", this.move, { signal, passive: false });
+    window.addEventListener("pointercancel", this.cancelPointer, { signal });
+    window.addEventListener("pointerup", this.up, { signal });
+    this.scroll.addEventListener("scroll", this.requestPaint, { signal, passive: true });
+  }
+
+  private down = (event: PointerEvent) => {
+    if (this.drag || event.button !== 0 || event.pointerType !== "mouse" || !(event.target instanceof Element)) return;
+    this.suppressClick = false;
+
+    if (event.target.closest("button, input, [role=menu]")) return;
+    const row = threadRow(this.list, event.target);
+    const thread = row && this.order.overview.threads.get(row.id);
+
+    if (!row || !thread || !this.order.draggable(thread)) return;
+    this.settling?.remove();
+    this.settling = undefined;
+    this.drag = {
+      row,
+      pointer: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+  };
+
+  private move = (event: PointerEvent) => {
+    const drag = this.drag;
+
+    if (!drag || event.pointerId !== drag.pointer) return;
+
+    if (!(event.buttons & 1)) {
+      this.cancel();
+
+      return;
+    }
+
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+
+    if (!drag.preview) {
+      if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < 6) return;
+      this.list.setPointerCapture(drag.pointer);
+      this.order.dragging = drag.row.id;
+      this.list.dataset["sidebarDragging"] = "";
+      drag.preview = new SidebarDragPreview(this.list, this.scroll, this.order, drag.row, drag.startX, drag.startY);
+    }
+
+    event.preventDefault();
+    this.requestPaint();
+  };
+
+  private requestPaint = () => {
+    if (!this.drag?.preview || this.frame) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      const drag = this.drag;
+
+      if (drag?.preview?.paint(drag.x, drag.y, true)) this.requestPaint();
+    });
+  };
+
+  private up = (event: PointerEvent) => {
+    const drag = this.drag;
+
+    if (!drag || event.pointerId !== drag.pointer) return;
+    drag.preview?.paint(event.clientX, event.clientY, false);
+    this.finish(true);
+  };
+
+  private finish(commit: boolean) {
+    const drag = this.drag;
+
+    if (!drag) return;
+    this.drag = undefined;
+    cancelAnimationFrame(this.frame);
+    this.frame = 0;
+
+    if (this.list.hasPointerCapture(drag.pointer)) this.list.releasePointerCapture(drag.pointer);
+    const preview = drag.preview;
+
+    if (!preview) return;
+    this.suppressClick = true;
+    const { slot, zone } = preview;
+    this.order.dragging = "";
+    this.order.pinTarget = false;
+    this.list.removeAttribute("data-sidebar-dragging");
+
+    const move =
+      commit && (zone || slot?.valid)
+        ? this.order.drop(drag.row.id, slot?.row.id ?? "", slot?.before ?? true, !!zone)
+        : undefined;
+
+    this.settling = preview;
+    void preview.settle(move).finally(() => {
+      if (this.settling === preview) this.settling = undefined;
+    });
+  }
+
+  private cancel = () => this.finish(false);
+
+  private cancelPointer = (event: PointerEvent) => {
+    if (event.pointerId === this.drag?.pointer) this.cancel();
+  };
+
+  private escape = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || !this.drag) return;
+
+    if (this.drag.preview) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    this.cancel();
+  };
+
+  private preventNative = (event: Event) => {
+    if (this.drag) event.preventDefault();
+  };
+
+  private click = (event: MouseEvent) => {
+    if (!this.suppressClick || event.detail === 0) return;
+    this.suppressClick = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+
+  dispose() {
+    this.listeners.abort();
+    this.cancel();
+    this.settling?.remove();
+  }
+}
+
+/** Pointer frames touch only the preview. The keyed list reflows when the order changes. */
 export function sidebarDrag(order: SidebarOrder): Attachment<HTMLElement> {
   return (list) => {
-    const scroll = list.closest<HTMLElement>("nav") ?? list;
-    let drag: Drag | undefined;
-    let frame = 0;
-    let suppressClick = false;
-    let indicator: HTMLElement | undefined;
+    const gesture = new SidebarGesture(list, order);
 
-    function clear() {
-      cancelAnimationFrame(frame);
-      drag?.ghost?.remove();
-      drag?.source.removeAttribute("data-drag-source");
-
-      if (drag && list.hasPointerCapture(drag.pointer)) list.releasePointerCapture(drag.pointer);
-      indicator?.remove();
-      indicator = undefined;
-      drag = undefined;
-      order.dragging = false;
-      order.pinTarget = false;
-    }
-
-    function begin(current: Drag) {
-      current.ghost = dragGhost(current.source);
-      current.source.dataset["dragSource"] = "";
-      indicator = document.createElement("div");
-      indicator.className = "sidebar-drop-indicator";
-      indicator.setAttribute("aria-hidden", "true");
-      document.body.append(indicator);
-      list.setPointerCapture(current.pointer);
-      order.dragging = true;
-    }
-
-    function paint() {
-      const current = drag;
-
-      if (!current?.ghost) return;
-      paintDrag(list, scroll, current, order, indicator);
-      frame = requestAnimationFrame(paint);
-    }
-
-    function down(event: PointerEvent) {
-      suppressClick = false;
-
-      if (!order.custom || event.button !== 0 || event.pointerType !== "mouse" || !(event.target instanceof Element))
-        return;
-
-      if (event.target.closest("button, input, [role=menu]")) return;
-      const source = event.target.closest<HTMLElement>("[data-thread-id]");
-      const id = source?.dataset["threadId"];
-      const thread = id && order.overview.threads.get(id);
-
-      if (!source || !id || !thread || !order.available(thread)) return;
-      drag = {
-        id,
-        source,
-        pointer: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        startX: event.clientX,
-        startY: event.clientY,
-        offset: event.clientY - source.getBoundingClientRect().top,
-        target: "",
-        before: true,
-        valid: false,
-      };
-    }
-
-    function move(event: PointerEvent) {
-      if (!drag || event.pointerId !== drag.pointer) return;
-      drag.x = event.clientX;
-      drag.y = event.clientY;
-
-      if (!drag.ghost && Math.hypot(drag.x - drag.startX, drag.y - drag.startY) >= 6) {
-        begin(drag);
-        frame = requestAnimationFrame(paint);
-      }
-
-      if (drag.ghost) event.preventDefault();
-    }
-
-    function up(event: PointerEvent) {
-      if (!drag || event.pointerId !== drag.pointer) return;
-      const current = drag;
-      const active = !!current.ghost;
-      current.x = event.clientX;
-      current.y = event.clientY;
-
-      if (active) paintDrag(list, scroll, current, order, indicator);
-      const pin = order.pinTarget;
-      suppressClick = active;
-      clear();
-
-      if (active) void order.drop(current.id, current.target, current.before, pin);
-    }
-
-    function click(event: MouseEvent) {
-      if (!suppressClick) return;
-      suppressClick = false;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-
-    function keyboard(event: KeyboardEvent) {
-      if (event.key === "Escape" && drag?.ghost) {
-        event.preventDefault();
-        clear();
-
-        return;
-      }
-
-      moveByKeyboard(event, order);
-    }
-
-    list.addEventListener("pointerdown", down);
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", clear);
-    window.addEventListener("blur", clear);
-    list.addEventListener("click", click, true);
-    list.addEventListener("keydown", keyboard);
-
-    const preventNative = (event: DragEvent) => {
-      if (drag) event.preventDefault();
-    };
-
-    list.addEventListener("dragstart", preventNative);
-
-    return () => {
-      clear();
-      list.removeEventListener("pointerdown", down);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", clear);
-      window.removeEventListener("blur", clear);
-      list.removeEventListener("click", click, true);
-      list.removeEventListener("keydown", keyboard);
-      list.removeEventListener("dragstart", preventNative);
-    };
+    return () => gesture.dispose();
   };
 }

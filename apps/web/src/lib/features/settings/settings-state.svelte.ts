@@ -186,13 +186,15 @@ export class SettingsState {
     devicePreferences.setView(change);
   }
 
-  pinThread(threadId: string, pinned: boolean): Promise<void> {
-    return this.#writeUser("sidebar", (current) => ({
+  async pinThread(threadId: string, pinned: boolean): Promise<boolean> {
+    await this.#writeUser("sidebar", (current) => ({
       ...current,
       pinnedThreadIds: pinned
         ? [...new Set([...current.pinnedThreadIds, threadId])]
         : current.pinnedThreadIds.filter((id) => id !== threadId),
     }));
+
+    return Boolean(this.#server.user.sidebar?.pinnedThreadIds.includes(threadId)) === pinned;
   }
 
   pinBot(botId: string, pinned: boolean): Promise<void> {

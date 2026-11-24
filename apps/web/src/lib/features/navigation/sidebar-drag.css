@@ -1,0 +1,184 @@
+[data-sidebar-dragging],
+[data-sidebar-dragging] * {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.sidebar-pin-zone {
+  position: absolute;
+  inset: 0 0 auto;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--duration-quick) var(--ease-smooth-out),
+    visibility 0s linear var(--duration-quick);
+}
+
+.sidebar-pin-zone[data-sidebar-pin-zone] {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.sidebar-pin-label {
+  border: 1px dashed var(--color-divider);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-sm);
+  translate: 0 calc(-1 * var(--distance-micro));
+  transition:
+    translate var(--duration-fast) var(--ease-smooth-out),
+    border-color var(--duration-quick),
+    background-color var(--duration-quick);
+}
+
+[data-sidebar-pin-zone] .sidebar-pin-label {
+  translate: 0;
+}
+
+.sidebar-pin-zone[data-active] .sidebar-pin-label {
+  border-color: var(--color-brand-500);
+  background: color-mix(in oklab, var(--color-brand-500) 12%, var(--color-panel));
+}
+
+/* The card follows the mouse directly. Its lift and docking offset ease independently. */
+.sidebar-drag-ghost {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: 100;
+  container-type: inline-size;
+  pointer-events: none;
+  translate: 0 var(--dock-offset, 0px);
+  transition: translate var(--duration-quick) var(--ease-smooth-out);
+}
+
+.sidebar-drag-ghost > .sidebar-row {
+  border-radius: var(--radius-xl);
+  background-color: var(--color-panel);
+  box-shadow:
+    0 0 0 1px var(--color-divider),
+    var(--shadow-lg);
+  scale: var(--scale-medium);
+  transform-origin: var(--grab-point);
+  transition: scale var(--duration-fast) var(--ease-smooth-out);
+}
+
+@starting-style {
+  .sidebar-drag-ghost > .sidebar-row {
+    scale: 1;
+  }
+}
+
+.sidebar-drag-ghost[data-docked] {
+  translate: 0 calc(var(--dock-offset) + var(--distance-micro));
+}
+.sidebar-drag-ghost[data-docked] > .sidebar-row {
+  scale: var(--scale-large);
+}
+
+.sidebar-drag-ghost[data-action]:not([data-action=""])::after {
+  content: attr(data-action);
+  position: absolute;
+  inset: auto var(--distance-base) 100% auto;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-md);
+  color: white;
+  background: var(--color-brand-700);
+  font-size: var(--text-sm);
+  animation: t-rise var(--duration-quick) var(--ease-smooth-out);
+}
+
+.sidebar-drag-ghost[data-settling] {
+  opacity: 0;
+  transition:
+    transform var(--duration-fast) var(--ease-smooth-out),
+    translate var(--duration-fast) var(--ease-smooth-out),
+    width var(--duration-fast) var(--ease-smooth-out),
+    opacity var(--duration-quick) var(--ease-in-out) var(--duration-micro);
+}
+.sidebar-drag-ghost[data-settling] > .sidebar-row {
+  scale: 1;
+}
+
+/* The ghost takes the moving row's place during FLIP. Neighbours keep their normal keyed animation. */
+[data-drag-source] {
+  transform: none !important;
+}
+[data-drag-source] > :first-child {
+  opacity: 0.3;
+}
+
+[data-drag-source="landing"] > :first-child {
+  opacity: 1;
+  transition: opacity var(--duration-quick) var(--ease-in-out) var(--duration-micro);
+}
+
+[data-sidebar-dragging] [data-thread-id] > :first-child {
+  transition: translate var(--duration-quick) var(--ease-smooth-out);
+}
+[data-drop-edge="before"] > :first-child {
+  translate: 0 var(--distance-micro);
+}
+[data-drop-edge="after"] > :first-child {
+  translate: 0 calc(-1 * var(--distance-micro));
+}
+[data-drop-edge="section"] > :first-child .sidebar-row {
+  outline: 1px solid var(--color-brand-500);
+  outline-offset: -1px;
+}
+
+.sidebar-drop-indicator {
+  position: fixed;
+  inset: 0 auto auto 0;
+  height: 2px;
+  z-index: 99;
+  pointer-events: none;
+  border-radius: 1px;
+  background: var(--color-brand-500);
+  opacity: 0;
+}
+
+/* Keep the slot readable in the gutters when the held card covers the middle of the line. */
+.sidebar-drop-indicator::before,
+.sidebar-drop-indicator::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: inherit;
+}
+.sidebar-drop-indicator::before {
+  left: -3px;
+}
+.sidebar-drop-indicator::after {
+  right: -3px;
+}
+
+.sidebar-drop-indicator[data-visible] {
+  opacity: 1;
+  transition:
+    transform var(--duration-quick) var(--ease-smooth-out),
+    width var(--duration-quick) var(--ease-smooth-out),
+    opacity var(--duration-quick) var(--ease-in-out);
+}
+
+dialog > .sidebar-drag-ghost,
+dialog > .sidebar-drop-indicator {
+  position: absolute;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-drag-ghost,
+  .sidebar-drag-ghost > .sidebar-row,
+  .sidebar-pin-zone,
+  .sidebar-pin-label,
+  .sidebar-drop-indicator,
+  [data-drag-source] > :first-child,
+  [data-sidebar-dragging] [data-thread-id] > :first-child {
+    transition: none !important;
+  }
+  .sidebar-drag-ghost::after {
+    animation: none !important;
+  }
+}

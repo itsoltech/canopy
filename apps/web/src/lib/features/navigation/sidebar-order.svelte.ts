@@ -20,7 +20,7 @@ export const provideSidebarOrder = (order: SidebarOrder) => setContext(KEY, orde
 export const useSidebarOrder = () => getContext<SidebarOrder | undefined>(KEY);
 
 export class SidebarOrder {
-  dragging = $state(false);
+  dragging = $state("");
   pinTarget = $state(false);
   message = $state("");
   saving = $state(false);
@@ -36,8 +36,11 @@ export class SidebarOrder {
   get custom() {
     return devicePreferences.view.threadSortMode === "custom";
   }
-  available(thread: ui.Thread) {
-    return this.custom && !thread.nodeId && !this.saving && !!threadOrderGroup(this.entries(), thread.id);
+  draggable(thread: ui.Thread) {
+    return !thread.nodeId && !this.saving && !!threadOrderGroup(this.entries(), thread.id);
+  }
+  canReorder(thread: ui.Thread) {
+    return this.custom && this.draggable(thread);
   }
   peers(thread: ui.Thread) {
     const group = threadOrderGroup(this.entries(), thread.id);
@@ -59,7 +62,7 @@ export class SidebarOrder {
     );
   }
   canMove(thread: ui.Thread, direction: MoveDirection) {
-    if (!this.available(thread)) return false;
+    if (!this.canReorder(thread)) return false;
     const peers = this.peers(thread);
     const index = peers.findIndex((t) => t.id === thread.id);
 
@@ -82,6 +85,7 @@ export class SidebarOrder {
     if (target) await this.drop(thread.id, target.id, before);
   }
   position(id: string, target: string, before: boolean): Position | undefined {
+    if (!this.custom) return;
     const from = this.overview.threads.get(id);
     const to = this.overview.threads.get(target);
 
@@ -100,43 +104,43 @@ export class SidebarOrder {
     const from = this.overview.threads.get(id);
     const to = this.overview.threads.get(target);
 
-    if (!from || !to || to.nodeId || id === target) return false;
+    if (!from || !to || from.nodeId || to.nodeId || id === target) return false;
 
-    if (this.position(id, target, before)) return true;
     const pins = this.settings.sidebar.pinnedThreadIds;
+    const pinned = pins.includes(id);
 
-    if (pins.includes(target) && !pins.includes(id)) return true;
+    if (pinned === pins.includes(target)) return Boolean(this.position(id, target, before));
+
+    if (!pinned) return true;
+    const group = threadOrderGroup(this.entries(), target);
 
     return (
-      pins.includes(id) &&
-      !!target &&
+      !!group &&
       (!this.settings.sidebar.groupByProject || from.projectId === to.projectId) &&
-      threadOrderGroup(this.unpinnedEntries(id), id) === threadOrderGroup(this.entries(), target)
+      threadOrderGroup(this.unpinnedEntries(id), id) === group
     );
   }
   async drop(id: string, target: string, before: boolean, pin = false) {
     const thread = this.overview.threads.get(id);
 
-    if (!thread || !this.available(thread)) return;
+    if (!thread || !this.draggable(thread) || (!pin && !this.canDrop(id, target, before))) return;
     const pinned = this.settings.sidebar.pinnedThreadIds.includes(id);
     const targetPinned = pin || this.settings.sidebar.pinnedThreadIds.includes(target);
 
     if (targetPinned && (!pinned || pin)) {
-      if (pinned || (await this.changePin(thread, true))) {
-        await tick();
-        const first = this.peers(thread).find((t) => t.id !== id);
-        const destination = pin ? first?.id : target || first?.id;
-        const position = destination ? this.position(id, destination, pin ? true : before) : undefined;
+      if (!pinned && !(await this.changePin(thread, true))) return;
 
-        if (position) await this.save(thread, position);
-      }
+      if (!this.custom) return;
+      await tick();
+      const destination = pin ? this.peers(thread).find((t) => t.id !== id)?.id : target;
+      const position = destination ? this.position(id, destination, pin || before) : undefined;
+
+      if (position) await this.save(thread, position);
 
       return;
     }
 
     if (pinned && !targetPinned) {
-      if (!this.canDrop(id, target, before)) return;
-
       if (this.settings.general.confirmUnpin) this.unpin = { thread, target, before };
       else await this.finishUnpin(thread, target, before);
 
@@ -155,7 +159,7 @@ export class SidebarOrder {
     await this.finishUnpin(pending.thread, pending.target, pending.before);
   }
   private async finishUnpin(thread: ui.Thread, target: string, before: boolean) {
-    if (!(await this.changePin(thread, false))) return;
+    if (!(await this.changePin(thread, false)) || !this.custom) return;
     await tick();
     const position = this.position(thread.id, target, before);
 
@@ -165,14 +169,12 @@ export class SidebarOrder {
     this.saving = true;
 
     try {
-      await this.settings.pinThread(thread.id, pinned);
-      this.message = `${pinned ? "Pinned" : "Unpinned"} “${thread.title}”`;
+      const saved = await this.settings.pinThread(thread.id, pinned);
 
-      return true;
-    } catch {
-      toast("Could not change the pin. Try again.", { tone: "error" });
+      if (saved) this.message = `${pinned ? "Pinned" : "Unpinned"} “${thread.title}”`;
+      else toast("Could not change the pin. Try again.", { tone: "error" });
 
-      return false;
+      return saved;
     } finally {
       this.saving = false;
     }

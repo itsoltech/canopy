@@ -18,6 +18,7 @@
   import SidebarQuickArchive from "./SidebarQuickArchive.svelte";
   import { focusAfterArchive } from "./sidebar-focus.ts";
   import SidebarMoveMenu from "./SidebarMoveMenu.svelte";
+  import { useSidebarOrder } from "./sidebar-order.svelte.ts";
 
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
@@ -56,6 +57,7 @@
   const result = lingeringResult(() => thread);
   const draft = threadDraftPresence(() => thread.id);
   const overview = useOverview();
+  const ordering = useSidebarOrder();
   const actions = useThreadActions();
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
   let open = $state(false);
@@ -124,7 +126,7 @@
         style:top="{point.y}px"
         {...via === "point" ? anchorOnly(menu) : {}}
       ></span>
-      <ThreadHoverCard {thread} touch="none" disabled={open}>
+      <ThreadHoverCard {thread} touch="none" disabled={open || Boolean(ordering?.dragging)}>
         {#snippet row(props)}
           <a
             {...props}
