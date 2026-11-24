@@ -106,8 +106,7 @@
     secret = false,
     shell = false,
     shellUnavailable,
-    compact: fold = false,
-    collapseWhenIdle = false,
+    compact = false,
     panelsLabel,
     onexpand,
     ongoal,
@@ -155,7 +154,6 @@
     shell?: boolean;
     shellUnavailable?: string | undefined;
     compact?: boolean;
-    collapseWhenIdle?: boolean;
     panelsLabel?: string | undefined;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
     /** "Set a goal" in the "+" menu. */
@@ -229,7 +227,6 @@
 
   const steerMode = $derived(Boolean(onqueue) && !stopMode && hasContent);
   let dragging = $state(false);
-  const compact = $derived(fold || (collapseWhenIdle && !value && !hasContent && !dragging));
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes("Files") ?? false;
 
   const canMentionFile = $derived(Boolean(fileThreadId && sources && !disabled && !readonly && !secret && !shellMode));
@@ -480,11 +477,7 @@
         {@render controls?.()}
       </div>
     </ComposerFold>
-    <div
-      class="t-composer-send absolute right-2.5 bottom-2.5 flex items-center gap-1"
-      data-keeps-compact={compact || undefined}
-      {@attach followSendWidth}
-    >
+    <div class="t-composer-send absolute right-2.5 bottom-2.5 flex items-center gap-1" {@attach followSendWidth}>
       {#if deliveryNotice}<HintIcon label="Message delivery information" text={deliveryNotice} />{/if}
       <ResizeSlot>
         {#if steerMode && onqueue}

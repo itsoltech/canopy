@@ -74,7 +74,6 @@
     onsent,
     ongoal,
     compact = false,
-    collapseWhenIdle = false,
     panelsLabel,
     onexpand,
     class: className,
@@ -94,7 +93,6 @@
     /** Offers "Set a goal" in the composer's "+" menu. */
     ongoal?: (() => void) | undefined;
     compact?: boolean;
-    collapseWhenIdle?: boolean;
     panelsLabel?: string;
     onexpand?: ((activity?: ComposerActivity) => void) | undefined;
     class?: ClassValue;
@@ -418,7 +416,6 @@
     shell
     {shellUnavailable}
     {compact}
-    {collapseWhenIdle}
     {panelsLabel}
     {onexpand}
     bind:value={saved.text}
