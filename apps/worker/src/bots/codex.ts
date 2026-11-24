@@ -29,6 +29,12 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
 
   const env: NodeJS.ProcessEnv = { ...launch.env, ...isolatedHomeEnvironment(session.home, launch.env) };
 
+  if (session.codexSqliteHome !== undefined) {
+    for (const key of Object.keys(env)) if (key.toUpperCase() === "CODEX_SQLITE_HOME") delete env[key];
+    // The model catalog probe does not inherit app-server arguments.
+    env["CODEX_SQLITE_HOME"] = session.codexSqliteHome;
+  }
+
   if (ctx.profile.kind === "native" && session.linkLogin) {
     // The selected profile resolves environment credentials too. Only its approved RPC result enters the bot.
     for (const key of Object.keys(env))
@@ -44,6 +50,9 @@ async function botCodexLaunch(ctx: BotHarnessContext): Promise<CodexAppServerLau
     ...base,
     command: [
       ...base.command,
+      ...(session.codexSqliteHome && session.codexSqliteHome !== session.home
+        ? ["-c", `sqlite_home=${JSON.stringify(session.codexSqliteHome)}`]
+        : []),
       ...codexTextOverrides(catalog),
       "-c",
       `web_search=${JSON.stringify(input.webAccess ? "live" : "disabled")}`,

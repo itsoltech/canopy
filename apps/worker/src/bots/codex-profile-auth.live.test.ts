@@ -26,6 +26,8 @@ const userId = crypto.randomUUID();
 const profileInstructions = "FIXTURE_SOURCE_PROFILE_INSTRUCTIONS";
 const botInstructions = "FIXTURE_BOT_INSTRUCTIONS";
 const readRefresh = Schema.decodeUnknownSync(Schema.Struct({ refresh_token: Schema.String }));
+const historyDatabase = "thread_history_1.sqlite";
+const windowsMaxPath = 260;
 
 function sqliteCause(message: string) {
   const lower = message.toLowerCase();
@@ -200,7 +202,7 @@ function indexDiagnostic(home: string, path: string, id: string): string {
 }
 
 function historyDiagnostic(home: string): string {
-  return sqliteDiagnostic(home, "thread_history_1.sqlite", (db) => {
+  return sqliteDiagnostic(home, historyDatabase, (db) => {
     const turns = db.query<{ count: number }, []>("SELECT COUNT(*) AS count FROM thread_turns").get()?.count;
 
     return `projected turns ${turns}`;
@@ -312,19 +314,20 @@ function cleanFixtureFiles(
 
     if (!sourceAuthFile && entry.startsWith("auth.json")) return false;
 
-    if (stat.isDirectory() && !cleanFixtureFiles(path, forbidden, live, sourceAuthFile)) return false;
+    if (stat.isDirectory()) {
+      if (!cleanFixtureFiles(path, forbidden, live, sourceAuthFile)) return false;
+      continue;
+    }
 
     // Read binary data too, including SQLite and a live WAL if the CLI creates one.
-    if (stat.isFile()) {
-      if (stat.nlink !== 1) return false;
+    if (!stat.isFile() || stat.nlink !== 1) return false;
 
-      // The native CLI keeps its empty startup and helper lockfiles exclusively open on Windows.
-      // No bytes can be present in an empty file. The scan still checks file type and link count.
-      if (path === sourceAuthFile || (live && process.platform === "win32" && stat.size === 0)) continue;
-      const contents = readFixtureFile(path, live);
+    // The native CLI keeps its empty startup and helper lockfiles exclusively open on Windows.
+    // No bytes can be present in an empty file. The scan still checks file type and link count.
+    if (path === sourceAuthFile || (live && process.platform === "win32" && stat.size === 0)) continue;
+    const contents = readFixtureFile(path, live);
 
-      if (contents && forbidden.some((token) => contents.includes(token))) return false;
-    }
+    if (contents && forbidden.some((token) => contents.includes(token))) return false;
   }
 
   return true;
@@ -450,11 +453,19 @@ test.skipIf(!enabled)(
     const root = temp("canopy-bot-profile-auth-");
     const source = join(root, "profile");
     const sourceAuthFile = join(source, "auth.json");
+    // The nested conversation home must exercise the legacy SQLite path limit even under a short Windows temp path.
+    const dataDir = join(root, "data".padEnd(process.platform === "win32" ? Math.max(4, 79 - root.length) : 4, "x"));
     mkdirSync(source);
+    mkdirSync(dataDir);
     const logins = [fictionalLogin(), fictionalLogin(), fictionalLogin()] as const;
-    const forbidden = logins.flatMap(({ access_token, refresh_token }) => [access_token, refresh_token]);
-    const botDirs = join(root, "bots");
-    const checkBotFiles = (live = false) => cleanFixtureFiles(botDirs, forbidden, live);
+
+    const forbidden = logins.flatMap(({ id_token, access_token, refresh_token }) => [
+      id_token,
+      access_token,
+      refresh_token,
+    ]);
+
+    const checkBotFiles = (live = false) => cleanFixtureFiles(dataDir, forbidden, live);
     const checkSourceFiles = (live = false) => cleanFixtureFiles(source, forbidden, live, sourceAuthFile);
     const backend = localBackend(logins, () => checkBotFiles(true) && checkSourceFiles(true));
 
@@ -476,6 +487,7 @@ test.skipIf(!enabled)(
       env: {
         CODEX_ACCESS_TOKEN: "",
         CODEX_API_KEY: "",
+        CODEX_SQLITE_HOME: "",
         OPENAI_API_KEY: "",
         CODEX_REFRESH_TOKEN_URL_OVERRIDE: `${backend.url}/oauth/token`,
         HTTP_PROXY: backend.url,
@@ -527,9 +539,26 @@ test.skipIf(!enabled)(
         Effect.gen(function* () {
           const login = yield* profileBotLogin({ launch: sourceLaunch, clientVersion: "test" });
           yield* Effect.promise(async () => {
-            const sessionOptions = { dataDir: root, sourceHome: source, linkLogin: true };
+            const sessionOptions = { dataDir, sourceHome: source, linkLogin: true };
             const fresh = botSession(input, sessionOptions);
             const botConfig = join(fresh.home, "config.toml");
+            const sqliteHome = fresh.codexSqliteHome ?? fresh.home;
+            const sqliteHistory = join(sqliteHome, historyDatabase);
+
+            if (process.platform === "win32") {
+              const legacyHistory = join(fresh.home, historyDatabase);
+              expect(legacyHistory.length, "Original Codex history database path length").toBeGreaterThanOrEqual(
+                windowsMaxPath,
+              );
+              expect(
+                `${legacyHistory}-journal`.length,
+                "Original Codex SQLite journal path length",
+              ).toBeGreaterThanOrEqual(windowsMaxPath);
+              expect(`${sqliteHistory}-journal`.length, "Private SQLite journal path length").toBeLessThan(
+                windowsMaxPath,
+              );
+            }
+
             writeFileSync(botConfig, config);
             let lastSessionId = "";
             let lastTranscript = "";
@@ -539,6 +568,10 @@ test.skipIf(!enabled)(
               const session = botSession(next, sessionOptions);
               const signal = AbortSignal.timeout(25_000);
               expect(session.id === lastSessionId).toBe(true);
+              expect(
+                (session.codexSqliteHome ?? session.home) === sqliteHome,
+                "The conversation reuses its SQLite home",
+              ).toBe(true);
               let admittedLogin = false;
               let completed = false;
               let cleanEvents = true;
@@ -588,8 +621,8 @@ test.skipIf(!enabled)(
                 if (error instanceof CodexAppServerError && error.method === "thread/resume" && error.code === -32603) {
                   const { home, id } = session;
                   failure += `, rollout [${rolloutDiagnostic(home, lastTranscript, id)}]`;
-                  failure += `, SQLite index [${indexDiagnostic(home, lastTranscript, id)}], history [${historyDiagnostic(home)}]`;
-                  failure += `, path lengths [home ${home.length}, rollout ${lastTranscript.length}, history ${join(home, "thread_history_1.sqlite").length}]`;
+                  failure += `, SQLite index [${indexDiagnostic(sqliteHome, lastTranscript, id)}], history [${historyDiagnostic(sqliteHome)}]`;
+                  failure += `, path lengths [home ${home.length}, rollout ${lastTranscript.length}, history ${sqliteHistory.length}]`;
                 }
               }
 
@@ -598,6 +631,10 @@ test.skipIf(!enabled)(
               expect(backend.clean, `Bot or profile files failed audit during ${text} after ${diagnostics}`).toBe(true);
               expect(admittedLogin, "Selected profile delivered a credential").toBe(expected === "completed");
               expect(completed, "Expected mock model reply").toBe(expected === "completed");
+
+              if (session.id && expected === "completed")
+                expect(lastSessionId === session.id, "Codex resumed the original native session").toBe(true);
+
               expect(cleanEvents, "Worker event contained credentials").toBe(true);
               expect(checkBotFiles(), "Bot persisted credentials or created a link").toBe(true);
               expect(checkSourceFiles(), "Profile persisted credentials outside its login file or created a link").toBe(
@@ -608,6 +645,13 @@ test.skipIf(!enabled)(
             await turn("FIXTURE_FIRST");
             writeLogin(source, logins[1]);
             await turn("FIXTURE_SECOND");
+
+            if (process.platform === "win32")
+              expect(
+                fixtureFile(dataDir, sqliteHistory)?.size ?? 0,
+                "Regular history database in audited bot storage",
+              ).toBeGreaterThan(0);
+
             backend.rejectSecond();
             await turn("FIXTURE_REFRESHED");
             const refreshed = readFileSync(sourceAuthFile, "utf8");

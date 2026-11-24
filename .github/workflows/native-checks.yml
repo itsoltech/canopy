@@ -55,7 +55,7 @@ jobs:
         run: bun test ./packages/process-governor/src/windows-command.test.ts
       - name: Codex profile login and isolated bot turns on Windows
         if: matrix.target == 'windows-x64'
-        run: bun test ./tests/integration/codex-bot-profile-login.test.ts
+        run: bun test ./tests/integration/codex-bot-profile-login.test.ts ./apps/worker/src/bots/codex-sqlite-home.test.ts
       - name: Codex profile login with the released Windows CLI
         if: matrix.target == 'windows-x64'
         shell: pwsh

@@ -3,7 +3,8 @@
 Aktualizacja (2026-11-24): boty używają bieżącego loginu instancji przez RPC
 i nietrwały magazyn poświadczeń. Migracja logowania instancji izolowanych na
 Windowsie zachowuje dotychczasowe powiązanie przy odmowie utworzenia dowiązania
-symbolicznego do loginu lub jego blokady.
+symbolicznego do loginu lub jego blokady. Na Windowsie boty z długimi ścieżkami
+zapisują stan SQLite w krótszym katalogu prywatnym.
 
 Aktualizacja (2026-11-24): adapter chroni granty sekretów projektu w
 zweryfikowanych sesjach CLIProxyAPI przez HTTP. Po oznaczonej turze następna
@@ -428,8 +429,11 @@ Import w trybie **Use CLI home** zachowuje historię z możliwością kontynuacj
 w nowym wątku. Natywne kopie z wcześniejszych importów pozostają w katalogu prywatnym. Dla takich
 wątków należy wybrać **Isolated**, aby kontynuować pracę na zaimportowanej kopii.
 
-Bot uruchamia Codexa z prywatnym `CODEX_HOME` rozmowy. Worker pobiera obsługiwane
-poświadczenia z magazynu wybranej instancji przez lokalne RPC i przekazuje je do
+Bot uruchamia Codexa z prywatnym `CODEX_HOME` rozmowy. Na Windowsie, gdy ścieżka
+pliku pomocniczego SQLite osiąga limit Win32, worker ustawia krótszy
+[`sqlite_home` rozmowy i instancji](bots-harness.md#sesja-i-kontekst).
+Worker pobiera obsługiwane poświadczenia z magazynu wybranej instancji
+przez lokalne RPC i przekazuje je do
 pamięci procesu tury po sprawdzeniu efektywnych adresów docelowych obu procesów
 i obsługi wymagań zarządzanych. Przy **Use CLI home** źródłowa instancja otwiera
 magazyn CLI bez dowiązań.

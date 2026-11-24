@@ -3,6 +3,7 @@
 Status (2026-11-24): natywne boty Codexa pobierają bieżący login wybranej instancji
 przez lokalne RPC app-servera i używają go w pamięci procesu tury. Worker usuwa
 rozpoznane pozostałości po dowiązaniach z katalogów botów, zachowując ich sesje.
+Na Windowsie boty Codexa z długimi ścieżkami używają krótszego katalogu SQLite.
 
 Status (2026-11-22): Claude, Codex i Grok otrzymują aktualną pamięć bota lub rozmowy również po wznowieniu
 sesji. Tury przekazujące wiadomości między botami mają oddzielne katalogi sesji i ograniczoną historię.
@@ -188,6 +189,22 @@ Samo `CODEX_HOME` nie izoluje `~/.agents/skills`. Codex ma dodatkowo
 `include_skills_usage_instructions` nie zastępuje tych ustawień.
 Zmiana izolacji unieważnia cache sesji, żeby odbudowa usunęła wcześniejszy
 kontekst skilli z transkryptu harnessu. Wątki zachowują swoje skille i instrukcje.
+
+Na Windowsie Codex potrzebuje miejsca na pliki pomocnicze SQLite, w tym
+`thread_history_1.sqlite-journal`. Gdy ścieżka tego pliku osiąga limit Win32,
+worker ustawia `sqlite_home` w prywatnym `<data_dir>/bdb`. Podkatalog wyznacza
+skrót identyfikatorów bota, rozmowy i instancji. Bazy w `CODEX_HOME` pozostają
+domyślne na pozostałych systemach oraz dla krótkich ścieżek bez wcześniejszej
+migracji.
+
+Przy pierwszym uruchomieniu w krótszej lokalizacji worker odczytuje istniejące bazy
+stanu, historii, celów, pamięci i kolejki jako spójne migawki SQLite, także z
+zatwierdzonymi transakcjami z WAL. Udostępnia nowy katalog po ukończeniu wszystkich
+migawek, a kolejne tury korzystają z niego. Błąd odczytu pozwala ponowić operację
+ze źródłowych baz. Pliki logowania, źródłowe bazy i rollouty pozostają w swoich
+katalogach. Zapisany identyfikator sesji nadal wskazuje ten sam rollout w
+`CODEX_HOME`. Jeśli plik pomocniczy przekracza limit również w `bdb`,
+worker wymaga krótszego katalogu danych.
 
 Menedżery wersji zachowują katalogi urządzenia (`MISE_DATA_DIR`, `MISE_CONFIG_DIR`,
 `MISE_STATE_DIR`, `MISE_GLOBAL_CONFIG_ROOT`, `ASDF_DATA_DIR`, `VOLTA_HOME`; poza Windows).

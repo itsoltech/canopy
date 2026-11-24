@@ -7,6 +7,7 @@ import { prepareClaudeHome } from "../providers/claude/home.ts";
 import { deviceCodexHome } from "../providers/codex/home.ts";
 import { cleanLegacyCodexBotLogin } from "../providers/codex/legacy-login.ts";
 import { providerHomeProblem } from "../providers/home-paths.ts";
+import { prepareBotCodexSqliteHome } from "./codex-sqlite-home.ts";
 import { BotWorkspace } from "./workspace.ts";
 
 const SavedSession = Schema.Struct({
@@ -97,12 +98,23 @@ export function botSession(
         })
       : undefined;
 
+  let codexSqliteHome: string | undefined;
+
   if (input.provider === Provider.CODEX) {
     const deviceHome = deviceCodexHome(process.env);
     const problem = providerHomeProblem(home, options.sourceHome || deviceHome, deviceHome);
 
     if (problem) throw new Error(problem);
-    cleanLegacyCodexBotLogin(home, [options.sourceHome, deviceHome, ...(options.protectedCodexHomes ?? [])]);
+    const protectedHomes = [options.sourceHome, deviceHome, ...(options.protectedCodexHomes ?? [])];
+    cleanLegacyCodexBotLogin(home, protectedHomes);
+
+    if (process.platform === "win32")
+      codexSqliteHome = prepareBotCodexSqliteHome(
+        options.dataDir,
+        home,
+        [input.botId.toLowerCase(), input.conversationId.toLowerCase(), instance],
+        protectedHomes,
+      );
   }
 
   const pending = new Set<string>();
@@ -118,6 +130,7 @@ export function botSession(
     cwd,
     workspace,
     home,
+    codexSqliteHome,
     sourceHome: options.sourceHome,
     secureStorageDir: claude?.secureStorageDir ?? home,
     linkLogin: options.linkLogin,
