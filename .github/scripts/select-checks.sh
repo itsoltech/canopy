@@ -35,6 +35,8 @@ if [[ -s $changes ]]; then
         desktop=true
         # The channel identity test reads this bootstrap as text.
         extra_tests[scripts/channel-identity.test.ts]=1 ;;
+      # Packaging tests use the native macOS toolchain and must run on those runners before merge.
+      apps/desktop/test/packaging.test.ts) scope=full; break ;;
       apps/desktop/src/*.ts|apps/desktop/test/*.test.ts|tests/integration/desktop-*.test.ts) desktop=true ;;
       *) scope=full; break ;;
     esac
