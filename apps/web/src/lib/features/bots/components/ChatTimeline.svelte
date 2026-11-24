@@ -284,6 +284,8 @@
         </MessageRow>
       </div>
     {:else if row.kind === "message"}
+      {@const reactions =
+        conversation.kind === "direct" && !conversation.archived && !row.mine ? row.message.reactions : undefined}
       <div class={row.first ? "pt-3" : "pt-0.5"}>
         <ChatBubble
           conversationId={conversation.id}
@@ -297,7 +299,8 @@
           gutter={conversation.kind !== "direct"}
           {bots}
           replyToName={row.message.replyTo ? nameOf(row.message.replyTo.senderId) : undefined}
-          onreact={conversation.kind === "direct" && !row.mine && row.message.reactions ? onreact : undefined}
+          {reactions}
+          {onreact}
           onreply={watching ? undefined : onreply}
         />
       </div>

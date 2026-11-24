@@ -42,6 +42,7 @@
     replyToName,
     bots = [],
     conversationId,
+    reactions,
     onreact,
     onreply,
     more = [],
@@ -61,6 +62,8 @@
     /** Bots whose names become chips in the text. */
     bots?: readonly ParticipantView[];
     conversationId?: string;
+    /** Selected reactions when this message supports the owner's reaction action. */
+    reactions?: readonly string[] | undefined;
     onreact?: ((messageId: string, emoji: string, active: boolean) => void) | undefined;
     onreply?: ((message: ChatMessageView) => void) | undefined;
     more?: readonly BotAction[];
@@ -71,7 +74,16 @@
   const reactionTriggerId = $props.id();
   let pickerOpen = $state(false);
   const activeReactions = $derived(botReactionOptions.filter(({ emoji }) => message.reactions?.includes(emoji)));
-  const react = $derived(onreact ? (emoji: string, active: boolean) => onreact(message.id, emoji, active) : undefined);
+
+  const reactionPill = $derived([
+    "inline-flex h-6 min-w-8 items-center justify-center rounded-full bg-zinc-100 px-2 text-sm dark:bg-zinc-800",
+    reactions && "pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+  ]);
+
+  const react = $derived(
+    reactions && onreact ? (emoji: string, active: boolean) => onreact(message.id, emoji, active) : undefined,
+  );
+
   const reply = $derived(onreply ? () => onreply(message) : undefined);
   const copy = () => void navigator.clipboard?.writeText(message.text).catch(() => undefined);
 
@@ -198,7 +210,7 @@
     </DropdownMenu>
     <MessageActions
       label="Actions for this message"
-      reactions={message.reactions}
+      {reactions}
       onreact={react}
       {reactionTriggerId}
       bind:pickerOpen
@@ -231,7 +243,7 @@
             <button
               type="button"
               aria-label={`Remove reaction: ${label}`}
-              class="inline-flex h-6 min-w-8 items-center justify-center rounded-full bg-zinc-100 px-2 font-emoji text-sm focus-ring hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              class={[reactionPill, "font-emoji focus-ring hover:bg-zinc-200 dark:hover:bg-zinc-700"]}
               {@attach tooltip(`Remove reaction: ${label}`)}
               onclick={() => {
                 document.getElementById(reactionTriggerId)?.focus({ preventScroll: true });
@@ -239,10 +251,7 @@
               }}>{emoji}</button
             >
           {:else}
-            <span
-              class="inline-flex h-6 min-w-8 items-center justify-center rounded-full bg-zinc-100 px-2 text-sm dark:bg-zinc-800"
-              title={label}
-            >
+            <span class={reactionPill} title={label}>
               <span class="font-emoji" aria-hidden="true">{emoji}</span><span class="sr-only">{label}</span>
             </span>
           {/if}

@@ -2,6 +2,7 @@
 
 Status (2026-11-24): w prywatnym czacie właściciel i bot mogą reagować na wiadomości drugiej strony.
 Dodanie lub cofnięcie reakcji właściciela trafia do kontekstu bota.
+Web i desktop rezerwują miejsce na przycisk reakcji już w historii z pamięci podręcznej.
 Dostępność w kanałach określa [promocja wydań](release.md).
 
 Status (2026-11-24): w prywatnym czacie właściciel może zapytać bota o treść
@@ -557,6 +558,8 @@ usuwa cache. Lista botów usuwa wpisy zarchiwizowanych, usuniętych i przeniesio
 botów. Zimny widok pokazuje szkielet; nagłówek bierze nazwę i awatar z listy.
 Przy ponownym otwarciu snapshot jest widoczny przed odczytem sieciowym, z cichym
 „Syncing…”. Composer i karty są nieaktywne do potwierdzenia bieżącej subskrypcji.
+W prywatnym czacie dymki zachowują szerokość, gdy po potwierdzeniu subskrypcji
+udostępniany jest przycisk reakcji.
 
 Rozmowy i wymiany w web/desktop otwierają się na końcu pobranego okna.
 Wspólny z wątkami `VirtualFeed` montuje wiersze w pobliżu widoku i mierzy ich
