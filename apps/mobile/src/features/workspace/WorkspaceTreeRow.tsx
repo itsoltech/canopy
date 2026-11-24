@@ -1,6 +1,7 @@
 import { Pressable, Text } from "react-native";
 import { ThreadDirectoryKind as Kind } from "@canopy/contracts";
 import type { DirectoryRow, WorkspaceDirectory } from "@canopy/domain/workspace-directory";
+import { FileIcon } from "../../ui/FileIcon";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
 
@@ -80,19 +81,15 @@ export function WorkspaceTreeRow({
         backgroundColor: pressed ? c.pressed : c.surface,
       })}
     >
-      <Icon
-        name={
-          entry?.kind === Kind.DIRECTORY
-            ? expanded
-              ? "chevron-down"
-              : "chevron-right"
-            : entry?.kind === Kind.SYMLINK
-              ? "link"
-              : entry
-                ? "document-text"
-                : "ellipsis-horizontal"
-        }
-      />
+      {entry?.kind === Kind.DIRECTORY ? (
+        <Icon name={expanded ? "chevron-down" : "chevron-right"} />
+      ) : entry?.kind === Kind.SYMLINK ? (
+        <Icon name="link" />
+      ) : entry ? (
+        <FileIcon path={entry.path} />
+      ) : (
+        <Icon name="ellipsis-horizontal" />
+      )}
       <Text numberOfLines={1} style={[styles.body, { color, flex: 1 }]}>
         {title}
       </Text>

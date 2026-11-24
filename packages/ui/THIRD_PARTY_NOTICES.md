@@ -1,5 +1,12 @@
 # Canopy UI — third-party notices
 
+## Simple Icons file marks
+
+`src/file-icon-paths.ts` contains selected paths from **Simple Icons 16.38.1** (CC0-1.0).
+Source: https://www.npmjs.com/package/simple-icons/v/16.38.1
+and https://github.com/simple-icons/simple-icons/tree/16.38.1.
+License: https://creativecommons.org/publicdomain/zero/1.0/legalcode.
+
 ## Tabler outline icons
 
 `src/icons.ts` contains outline path geometry from **@iconify-json/tabler 1.2.43**,
