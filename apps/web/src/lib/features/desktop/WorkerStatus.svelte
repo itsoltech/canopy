@@ -13,7 +13,8 @@
         status.worker === "online" ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600",
       ]}
     ></span>
-    Worker {status.worker === "online" ? "connected" : status.worker === "connecting" ? "connecting…" : "offline"}
+    {status.mode === "remote" ? "Local worker" : "Worker"}
+    {status.worker === "online" ? "connected" : status.worker === "connecting" ? "connecting…" : "offline"}
   </p>
   <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
     <dt class="font-medium">Mode</dt>

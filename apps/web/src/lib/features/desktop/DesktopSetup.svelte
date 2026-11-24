@@ -187,6 +187,7 @@
                 bind:enrollmentToken
                 bind:fingerprint={gatewayFingerprint}
                 migrating={status?.needsPairing}
+                editingAddress={settings && status?.configuration?.mode === "remote" && !status.needsPairing}
                 disabled={busy}
               />
             {:else}

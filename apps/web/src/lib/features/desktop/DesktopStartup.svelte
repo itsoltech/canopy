@@ -18,6 +18,8 @@
   }: { status?: DesktopStatus; message: string; retrying: boolean; onretry: () => void } = $props();
 
   const failed = $derived(!retrying && (Boolean(message) || status?.phase === "error"));
+  const saved = $derived(status?.configuration);
+  const savedGateway = $derived(saved?.mode === "remote" ? saved.gatewayUrl : undefined);
 
   const line = $derived(
     status?.database?.message ??
@@ -45,9 +47,17 @@
       >
         {message || status?.error}
       </Alert>
+      {#if savedGateway}
+        <dl class="grid gap-1 text-base/6 sm:text-sm/6">
+          <dt class="font-medium">Gateway address</dt>
+          <dd class="wrap-anywhere text-muted">{savedGateway}</dd>
+        </dl>
+      {/if}
       <div class="flex flex-wrap gap-3">
         {#if status?.mode}<Button variant="primary" onclick={onretry}>Try again</Button>{/if}
-        <Button onclick={() => window.canopyDesktop?.openSettings()}>Open desktop settings</Button>
+        <Button onclick={() => window.canopyDesktop?.openSettings()}>
+          {savedGateway ? "Edit gateway address" : "Open desktop settings"}
+        </Button>
       </div>
     {:else}
       <p role="status" class="flex items-center gap-3 text-base/7 text-zinc-500 dark:text-zinc-400">

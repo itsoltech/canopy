@@ -25,10 +25,16 @@
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
+  import DesktopGatewayAddress from "#lib/features/desktop/DesktopGatewayAddress.svelte";
+  import WorkerStatus from "#lib/features/desktop/WorkerStatus.svelte";
+  import { useDesktopStatus } from "#lib/features/desktop/desktop-status.svelte.ts";
 
   const overview = useOverview();
   const route = useSettingsRoute();
   const capabilities = useGatewayCapabilities();
+  const desktop = useDesktopStatus();
+  const remote = $derived(desktop.status?.mode === "remote");
+  const waitingForGateway = $derived(remote && overview.resyncs === 0 && overview.connection !== "live");
   const setup = new WorkerSetup();
   const environment = workerEnvironment();
   const records = workerRecords(overview);
@@ -99,6 +105,13 @@
 
 <svelte:head><title>Workers · Settings · {applicationName}</title></svelte:head>
 
+{#if remote && desktop.status}
+  <SettingsGroup title="This computer">
+    <WorkerStatus status={desktop.status} class="p-4" />
+    {#if desktop.remoteAddress}<DesktopGatewayAddress address={desktop.remoteAddress} />{/if}
+  </SettingsGroup>
+{/if}
+
 {#if setup.error || error}<Alert tone="error"
     >{error || setup.error}{#snippet actions()}<Button size="sm" onclick={() => void setup.reload()}>Retry</Button
       >{/snippet}</Alert
@@ -108,7 +121,7 @@
   label="Worker settings"
   topics={[
     { id: "workers", label: "Registered workers", content: workers },
-    { id: "connections", label: "Connections", content: connections },
+    { id: "connections", label: remote ? "Gateway connections" : "Connections", content: connections },
     { id: "updates", label: "Updates", content: updates },
   ]}
 />
@@ -118,45 +131,57 @@
     <div class="min-w-0">
       <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Workers</h1>
       <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        <span class="tabular-nums">{online} of {total}</span> connected.
+        {#if remote && overview.connection !== "live"}
+          {#if overview.connection === "unavailable"}Can’t reach the gateway.{/if}
+          {waitingForGateway ? "Waiting for the gateway’s worker list." : "Showing the last known worker list."}
+        {:else}
+          <span class="tabular-nums">{online} of {total}</span> connected.
+        {/if}
       </p>
     </div>
     <div class="shrink-0">
-      <Button variant="primary" icon="plus" disabled={!setup.loaded} onclick={() => (adding = true)}>Add worker</Button>
+      <Button
+        variant="primary"
+        icon="plus"
+        disabled={!setup.loaded || waitingForGateway}
+        onclick={() => (adding = true)}>Add worker</Button
+      >
     </div>
   </div>
-  <SettingsGroup title="This computer" cards>
-    {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} />
-    {:else}<SettingsCard
-        ><SettingsRow
-          title="No workers yet"
-          description="Add a worker to run agents on a computer you control."
-        /></SettingsCard
-      >{/each}
-  </SettingsGroup>
-  {#each records.computers as computer (computer.nodeId)}
-    <SettingsGroup title={computer.name} description={computer.readOnly || undefined} class="break-anywhere" cards>
-      {#each computer.workers as item (item.record.workerId)}<WorkerRow
-          worker={item.worker}
-          linked={item}
-          {setup}
-          onchanged={() => void records.reload()}
-        />{/each}
+  {#if !waitingForGateway}
+    <SettingsGroup title={remote ? "Workers on the remote gateway" : "This computer"} cards>
+      {#each overview.ownWorkers as worker (worker.id)}<WorkerRow {worker} {setup} />
+      {:else}<SettingsCard
+          ><SettingsRow
+            title="No workers yet"
+            description="Add a worker to run agents on a computer you control."
+          /></SettingsCard
+        >{/each}
     </SettingsGroup>
-  {/each}
-  {#if records.error}<Alert tone="error"
-      >{records.error}{#snippet actions()}<Button size="sm" onclick={() => void records.reload()}>Retry</Button
-        >{/snippet}</Alert
-    >{/if}
-  {#if environment.error}<Alert tone="error"
-      >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}
-          >Refresh tags</Button
-        >{/snippet}</Alert
-    >{/if}
-  {#if capabilities?.linkedComputers && elsewhere}
-    <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-      Workers from linked computers are managed in Settings → Workers on their home computer.
-    </p>
+    {#each records.computers as computer (computer.nodeId)}
+      <SettingsGroup title={computer.name} description={computer.readOnly || undefined} class="break-anywhere" cards>
+        {#each computer.workers as item (item.record.workerId)}<WorkerRow
+            worker={item.worker}
+            linked={item}
+            {setup}
+            onchanged={() => void records.reload()}
+          />{/each}
+      </SettingsGroup>
+    {/each}
+    {#if records.error}<Alert tone="error"
+        >{records.error}{#snippet actions()}<Button size="sm" onclick={() => void records.reload()}>Retry</Button
+          >{/snippet}</Alert
+      >{/if}
+    {#if environment.error}<Alert tone="error"
+        >{environment.error}{#snippet actions()}<Button size="sm" onclick={() => void environment.refresh()}
+            >Refresh tags</Button
+          >{/snippet}</Alert
+      >{/if}
+    {#if capabilities?.linkedComputers && elsewhere}
+      <p class="px-1 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+        Workers from linked computers are managed in Settings → Workers on their home computer.
+      </p>
+    {/if}
   {/if}
 {/snippet}
 

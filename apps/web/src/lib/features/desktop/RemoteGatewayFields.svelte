@@ -12,6 +12,7 @@
     fingerprint = $bindable(""),
     disabled = false,
     migrating = false,
+    editingAddress = false,
     class: className,
   }: {
     invitation?: string;
@@ -20,18 +21,34 @@
     fingerprint?: string;
     disabled?: boolean;
     migrating?: boolean;
+    editingAddress?: boolean;
     class?: ClassValue;
   } = $props();
 </script>
+
+{#snippet address()}
+  <Field label="Gateway address" description="Use an HTTPS address from Network access on your gateway.">
+    <Input
+      name="gateway"
+      type="url"
+      placeholder="https://gateway.example.com:24000"
+      bind:value={gatewayUrl}
+      {disabled}
+    />
+  </Field>
+{/snippet}
 
 <div class={["grid min-w-0 gap-5", className]}>
   {#if migrating}<Alert title="Connect this app securely">
       Automatic migration could not finish. Update Canopy on your gateway and turn on Network access, then retry. You
       can also copy a desktop invitation from Settings → Devices and paste it below. Your worker keeps its identity.
     </Alert>{/if}
+  {#if editingAddress}{@render address()}{/if}
   <Field
     label="Desktop invitation"
-    description="On your gateway, open Settings → Devices → Pair a desktop app → Copy invitation."
+    description={editingAddress
+      ? "To pair with a different gateway, copy a new invitation from its Settings → Devices."
+      : "On your gateway, open Settings → Devices → Pair a desktop app → Copy invitation."}
   >
     <Textarea
       name="desktop-invitation"
@@ -42,15 +59,7 @@
       spellcheck="false"
     />
   </Field>
-  <Field label="Gateway address" description="Use an HTTPS address from Network access on your gateway.">
-    <Input
-      name="gateway"
-      type="url"
-      placeholder="https://gateway.example.com:24000"
-      bind:value={gatewayUrl}
-      {disabled}
-    />
-  </Field>
+  {#if !editingAddress}{@render address()}{/if}
   <details class="grid gap-4 text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
     <summary class="cursor-pointer rounded-md focus-ring">Worker enrollment options</summary>
     <div class="grid gap-5 pt-4">
