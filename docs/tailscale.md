@@ -189,8 +189,10 @@ i dziennikiem wywołań) i nigdy nie uruchamiają prawdziwego `tailscale`; testy
 gniazd LocalAPI. `tailscale-detection.test.ts`: parsowanie każdego stanu, brak tailscaled i brak
 Tailscale, tagi, brak `CertDomains`, ścieżka aplikacji macOS, LocalAPI przez gniazdo, cache i zmiany.
 `tailscale-desktop-detection.test.ts`: aplikacja macOS wymaga trybu CLI, a na Windows gateway
-znajduje plik w katalogu instalacji także bez `PATH`. Native checks uruchamia te testy z atrapami
-na macOS i Windows.
+znajduje plik w katalogu instalacji także bez `PATH`. Test klienta Remote odczytuje stan Tailscale
+z testowego gatewaya przez przypięty TLS. Native checks uruchamia te testy z atrapami na macOS
+i Windows, a na macOS sprawdza także polecenie `version` z wydanego pakietu aplikacji bez
+osobnej instalacji launchera CLI.
 `tailscale-network.test.ts`: kolejność adresów, wybór adresu dla workerów i SSH, RPC z zakresem
 właściciela, ogłoszenie i walidacja nazwy MagicDNS między dwoma gatewayami. `tailscale-https.test.ts`:
 dokładne argumenty włączania i wyłączania, odmowa zajętego portu, usuwanie tylko własnego wpisu, brak

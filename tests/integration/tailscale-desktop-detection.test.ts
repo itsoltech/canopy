@@ -1,9 +1,17 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, rmdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
+import { ui } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
-import { locateTailscale } from "../../apps/gateway/src/network/tailscale/cli.ts";
+import { startGrpcServer } from "@canopy/transport";
+import { generateIdentity } from "../../apps/gateway/src/computers/identity.ts";
+import { tailscaleMessage } from "../../apps/gateway/src/network/tailscale/addresses.ts";
+import { locateTailscale, runCli } from "../../apps/gateway/src/network/tailscale/cli.ts";
+import { parseStatus } from "../../apps/gateway/src/network/tailscale/status.ts";
 import { Tailscale } from "../../apps/gateway/src/network/tailscale/tailscale.ts";
+import { desktopGateway } from "../../apps/web/src/lib/server/desktop-gateway.ts";
+import { statusJson } from "./support/tailscale.ts";
 
 const dirs = tempDirs();
 
@@ -24,6 +32,22 @@ printf '%s\n' '{"BackendState":"Running"}'
   expect((await tailscale.refresh()).state).toBe("connected");
 });
 
+const releasedMacCli = process.env["CANOPY_TEST_TAILSCALE_MAC_CLI"];
+
+test.skipIf(process.platform !== "darwin" || !releasedMacCli)(
+  "the released macOS app bundle answers directly without a CLI launcher",
+  async () => {
+    const cli = locateTailscale({ path: "", macApp: releasedMacCli ?? "" })?.cli;
+
+    if (!cli) throw new Error("The released Tailscale app has no executable CLI");
+    const result = await runCli(cli, ["version"], { path: "", timeoutMs: 5000 });
+
+    expect(result.ok).toBe(true);
+    expect(result.stdout.split("\n")[0]).toBe("1.104.7");
+  },
+  10_000,
+);
+
 test("Windows finds the installed CLI outside PATH and distinguishes an unreadable status from a missing install", async () => {
   const windowsProgramFiles = join(dirs("canopy-ts-win-"), "Program Files");
   const cli = join(windowsProgramFiles, "Tailscale", "tailscale.exe");
@@ -41,4 +65,40 @@ test("Windows finds the installed CLI outside PATH and distinguishes an unreadab
   const pathCli = join(path, "tailscale.exe");
   writeFileSync(pathCli, "fake PATH executable", { mode: 0o700 });
   expect(locateTailscale({ ...tailscale.options, path })?.cli).toBe(pathCli);
+});
+
+test("Connect to Gateway reads the paired host's Tailscale status over pinned TLS", async () => {
+  const identity = await generateIdentity();
+  const token = "fixture-desktop-client";
+  const status = tailscaleMessage(parseStatus(JSON.stringify(statusJson())));
+
+  const host = await startGrpcServer({
+    tls: { cert: identity.certificate, key: identity.privateKey },
+    routes: (router) =>
+      router.service(ui.GatewayService, {
+        getClientCapabilities: () => ({
+          minProtocol: 1,
+          maxProtocol: 1,
+          methods: ui.GatewayService.methods.map((method) => method.name),
+        }),
+        getNetworkAccess(_request, context) {
+          if (context.requestHeader.get("authorization") !== `Bearer ${token}`)
+            throw new ConnectError("Expected the paired Desktop credential", Code.Unauthenticated);
+
+          return { tailscale: status };
+        },
+      }),
+  });
+
+  try {
+    const routes = JSON.stringify({ fingerprint: identity.fingerprint, addresses: [host.url] });
+    const client = createClient(ui.GatewayService, desktopGateway(routes, token).transport);
+
+    expect((await client.getNetworkAccess({})).tailscale).toMatchObject({
+      state: "connected",
+      dnsName: "laptop.example-tailnet.ts.net",
+    });
+  } finally {
+    await host.close(0);
+  }
 });
