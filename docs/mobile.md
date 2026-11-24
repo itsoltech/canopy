@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): lista Files używa tych samych ikon typów plików co web
+i desktop, dobieranych po nazwie lub rozszerzeniu.
+
 Status (2026-11-24): na listach Threads i Bots wiersz z nazwą Canopy przewija się razem
 z listą. Czytnik ekranu może odczytać widoczną nazwę aplikacji i etykietę kanału.
 Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.

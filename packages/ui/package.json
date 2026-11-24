@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/tokens.ts",
     "./icons": "./src/icons.ts",
+    "./file-icons": "./src/file-icons.ts",
     "./provider-icons": "./src/provider-icons.ts",
     "./streaming": "./src/streaming.ts",
     "./color": "./src/color.ts",

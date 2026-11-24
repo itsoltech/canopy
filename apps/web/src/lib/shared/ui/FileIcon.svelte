@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
+  import { fileGlyph } from "@canopy/ui/file-icons";
   import Icon from "./Icon.svelte";
-  import { fileGlyph } from "./file-icons.ts";
 
   /** Decorative type glyph for a file path: a language mark in its colour, or a kit icon for generic kinds. */
   let { path, class: className }: { path: string; class?: ClassValue } = $props();

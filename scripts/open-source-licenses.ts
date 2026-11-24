@@ -240,9 +240,9 @@ export function collectNotices(options: {
 
 export function assetNotices(target: "web" | "mobile"): PackageNotice[] {
   const ui: PackageNotice = {
-    name: "Tabler Icons and Griddy Icons",
+    name: "Tabler Icons, Griddy Icons and Simple Icons",
     version: "",
-    license: "MIT",
+    license: "MIT AND CC0-1.0",
     files: fileNotice(join(root, "packages/ui"), ["THIRD_PARTY_NOTICES.md"]),
   };
 
