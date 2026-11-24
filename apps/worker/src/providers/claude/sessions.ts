@@ -1,5 +1,5 @@
 import { query, type Options, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { PermissionMode, ThreadSpec } from "@canopy/contracts";
+import { PermissionMode, type ThreadSpec } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { claudeNativeToolOptions, DEFAULT_NATIVE_TOOL_POLICY } from "../native-tools.ts";
 import { ClaudeEventMapper } from "./mapping.ts";
@@ -17,6 +17,7 @@ import { threadInstructions } from "../thread-instructions.ts";
 import { claudeSessionMcp } from "./session-mcp.ts";
 import { invalidateSessionPermissions } from "./live-permissions.ts";
 import { checkClaudeSandboxStartup, claudeSandboxProfile, preflightClaudeSandbox } from "./sandbox-profile.ts";
+import { claudeSecretHooks } from "./secret-hooks.ts";
 
 export function claudeSessions(
   ctx: ClaudeThreadContext,
@@ -71,13 +72,13 @@ export function claudeSessions(
 
     const mcp = claudeSessionMcp(options, spec, turnId, busCalls);
 
-    const close = async () => {
-      try {
-        await mcp.close();
-      } finally {
-        await configuration.close();
-      }
-    };
+    const secretHooks = claudeSecretHooks(
+      spec.threadId,
+      sessionId,
+      () => (session?.mode ?? mode) === PermissionMode.READ_ONLY,
+    );
+
+    const close = () => closeSessionResources(secretHooks.close, mcp.close, configuration.close);
 
     const queryOptions: Options = {
       cwd: spec.cwd,
@@ -90,8 +91,9 @@ export function claudeSessions(
       ...configuration.options,
       ...(resume ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
+      hooks: secretHooks.hooks,
       enableFileCheckpointing: true,
-      canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? "none"),
+      canUseTool: canUseTool(spec, turnId, () => session?.autoAllow ?? "none", secretHooks.protectBash),
       // dontAsk denies whatever is not pre-approved. Gateway enforces connector grants and permission modes.
       allowedTools: mcp.allowedTools,
       disallowedTools: [...tools.disallowedTools, ...(sandboxProfile ? ["PowerShell"] : [])],
@@ -125,6 +127,7 @@ export function claudeSessions(
       sessionId,
       cwd: spec.cwd,
       query: q,
+      secretHooks,
       input,
       mapper: new ClaudeEventMapper(undefined, resume),
       abort,
@@ -156,6 +159,20 @@ export function claudeSessions(
     switchSessionMode(session, mode, { invalidate: () => invalidateSessionPermissions(session) });
 
   return { open, switchMode };
+}
+
+async function closeSessionResources(
+  closeSecretHooks: () => void,
+  closeMcp: () => Promise<void>,
+  closeConfiguration: () => Promise<void>,
+) {
+  closeSecretHooks();
+
+  try {
+    await closeMcp();
+  } finally {
+    await closeConfiguration();
+  }
 }
 
 async function openQuery(

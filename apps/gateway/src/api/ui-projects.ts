@@ -1,10 +1,14 @@
 import { create } from "@bufbuild/protobuf";
+import { EmptySchema } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { type GatewayCore } from "../core/core.ts";
+import { coreRun } from "../core/core-broadcast.ts";
+import { coreState } from "../core/core-context.ts";
 import { coreAddProject } from "../core/core-add-project.ts";
 import { coreWorkspaceCloneSource } from "../core/workspace-clone-source.ts";
 import { coreCloneProject } from "../core/core-clone.ts";
-import { guard } from "./ui-errors.ts";
+import { guard, toConnectError, unwrap } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
 export function projectsHandlers(
@@ -18,6 +22,9 @@ export function projectsHandlers(
   | "renameProject"
   | "setProjectColor"
   | "archiveProject"
+  | "listProjectSecrets"
+  | "putProjectSecret"
+  | "deleteProjectSecret"
   | "createWorkspace"
   | "addProject"
   | "cloneProject"
@@ -25,6 +32,8 @@ export function projectsHandlers(
   | "updateWorkspace"
   | "removeWorkspace"
 > {
+  const { userId } = core[coreState].options;
+
   return {
     getOverview: () => guard(() => core.overview()),
 
@@ -55,6 +64,32 @@ export function projectsHandlers(
         return create(ui.ArchiveProjectResponseSchema);
       }),
 
+    listProjectSecrets: (request) =>
+      guard(async () =>
+        create(ui.ListProjectSecretsResponseSchema, {
+          secrets: await coreRun(core, (s) => s.listProjectSecrets(userId, request.projectId)),
+        }),
+      ),
+
+    putProjectSecret: (request) =>
+      projectSecretWrite(async () => {
+        const secret = await coreRun(core, (s) =>
+          s.putProjectSecret(userId, request.projectId, request.name, request.value),
+        );
+
+        core.secrets.refresh();
+
+        return create(ui.PutProjectSecretResponseSchema, { secret });
+      }),
+
+    deleteProjectSecret: (request) =>
+      projectSecretWrite(async () => {
+        await coreRun(core, (s) => s.deleteProjectSecret(userId, request.projectId, request.name));
+        core.secrets.refresh();
+
+        return create(EmptySchema);
+      }),
+
     createWorkspace: (request) =>
       guard(async () => create(ui.CreateWorkspaceResponseSchema, { workspace: await core.createWorkspace(request) })),
 
@@ -72,4 +107,16 @@ export function projectsHandlers(
         return create(ui.RemoveWorkspaceResponseSchema, {});
       }),
   };
+}
+
+/** Avoid logging a write request or reflecting unexpected driver errors to the client. */
+async function projectSecretWrite<A>(run: () => Promise<A>): Promise<A> {
+  try {
+    return await run();
+  } catch (cause) {
+    const error = unwrap(cause);
+
+    if (error) throw toConnectError(error);
+    throw new ConnectError("Project secret operation failed. Try again.", Code.Internal);
+  }
 }

@@ -15,131 +15,48 @@ import {
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { create } from "@bufbuild/protobuf";
-import {
-  ItemDeltaField,
-  ThreadSecretReceiptSchema,
-  type ThreadSecretDelivery,
-  type ThreadSecretReceipt,
-} from "@canopy/contracts";
-import type { ThreadEventInit } from "../journal/journal.ts";
-import { Match, Predicate } from "effect";
+import { ThreadSecretReceiptSchema, type ThreadSecretDelivery, type ThreadSecretReceipt } from "@canopy/contracts";
 
-type Redactable =
-  | string
-  | number
-  | boolean
-  | bigint
-  | null
-  | undefined
-  | Uint8Array
-  | readonly Redactable[]
-  | { readonly [key: string]: Redactable };
+import { projectSecretGuard, projectSecretValues, redactSecretText, secretPatterns } from "./project-secret-guard.ts";
+import { ProjectSecretTurns } from "./project-secret-turns.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const activeStores = new Set<ThreadSecretFiles>();
 
-/** Before durable events are written. Deltas are withheld while a secret is live: a value
- * split across chunks cannot be safely masked one chunk at a time. Completed items carry full output. */
-export function secretEventRedactor(): (threadId: string, event: ThreadEventInit) => ThreadEventInit {
-  const buffers = new Map<string, { chunks: Map<number, string>; values: Set<string> }>();
+export function threadSecretRedactionValues(threadId?: string): string[] {
+  return [...activeStores].flatMap((store) => store.redactionValues(threadId));
+}
 
-  return (threadId, event) => {
-    const body = event.body;
+/** Provider output masking for both manual and project secrets scoped to the current thread. */
+export function threadSecretOutputGuard(threadId: string) {
+  const values = () => [...threadSecretRedactionValues(threadId), ...projectSecretValues(threadId)];
 
-    if (body?.case === "turnFinished")
-      for (const id of buffers.keys()) if (id.startsWith(`${threadId}/`)) buffers.delete(id);
-
-    const itemId = Match.value(body).pipe(
-      Match.when({ case: "itemDelta" }, (delta) => delta.value.itemId),
-      Match.when({ case: "itemCompleted" }, (completed) => completed.value.item?.itemId),
-      Match.orElse(() => undefined),
-    );
-
-    const key = `${threadId}/${itemId}`;
-    const buffered = buffers.get(key);
-
-    const values = [
-      ...new Set([...activeStores].flatMap((s) => s.redactionValues()).concat([...(buffered?.values ?? [])])),
-    ];
-
-    if (!values.length) return event;
-
-    if (body?.case === "itemDelta") {
-      const buffer = buffered ?? { chunks: new Map<number, string>(), values: new Set<string>() };
-      const field = body.value.field ?? 0;
-      const previous = buffer.chunks.get(field) ?? "";
-      buffer.chunks.set(
-        field,
-        previous.length < 4 * 1024 * 1024
-          ? previous + (body.value.chunk ?? "")
-          : "[Output withheld: too large to redact]",
-      );
-
-      for (const value of values) buffer.values.add(value);
-      buffers.set(key, buffer);
-    }
-
-    if (body?.case === "itemCompleted" && buffered) {
-      event = structuredClone(event);
-      const item = event.body?.case === "itemCompleted" ? event.body.value.item : undefined;
-      const content = item?.content;
-
-      if (content?.case === "agentMessage" || content?.case === "reasoning") {
-        if (!content.value.text) content.value.text = buffered.chunks.get(ItemDeltaField.TEXT) ?? "";
-      }
-
-      if (content?.case === "reasoning" && !content.value.summary)
-        content.value.summary = buffered.chunks.get(ItemDeltaField.SUMMARY) ?? "";
-
-      if (content?.case === "commandExecution" || content?.case === "toolCall" || content?.case === "backgroundTask") {
-        if (!content.value.output) content.value.output = buffered.chunks.get(ItemDeltaField.OUTPUT) ?? "";
-      }
-
-      buffers.delete(key);
-    }
-
-    const patterns = [...new Set(values.flatMap((value) => [value, JSON.stringify(value).slice(1, -1)]))].sort(
-      (a, b) => b.length - a.length,
-    );
-
-    const redact = (value: Redactable): Redactable => {
-      if (Predicate.isString(value)) {
-        let text = value;
-
-        for (const pattern of patterns) text = text.split(pattern).join("[REDACTED]");
-
-        return text;
-      }
-
-      if (Array.isArray(value)) return value.map(redact);
-
-      if (value && Predicate.isObject(value) && !(value instanceof Uint8Array))
-        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v)]));
-
-      return value;
-    };
-
-    // SAFETY: redact preserves every key, array position, byte array, bigint and scalar type;
-    // only string contents change, so the event retains its protobuf initialization contract.
-    const safe = redact(event) as ThreadEventInit;
-    safe.rawJson = "";
-
-    if (safe.body?.case === "itemDelta") safe.body.value.chunk = "";
-
-    return safe;
+  return {
+    hasValues: () => values().length > 0,
+    redact: (text: string) => redactSecretText(text, secretPatterns(values())),
   };
+}
+
+interface SecretFile {
+  readonly expires: number;
+  readonly revision: number;
+  readonly file: string;
+  readonly threadId: string;
+  readonly turnId: string;
+  revoked: boolean;
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 /** Private materializations, never inside the workspace or the provider's environment. */
 export class ThreadSecretFiles {
   readonly root: string;
   // A process can still emit a value after its file expires or its thread closes.
-  readonly #redactions = new Set<string>();
+  readonly #redactions = new Map<string, Set<string>>();
   readonly #closed = new Set<string>();
-  readonly #entries = new Map<
-    string,
-    { revision: number; file: string; timer?: ReturnType<typeof setTimeout>; value: string }
-  >();
+  readonly #entries = new Map<string, SecretFile>();
+  readonly #turns = new ProjectSecretTurns((threadId, turnId) => this.#removeProjectFiles(threadId, turnId));
+  readonly #projectThreads = new Set<string>();
+  #projectTurnsDisabled = false;
   constructor(dataDir: string) {
     this.root = join(resolve(dataDir), "thread-secrets");
     mkdirSync(resolve(dataDir), { recursive: true, mode: 0o700 });
@@ -166,14 +83,23 @@ export class ThreadSecretFiles {
 
     return dir;
   }
-  redactionValues(): string[] {
-    return [...this.#redactions];
+  redactionValues(threadId?: string): string[] {
+    if (threadId) return [...(this.#redactions.get(threadId) ?? [])];
+
+    return [...new Set([...this.#redactions.values()].flatMap((values) => [...values]))];
   }
-  apply(delivery: ThreadSecretDelivery): ThreadSecretReceipt {
+  #rememberManualValue(threadId: string, value: string): void {
+    const values = this.#redactions.get(threadId) ?? new Set<string>();
+    values.add(value);
+    this.#redactions.set(threadId, values);
+  }
+  apply(delivery: ThreadSecretDelivery, beforeProjectWrite?: () => boolean): ThreadSecretReceipt {
     const receipt = create(ThreadSecretReceiptSchema, {
       requestId: delivery.requestId,
       threadId: delivery.threadId,
       revision: delivery.revision,
+      turnId: delivery.turnId,
+      rejected: Boolean(delivery.turnId),
     });
 
     try {
@@ -181,8 +107,18 @@ export class ThreadSecretFiles {
       const key = `${delivery.threadId}/${delivery.requestId}`;
       const previous = this.#entries.get(key);
 
-      if (previous && previous.revision > delivery.revision) return receipt;
+      if (previous && (previous.revision > delivery.revision || previous.turnId !== delivery.turnId)) return receipt;
       const expires = delivery.expiresAt ? timestampDate(delivery.expiresAt).getTime() : 0;
+      const project = Boolean(delivery.turnId);
+      const eligible = this.projectTurnSignal(delivery.threadId, delivery.turnId);
+      const retired = previous && (previous.revoked || previous.expires <= Date.now());
+
+      if (
+        !delivery.remove &&
+        project &&
+        (!eligible || retired || !Number.isFinite(expires) || expires <= Date.now() || !delivery.value)
+      )
+        return receipt;
 
       if (this.#closed.has(delivery.threadId) && !delivery.remove && expires > Date.now()) return receipt;
       const directory = join(this.root, delivery.threadId);
@@ -190,11 +126,24 @@ export class ThreadSecretFiles {
       if (existsSync(directory)) this.threadDir(delivery.threadId);
       const file = join(directory, delivery.requestId);
 
+      const entry = {
+        expires,
+        revision: delivery.revision,
+        file,
+        threadId: delivery.threadId,
+        turnId: delivery.turnId,
+        revoked: false,
+      };
+
       if (delivery.remove || expires <= Date.now()) {
-        if (previous?.timer) clearTimeout(previous.timer);
         rmSync(file, { force: true });
-        this.#entries.set(key, { revision: delivery.revision, file, value: "" });
+
+        if (previous?.timer) clearTimeout(previous.timer);
+        this.#entries.delete(key);
+
+        if (!project || eligible) this.#entries.set(key, { ...entry, revoked: true });
         receipt.applied = true;
+        receipt.rejected = false;
 
         return receipt;
       }
@@ -209,18 +158,18 @@ export class ThreadSecretFiles {
       )
         return receipt;
 
-      if (previous?.revision === delivery.revision && existsSync(file)) {
-        receipt.applied = true;
-        receipt.file = file;
+      if (previous?.revision === delivery.revision) {
+        if (existsSync(file)) {
+          receipt.applied = true;
+          receipt.rejected = false;
+          receipt.file = file;
 
-        return receipt;
+          return receipt;
+        }
       }
 
+      if (project && beforeProjectWrite && !beforeProjectWrite()) return receipt;
       const dir = this.threadDir(delivery.threadId);
-      mkdirSync(dir, { mode: 0o700, recursive: true });
-
-      if (lstatSync(dir).isSymbolicLink() || !lstatSync(dir).isDirectory()) return receipt;
-      chmodSync(dir, 0o700);
       const partial = join(dir, `${delivery.requestId}.${crypto.randomUUID()}.partial`);
 
       const fd = openSync(
@@ -243,31 +192,16 @@ export class ThreadSecretFiles {
 
       if (previous?.timer) clearTimeout(previous.timer);
 
-      const entry = {
-        revision: delivery.revision,
-        file,
-        value: delivery.value,
-        timer: setTimeout(
-          () => {
-            try {
-              rmSync(file, { force: true });
-            } catch {
-              /* A subsequent gateway synchronization retries cleanup. */
-            }
+      const timer = setTimeout(
+        () => this.#removeEntry(key, true),
+        Math.max(0, Math.min(expires - Date.now(), 2_147_483_647)),
+      ).unref();
 
-            const current = this.#entries.get(key);
-
-            if (current?.revision === delivery.revision) current.value = "";
-          },
-          Math.min(expires - Date.now(), 2_147_483_647),
-        ),
-      };
-
-      entry.timer.unref();
-
-      if (delivery.value) this.#redactions.add(delivery.value);
-      this.#entries.set(key, entry);
+      if (project) this.#turns.add(delivery.threadId, delivery.turnId, delivery.value, file, delivery.requestId);
+      else if (delivery.value) this.#rememberManualValue(delivery.threadId, delivery.value);
+      this.#entries.set(key, { ...entry, timer });
       receipt.applied = true;
+      receipt.rejected = false;
       receipt.file = file;
     } catch {
       /* Do not attach a delivery, its value, or an exception to diagnostics. */
@@ -275,16 +209,94 @@ export class ThreadSecretFiles {
 
     return receipt;
   }
+  beginProjectTurn(threadId: string, turnId: string): void {
+    if (this.#projectTurnsDisabled || !UUID.test(threadId) || !turnId || this.#closed.has(threadId)) return;
+    this.#projectThreads.add(threadId);
+    this.#turns.begin(threadId, turnId);
+  }
+
+  projectTurnSignal(threadId: string, turnId: string): AbortSignal | undefined {
+    return this.#closed.has(threadId) ? undefined : this.#turns.signal(threadId, turnId);
+  }
+
+  requestProjectTurnSignal(threadId: string, turnId: string): AbortSignal | undefined {
+    return this.#closed.has(threadId) ? undefined : this.#turns.requestSignal(threadId, turnId);
+  }
+
+  projectFileAvailable(threadId: string, turnId: string, file: string): boolean {
+    if (!this.projectTurnSignal(threadId, turnId)) return false;
+
+    return [...this.#entries.values()].some(
+      (entry) =>
+        entry.file === file &&
+        entry.threadId === threadId &&
+        entry.turnId === turnId &&
+        !entry.revoked &&
+        entry.expires > Date.now() &&
+        existsSync(entry.file),
+    );
+  }
+
+  fenceProjectTurn(threadId: string, turnId: string): void {
+    this.#turns.fence(threadId, turnId);
+  }
+
+  fenceProjectTurns(): void {
+    this.#turns.fenceAll();
+  }
+
+  disableProjectTurns(): void {
+    this.#projectTurnsDisabled = true;
+    this.fenceProjectTurns();
+  }
+
+  finishProjectTurn(threadId: string, turnId: string): void {
+    this.#turns.finish(threadId, turnId);
+  }
+
+  trackProjectBackground(threadId: string, turnId: string, itemId: string, running: boolean): void {
+    this.#turns.background(threadId, turnId, itemId, running);
+  }
+
+  #removeProjectFiles(threadId: string, turnId: string): void {
+    for (const [key, entry] of this.#entries) {
+      if (entry.threadId === threadId && entry.turnId === turnId) this.#removeEntry(key, false);
+    }
+  }
+
+  #removeEntry(key: string, keepRevision: boolean): void {
+    const entry = this.#entries.get(key);
+
+    if (!entry) return;
+    entry.revoked = true;
+
+    if (entry.timer) clearTimeout(entry.timer);
+    delete entry.timer;
+
+    try {
+      rmSync(entry.file, { force: true });
+
+      if (!keepRevision) this.#entries.delete(key);
+    } catch {
+      entry.timer = setTimeout(() => this.#removeEntry(key, keepRevision), 1_000).unref();
+    }
+  }
+
   closeThread(threadId: string): void {
     if (!UUID.test(threadId)) throw new Error("invalid thread secret owner");
     this.#closed.add(threadId);
+    projectSecretGuard(threadId).reset();
+    this.#turns.finishThread(threadId);
+    this.#projectThreads.delete(threadId);
 
     for (const [key, entry] of this.#entries) {
-      if (!key.startsWith(`${threadId}/`)) continue;
+      if (entry.threadId !== threadId) continue;
 
-      if (entry.timer) clearTimeout(entry.timer);
-      delete entry.timer;
-      entry.value = "";
+      if (entry.turnId) this.#removeEntry(key, false);
+      else if (entry.timer) {
+        clearTimeout(entry.timer);
+        delete entry.timer;
+      }
     }
 
     rmSync(join(this.root, threadId), { recursive: true, force: true });
@@ -295,6 +307,10 @@ export class ThreadSecretFiles {
   }
   close(): void {
     activeStores.delete(this);
+    this.#turns.close();
+
+    for (const threadId of this.#projectThreads) projectSecretGuard(threadId).reset();
+    this.#projectThreads.clear();
 
     for (const entry of this.#entries.values()) if (entry.timer) clearTimeout(entry.timer);
     this.#entries.clear();

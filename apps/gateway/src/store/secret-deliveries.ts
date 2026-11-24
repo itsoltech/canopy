@@ -78,6 +78,7 @@ export function secretDeliveries(sql: SqlClient.SqlClient, key: Buffer, worker: 
                 $typeName: "canopy.worker.v1.ThreadSecretDelivery" as const,
                 requestId: r.id,
                 threadId: r.thread_id,
+                turnId: "",
                 revision: r.revision,
                 cwd: r.worker_cwd ?? "",
                 value:

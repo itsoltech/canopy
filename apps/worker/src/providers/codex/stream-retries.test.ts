@@ -68,6 +68,8 @@ test.skipIf(!codex)(
             cwd: dir,
             model: "gpt-6.1-sol",
             permissionMode: PermissionMode.READ_ONLY,
+            enableAgentBus: true,
+            projectSecretsConfigured: true,
           });
 
           spec.providerThreadId = yield* threads.create(spec);

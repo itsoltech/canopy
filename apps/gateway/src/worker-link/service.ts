@@ -9,6 +9,7 @@ import {
   type Hello,
   type WorkerMessage,
   type ProbeNetworkRouteRequest,
+  type ThreadSecretDelivery,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
@@ -33,6 +34,11 @@ export interface WorkerLinkOptions {
   onMessage?(connection: WorkerConnection, message: WorkerMessage): boolean;
   /** Applies backpressure before preview bytes can accumulate in the application inbox. */
   onBlobChunk?(connection: WorkerConnection, chunk: BlobChunk): Promise<void>;
+  /** Authorizes and decrypts a project grant when its metadata leaves the outbound queue. */
+  projectSecretDeliveryValue?(
+    connection: WorkerConnection,
+    delivery: ThreadSecretDelivery,
+  ): Promise<string | undefined>;
   observeCommand?(kind: string): RpcObservation | undefined;
   diagnosticsEnabled?: () => boolean;
   workerDiagnosticsEnabled?: () => boolean;
@@ -157,7 +163,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
 
     sessions.add(serving);
     void serving.finally(() => sessions.delete(serving));
-    yield* outbound;
+    yield* workerMessages(outbound, connection, options);
   }
 
   return {
@@ -205,6 +211,26 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
       await Promise.all(sessions);
     },
   };
+}
+
+async function* workerMessages(
+  outbound: AsyncChannel<GatewayMessage>,
+  connection: WorkerConnection,
+  options: WorkerLinkOptions,
+) {
+  for await (const message of outbound) {
+    const payload = message.payload;
+
+    if (payload.case === "threadSecretDelivery" && payload.value.turnId && !payload.value.remove) {
+      if (!connection.isOpen) continue;
+      const value = await options.projectSecretDeliveryValue?.(connection, payload.value);
+
+      if (!value || !connection.isOpen) continue;
+      payload.value.value = value;
+    }
+
+    yield message;
+  }
 }
 
 async function welcomeMessage(options: WorkerLinkOptions, workerId: string, hello: Hello) {

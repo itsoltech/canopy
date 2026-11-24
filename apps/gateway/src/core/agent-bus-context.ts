@@ -3,6 +3,7 @@ import { create, type JsonValue } from "@bufbuild/protobuf";
 import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import { type AgentBusArgs, type AgentBusCall, type SpawnInstance, type SpawnTarget } from "@canopy/domain";
 import { Match, Predicate, Schema, type Effect } from "effect";
+import type { WorkerConnection } from "../worker-link/index.ts";
 import {
   AgentBusStore,
   GatewayStore,
@@ -48,7 +49,11 @@ export interface BusHost {
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
   messageDelegatingBot(source: CallSource, text: string): Promise<JsonValue>;
-  requestSecret(source: CallSource, args: AgentBusArgs["request_secret"]): Promise<JsonValue>;
+  requestSecret(
+    source: CallSource,
+    args: AgentBusArgs["request_secret"],
+    connection?: WorkerConnection,
+  ): Promise<JsonValue>;
   showImages(source: CallSource, caller: ThreadRow, args: AgentBusArgs["show_images"]): Promise<JsonValue>;
   importImageReply(source: CallSource, caller: ThreadRow, itemId: string): Promise<JsonValue>;
   renderVisual(

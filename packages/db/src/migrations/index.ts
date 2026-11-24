@@ -192,6 +192,7 @@ import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "t
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
+import projectSecrets from "./0211_project_secrets.sql" with { type: "text" };
 import { memoryMigrations } from "./memory.ts";
 import { mobilePushMigrations } from "./mobile-push.ts";
 import { createMigrator, sqlFile } from "./run.ts";
@@ -396,6 +397,7 @@ export const migrations = Migrator.fromRecord({
   "0207_connector_no_project": sqlFile(connectorNoProject),
   "0208_project_color": sqlFile(projectColor),
   "0210_bot_approval_restricted_thread": sqlFile(botApprovalRestrictedThread),
+  "0211_project_secrets": sqlFile(projectSecrets),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

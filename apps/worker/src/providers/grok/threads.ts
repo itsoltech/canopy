@@ -2,7 +2,7 @@ import { workerDiagnostics } from "../../diagnostics/worker.ts";
 import { Effect, Schema } from "effect";
 import { threadLifecycle } from "../thread-lifecycle.ts";
 import { TurnAdmissionCancelled } from "../turn-input.ts";
-import { agentBusToolsFor, classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
+import { classifyFailure, safeFailureDetail, type JsonValue } from "@canopy/domain";
 import { GrokClient, type SessionResult } from "@canopy/grok-acp";
 import {
   ItemStatus,
@@ -27,7 +27,7 @@ import type { ResolvedProfile } from "../profiles.ts";
 import type { TurnSettings } from "../turn-input.ts";
 import { grokPrompt } from "./input.ts";
 import { grokLaunch } from "./launch.ts";
-import { grokBus, platformToolName } from "./bus.ts";
+import { grokThreadBus, platformToolName } from "./bus.ts";
 import { GrokSessionCost } from "./consumed-usage.ts";
 import type { XaiPricingCatalog } from "../pricing/model-catalog.ts";
 import { GrokEventMapper } from "./mapping.ts";
@@ -35,6 +35,8 @@ import { discoveredModels } from "./model-discovery.ts";
 import { automationMcp, automationMcpKey } from "../local-automation.ts";
 import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
 import { closeGrokResources, grokPermission, type GrokPermissionEntry } from "./lifecycle.ts";
+import { grokSecretHooks } from "./secret-hooks.ts";
+import { threadSecretOutputGuard } from "../../runtime/thread-secrets.ts";
 
 const ToolInput = Schema.Struct({
   tool_name: Schema.optionalKey(Schema.String),
@@ -163,14 +165,16 @@ export class GrokThreads {
 
     let entry: Entry | undefined;
     let automation: ReturnType<typeof automationMcp> | undefined;
-    let bus: ReturnType<typeof grokBus> | undefined;
+    let bus: ReturnType<typeof grokThreadBus> | undefined;
     let client: GrokClient | undefined;
+    let secretHooks: ReturnType<typeof grokSecretHooks> | undefined;
     let disposed: Promise<void> | undefined;
 
     const dispose = async () => {
       clearTimeout(entry?.idleTimer);
       disposed ??= closeGrokResources([
         () => client?.dispose(),
+        () => secretHooks?.close(),
         () => bus?.close(),
         () => automation?.close(),
         launch.cleanup,
@@ -179,36 +183,19 @@ export class GrokThreads {
     };
 
     try {
+      // Linux read-only Grok profiles refuse private HTTP hooks before making the request.
+      if (process.platform !== "linux" || chosen.permissionMode !== PermissionMode.READ_ONLY)
+        secretHooks = grokSecretHooks(spec.threadId, launch.home);
       automation = automationMcp(this.options, spec, () => entry?.turnId ?? "");
-      bus = grokBus({
-        threadId: spec.threadId,
-        depth: spec.depth,
-        enableMemory: spec.enableMemory,
-        agentBus: spec.enableAgentBus ? agentBusToolsFor(spec.depth, spec.hasDelegatingBot) : false,
-        turnId: () => entry?.turnId ?? "",
-        callTool: this.options.callTool,
-        connectorTools: spec.connectorTools,
-        record: (event) => this.options.record(spec.threadId, event),
-        ...(this.options.viewImage && {
-          viewImage: (path: string) => this.options.viewImage!(spec.threadId, spec.cwd, path),
-        }),
-        toolUseId: (name, args) => {
-          for (const [id, use] of entry?.toolUses ?? [])
-            if (use.name === name && JSON.stringify(use.args) === JSON.stringify(args)) {
-              entry?.toolUses.delete(id);
-
-              return `${entry?.turnId}:${id}`;
-            }
-
-          return undefined;
-        },
-      });
+      bus = grokThreadBus(this.options, spec, () => entry);
       client = new GrokClient({
         ...launch.options,
         callbacks: {
           requestPermission: (request, signal) => grokPermission(spec, entry, request, signal, this.options.interact),
         },
       });
+      const filter = secretHooks;
+      void client.exited.then(() => filter?.close()).catch(() => {});
       this.#preparing.set(spec.threadId, dispose);
       const info = await client.initialize();
 
@@ -228,6 +215,8 @@ export class GrokThreads {
       const session = sessionId
         ? await client.loadSession(sessionId, spec.cwd, servers)
         : await client.newSession(spec.cwd, servers);
+
+      secretHooks?.bind(session.sessionId, info);
 
       if (chosen.model && session.models && session.models.currentModelId !== chosen.model)
         await client.setModel(session.sessionId, chosen.model);
@@ -354,7 +343,9 @@ export class GrokThreads {
       outcome = entry.interrupted ? TurnOutcome.INTERRUPTED : TurnOutcome.FAILED;
       reason = entry.interrupted
         ? "interrupted by the user"
-        : safeFailureDetail(error instanceof Error ? error.message : "Grok CLI failed");
+        : safeFailureDetail(
+            threadSecretOutputGuard(spec.threadId).redact(error instanceof Error ? error.message : "Grok CLI failed"),
+          );
       errorCode = entry.interrupted ? "" : classifyFailure(reason);
 
       if (this.#entries.get(spec.threadId) === entry) this.#entries.delete(spec.threadId);

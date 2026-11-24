@@ -96,6 +96,9 @@ export class GrokClient {
   get closed(): boolean {
     return !!this.#closed;
   }
+  get exited(): Promise<void> {
+    return this.#exited;
+  }
 
   async initialize(): Promise<InitializeResult> {
     const cb = this.#options.callbacks;

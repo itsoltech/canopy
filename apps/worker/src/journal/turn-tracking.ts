@@ -3,6 +3,25 @@ import { fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, type ThreadEvent } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { JournalError, OpenTurn, TurnHarness } from "./journal.ts";
+import { projectSecretHistory } from "./project-secret-history.ts";
+
+interface HarnessRow {
+  harness: TurnHarness["harness"];
+  transcript: string;
+  session_id: string;
+  start_offset: number;
+  provider_turn: string;
+}
+
+function turnHarness(row: HarnessRow): TurnHarness {
+  return {
+    harness: row.harness,
+    transcript: row.transcript,
+    sessionId: row.session_id,
+    offset: row.start_offset,
+    providerTurn: row.provider_turn,
+  };
+}
 
 function prepareServiceInvocation(db: Database, serviceInvocation: string) {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(open_turns)").all();
@@ -22,6 +41,7 @@ export function turnTracking(
   serviceInvocation: string,
 ) {
   prepareServiceInvocation(db, serviceInvocation);
+  const projectSecrets = projectSecretHistory(db, attempt);
 
   const insertTurn = db.query(
     "INSERT OR IGNORE INTO open_turns (thread_id, turn_id, service_invocation) VALUES ($thread, $turn, $invocation)",
@@ -79,16 +99,7 @@ export function turnTracking(
     }
   };
 
-  const selectHarness = db.query<
-    {
-      harness: "codex" | "claude" | "grok";
-      transcript: string;
-      session_id: string;
-      start_offset: number;
-      provider_turn: string;
-    },
-    { thread: string; turn: string }
-  >(
+  const selectHarness = db.query<HarnessRow, { thread: string; turn: string }>(
     "SELECT harness, transcript, session_id, start_offset, provider_turn FROM turn_harness WHERE thread_id = $thread AND turn_id = $turn",
   );
 
@@ -106,6 +117,7 @@ export function turnTracking(
 
   return {
     trackTurn,
+    ...projectSecrets,
     wasInterrupted: (threadId: string, turnId: string) =>
       attempt("wasInterrupted", () => (selectInterrupt.get({ thread: threadId, turn: turnId })?.n ?? 0) > 0),
     hasStartedTurn: (threadId: string, turnId: string) =>
@@ -120,15 +132,8 @@ export function turnTracking(
             threadId: r.thread_id,
             turnId: r.turn_id,
             ...(r.service_invocation && { serviceInvocation: r.service_invocation }),
-            ...(h && {
-              harness: {
-                harness: h.harness,
-                transcript: h.transcript,
-                sessionId: h.session_id,
-                offset: h.start_offset,
-                providerTurn: h.provider_turn,
-              },
-            }),
+            ...(projectSecrets.isProjectSecretTurn(r.thread_id, r.turn_id) && { projectSecret: true }),
+            ...(h && { harness: turnHarness(h) }),
             items: selectItems.all(key).map((i) => ({ item: fromBinary(ItemSchema, i.item), done: i.done === 1 })),
             interruptRequested: (selectInterrupt.get(key)?.n ?? 0) > 0,
           };

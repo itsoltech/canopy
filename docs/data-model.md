@@ -1,5 +1,11 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-24): migracja `0211_project_secrets` dodaje
+`project_secrets` z szyfrogramem identyfikowanym przez projekt i nazwę.
+`project_secret_leases` przechowuje przydziały czasowe wraz z wątkiem,
+turą, workerem, terminem i stanem dostawy. Podmiana wartości lub usunięcie
+sekretu cofa jego przydziały. [Cykl życia i przechowywanie](secrets.md)
+
 Status (2026-11-24): migracja `0210_bot_approval_restricted_thread` wiąże jednorazową
 zgodę na `send_message` z docelowym wątkiem o odrębnym zakresie. Starsze karty mają
 `NULL` w `bot_approvals.restricted_thread_id`.

@@ -14,6 +14,7 @@ import { busRead } from "./agent-bus-reads.ts";
 import type { AgentBus } from "./agent-bus.ts";
 import { QUESTION_TIMEOUT_MS } from "../store/questions.ts";
 import { findCanopySettings } from "./settings-guide.ts";
+import type { WorkerConnection } from "../worker-link/index.ts";
 
 /** A created schedule is announced to the UI before the agent hears back. */
 export async function busAnnounced(hostContext: AgentBus, created: Promise<JsonValue>): Promise<JsonValue> {
@@ -32,6 +33,7 @@ export async function busExecute(
   caller: ThreadRow,
   hops: number,
   target: SpawnTarget,
+  connection?: WorkerConnection,
 ): Promise<JsonValue> {
   const store = <A, E>(use: (s: AgentBusStore["Service"]) => Effect.Effect<A, E>) =>
     hostContext[busState].host.run(AgentBusStore.use(use));
@@ -47,7 +49,11 @@ export async function busExecute(
     case "render_html":
       return hostContext[busState].host.renderVisual(source, caller, call.args);
     case "request_secret":
-      return hostContext[busState].host.requestSecret(source, call.args);
+      return hostContext[busState].host.requestSecret(source, call.args, connection);
+    case "list_project_secrets":
+      return hostContext[busState].host.run(
+        GatewayStore.use((s) => s.projectSecretNames(caller.owner_user_id, caller.id)),
+      );
     case "ask_user": {
       const interaction = await store((s) => s.askUser(source, call.args, hops));
       await hostContext[busState].host.interaction(interaction);

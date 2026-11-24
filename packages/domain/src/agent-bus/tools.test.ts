@@ -71,6 +71,7 @@ describe("tool sets per level", () => {
       "list_agents",
       "list_background_tasks",
       "list_pr_watches",
+      "list_project_secrets",
       "list_schedules",
       "list_threads",
       "read_thread",
@@ -106,6 +107,9 @@ describe("decodeAgentBusCall", () => {
   });
 
   test("rejects unknown tools, invalid JSON, unknown properties and out-of-range values", () => {
+    expect(failure("request_secret", { project_secret: "bad-name" })).toContain("project_secret");
+    expect(failure("request_secret", { project_secret: "KEY", label: "Mixed modes" })).toContain("use project_secret");
+    expect(failure("request_secret", { label: "Manual secret" })).toContain("description");
     expect(failure("message_delegating_bot", { text: "  " })).toContain("text");
     expect(failure("message_delegating_bot", { text: "Update", bot_id: THREAD })).toContain("excess property");
     expect(failure("spawn_agent", {})).toContain("unknown agent bus tool");

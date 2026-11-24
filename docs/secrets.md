@@ -1,4 +1,33 @@
-# Sekrety wątków
+# Sekrety projektów i wątków
+
+Status (2026-11-24): właściciel może zapisać sekret w projekcie i przydzielać
+go na żądanie poszczególnych wątków. Każdy przydział wygasa wraz z turą lub
+po 15 minutach. Dostępność w wydaniach opisują [zasady promocji](release.md).
+
+## Sekret zapisany w projekcie
+
+W ustawieniach projektu właściciel podaje nazwę i wartość. Gateway szyfruje
+wartość kluczem `CANOPY_SECRETS_KEY` i zapisuje szyfrogram w PostgreSQL.
+Odczyt ustawień zwraca nazwę oraz czas aktualizacji. Po zapisie można
+wprowadzić nową wartość albo usunąć sekret. Obie operacje cofają dotychczasowe
+przydziały tej nazwy. Wątek może też utracić swój przydział bez usuwania
+sekretu z projektu. Potwierdzenie cofnięcia oznacza zapis decyzji w gatewayu.
+Usunięcie wcześniej dostarczonego pliku jest asynchroniczne. Odłączony worker
+sprząta go przy końcu tury, po upływie lokalnego terminu lub po ponownym połączeniu.
+
+Agent wywołuje `list_project_secrets`, aby poznać dostępne nazwy, a następnie
+np. `request_secret({ project_secret: "STAGING_TOKEN" })`. Gateway ustala
+projekt i właściciela na podstawie bieżącego wątku. Uruchomienie wątku
+na innym workerze tego samego gatewaya daje mu możliwość złożenia własnej
+prośby. Żaden worker nie dostaje wartości przy starcie wątku ani przy
+wyświetlaniu listy. Wątek poza projektem nie ma dostępu do sekretów projektu.
+
+Zapis w projekcie upoważnia jego wątki do składania takich próśb bez
+ponownego wpisywania wartości przez człowieka. Prywatna dostawa jest związana
+z workerem, wątkiem i turą. Worker potwierdza ją po przygotowaniu pliku;
+brak aktywnej tury lub gotowego filtra wyników powoduje odmowę. Wynik
+narzędzia zawiera ścieżkę pliku i termin dostępności. Program uruchamiany
+przez agenta może odczytać dane z pliku w zwykły sposób.
 
 Grok otrzymuje `request_secret` przez platformowy MCP z tym samym zakresem dostępu co pozostałe harnessy. Klucz instancji CLIProxyAPI jest osobnym sekretem konfiguracji, trafia wyłącznie do env procesu Groka; plik custom-model odwołuje się do nazwy env, bez klucza. [Izolacja adaptera](grok-adapter.md#endpointy-i-izolacja).
 
@@ -8,9 +37,9 @@ nie korzystają z dostarczania plików sekretów na worker. Worker i model dosta
 wyłącznie katalog oraz zredagowane wyniki proxy. Migracja dawnych bot MCP
 zachowuje istniejące odwołania do zaszyfrowanych sekretów nagłówków.
 
-## Zasady dostarczania
+## Jednorazowa prośba do użytkownika
 
-`request_secret` jest narzędziem platformy dla obu harnessów. Przyjmuje `label`,
+W trybie prośby do użytkownika `request_secret` przyjmuje `label`,
 `description`, opcjonalny `placeholder`, `name` (podpowiedź nazwy zmiennej,
 bez automatycznego eksportowania środowiska) i `request_id` do odnawiania
 oczekiwania. Trwały request należy wyłącznie do wywołującego wątku.
@@ -30,7 +59,7 @@ workspace. Model otrzymuje tylko ścieżkę, termin i instrukcję użycia wewną
 komendy, np. `TOKEN="$(cat '<path>')" program`, bez drukowania wartości.
 Nie dodajemy sekretu do env procesu harnessu (wspólnego dla wielu wątków).
 
-Domyślny TTL to 24 godziny. Cofnięcie/wygaśnięcie usuwa szyfrogram z gateway
+Domyślny TTL ręcznie dostarczonego sekretu to 24 godziny. Cofnięcie/wygaśnięcie usuwa szyfrogram z gateway
 i plik workera; odłączony worker nie może otrzymać cofnięcia natychmiast, dlatego
 lokalnie egzekwuje również termin. Ponowne połączenie synchronizuje stan.
 Po restarcie worker usuwa stare materializacje i odtwarza wyłącznie nadal ważne.
@@ -89,7 +118,7 @@ Potwierdzenia nadal wymagają zgodności workera, wątku, requestu i rewizji.
 Zaszyfrowane kopie w backupach/WAL podlegają polityce retencji bazy; zwykłe DELETE
 lub UPDATE nie jest kryptograficznym wymazaniem historycznych backupów.
 
-TTL 24 h jest obecnie stałą domyślną serwisu; krótszy można wstrzyknąć w fixture.
+TTL 24 h ręcznego przydziału jest stałą domyślną serwisu; krótszy można wstrzyknąć w fixture.
 Nie dodano jeszcze publicznego ustawienia TTL. Klucz pozostaje w `CANOPY_SECRETS_KEY`
 i korzysta z istniejącego identyfikatora klucza `env-v1`. Prywatne komunikaty gRPC
 nie są logowane ani wpisywane do worker_commands. Zdalne połączenie wymaga istniejącej
@@ -113,6 +142,21 @@ Live testy potwierdzają odczyt w `ASK` i sandboxowanym `FULL_AUTO` obu harness�
 
 ## Maskowanie i granice bezpieczeństwa
 
+Filtr adaptera ma zamaskować znaną wartość, gdy narzędzie przypadkowo wypisze
+ją w tekście przeznaczonym dla modelu. Worker sprawdza gotowość w sesji,
+która prosi o przydział. W Claude i Groku wynik może podmienić synchroniczny
+hook. W obsługiwanych profilach Codexa worker dodatkowo filtruje żądania
+Responses, ponieważ częściowe wyjście polecenia może poprzedzać hook końcowy.
+Zakres obsługi zależy od wersji CLI, transportu i uprawnień wątku.
+[Claude](claude-adapter.md#maskowanie-sekretów-w-wynikach-narzędzi),
+[Grok](grok-adapter.md), [Codex](codex-adapter.md).
+
+Natywny transkrypt Groka na workerze może zawierać oryginalny tekst po
+zamaskowaniu wyniku dla modelu. Uprawnienia systemowe workera, jego
+dysk i kopie zapasowe pozostają granicą zaufania. Cofnięcie dostępu
+usuwa plik utworzony przez Canopy. Program, który już odczytał sekret,
+może zachować własną kopię w pamięci lub na dysku.
+
 Redaktor działa w workerze **przed** `Journal.append`: maskuje dokładną wartość
 i jej wariant z escapingiem JSON na `[REDACTED]` w zdarzeniach i usuwa `rawJson`.
 Gdy sekret jest aktywny, delty tekstu są wstrzymywane do zakończenia itemu,
@@ -121,13 +165,13 @@ brakujący output z bufora i maskuje go; bufor przechowuje wzorce do końca item
 również po cofnięciu sekretu. Dla dużych pól ogranicza bufor do około 4 MiB.
 Oznacza to opóźnienie streamingu do ukończenia itemu podczas używania sekretów.
 
-To dodatkowa osłona UI i trwałego dziennika Canopy, a nie gwarancja przed
-celowym ujawnieniem: zakodowane, przekształcone lub częściowe wartości mogą ominąć
-maskowanie. Output shellu może wcześniej trafić do kontekstu i surowego transkryptu
-samego harnessu. Canopy nie przechwytuje wewnętrznej komunikacji harness–model.
-Dlatego narzędzie wyraźnie instruuje, aby używać pliku wewnątrz poleceń i nigdy
-nie wypisywać zawartości ani używać narzędzia Read do jego odczytu. Redakcja nie
-zastępuje tej zasady. Zwykły przepływ wartości nie przekazuje do providera.
+Redakcja dziennika chroni historię Canopy i jej projekcje w UI. Dla dawnej
+prośby ręcznej plik może zostać wydany także sesji bez aktywnego filtra
+kontekstu. W tej konfiguracji output shellu może trafić do modelu przed
+redakcją zdarzenia w dzienniku. W obu trybach program powinien używać pliku
+wewnątrz polecenia. Zakodowane, przekształcone lub częściowe wartości mogą
+nie pasować do wzorca. Polecenia uruchamiane na workerze podlegają zwykłej
+polityce dostępu do sieci.
 
 Karta wyłącza autocomplete, spellcheck i sugeruje menedżerom haseł ignorowanie
 kontrolki. Przeglądarka i rozszerzenia nadal należą do granicy zaufania. Schowek
@@ -135,6 +179,14 @@ jest odczytywany wyłącznie po kliknięciu Paste; aplikacja go nie zapisuje i n
 czyści globalnego schowka. Pole czyści się przed fetch oraz po unmount.
 
 ## Weryfikacja
+
+- `project-secrets.test.ts` sprawdza zakres właściciela i projektu, zaszyfrowany
+  zapis, poszczególne przydziały, podmianę wartości, odmowę starszego workera
+  i wygaśnięcie podczas trwającej tury.
+- `project-secret-provider.live.test.ts` używa rzeczywistego CLI Claude, workera
+  i gatewaya oraz lokalnej atrapy endpointu modelu. Pierwsze wywołanie prosi o
+  zapisany sekret, kolejne odczytuje plik przez Bash. Test sprawdza treść
+  żądania po odczycie oraz usunięcie pliku po turze.
 
 - `thread-secrets.test.ts`: rzeczywisty gateway i PostgreSQL, skryptowany worker
   z produkcyjnym magazynem plików; zapis, szyfrowanie, `0600`/`0700`, wynik bez

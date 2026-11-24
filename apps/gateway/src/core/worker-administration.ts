@@ -283,6 +283,7 @@ export class WorkerAdministration {
                 yield* sql`UPDATE workers SET credential_hash = ${digest(credential)} WHERE id = ${workerId}::uuid AND revoked_at IS NULL RETURNING id`;
 
               if (!active.length) return false;
+              yield* sql`UPDATE worker_connections SET epoch=epoch+1 WHERE worker_id=${workerId}::uuid`;
             }
 
             if (action === "revoke")

@@ -34,7 +34,7 @@ export function mirrorSelection(sql: SqlClient.SqlClient, owner: string, thread:
 
     const changedSource = yield* sql`SELECT 1 FROM computer_thread_changes
       WHERE owner_user_id=${owner}::uuid AND revision>${match[2]!}::bigint AND revision<=${clock.revision}::bigint
-        AND thread_id=ANY(${[...sources]}::uuid[]) LIMIT 1`;
+        AND entity_kind IS DISTINCT FROM 'thread_controls' AND thread_id=ANY(${[...sources]}::uuid[]) LIMIT 1`;
 
     if (changedSource.length) return undefined;
     const moved = yield* sql`SELECT thread_id FROM computer_moved_threads WHERE thread_id=${thread}::uuid`;

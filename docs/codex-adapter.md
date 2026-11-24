@@ -1,5 +1,10 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-24): adapter chroni granty sekretów projektu w
+zweryfikowanych sesjach CLIProxyAPI przez HTTP. Po oznaczonej turze następna
+tura zachowuje wątek Canopy i otwiera nową sesję Codexa z instrukcjami
+odzyskiwania, także po restarcie workera.
+
 Aktualizacja (2026-11-23): worker przywraca zapis historii Codexa potrzebny do
 forka po archiwizacji. Na Windowsie migruje twarde dowiązania logowania Codexa,
 również w katalogach zapisanych rozmów botów. Na Windowsie, macOS i Linuksie
@@ -233,6 +238,37 @@ uzupełnić tylko trwały zapis pierwotnej tury.
 - **Katalog** (`codex/catalog.ts`, `ListMentionCatalog`): `skills/list { cwds: [folder wątku], forceReload }` → skille (`enabled`; `interface.displayName`, `shortDescription`, `iconSmall` jako data URI do 24 KB, `brandColor`; zakres `repo` jako `project`), `plugin/list` → zainstalowane i włączone pluginy (`plugin://<id>`), `app/list` → dostępne i włączone aplikacje (`app://<id>`), tylko gdy worker włączył konektory. Komend Codex nie ma (jego `/komendy` to TUI).
 - **Wejście** (`codex/input.ts`): tekst z `text_elements` (zakres bajtów UTF-8 + znacznik, jak zapisuje je kompozytor Codexa), itemy `skill`, `mention` i `localImage` (wspomniany plik obrazu). Plik zostaje jako `@ścieżka` w tekście.
 - **Skille użytkownika:** proces platformowy zachowuje `HOME` i konfigurację narzędzi shella. Przy starcie app-servera worker wyłącza znalezione `~/.agents/skills/**/SKILL.md` przez natywne `skills.config` z selektorami ścieżek. Zachowuje skille biblioteki w izolowanym `$CODEX_HOME/skills`, skille projektu i własne skille systemowe w `$CODEX_HOME/skills/.system`; katalog pokazuje ich źródło. CLI 0.164.0 nadal odkrywa skille, gdy rozszerzenie ich wymaga, mimo `features.skip_host_skill_discovery=true`, więc ta flaga nie wystarcza. Lista wyłączeń jest snapshotem przy starcie procesu; po dodaniu skilli urządzenia trzeba zrestartować app-server (worker).
+
+## Sekrety projektu
+
+Codex może udostępnić sekret projektu w sesji CLIProxyAPI z włączoną szyną
+agentów, gdy projekt ma zapisane sekrety. Wątki spoza takich projektów
+zachowują oryginalną konfigurację transportu. Worker sprawdza stan projektu
+przy kolejnej turze i stosuje nową konfigurację po zmianie.
+Zweryfikowano CLI 0.164.0 i 0.172.0 na Linuksie z lokalną atrapą
+modelu. Mechanizm wymaga lokalnego `curl`, synchronicznych hooków i bezpośredniego
+połączenia z loopbackiem. Chroniona sesja profilu WebSocket przechodzi na
+HTTP/SSE po odpowiedzi 426 z listenera. Natywne logowanie, Windows,
+niestandardowe profile sandboxa i sesje z natywnymi subagentami zachowują
+dotychczasowe działanie wątku oraz jednorazowych sekretów wątku. Granty
+sekretów projektu są w nich niedostępne.
+
+Worker dodaje wyłącznie w ustawieniach danej sesji dwa hooki z jawnie
+przypiętymi odciskami. Potwierdza wykonanie `SessionStart` i przejście
+pierwszego żądania inferencji przez prywatny listener na loopbackie przed
+udostępnieniem pliku. `PostToolUse` zastępuje ukończony wynik przez
+`decision: block` z zamaskowaną treścią. Codex pomija ten hook dla części
+wyników podczas działania `exec_command` i `write_stdin` oraz dla pewnych
+błędów. Listener dlatego sprawdza także żądania do modelu, w tym wyniki
+trybu kodu, i przepuszcza wyłącznie rozpoznane żądania JSON inferencji.
+Odczyt katalogu modeli i ruch konta biegną poza listenerem.
+
+Codex zapisuje część natywnych wyników w lokalnym rolloucie przed redakcją
+żądań do modelu. Worker zapisuje trwały marker przed utworzeniem pliku z
+sekretem. Po turze marker zamyka inferencję dla tej sesji, a kolejne wejście
+w Canopy używa nowego rolloutu i instrukcji odzyskiwania. Historia Canopy
+pozostaje w dotychczasowym wątku. Fork i rewind, które musiałyby ponownie
+wczytać oznaczony rollout, są odrzucane. Rewind do pustej sesji jest dostępny.
 
 ## Tryb kodu (code mode)
 

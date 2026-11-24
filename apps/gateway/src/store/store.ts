@@ -2,6 +2,8 @@ import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 import { threadSecretsStore, type ThreadSecretsStore } from "./thread-secrets.ts";
+import { projectSecretsStore } from "./project-secrets.ts";
+import { projectSecretLeasesStore } from "./project-secret-leases.ts";
 import { connectorStore } from "../connectors/store.ts";
 import { githubStore } from "../github/store.ts";
 import { workerStore, type WorkerStore } from "./workers-store.ts";
@@ -41,10 +43,12 @@ export {
 
 export class GatewayStore extends Context.Service<
   GatewayStore,
-  ThreadSecretsStore & {
-    connectors: ReturnType<typeof connectorStore>;
-    github: ReturnType<typeof githubStore>;
-  } & WorkerStore &
+  ThreadSecretsStore &
+    ReturnType<typeof projectSecretsStore> &
+    ReturnType<typeof projectSecretLeasesStore> & {
+      connectors: ReturnType<typeof connectorStore>;
+      github: ReturnType<typeof githubStore>;
+    } & WorkerStore &
     WorkerConfigStore &
     ProjectStore &
     ThreadStore &
@@ -69,6 +73,8 @@ export class GatewayStore extends Context.Service<
           connectors: queryMethods("connectors.store", connectorStore(sql, secretsKey)),
           github: queryMethods("github.accounts", githubStore(sql, secretsKey)),
           ...queryMethods("secrets.store", threadSecretsStore(sql, secretsKey)),
+          ...queryMethods("secrets.store", projectSecretsStore(sql, secretsKey)),
+          ...queryMethods("secrets.store", projectSecretLeasesStore(sql, secretsKey)),
           ...queryMethods(
             "threads.lifecycle",
             threadLifecycle(sql, (input) => store.enqueueCommand(input)),

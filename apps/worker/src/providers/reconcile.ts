@@ -51,6 +51,21 @@ export async function readHarnessRecord(open: OpenTurn): Promise<HarnessRecord |
   }
 }
 
+function safeProjectSecretRecord(record: HarnessRecord): HarnessRecord {
+  const end = record.end;
+
+  return {
+    items: [],
+    ...(end && {
+      end: {
+        outcome: end.outcome,
+        source: end.source,
+        reason: end.outcome === TurnOutcome.FAILED ? "the harness reported a failure" : "",
+      },
+    }),
+  };
+}
+
 /** The events that settle an open turn (items first, turn_finished last). */
 export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefined, cause: EndCause): ThreadEventInit[] {
   const { turnId } = open;
@@ -133,7 +148,10 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
 export const reconcileTurn = (open: OpenTurn, cause: EndCause) =>
   Effect.gen(function* () {
     const journal = yield* Journal;
-    const record = yield* Effect.promise(() => readHarnessRecord(open));
+    const raw = yield* Effect.promise(() => readHarnessRecord(open));
+    const protectedTurn = open.projectSecret || (yield* journal.hasProjectSecretTurn(open.threadId, open.turnId));
+    // A native transcript can contain the original tool output after the in-memory values are gone.
+    const record = raw && protectedTurn ? safeProjectSecretRecord(raw) : raw;
     const out: ThreadEvent[] = [];
 
     for (const init of reconcileEvents(open, record, cause)) out.push(yield* journal.append(open.threadId, init));

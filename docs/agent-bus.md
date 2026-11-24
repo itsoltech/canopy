@@ -1,5 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-24): wątek może poznać nazwy sekretów projektu i poprosić
+o czasowy plik na swoim workerze. Uprawnienie i termin są związane z wywołującą
+turą. [Sekrety projektów i wątków](secrets.md)
+
 Status (2026-11-24): ustawienia uprawnień subagentów w web/desktop są w zakładce **Sandbox and subagents**.
 
 Status (2026-11-22): gateway zachowuje źródło delegacji zewnętrznej przez wznowienia, forki
@@ -195,7 +199,8 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |
 | `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
 | `ask_user` / `get_answers` | ✓ | ✓ | trwały zestaw 1–4 pytań do człowieka albo rodzica; `wait: true` czeka, `false` pozwala pracować dalej; odczyt odpowiedzi tylko we własnym wątku |
-| `request_secret` | ✓ | ✓ | prywatna prośba do człowieka: `label`, `description`, opcjonalne `placeholder`, `name`; odnawialne oczekiwanie przez `request_id`; wynik zawiera wyłącznie status, ścieżkę pliku workera i termin ważności, nigdy wartość ([sekrety](secrets.md)) |
+| `list_project_secrets` | ✓ | ✓ | nazwy zapisanych sekretów dostępnych w projekcie bieżącego wątku |
+| `request_secret` | ✓ | ✓ | `project_secret` wskazuje nazwę zapisaną w projekcie. Ręczna prośba do człowieka przyjmuje `label`, `description` oraz opcjonalne `placeholder`, `name`. Oczekiwanie można odnowić przez `request_id`. Po potwierdzeniu wynik zawiera ścieżkę pliku i termin ważności ([sekrety](secrets.md)) |
 | `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
 | `schedule_recurring` | ✓ | ✓ | cron (min. 5 min), wymagane `until` (do 30 dni) albo `max_runs` |
 | `list_schedules` / `cancel_schedule` | ✓ | ✓ | własne harmonogramy i harmonogramy potomków |
