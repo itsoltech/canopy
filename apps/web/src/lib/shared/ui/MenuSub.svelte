@@ -6,6 +6,7 @@
   import {
     focusItem,
     hoverFocus,
+    menuControlClasses,
     menuGlyphClasses,
     menuIconClasses,
     menuKeydown,
@@ -47,6 +48,7 @@
 
   const open = $derived(!disabled && parent.openSub === id);
   let row = $state<HTMLDivElement>();
+  const splitControlClasses = `${menuControlClasses} focus-visible:outline-solid`;
 
   function triggerKeydown(event: KeyboardEvent, panelId: string) {
     if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
@@ -94,7 +96,12 @@
   class="min-w-44 p-1"
 >
   {#snippet trigger(props)}
-    <div bind:this={row} class={primary ? "flex" : "contents"}>
+    <div
+      bind:this={row}
+      class={primary
+        ? "flex rounded-lg focus-within:bg-zinc-950/5 has-aria-expanded:bg-zinc-950/5 dark:focus-within:bg-white/8 dark:has-aria-expanded:bg-white/8"
+        : "contents"}
+    >
       {#if primary}
         <button
           type="button"
@@ -102,7 +109,7 @@
           tabindex="-1"
           data-menu-item
           aria-disabled={disabled || undefined}
-          class={[menuRowClasses, "min-w-0 flex-1", className]}
+          class={[splitControlClasses, "min-w-0 flex-1", className]}
           onclick={() => {
             if (disabled) return;
             primary.onselect();
@@ -125,7 +132,11 @@
         data-menu-item
         aria-label={primary ? label : undefined}
         aria-disabled={disabled || undefined}
-        class={[menuRowClasses, primary && "shrink-0 basis-8 justify-center pointer-coarse:basis-11", className]}
+        class={[
+          primary ? splitControlClasses : menuRowClasses,
+          primary && "shrink-0 basis-8 justify-center pointer-coarse:basis-11",
+          className,
+        ]}
         onclick={() => {
           if (!disabled) parent.openSub = open && !primary ? undefined : id;
         }}

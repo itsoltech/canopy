@@ -23,9 +23,12 @@ export function useMenu(): MenuContext {
   return menu;
 }
 
-/** Look shared by every row of a menu (items, check items, submenu triggers). */
-export const menuRowClasses =
-  "group/item relative flex w-full cursor-default items-start gap-2 rounded-lg px-2 py-2 text-left text-base/6 text-zinc-800 outline-none select-none focus:bg-zinc-950/5 focus:text-zinc-950 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500 aria-disabled:opacity-50 aria-expanded:bg-zinc-950/5 pointer-coarse:min-h-11 sm:py-1 sm:text-sm/5 dark:text-zinc-200 dark:focus:bg-white/8 dark:focus:text-white dark:aria-expanded:bg-white/8";
+/** Layout and individual focus treatment shared by menu controls. */
+export const menuControlClasses =
+  "group/item relative flex w-full cursor-default items-start gap-2 rounded-lg px-2 py-2 text-left text-base/6 text-zinc-800 outline-none select-none focus:text-zinc-950 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-500 aria-disabled:opacity-50 pointer-coarse:min-h-11 sm:py-1 sm:text-sm/5 dark:text-zinc-200 dark:focus:text-white";
+
+/** A control that occupies the whole row also owns its highlight. */
+export const menuRowClasses = `${menuControlClasses} focus:bg-zinc-950/5 aria-expanded:bg-zinc-950/5 dark:focus:bg-white/8 dark:aria-expanded:bg-white/8`;
 
 /** Box of an icon in a menu row: one line high, so the icon centres on the first line of the label. */
 export const menuGlyphClasses = "flex h-lh shrink-0 items-center";
