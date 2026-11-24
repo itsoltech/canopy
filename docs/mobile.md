@@ -3,6 +3,9 @@
 Status (2026-11-24): systemowe powiadomienia o wynikach wątków znikają z iOS i Androida
 po zsynchronizowaniu odczytu. Zgody i pytania znikają po rozstrzygnięciu lub wygaśnięciu.
 
+Status (2026-11-24): powiadomienie po aktualizacji pokazuje numer wersji i akcję
+„View changes” pod treścią ekranu.
+
 Status (2026-11-24): szczegóły projektu pozwalają wybrać, wykadrować i usunąć zdjęcie
 projektu w natywnym kliencie iOS i Android.
 
@@ -417,8 +420,8 @@ Do lokalnego uruchomienia używamy **development build** Expo, nie Expo Go ani E
 Identyfikatory: iOS `tech.itsol.canopy-remote`, Android `tech.itsol.canopy_remote` (Android nie dopuszcza myślnika w identyfikatorze); scheme: `canopy`.
 Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
-Po OTA lub aktualizacji sklepowej zamykana karta „Updated to …” otwiera
-„What's new” z zakresem poprzedniej i bieżącej wersji bundla. Historia jest lokalna
+Po OTA lub aktualizacji sklepowej „View changes” w powiadomieniu „Updated to …”
+otwiera „What's new” z zakresem poprzedniej i bieżącej wersji bundla. Historia jest lokalna
 dla instalacji i pozostaje po zmianie parowania. Settings → App updates i Updates
 otwierają ten sam arkusz. Notatki oraz podgląd notatek dostępnego OTA czytają
 wyłącznie statyczny JSON Pages, bez API GitHuba. Implementacja jest wyłącznie JS,
