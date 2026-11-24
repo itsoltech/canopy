@@ -4,6 +4,9 @@ Status (2026-11-24): web i desktop łączą subagenta z wątkiem nadrzędnym po
 `Thread.parent_thread_id` w indeksie wszystkich projektów. Obejmuje to delegację
 do **No project** na połączonym komputerze.
 
+Status (2026-11-24): logo w nagłówku paska bocznego web i desktopu jest elementem
+informacyjnym. Kliknięcie pozostawia użytkownika w bieżącym widoku.
+
 Status (2026-11-24): `ListDismissibleMobilePush` dopasowuje dostarczone powiadomienia
 do stanu odczytu wyników wątków, wiadomości botów oraz rozstrzygnięcia ich interakcji.
 
