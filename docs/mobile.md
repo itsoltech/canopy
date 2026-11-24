@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): Create bot zaczyna się od nazwy i modelu, pokazuje wielowierszowe
+instrukcje oraz zachowuje przycisk utworzenia pod przewijaną treścią.
+Opcje workera, wygląd i uprawnienia są w rozwijanych sekcjach.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): lista Files używa tych samych ikon typów plików co web
 i desktop, dobieranych po nazwie lub rozszerzeniu.
 
@@ -2502,13 +2507,17 @@ fonty, kontrast, strefy czasowe i nagłówki konektorów.
 Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów z włączaniem, pauzowaniem i usuwaniem rutyn oraz anulowaniem przypomnień. „Bot settings”
-pozwala edytować nazwę, instrukcje, wygląd, model, effort, worker i politykę zgód;
-przycisk Create bot w nagłówku listy Bots otwiera ten sam formularz do tworzenia.
+pozwala edytować nazwę, instrukcje, wygląd, model, effort, worker i politykę zgód.
+Przycisk Create bot w nagłówku listy Bots otwiera formularz z podglądem awatara przy polu
+nazwy, jawnym wyborem modelu i opcjonalnymi instrukcjami. Worker, wysiłek i prędkość
+są w sekcji Worker and model options. Zmiana workera wymaga ponownego wyboru modelu.
+Wygląd i uprawnienia mają własne sekcje.
+Pole koloru w zapisie szesnastkowym pojawia się po wybraniu Enter a custom color.
+Przycisk Create bot pozostaje pod przewijaną treścią również przy otwartej klawiaturze.
 Tworzenie zachowuje `client_request_id` przy ponowieniu niepotwierdzonego zapisu.
 Wspólna walidacja szkicu wykrywa powtórzone nazwy na tym samym komputerze i normalizuje
-kolor #RGB do #RRGGBB; gateway pozostaje źródłem walidacji. Nowy bot rozpoczyna formularz
-od wyboru modelu. Nieudana odpowiedź ma Retry dla ostatniego
-błędu oraz Change model or worker, otwierające ustawienia. Akcje wymagają live
+kolor #RGB do #RRGGBB. Gateway pozostaje źródłem walidacji. Nieudana odpowiedź ma Retry
+dla ostatniego błędu oraz Change model or worker, otwierające ustawienia. Akcje wymagają live
 i dostępnego domu bota; gateway ponownie sprawdza możliwość ponowienia.
 Thread details → Manage connector access otwiera mobilne Settings → Connectors.
 Tak jak w web, konta są przyznawane workerowi, a nie pojedynczemu wątkowi.

@@ -15,12 +15,14 @@ export function BotPermissionSettings({
   config,
   onChange,
   disabled,
+  showHeading = true,
 }: {
   botId?: string;
   selectedRule: string;
   config: bots.BotConfiguration;
   onChange: (config: bots.BotConfiguration) => void;
   disabled: boolean;
+  showHeading?: boolean;
 }) {
   const c = useColors();
   const { threadsEnabled } = useAppearance();
@@ -32,7 +34,7 @@ export function BotPermissionSettings({
 
   return (
     <View style={{ gap: 12 }}>
-      <Text style={[styles.heading, { color: c.text }]}>Permissions</Text>
+      {showHeading && <Text style={[styles.heading, { color: c.text }]}>Permissions</Text>}
       <Text style={[styles.meta, { color: c.muted }]}>
         Protected actions and changes to the bot’s model or permissions always ask first.
       </Text>

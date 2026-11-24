@@ -5,12 +5,10 @@ import { create } from "@bufbuild/protobuf";
 import { bots } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
-import { Button, Field, Notice, Sheet } from "../../ui/components";
-import { BotPermissionSettings } from "./BotPermissionSettings";
-import { BotModelSettings } from "./BotModelSettings";
-import { BotAppearanceSettings } from "./BotAppearanceSettings";
+import { Button, Notice, Sheet } from "../../ui/components";
 import { BotSettingsExtras } from "./BotSettingsExtras";
-import { appearanceError, normalizeColor } from "@canopy/domain/bot-draft";
+import { BotSettingsFields } from "./BotSettingsFields";
+import { appearanceError, nameError, normalizeColor } from "@canopy/domain/bot-draft";
 import { useComputerHome } from "../computers/presence";
 
 export function BotSettings({
@@ -33,11 +31,13 @@ export function BotSettings({
   const saving = useRef(false);
   const pending = useRef({ configuration: "", id: "" });
 
-  const draftError = appearanceError(
-    config,
-    (names.data?.bots ?? known).filter((row) => row.nodeId === bot.nodeId).map((row) => row.configuration?.name ?? ""),
-    creating ? undefined : bot.configuration?.name,
-  );
+  const existingNames = (names.data?.bots ?? known)
+    .filter((row) => row.nodeId === bot.nodeId)
+    .map((row) => row.configuration?.name ?? "");
+
+  const draftError = appearanceError(config, existingNames, creating ? undefined : bot.configuration?.name);
+  const nameIssue = creating && draftError ? nameError(config.name, existingNames) : undefined;
+  const colorIssue = nameIssue ? undefined : draftError;
 
   const valid = !home.away && !draftError && !!config.model && !!config.provider;
 
@@ -89,6 +89,18 @@ export function BotSettings({
     }
   }
 
+  const action = (
+    <Button
+      variant="primary"
+      title={creating ? "Create bot" : "Save changes"}
+      busy={busy}
+      disabled={!online || !valid}
+      onPress={() => void save()}
+    />
+  );
+
+  const creationIssue = colorIssue || (online ? error : "You’re offline. Reconnect to create a bot.");
+
   return (
     <Sheet
       title={creating ? "Create bot" : "Bot settings"}
@@ -96,41 +108,33 @@ export function BotSettings({
       onClose={() => {
         if (!busy) onClose();
       }}
+      footer={
+        creating ? (
+          <>
+            {creationIssue ? <Notice error={online || !!colorIssue}>{creationIssue}</Notice> : null}
+            {action}
+          </>
+        ) : undefined
+      }
     >
-      <Field
-        label="Name"
-        value={config.name}
-        editable={!busy}
-        onChangeText={(name) => setConfig({ ...config, name })}
-        maxLength={80}
-      />
-      <Field
-        label="Standing instructions"
-        value={config.instructions}
-        editable={!busy}
-        onChangeText={(instructions) => setConfig({ ...config, instructions })}
-        multiline
-        maxLength={32000}
-      />
-      <BotAppearanceSettings config={config} onChange={setConfig} disabled={busy} />
-      <BotModelSettings bot={bot} config={config} onChange={setConfig} disabled={busy || home.away} guided={creating} />
-      {config.name.trim() && draftError ? <Notice error>{draftError}</Notice> : null}
-      <BotPermissionSettings
-        botId={creating ? undefined : bot.id}
+      <BotSettingsFields
+        bot={bot}
+        creating={creating}
         selectedRule={selectedRule}
         config={config}
         onChange={setConfig}
         disabled={busy}
+        modelDisabled={busy || home.away}
+        nameIssue={nameIssue}
+        draftError={draftError}
       />
-      {error ? <Notice error>{error}</Notice> : null}
-      <Button
-        variant="primary"
-        title={creating ? "Create bot" : "Save changes"}
-        busy={busy}
-        disabled={!online || !valid}
-        onPress={() => void save()}
-      />
-      {!creating && <BotSettingsExtras bot={bot} onClose={onClose} disabled={busy || home.away || !online} />}
+      {!creating && (
+        <>
+          {error ? <Notice error>{error}</Notice> : null}
+          {action}
+          <BotSettingsExtras bot={bot} onClose={onClose} disabled={busy || home.away || !online} />
+        </>
+      )}
     </Sheet>
   );
 }

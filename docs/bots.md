@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-24): [mobilny formularz Create bot](mobile.md) pokazuje nazwę,
+model i instrukcje przed rozwijanymi opcjami oraz umieszcza przycisk utworzenia
+pod przewijaną treścią. Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-23): `send_message` bez załączników rozpoznaje kwalifikowany identyfikator
 wątku na domowym gatewayu bota i sprawdza dostęp dla bieżącej rozmowy.
 Dostępność w kanałach określa [promocja wydań](release.md).
