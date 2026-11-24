@@ -2,10 +2,9 @@
 
 Status: opis zaimplementowanego workflow (2026-11-21). Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
-Release przekazuje klucz automatyzacji repozytorium do wywoływanego workflow Back-merge.
-Manifesty i indeksy obrazów OCI podają SHA wydawanych źródeł także przy wznowieniu z innej gałęzi.
 Domyślne okresy obserwacji to 6 h na dev i 24 h od gotowości bety. Publikacja bety
 otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetestowanej bety.
+Do serii 0.7 przeniesiono przekazywanie klucza do Back-merge oraz zapis SHA wydawanych źródeł w adnotacjach manifestów i indeksów OCI.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
 Release ponawia pakowanie macOS i Windows po błędzie. Beta publikuje zgodne OTA
 i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i wagi

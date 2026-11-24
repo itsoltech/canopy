@@ -6,10 +6,10 @@ oraz osobne aktualizacje Canopy i CLI dostawców. Na szerokim oknie iOS i Androi
 sidebar i rozmowa przesuwają wspólną krawędź podczas zwijania i rozwijania.
 Uchwyt na tej krawędzi zmienia szerokość sidebara i zapisuje ją lokalnie.
 Licznik i akcja Update all na telefonie wynikają z planu instalacji Canopy.
-Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej.
-Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
-Zmiana wątku nie przedłuża wyświetlania wyniku.
+Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelowej,
+a zmiana wątku nie przedłuża wyświetlania wyniku.
 Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
+Do serii 0.7 przeniesiono wygaszanie zapowiedzi restartu po potwierdzeniu gotowości binarnego gatewaya bez zmiany wersji.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
 podaje liczbę raportów bez kompletnego kosztu.
