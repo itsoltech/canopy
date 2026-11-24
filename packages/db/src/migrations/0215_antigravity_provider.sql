@@ -1,3 +1,7 @@
+-- Pending migrations share a transaction. Earlier thread backfills can leave
+-- deferred checks queued on rows whose table constraints are about to change.
+SET CONSTRAINTS ALL IMMEDIATE;
+
 ALTER TABLE agents DROP CONSTRAINT agents_provider_check;
 ALTER TABLE agents ADD CONSTRAINT agents_provider_check CHECK (provider IN ('claude', 'codex', 'grok', 'antigravity', 'anthropic', 'openai'));
 ALTER TABLE agents DROP CONSTRAINT agents_kind_provider;

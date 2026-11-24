@@ -157,6 +157,7 @@ describe.skipIf(!dockerAvailable)("migration 0018: per-worker profiles to global
     }>(`SELECT harness, id, kind, label, base_url, built_in, all_workers FROM provider_instances ORDER BY harness, id`);
 
     expect(rows.map((r) => `${r.harness}/${r.id}:${r.kind}:${r.base_url}`)).toEqual([
+      "antigravity/native:native:",
       "claude/cliproxyapi:endpoint:http://proxy-a:8317",
       "claude/native:native:",
       "codex/cliproxyapi:endpoint:http://proxy-a:8317",
@@ -165,10 +166,11 @@ describe.skipIf(!dockerAvailable)("migration 0018: per-worker profiles to global
       "codex/work-2:endpoint:http://w:1",
       "grok/native:native:",
     ]);
-    expect(rows.filter((r) => r.built_in).map((r) => [r.id, r.all_workers, r.label])).toEqual([
-      ["native", true, "Device"],
-      ["native", true, "Device"],
-      ["native", true, ""],
+    expect(rows.filter((r) => r.built_in).map((r) => [r.harness, r.id, r.all_workers, r.label])).toEqual([
+      ["antigravity", "native", true, ""],
+      ["claude", "native", true, "Device"],
+      ["codex", "native", true, "Device"],
+      ["grok", "native", true, ""],
     ]);
   });
 
