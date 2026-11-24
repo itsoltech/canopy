@@ -40,12 +40,15 @@
   aria-label={label}
   class={[
     "flex shrink-0 items-center opacity-0 transition-opacity duration-(--duration-quick) ease-out group-hover/message:opacity-100 group-hover/message:delay-(--duration-micro) group-has-[:focus-visible]/message:opacity-100 has-aria-expanded:opacity-100",
-    onreact ? "pointer-coarse:opacity-100" : "pointer-coarse:hidden",
+    reactions ? "pointer-coarse:opacity-100" : "pointer-coarse:hidden",
     className,
   ]}
 >
   {#if onreact && reactions}
     <MessageReactionPicker {reactions} {onreact} triggerId={reactionTriggerId} bind:open={pickerOpen} />
+  {:else if reactions}
+    <!-- Keep the bubble's width while the cached conversation connects. -->
+    <IconButton icon="face-smile" label="React to message" size="sm" disabled class="invisible" />
   {/if}
   <div class="contents pointer-coarse:hidden">
     {#if onreply}<IconButton icon="arrow-uturn-left" label="Reply" size="sm" onclick={onreply} />{/if}
