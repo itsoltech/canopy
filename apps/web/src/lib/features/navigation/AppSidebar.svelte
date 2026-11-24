@@ -7,7 +7,7 @@
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
-  import { needsYou, unseenResult } from "#lib/features/threads/activity.ts";
+  import { needsYou, unseenResult, workingTreeCount } from "#lib/features/threads/activity.ts";
   import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
   import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
   import { sidebarIdentity } from "@canopy/ui/sidebar-art";
@@ -75,11 +75,21 @@
     return threads.some(needsYou) ? "needs" : threads.some((t) => unseenResult(t) !== undefined) ? "unseen" : undefined;
   });
 
+  // Turns running right now, one per thread tree; snoozed trees stay quiet here as in the list.
+  const threadsWorking = $derived(
+    workingTreeCount(
+      overview.threads.values(),
+      (id) => overview.threads.get(id),
+      (thread) => isThreadSnoozed(thread, (id) => overview.threads.get(id)),
+    ),
+  );
+
   // Bots: unread messages as a number on the Bots segment; a card waiting for you without unread ones as a dot.
   $effect(() => (settings.loaded && settings.moduleEnabled("bots") ? botList.use() : undefined));
 
   const liveBots = $derived(botList.list.filter((bot) => !bot.archived));
   const botsUnread = $derived(liveBots.reduce((sum, bot) => sum + bot.unreadCount, 0));
+  const botsWorking = $derived(liveBots.filter((bot) => botList.executing(bot.id)).length);
 
   const botsAttention = $derived(
     liveBots.some((bot) => bot.pendingApproval && !overview.threadSnoozed(bot.pendingApproval.threadId))
@@ -127,6 +137,7 @@
           active={section}
           attention={{ threads: threadsAttention, bots: botsAttention }}
           counts={{ bots: botsUnread }}
+          working={{ threads: threadsWorking, bots: botsWorking }}
           class="sidebar-foreground sidebar-gutter pb-2"
         />{/if}
 
