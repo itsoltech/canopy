@@ -22,17 +22,32 @@ static void Complete(napi_threadsafe_function callback, const char* status) {
     napi_release_threadsafe_function(callback, napi_tsfn_release);
 }
 
-static void ReadPermission(UNUserNotificationCenter* center, napi_threadsafe_function callback) {
+static void ReadPermission(UNUserNotificationCenter* center, napi_threadsafe_function callback, bool request) {
   [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings* settings) {
     switch (settings.authorizationStatus) {
       case UNAuthorizationStatusAuthorized:
+      case UNAuthorizationStatusProvisional:
         Complete(callback, "granted");
         break;
       case UNAuthorizationStatusDenied:
         Complete(callback, "denied");
         break;
+      case UNAuthorizationStatusNotDetermined:
+        if (request) {
+          [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound |
+                                                   UNAuthorizationOptionBadge)
+                                completionHandler:^(BOOL, NSError* error) {
+            if (error == nil) ReadPermission(center, callback, false);
+            else if ([error.domain isEqualToString:UNErrorDomain] && error.code == UNErrorCodeNotificationsNotAllowed)
+              Complete(callback, "denied");
+            else Complete(callback, nullptr);
+          }];
+        } else {
+          Complete(callback, "default");
+        }
+        break;
       default:
-        Complete(callback, "default");
+        Complete(callback, nullptr);
         break;
     }
   }];
@@ -51,17 +66,7 @@ static napi_value Permission(napi_env env, bool request) {
   }
   napi_unref_threadsafe_function(env, callback);
 
-  UNUserNotificationCenter* center = UNUserNotificationCenter.currentNotificationCenter;
-  if (request) {
-    [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound |
-                                             UNAuthorizationOptionBadge)
-                          completionHandler:^(BOOL, NSError* error) {
-      if (error == nil) ReadPermission(center, callback);
-      else Complete(callback, nullptr);
-    }];
-  } else {
-    ReadPermission(center, callback);
-  }
+  ReadPermission(UNUserNotificationCenter.currentNotificationCenter, callback, request);
   return promise;
 }
 

@@ -17,7 +17,6 @@
   let macOS = $state(false);
   let pending = $state<{ key: Key; value: string }>();
   let attempted = $state<Key>();
-  let error = $state<{ key: Key; text: string }>();
   let permissionRead = 0;
 
   const options = [
@@ -46,7 +45,10 @@
   const rows = $derived(choices.filter((choice) => settings.moduleEnabled(choice.module)));
 
   const permissionRow = $derived(rows.find((row) => device.values[row.key] !== "off")?.key);
-  const warningRow = $derived(permissionRow ?? attempted);
+
+  const warningRow = $derived(
+    attempted ?? permissionRow ?? (macOS && permission === "denied" ? rows[0]?.key : undefined),
+  );
 
   const canRetry = $derived(
     permission === "default" || permission === "unavailable" || (permission === "denied" && !desktop),
@@ -57,11 +59,14 @@
 
     if (permission === "denied")
       return macOS
-        ? "macOS blocks these alerts. Open Notifications in System Settings and allow Canopy."
+        ? "macOS blocks system notifications. In System Settings → Notifications, select Canopy and turn on Allow notifications."
         : "Your browser blocks these alerts. Allow notifications for Canopy in site settings.";
 
     if (permission === "default" && attempted && !permissionRow)
       return "Choose a notification option again, then select Allow.";
+
+    if (permission === "unavailable" && attempted)
+      return "Canopy couldn’t enable notifications. Choose a notification option to try again.";
 
     return "";
   });
@@ -93,7 +98,6 @@
 
   async function change(key: Key, value: string) {
     if (pending) return;
-    error = undefined;
     attempted = undefined;
 
     if (value === "off") {
@@ -113,10 +117,8 @@
       if (permission === "granted") device.set(key, value);
       else attempted = key;
     } catch {
-      error = {
-        key,
-        text: "Canopy could not enable these alerts. Check your notification settings and try again.",
-      };
+      permission = "unavailable";
+      attempted = key;
     } finally {
       pending = undefined;
     }
@@ -133,10 +135,8 @@
       onreset={() => change(row.key, "off")}
     >
       <div class="mt-2 grid gap-2 empty:hidden">
-        {#if error?.key === row.key}
-          <Alert tone="error">{error.text}</Alert>
-        {:else if warningRow === row.key && warning}
-          <Alert tone="warning">{warning}</Alert>
+        {#if warningRow === row.key && warning}
+          <Alert tone={permission === "unavailable" ? "error" : "warning"}>{warning}</Alert>
         {/if}
         {#if !desktop && value === "sound"}
           <p class="text-sm/5 text-zinc-500">After reloading, click or press a key to enable sound.</p>
