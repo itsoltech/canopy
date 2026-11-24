@@ -1,5 +1,8 @@
 # Połączone komputery
 
+Status (2026-11-24): w web i desktopie miniatury i otwarte podglądy obrazów
+pozostają stabilne po aktualizacji metadanych komputera z niezmienionym stanem połączenia.
+
 Status (2026-11-24): na połączonym komputerze ze wspólną konfiguracją web i desktop pokazują
 lokalne kopie skilli i pozwalają przenieść wybraną kopię do archiwum na tym komputerze.
 
@@ -3269,6 +3272,8 @@ wariant odczytu, kod RPC i oczyszczony komunikat, bez identyfikatorów, bajtów
 ani przyczyn transportowych. Podglądy obrazów i tekstu pokazują ten powód oraz
 Retry. Zamontowany podgląd ponawia odczyt po zmianie obecności domu lub
 odtworzeniu połączenia klienta. Dotyczy to także mobilnego odczytu Connect.
+W web i desktopie aktualizacja metadanych połączonego komputera z niezmienionym
+stanem połączenia zachowuje załadowany obraz i przycisk otwierania podglądu.
 
 ### Podglądy plików workspace
 

@@ -23,7 +23,10 @@
 
   let retry = $state(0);
   const connection = attachmentConnection(() => entityId);
-  const preview = $derived({ src, availability: connection(), retry, controller: new AbortController() });
+
+  // Linked computer metadata can change while the attachment's availability stays the same.
+  const availability = $derived(connection());
+  const preview = $derived({ src, availability, retry, controller: new AbortController() });
   let failure = $state.raw<{ attempt: typeof preview; message: string }>();
   let loaded = $state.raw<typeof preview>();
 
