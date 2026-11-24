@@ -1,5 +1,9 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-24): migracja `0210_bot_approval_restricted_thread` wiąże jednorazową
+zgodę na `send_message` z docelowym wątkiem o odrębnym zakresie. Starsze karty mają
+`NULL` w `bot_approvals.restricted_thread_id`.
+
 Status (2026-11-24): migracja `0209_memory_reflection_hourly` dopuszcza interwał
 60 minut dla [sprawdzania nawyków](agent-memory.md#refleksja).
 

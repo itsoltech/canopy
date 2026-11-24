@@ -13,8 +13,9 @@ import { GatewayStore, Invalid, NotFound } from "../store/store.ts";
 import { platformError } from "./errors.ts";
 import { BotStore } from "./store.ts";
 import { approvalPrompt, nextReplyHop, statusPhrase } from "./policy.ts";
+import { threadSharingNotice } from "./approval-fields.ts";
 import { forwardingApproval, forwardingIds, localForwardTarget } from "../core/bot-files.ts";
-import type { BotTurn, StoredCall, ToolSpec } from "./types.ts";
+import type { BotTurn, PreparedBotTool, StoredCall, ToolSpec } from "./types.ts";
 import { areaTool } from "./tools/index.ts";
 import { context, validate, type ToolResult } from "./tools/shared.ts";
 import { automationMode, inheritedWorkspace } from "../worktrees/automation.ts";
@@ -109,7 +110,7 @@ export async function prepareBotTool(
   options: GatewayCoreOptions,
   turn: BotTurn,
   call: StoredCall,
-): Promise<{ prompt?: string } | undefined> {
+): Promise<PreparedBotTool | undefined> {
   if (call.tool.source !== "platform") return undefined;
   call = await availableBotCall(options, {
     ...call,
@@ -122,14 +123,23 @@ export async function prepareBotTool(
     validate(call.tool.parameters, call.arguments);
     const ids = forwardingIds(call.arguments);
     localForwardTarget(call.arguments, ids);
-    await authorizeBotThreadCall(core, turn, call);
+    const access = await authorizeBotThreadCall(core, turn, call, "prepare");
+    const thread = access?.restrictedThread;
+    const title = thread?.title.replace(/\s+/g, " ").trim();
 
-    return forwardingApproval(
-      core,
-      turn,
-      ids,
-      approvalPrompt(call.tool, call.arguments, await describeBotTool(core, call.tool, call.arguments)),
-    );
+    const prompt = thread
+      ? [
+          title ? `Needs approval · Messaging “${title}”` : "Needs approval · Messaging a thread",
+          `Sharing: ${threadSharingNotice}`,
+          `Thread ID: ${thread.id}`,
+          `Delivery: ${call.arguments["delivery"] === "steer" ? "Send to active turn" : "Queue"}`,
+          `Message: ${context(core, options, turn, call).string("text")}`,
+        ].join("\n")
+      : approvalPrompt(call.tool, call.arguments, await describeBotTool(core, call.tool, call.arguments));
+
+    const forwarding = await forwardingApproval(core, turn, ids, prompt);
+
+    return thread ? { prompt: forwarding?.prompt ?? prompt, restrictedThreadId: thread.id } : forwarding;
   }
 
   await authorizeBotThreadCall(core, turn, call);
@@ -198,7 +208,7 @@ export async function botPlatform(
     validate(call.tool.parameters, args);
 
     if (["start_thread", "send_message"].includes(call.tool.name)) localForwardTarget(args, forwardingIds(args));
-    const questionId = await authorizeBotThreadCall(core, turn, call);
+    const questionId = (await authorizeBotThreadCall(core, turn, call))?.questionId;
 
     if (questionId && call.tool.name === "read_thread") {
       const questions = await core[coreState].actions.run(

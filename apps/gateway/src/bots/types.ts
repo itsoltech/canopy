@@ -119,6 +119,11 @@ export interface StoredCall {
   result: ToolResult;
 }
 
+export interface PreparedBotTool {
+  prompt?: string;
+  restrictedThreadId?: string;
+}
+
 export interface McpConnection {
   namespace?: string;
   id: string;

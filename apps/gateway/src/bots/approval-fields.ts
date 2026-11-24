@@ -1,6 +1,8 @@
 import { Predicate } from "effect";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 
+export const threadSharingNotice = "Others may see the message and files.";
+
 const heading = (key: string) => key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 function value(input: JsonValue | undefined, depth = 0): string {

@@ -291,7 +291,7 @@ const legacyTools: ToolSpec[] = [
   ),
   tool(
     "send_message",
-    "Send to an existing thread: queue (next turn) or steer (into the running turn, falling back to queue). Completion arrives as a follow-up.",
+    "Send to an existing thread: queue (next turn) or steer (into the running turn, falling back to queue). A private owner request or scheduled owner routine needs explicit approval to send to a local thread with a separate audience. Completion arrives as a follow-up.",
     {
       thread_id: str,
       text: str,
