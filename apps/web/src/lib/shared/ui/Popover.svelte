@@ -186,30 +186,54 @@
     return autoPosition(target, panel, { placement, offset, followMotion });
   });
 
-  // Light dismiss: pointer down outside the panel and its trigger.
+  // A sheet keeps its backdrop through the click so the tap cannot activate a control underneath.
   $effect(() => {
     if (!open) return;
 
+    let pressedBackdrop = false;
+
+    function onBackdrop(event: MouseEvent) {
+      if (!narrow || !panel || !(event.target instanceof Element)) return false;
+
+      if (event.target === panel) return event.clientY < panel.getBoundingClientRect().top;
+
+      if (panel.contains(event.target)) return false;
+
+      // Popover backdrops can pass hits through to the page or the dialog hosting the sheet.
+      // Let a separate top-layer dialog handle its own controls.
+      const overlay = event.target.closest(":popover-open, dialog:modal");
+
+      return !overlay || overlay.contains(panel);
+    }
+
     const onpointerdown = (event: PointerEvent) => {
+      pressedBackdrop = onBackdrop(event);
+
+      if (pressedBackdrop) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        return;
+      }
+
       const target = event.target;
 
       if (!panel || !(target instanceof Node)) return;
 
       if (anchor?.contains(target) || anchorElement?.contains(target)) return;
 
-      if (target === panel && narrow) {
-        // The sheet's backdrop belongs to the panel element: close when the press is outside its box.
-        const box = panel.getBoundingClientRect();
-
-        if (event.clientY < box.top) open = false;
-
-        return;
-      }
-
       if (!panel.contains(target)) open = false;
     };
 
+    const onclick = (event: MouseEvent) => {
+      if (!pressedBackdrop || !onBackdrop(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      open = false;
+    };
+
     document.addEventListener("pointerdown", onpointerdown, true);
+    document.addEventListener("click", onclick, true);
 
     // A choice can remove its own button (for example Clear filters), leaving focus on body.
     // Keep Escape working in that case as well as on the trigger.
@@ -229,6 +253,7 @@
 
     return () => {
       document.removeEventListener("pointerdown", onpointerdown, true);
+      document.removeEventListener("click", onclick, true);
       document.removeEventListener("keydown", lostFocusEscape);
     };
   });

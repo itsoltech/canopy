@@ -399,6 +399,7 @@ Ikona Usage otwiera podsumowanie tokenów i kosztu w USD za ostatnie 30 dni kale
 Panel pobiera dane przy otwarciu. „Open usage report” otwiera pełny raport nad bieżącą stroną.
 Najechanie na Usage, Workers, Updates lub Provider usage pokazuje jeden panel naraz.
 Aktywacja przycisku przypina panel, a na telefonie otwiera dolny arkusz.
+Dotknięcie przyciemnionego tła zamyka arkusz i pozostawia nawigację w miejscu.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
 nie pokazuje ikony Usage.
