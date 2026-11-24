@@ -12,13 +12,22 @@
    */
   provideDensity("overlay");
 
-  let { children }: { children?: Snippet } = $props();
+  let { children, inDialog = false }: { children?: Snippet; inDialog?: boolean } = $props();
 </script>
 
 <div
-  class="density-overlay pointer-events-none fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-50 sm:left-auto sm:w-96"
+  class={[
+    "density-overlay pointer-events-none right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-50 sm:left-auto sm:w-96",
+    inDialog ? "absolute" : "fixed",
+  ]}
 >
-  <div class="grid" role="status" aria-live="polite">
+  <div
+    class="grid"
+    data-dialog-toasts={inDialog || undefined}
+    class:window-toasts={!inDialog}
+    role="status"
+    aria-live="polite"
+  >
     {#each toasts as entry (entry.id)}
       <div
         class="t-toast pointer-events-auto col-start-1 row-start-1 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl bg-white p-3 text-base/6 text-zinc-950 shadow-lg ring-1 ring-zinc-950/10 data-closing:pointer-events-none sm:text-sm/5 dark:bg-zinc-900 dark:text-zinc-100 dark:shadow-none dark:ring-white/10"
@@ -67,3 +76,10 @@
   </div>
   {@render children?.()}
 </div>
+
+<style>
+  /* The main document is inert behind a native modal. Keep one copy of these messages visible. */
+  :global(body:has(dialog:modal [data-dialog-toasts])) .window-toasts {
+    display: none;
+  }
+</style>

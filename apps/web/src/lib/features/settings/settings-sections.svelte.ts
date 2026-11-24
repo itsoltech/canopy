@@ -1,6 +1,7 @@
 import { onMount } from "svelte";
 import type { SettingsSection } from "@canopy/ui/settings";
 import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+import { memorySettingsPath, pendingHabitCount } from "#lib/features/memory/habit-suggestions.svelte.ts";
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { hasCliUpdates } from "#lib/features/workers/cli-tools.svelte.ts";
 import { useSettings } from "./settings-state.svelte.ts";
@@ -40,6 +41,9 @@ export function useSettingsSections() {
     },
     get current() {
       return sections.find((section) => isActive(section.href));
+    },
+    get habitCount() {
+      return sections.some((section) => section.href === memorySettingsPath) ? pendingHabitCount(overview) : 0;
     },
     isActive,
     hinted: (href: string) => hinted.has(href),

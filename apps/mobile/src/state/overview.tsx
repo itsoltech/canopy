@@ -98,7 +98,8 @@ function useOverviewState() {
   useOverviewEvents((update: ui.OverviewUpdate) => {
     const change = update.change;
 
-    if (change.case === "threadHeads" || change.case === "gatewayDeparture") return;
+    if (change.case === "threadHeads" || change.case === "gatewayDeparture" || change.case === "memoryHabitsChanged")
+      return;
 
     if (change.case === "mobileRoutes") {
       client?.update(change.value);

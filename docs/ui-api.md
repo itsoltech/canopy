@@ -2588,7 +2588,7 @@ trzech metod pamięci na podłączonym gatewayu.
 
 ### Refleksja
 
-Status (2026-11-23): Habits we wspólnym rendererze web i desktop oraz w mobilnym
+Status (2026-11-24): Habits we wspólnym rendererze web i desktop oraz w mobilnym
 kliencie Connect łączy modele workerów według dostawcy, profilu i identyfikatora
 modelu. Zapis obejmuje wybrane projekty, harmonogram, profil, model i effort.
 Gateway dobiera dostępnego workera przy uruchomieniu. Potwierdza to przez
@@ -2602,6 +2602,12 @@ gatewaya.
 do `UpdateMemoryReflection`. `POST /api/memory/habits/[habitId]` przekazuje
 decyzję z rewizjami do `ResolveMemoryHabit`. Ścieżki korzystają z autoryzacji
 właściciela gatewaya. Starszy gateway może nadal obsługiwać same notatki.
+Lokalny `WatchOverview` z opcją `watch_memory_habits` przekazuje
+`memory_habits_changed` przy zmianie zestawu
+sugestii do przeglądu lub ich rewizji. Klient odświeża wspólny odczyt
+`GetMemoryHabits`. Zdarzenie przenosi jedynie informację o zmianie.
+Gateway porównuje sugestie po zakończeniu analizy i rozstrzygnięciu oraz co
+około 30 sekund w trakcie subskrypcji, żeby uwzględnić wygaśnięcie dowodów.
 [Refleksja](agent-memory.md#refleksja)
 
 ### Licencje open source

@@ -35,6 +35,7 @@ export interface CoreWatchMethods {
     signal: AbortSignal,
     includeSnapshot?: boolean,
     headIds?: readonly string[],
+    watchMemoryHabits?: boolean,
   ): AsyncGenerator<ui.OverviewUpdate>;
 }
 
@@ -206,6 +207,7 @@ export const coreWatchMethods: CoreWatchMethods = {
     signal: AbortSignal,
     includeSnapshot = false,
     headIds: readonly string[] = [],
+    watchMemoryHabits = false,
   ): AsyncGenerator<ui.OverviewUpdate> {
     const subscription = this.hub.subscribeOverview();
 
@@ -217,7 +219,7 @@ export const coreWatchMethods: CoreWatchMethods = {
       (cause) => subscription.updates.close(cause),
     );
 
-    const detach = this.feeds.attach();
+    const detach = this.feeds.attach(watchMemoryHabits);
 
     const close = () => {
       subscription.updates.discard();
@@ -256,6 +258,9 @@ export const coreWatchMethods: CoreWatchMethods = {
 
       for await (const update of subscription.updates) {
         if (signal.aborted) return;
+
+        if (update.change.case === "memoryHabitsChanged" && !watchMemoryHabits) continue;
+
         yield update;
       }
     } finally {

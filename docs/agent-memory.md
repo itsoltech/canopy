@@ -93,9 +93,11 @@ przenosi notatki, ich zakresy oraz potwierdzenia operacji.
 
 ## Refleksja
 
-Status (2026-11-23): Habits w Settings → Memory, okresowa analiza wiadomości,
+Status (2026-11-24): Habits w Settings → Memory, okresowa analiza wiadomości,
 przegląd sugestii i dostarczanie zatwierdzonych nawyków do Claude, Codexa i Groka
-są zaimplementowane. Dostępność zależy od [promocji wydania](release.md).
+są zaimplementowane. Harmonogram obejmuje sprawdzanie co godzinę.
+Dostępne sugestie są sygnalizowane w nawigacji i powiadomieniem w aplikacji.
+Dostępność zależy od [promocji wydania](release.md).
 Ustawienia Habits w webie, desktopie i aplikacji mobilnej pozwalają wybrać
 model z profilu dostawcy oraz poziom rozumowania. Gateway dobiera workera
 przy każdym przebiegu analizy.
@@ -114,7 +116,7 @@ prostego języka inspirowanego ASD-STE100. Przykład:
 
 - Refleksja jest domyślnie wyłączona. Właściciel wybiera projekty, których
   wiadomości chce analizować, oraz częstotliwość. Dostępne interwały to
-  6, 12 i 24 godziny oraz 3 i 7 dni. Domyślne są 24 godziny.
+  1, 6, 12 i 24 godziny oraz 3 i 7 dni. Domyślne są 24 godziny.
 - Opcja All projects zaznacza wszystkie dostępne projekty
   niezależnie od wyszukiwania. Ponowne kliknięcie przy pełnym wyborze czyści
   zaznaczenie. Zapis obejmuje bieżący wybór. Aby uwzględnić nowo dodane
@@ -161,6 +163,11 @@ dowodem prośby.
 ukrycie albo purge źródła aktualizuje podstawę oczekującej sugestii.
 Właściciel widzi przykłady z nadal dostępnych rozmów. Rozstrzygnięcie
 sprawdza rewizje.
+Licznik w nawigacji obejmuje sugestie dostępne do przeglądu. Gdy w trakcie pracy
+pojawi się nowa, powiadomienie w aplikacji prowadzi do Settings → Memory akcją
+`Review habits`. Po ponownym połączeniu licznik odzwierciedla aktualny stan.
+[Powiadomienia](notifications.md#sugestie-habits)
+
 Ponowna analiza dowodów nie odtwarza odrzuconej lub usuniętej reguły.
 Nowsza sprzeczna korekta może wstrzymać automatyczne podawanie nawyku do
 decyzji właściciela.

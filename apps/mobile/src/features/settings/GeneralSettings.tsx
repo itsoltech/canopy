@@ -62,7 +62,7 @@ export function GeneralSettings() {
         <DeviceChoiceRow
           preference="inAppNotifications"
           title="In-app notifications"
-          description="Show alerts from other threads and chats while Canopy is open."
+          description="Show alerts for new habit suggestions and activity in other threads and chats while Canopy is open."
           options={[
             { value: "on", label: "On" },
             { value: "off", label: "Off" },

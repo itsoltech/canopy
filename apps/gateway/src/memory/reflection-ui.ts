@@ -17,7 +17,7 @@ import { reflectionProfiles } from "./reflection-profiles.ts";
 import { resolveHabit, suggestionsFor } from "./reflection-review.ts";
 
 const DEFAULT_INTERVAL_MINUTES = 1_440;
-const INTERVALS = new Set([360, 720, DEFAULT_INTERVAL_MINUTES, 4_320, 10_080]);
+const INTERVALS = new Set([60, 360, 720, DEFAULT_INTERVAL_MINUTES, 4_320, 10_080]);
 
 interface SettingsRow {
   worker_id: string | null;
@@ -289,6 +289,13 @@ export function reflectionHandlers(
         return updated;
       }),
     resolveMemoryHabit: (request) =>
-      reflectionGuard(() => actions.run(SqlClient.SqlClient.use((sql) => resolveHabit(sql, userId, request)))),
+      reflectionGuard(async () => {
+        const resolved = await actions.run(SqlClient.SqlClient.use((sql) => resolveHabit(sql, userId, request)));
+        const refresh = () => core.feeds.habitsChanged();
+
+        if (!actions.defer(refresh)) refresh();
+
+        return resolved;
+      }),
   };
 }

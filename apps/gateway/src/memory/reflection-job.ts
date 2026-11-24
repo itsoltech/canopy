@@ -196,6 +196,8 @@ export async function tickReflection(core: GatewayCore, now = new Date()) {
 
   const finished = currentTime();
   await runtime.runPromise(SqlClient.SqlClient.use((sql) => finish(sql, run, id, result, finished)));
+
+  if (result.state === "completed") core.feeds.habitsChanged();
 }
 
 export class ReflectionJob {

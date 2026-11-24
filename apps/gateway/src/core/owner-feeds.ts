@@ -7,6 +7,7 @@ import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 import { executingBotIds, listBotSummaries } from "./bot-execution.ts";
+import { suggestionsFor } from "../memory/reflection-review.ts";
 
 /** Domains an overview stream of this gateway pushes completely (`OverviewUpdate.feeds`). */
 export const OWNER_FEEDS = ["bots", "connectors", "proxies", "updates"] as const;
@@ -20,6 +21,7 @@ const UPDATES_MS = 250;
 /** How often the feed compares cheap revisions while a client watches (ms). Mutations here nudge it at once. */
 export const FEED_CHECK_MS = 2000;
 const NUDGE_MS = 100;
+const HABIT_REVIEW_CHECK_MS = 30_000;
 
 /** The owner's bot journal clock (migration 0091): bots, messages, turns and tool calls bump it at commit. */
 const BOT_CLOCK = `SELECT epoch::text AS id, revision::text AS revision FROM bot_view_clock WHERE owner_user_id = $1::uuid`;
@@ -84,6 +86,9 @@ export class OwnerFeeds {
   #connectors: string | undefined;
   #proxies: string | undefined;
   #config: string | undefined;
+  #habitWatchers = 0;
+  #habitReviews: string | undefined;
+  #habitReviewsDueAt = 0;
   #updates: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -92,16 +97,23 @@ export class OwnerFeeds {
   ) {}
 
   /** A subscriber started; returns its release. The feed runs while at least one watches. */
-  attach(): () => void {
+  attach(watchMemoryHabits: boolean): () => void {
     this.#watchers++;
 
-    if (this.#watchers === 1) this.#schedule(0);
+    if (watchMemoryHabits) this.#habitWatchers++;
+
+    if (this.#watchers === 1 || (watchMemoryHabits && this.#habitWatchers === 1)) this.#schedule(0);
     let released = false;
 
     return () => {
       if (released) return;
       released = true;
       this.#watchers--;
+
+      if (watchMemoryHabits && --this.#habitWatchers === 0) {
+        this.#habitReviews = undefined;
+        this.#habitReviewsDueAt = 0;
+      }
 
       if (this.#watchers > 0) return;
       clearTimeout(this.#timer);
@@ -132,6 +144,14 @@ export class OwnerFeeds {
     this.#full ||= full;
 
     if (this.#watchers) this.#schedule(NUDGE_MS);
+  }
+
+  /** A reflection result or a review committed here. Other writers and evidence expiry are checked periodically. */
+  habitsChanged(): void {
+    if (!this.#habitWatchers) return;
+
+    this.#habitReviewsDueAt = 0;
+    this.nudge();
   }
 
   #schedule(delay: number): void {
@@ -187,6 +207,7 @@ export class OwnerFeeds {
       this.#query(CONNECTOR_REVISION),
       this.#query(PROXY_REVISION),
       this.#query(CONFIG_REVISION),
+      this.#checkHabitReviews().catch(() => {}),
     ]);
 
     await this.#compareBots(
@@ -209,6 +230,27 @@ export class OwnerFeeds {
     if (this.#config !== undefined && this.#config !== configuration)
       this.#publish({ case: "linkedReadCompleted", value: "GetComputers" });
     this.#config = configuration;
+  }
+
+  async #checkHabitReviews(): Promise<void> {
+    const now = performance.now();
+
+    if (!this.#habitWatchers || now < this.#habitReviewsDueAt) return;
+    this.#habitReviewsDueAt = now + HABIT_REVIEW_CHECK_MS;
+    const { runtime, userId } = this.core[coreState].options;
+
+    const suggestions = await runtime.runPromise(
+      SqlClient.SqlClient.use((sql) => suggestionsFor(sql, userId)).pipe(queryFamily("overview.feeds"), queryRpc),
+    );
+
+    const reviews = suggestions
+      .map(({ id, revision }) => `${id}:${revision}`)
+      .sort()
+      .join(",");
+
+    if (!this.#habitWatchers || this.#habitReviews === reviews) return;
+    this.#habitReviews = reviews;
+    this.#publish({ case: "memoryHabitsChanged", value: true });
   }
 
   /** Bots named by the journal, or whose waiting cards or live execution changed. */

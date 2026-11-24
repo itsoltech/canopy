@@ -21,12 +21,8 @@ import consolidation from "./0189_consolidation.sql" with { type: "text" };
 import settingsGuidance from "./0190_settings_guidance.sql" with { type: "text" };
 import botBackgroundContinuations from "./0191_bot_background_continuations.sql" with { type: "text" };
 import gatewayOnboarding from "./0192_gateway_onboarding.sql" with { type: "text" };
-import agentMemory from "./0193_agent_memory.sql" with { type: "text" };
-import threadMemoryAudience from "./0194_thread_memory_audience.sql" with { type: "text" };
 import networkAccessAllowedNetworks from "./0195_network_access_allowed_networks.sql" with { type: "text" };
-import memoryNoteCreation from "./0196_memory_note_creation.sql" with { type: "text" };
 import connectorProjectAccess from "./0197_connector_project_access.sql" with { type: "text" };
-import memoryReflection from "./0198_memory_reflection.sql" with { type: "text" };
 import sandboxProfileOutbox from "./0199_sandbox_profile_outbox.sql" with { type: "text" };
 import botSteerSenders from "./0200_bot_steer_senders.sql" with { type: "text" };
 import connectorNoProject from "./0207_connector_no_project.sql" with { type: "text" };
@@ -195,6 +191,7 @@ import threadReadMetadata from "./0098_thread_read_metadata.sql" with { type: "t
 import messageReceipts from "./0099_message_receipts.sql" with { type: "text" };
 import databaseRetention from "./0104_database_retention.sql" with { type: "text" };
 import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { type: "text" };
+import { memoryMigrations } from "./memory.ts";
 import { mobilePushMigrations } from "./mobile-push.ts";
 import { createMigrator, sqlFile } from "./run.ts";
 
@@ -389,12 +386,9 @@ export const migrations = Migrator.fromRecord({
   "0190_settings_guidance": sqlFile(settingsGuidance),
   "0191_bot_background_continuations": sqlFile(botBackgroundContinuations),
   "0192_gateway_onboarding": sqlFile(gatewayOnboarding),
-  "0193_agent_memory": sqlFile(agentMemory),
-  "0194_thread_memory_audience": sqlFile(threadMemoryAudience),
+  ...memoryMigrations,
   "0195_network_access_allowed_networks": sqlFile(networkAccessAllowedNetworks),
-  "0196_memory_note_creation": sqlFile(memoryNoteCreation),
   "0197_connector_project_access": sqlFile(connectorProjectAccess),
-  "0198_memory_reflection": sqlFile(memoryReflection),
   "0199_sandbox_profile_outbox": sqlFile(sandboxProfileOutbox),
   "0200_bot_steer_senders": sqlFile(botSteerSenders),
   ...mobilePushMigrations,

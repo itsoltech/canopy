@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { create, equals } from "@bufbuild/protobuf";
   import { ui } from "@canopy/contracts";
   import { reflectionGatewayUpdate, reflectionWorkerForSave } from "@canopy/domain/reflection-models";
@@ -19,7 +19,8 @@
   import { toast } from "#lib/shared/ui/toast.svelte.ts";
   import HabitReflectionFields from "./HabitReflectionFields.svelte";
   import HabitReviewDialog from "./HabitReviewDialog.svelte";
-  import { getMemoryHabits, resolveMemoryHabit, updateMemoryReflection } from "./habits-api.ts";
+  import { resolveMemoryHabit, updateMemoryReflection } from "./habits-api.ts";
+  import { habitRead, readHabitsOnEntry } from "./habit-suggestions.svelte.ts";
   import { habitExamples } from "./habits-format.ts";
 
   let { onapproved }: { onapproved: () => void } = $props();
@@ -29,14 +30,14 @@
   const defaults = create(settingsSchema, { intervalMinutes: 1440 });
   const lifetime = new AbortController();
   const suggestionsId = $props.id();
-  let snapshot = $state.raw<ui.MemoryHabitsSnapshot>();
-  let draft = $state.raw(defaults);
-  let supported = $state(true);
-  let loading = $state(true);
+  const read = $derived(habitRead.snapshot);
+  const snapshot = $derived(read.data ?? undefined);
+  const supported = $derived(read.data !== null);
+  const loading = $derived(read.loading || (!read.loaded && !read.error));
+  let baseline = untrack(() => editable(habitRead.data?.settings));
+  let draft = $state.raw(baseline);
   let saving = $state(false);
   let valid = $state(false);
-  let loadGeneration = 0;
-  let loadFailed = $state(false);
   let saveFailure = $state<{ conflict: boolean; invalid: boolean; detail: string }>();
   let review = $state.raw<ui.MemoryHabitSuggestion>();
   let reviewOpen = $state(false);
@@ -66,33 +67,35 @@
     });
   }
 
-  async function load(resetDraft = false) {
-    const generation = ++loadGeneration;
-    const isCurrent = () => !lifetime.signal.aborted && generation === loadGeneration;
-    loading = true;
-    loadFailed = false;
+  $effect(() => {
+    if (!snapshot) return;
+    const next = editable(snapshot.settings);
 
-    try {
-      const next = await getMemoryHabits(lifetime.signal);
-
-      if (!isCurrent()) return;
-      supported = next !== null;
-
-      if (next && (resetDraft || !changed)) {
-        draft = editable(next.settings);
+    untrack(() => {
+      if (equals(settingsSchema, draft, baseline)) {
+        draft = next;
         saveFailure = undefined;
       }
 
-      snapshot = next ?? undefined;
+      baseline = next;
+    });
+  });
+
+  async function load(resetDraft = false) {
+    try {
+      const next = await habitRead.reload();
+
+      if (!lifetime.signal.aborted && next && resetDraft) {
+        draft = editable(next.settings);
+        saveFailure = undefined;
+      }
     } catch {
-      if (isCurrent()) loadFailed = true;
-    } finally {
-      if (isCurrent()) loading = false;
+      // The shared read exposes the load error beside the form.
     }
   }
 
   onMount(() => {
-    void load();
+    void readHabitsOnEntry(lifetime.signal).catch(() => {});
 
     return () => lifetime.abort();
   });
@@ -106,7 +109,9 @@
       const settings = await updateMemoryReflection({ ...draft, workerId }, lifetime.signal);
 
       if (lifetime.signal.aborted) return;
-      snapshot = { ...snapshot, settings };
+      const current = habitRead.data;
+
+      if (current && (current.settings?.revision ?? 0) <= settings.revision) habitRead.set({ ...current, settings });
       draft = editable(settings);
       await load(true);
 
@@ -131,7 +136,15 @@
 
     if (lifetime.signal.aborted) return;
     reviewOpen = false;
-    snapshot = { ...snapshot, suggestions: snapshot.suggestions.filter((item) => item.id !== suggestion.id) };
+    const current = habitRead.data;
+
+    if (current)
+      habitRead.set({
+        ...current,
+        suggestions: current.suggestions.filter(
+          (item) => item.id !== suggestion.id || item.revision !== suggestion.revision,
+        ),
+      });
 
     if (approve) onapproved();
     toast(approve ? (suggestion.suspended ? "Habit resumed" : "Habit saved as a project note") : "Suggestion rejected");
@@ -182,7 +195,7 @@
           <Spinner />Loading habits…
         </p>
       {/if}
-      {#if loadFailed}
+      {#if read.error && !read.loading}
         <div class="p-3">
           <Alert tone="error" title="Could not load habits">
             Check your connection.

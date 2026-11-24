@@ -4,8 +4,6 @@ import { useIsFocused } from "expo-router";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { count } from "@canopy/domain/usage-report";
-import { Code, ConnectError } from "@connectrpc/connect";
-import { useSharedQuery } from "../../state/queries";
 import { useSession } from "../../state/session";
 import { Button, IconButton, Notice } from "../../ui/components";
 import { SkeletonScope } from "../../ui/Skeleton";
@@ -15,8 +13,8 @@ import { MemoryHabitReview, MemoryHabitRow } from "./MemoryHabitReview";
 import { MemoryReflectionSheet } from "./MemoryReflectionSheet";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { MEMORY_HABITS, useMemoryHabits } from "./memory-habits";
 
-const queryKey = "GetMemoryHabits";
 const defaultSettings = create(ui.MemoryReflectionSettingsSchema, { intervalMinutes: 1440 });
 
 type HabitsSheet = { kind: "settings" } | { kind: "suggestion"; suggestion: ui.MemoryHabitSuggestion };
@@ -28,21 +26,7 @@ export function MemoryHabits({ onApproved }: { onApproved: () => void }) {
   const type = useTypography();
   const [sheet, setSheet] = useState<HabitsSheet>();
 
-  const resource = useSharedQuery(
-    queryKey,
-    async (signal) => {
-      if (!client) return null;
-
-      try {
-        return await client.api.getMemoryHabits({}, { signal });
-      } catch (cause) {
-        if (ConnectError.from(cause).code === Code.Unimplemented) return null;
-        throw cause;
-      }
-    },
-    Boolean(client) && focused,
-    30_000,
-  );
+  const resource = useMemoryHabits(focused);
 
   const snapshot = resource.data;
 
@@ -55,7 +39,10 @@ export function MemoryHabits({ onApproved }: { onApproved: () => void }) {
   async function save(draft: ui.MemoryReflectionSettings) {
     if (!client || !snapshot) return;
     const saved = await client.api.updateMemoryReflection({ settings: draft });
-    queries.set<ui.MemoryHabitsSnapshot | null>(queryKey, (current) => ({ ...(current ?? snapshot), settings: saved }));
+    queries.set<ui.MemoryHabitsSnapshot | null>(MEMORY_HABITS, (current) => ({
+      ...(current ?? snapshot),
+      settings: saved,
+    }));
     void reload();
   }
 
@@ -68,7 +55,7 @@ export function MemoryHabits({ onApproved }: { onApproved: () => void }) {
       approve,
       rule: approve ? rule : "",
     });
-    queries.set<ui.MemoryHabitsSnapshot | null>(queryKey, (current) => {
+    queries.set<ui.MemoryHabitsSnapshot | null>(MEMORY_HABITS, (current) => {
       const latest = current ?? snapshot;
 
       return { ...latest, suggestions: latest.suggestions.filter(({ id }) => id !== suggestion.id) };

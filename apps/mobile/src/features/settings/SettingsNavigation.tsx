@@ -1,7 +1,7 @@
 import { matchesSettingsSection, settingsGroups } from "@canopy/ui/settings";
 import { Pressable, Text, View } from "react-native";
 import { useOverview } from "../../state/overview";
-import { StatusDot } from "../../ui/Badge";
+import { Badge, StatusDot } from "../../ui/Badge";
 import { Button, Notice } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { SearchField } from "../../ui/SearchField";
@@ -9,6 +9,7 @@ import { styles, useColors, useTypography } from "../../ui/theme";
 import { CANOPY_VERSION } from "../../version";
 import { useSectionAvailability } from "./section-catalog";
 import { SettingsScroll } from "./SettingsScroll";
+import { habitSuggestionLabel } from "./memory-habits";
 
 export function useWorkerUpdateHint() {
   return useOverview().workers.some((worker) => worker.cliTools.some((tool) => tool.action === "update"));
@@ -21,6 +22,7 @@ export function SettingsNavigation({
   onQuery,
   compact,
   updates,
+  pendingHabits,
 }: {
   section: string;
   onSelect: (section: string) => void;
@@ -28,6 +30,7 @@ export function SettingsNavigation({
   onQuery: (query: string) => void;
   compact: boolean;
   updates: boolean;
+  pendingHabits: number;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -60,13 +63,15 @@ export function SettingsNavigation({
               const slug = entry.href.slice("/settings/".length);
               const active = section === slug;
               const hinted = slug === "workers" && updates;
+              const pending = slug === "memory" ? pendingHabits : 0;
+              const status = pending ? `${habitSuggestionLabel(pending)} to review` : hinted ? "Updates available" : "";
 
               return (
                 <Pressable
                   key={entry.href}
                   accessibilityRole="button"
                   accessibilityLabel={entry.label}
-                  accessibilityValue={hinted ? { text: "Updates available" } : undefined}
+                  accessibilityValue={status ? { text: status } : undefined}
                   accessibilityState={{ selected: active }}
                   onPress={() => onSelect(slug)}
                   style={({ pressed }) => [
@@ -84,6 +89,7 @@ export function SettingsNavigation({
                     {entry.label}
                   </Text>
                   {hinted && <StatusDot tone="amber" />}
+                  {pending > 0 && <Badge tone="amber">{pending.toLocaleString()} to review</Badge>}
                   {compact && active && <Icon name="check" color={c.icon} />}
                 </Pressable>
               );

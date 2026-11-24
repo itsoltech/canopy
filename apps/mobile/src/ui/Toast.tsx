@@ -8,7 +8,7 @@ import { styles, useColors } from "./theme";
 interface Toast {
   id: number;
   text: string;
-  action?: { label: string; run: () => Promise<void> };
+  action?: { label: string; run: () => void | Promise<void>; failure?: string };
 }
 
 let sequence = 0;
@@ -24,7 +24,18 @@ function publish(next: readonly Toast[]) {
 export function toast(text: string, action?: Toast["action"]) {
   const entry = { id: ++sequence, text, action };
   publish([...current, entry]);
-  setTimeout(() => publish(current.filter((item) => item.id !== entry.id)), 8000);
+  const timer = setTimeout(dismiss, 8000);
+
+  function dismiss() {
+    clearTimeout(timer);
+    remove(entry.id);
+  }
+
+  return dismiss;
+}
+
+function remove(id: number) {
+  if (current.some((item) => item.id === id)) publish(current.filter((item) => item.id !== id));
 }
 
 export function ToastHost() {
@@ -72,9 +83,9 @@ function ToastRow({ entry }: { entry: Toast }) {
     try {
       await entry.action.run();
     } catch {
-      toast("Could not undo this change. Check the connection and retry.", entry.action);
+      toast(entry.action.failure ?? "Could not undo this change. Check the connection and retry.", entry.action);
     } finally {
-      publish(current.filter((item) => item.id !== entry.id));
+      remove(entry.id);
     }
   }
 

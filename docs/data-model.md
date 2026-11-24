@@ -1,5 +1,8 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-24): migracja `0209_memory_reflection_hourly` dopuszcza interwał
+60 minut dla [sprawdzania nawyków](agent-memory.md#refleksja).
+
 Status (2026-11-23): migracja `0208_project_color` dodaje opcjonalny kolor projektu.
 `projects.color` przechowuje znormalizowane `#rrggbb`. `NULL` oznacza brak własnego
 koloru, a pusty ciąg zapisuje jawny powrót do doboru automatycznego.

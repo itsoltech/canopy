@@ -233,6 +233,7 @@ export class BffOverview {
         const request = create(ui.WatchOverviewRequestSchema, {
           includeSnapshot: true,
           threadHeadIds: this.#selectedHeads(heads),
+          watchMemoryHabits: true,
         });
 
         this.#headRotation += heads.length > MAX_HEADS ? MAX_HEADS : 0;

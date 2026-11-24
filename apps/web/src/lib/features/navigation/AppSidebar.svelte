@@ -12,6 +12,9 @@
   import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
   import { sidebarIdentity } from "@canopy/ui/sidebar-art";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import { pendingHabitCount } from "#lib/features/memory/habit-suggestions.svelte.ts";
+  import { habitSuggestionCount } from "#lib/features/memory/habits-format.ts";
   import ConnectionStatus from "./ConnectionStatus.svelte";
   import UpdatesIndicator from "#lib/features/desktop/UpdatesIndicator.svelte";
   import SidebarUsage from "#lib/features/providers/SidebarUsage.svelte";
@@ -91,6 +94,8 @@
 
   // Settings as a page (loaded on its own) or over the current one.
   const settingsActive = $derived(isSettingsRoute(page.route.id) || isSettingsRoute(page.shallow?.route?.id));
+  const habitCount = $derived(pendingHabitCount(overview));
+  const settingsLabel = $derived(habitCount ? `Open settings, ${habitSuggestionCount(habitCount)}` : "Open settings");
 
   const iconLink =
     "relative grid size-9 place-items-center rounded-lg text-icon-muted hover:bg-zinc-950/5 hover:text-icon-emphasis focus-ring sm:size-8 dark:hover:bg-white/5";
@@ -197,10 +202,13 @@
     <a
       href="/settings"
       class={[iconLink, "shrink-0", settingsActive && "text-icon-emphasis"]}
-      aria-label="Open settings"
-      title="Open settings"
+      aria-label={settingsLabel}
+      title={settingsLabel}
     >
-      <Icon name="cog-6-tooth" />
+      <span class="relative inline-flex">
+        <Icon name="cog-6-tooth" />
+        {#if habitCount}<span class="absolute -top-0.5 -right-1 flex"><StatusDot tone="amber" /></span>{/if}
+      </span>
     </a>
     {#if capabilities?.supports("/usage") ?? true}
       <IconButton icon="table-cells" label="Open usage" onclick={onOpenUsage} />

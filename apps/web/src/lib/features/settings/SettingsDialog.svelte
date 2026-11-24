@@ -9,6 +9,7 @@
   import { useSettings } from "./settings-state.svelte.ts";
   import { highlightSettingsMatches } from "./settings-search.ts";
   import SettingsNav from "./SettingsNav.svelte";
+  import Toaster from "#lib/shared/ui/Toaster.svelte";
   import { windowModal } from "#lib/shared/ui/window-modal.ts";
   import "./density.css";
 
@@ -124,4 +125,5 @@
       </div>
     </div>
   </div>
+  {#if open}<Toaster inDialog />{/if}
 </dialog>
