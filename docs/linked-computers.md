@@ -2237,7 +2237,8 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-23): konsolidacja wymaga migracji 0208 po obu stronach.
+Status (2026-11-24): konsolidacja wymaga migracji 0210 po obu stronach i zachowuje
+powiązanie jednorazowej zgody bota z wątkiem docelowym w historii.
 Import zachowuje kolor projektu ze źródła lub celu zgodnie z decyzją przy konflikcie.
 Zachowuje też zakres No project z zatwierdzonego konta konektora oraz
 wiązania profili Sandbox, listę profili właściciela

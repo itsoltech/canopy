@@ -92,6 +92,7 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   const bot = uuid();
   const botTurn = uuid();
   const botMessage = uuid();
+  const botApproval = uuid();
   const blob = Buffer.from("attachment fixture");
   const hash = Bun.SHA256.hash(blob, "hex");
   const oldRef = moved + "~" + source.nodeId.slice(0, 16);
@@ -172,6 +173,11 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await s`INSERT INTO bots(id,owner_user_id,client_request_id,configuration,provider,provider_instance)
     VALUES(${bot},${localOwner},'bot',jsonb_build_object('workerId',${worker}::text),'codex','native')`;
   await s`INSERT INTO bot_turns(id,bot_id,client_request_id,input,status) VALUES(${botTurn},${bot},'msg','fixture','completed')`;
+  await s`INSERT INTO bot_tool_calls(id,turn_id,call_key,tool,arguments,status)
+    VALUES(${botApproval},${botTurn},'send','{"source":"platform","name":"send_message"}',
+      jsonb_build_object('thread_id',${thread}::text,'text','fixture'),'completed')`;
+  await s`INSERT INTO bot_approvals(id,bot_id,turn_id,kind,prompt,status,answered_at,restricted_thread_id)
+    VALUES(${botApproval},${bot},${botTurn},'approval','Send to the delegated thread','approved',now(),${thread})`;
   await s`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text)
     VALUES(${botMessage},${bot},${botTurn},'answer',${bot},'user','message','fixture')`;
   await s`UPDATE bots SET last_read_seq=(SELECT seq FROM bot_messages WHERE id=${botMessage}) WHERE id=${bot}`;
@@ -219,6 +225,7 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
     attachment,
     schedule,
     bot,
+    botApproval,
     hash,
   };
 }
@@ -361,6 +368,9 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
     await sql`SELECT last_read_seq,seq FROM bots b JOIN bot_messages m ON m.bot_id=b.id WHERE b.id=${f.bot}`;
 
   expect(message?.last_read_seq).toBe(message?.seq);
+  expect(await sql`SELECT status,restricted_thread_id FROM bot_approvals WHERE id=${f.botApproval}`).toEqual([
+    { status: "approved", restricted_thread_id: f.thread },
+  ]);
 
   const [blob] =
     await sql`SELECT encode(sha256(data),'hex') AS hash FROM blobs JOIN attachments USING(sha256) WHERE id=${f.attachment}`;
