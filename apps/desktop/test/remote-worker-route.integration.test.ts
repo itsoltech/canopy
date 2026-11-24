@@ -21,6 +21,7 @@ async function workerListener(
 ) {
   let authentications = 0;
   let updateWatches = 0;
+  let canceled = false;
 
   const workerLink = createWorkerLink({
     async authenticate(token) {
@@ -33,6 +34,14 @@ async function workerListener(
 
   const server = await startGrpcServer({
     tls: { cert: identity.certificate, key: identity.privateKey },
+    interceptors: [
+      (next) => async (request) => {
+        if (canceled && request.method.name === "Connect")
+          throw new ConnectError("WorkerLink stream closed", Code.Canceled);
+
+        return next(request);
+      },
+    ],
     routes(router) {
       workerLink.routes(router);
       router.service(update.UpdateService, {
@@ -50,6 +59,10 @@ async function workerListener(
 
   return {
     ...server,
+    cancelWorkerLink: () => {
+      canceled = true;
+      workerLink.connections.get(workerId)?.close();
+    },
     authenticated: () => authentications,
     updateWatches: () => updateWatches,
     online: () => workerLink.connections.has(workerId),
@@ -109,7 +122,7 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
     );
 
   let desktop = launch();
-  let primaryClosed = false;
+  const workerLog = join(directory, "logs", "worker.log");
 
   try {
     await desktop.initialize(false);
@@ -118,8 +131,7 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
     expect(alternate.authenticated()).toBe(0);
     expect(alternate.updateWatches()).toBe(0);
 
-    await primary.close(0);
-    primaryClosed = true;
+    primary.cancelWorkerLink();
     await until(async () => alternate.online() && alternate.updateWatches() > 0);
     expect(alternate.authenticated()).toBeGreaterThanOrEqual(2); // ProbeNetworkRoute and WorkerLink.
     expect(untrusted.authenticated()).toBe(0);
@@ -128,6 +140,19 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
 
     await desktop.stop();
     await until(async () => !alternate.online());
+    const logOffset = readFileSync(workerLog, "utf8").length;
+    desktop = launch();
+    await desktop.initialize(false);
+    await desktop.configure(
+      { mode: "remote", gatewayUrl: untrusted.url, workerGatewayUrl: config.gatewayUrl },
+      { ...client, addresses: [untrusted.url] },
+    );
+    // The failed link is logged after exhausting the sole alternate.
+    await until(async () => readFileSync(workerLog, "utf8").slice(logOffset).includes("gateway link failed:"));
+    expect(untrusted.authenticated()).toBe(0);
+    expect(untrusted.updateWatches()).toBe(0);
+    await desktop.stop();
+
     const watches = alternate.updateWatches();
     desktop = launch();
     await desktop.initialize(false);
@@ -137,6 +162,6 @@ test("a paired desktop worker keeps its healthy route and reconnects over a veri
     expect(readFileSync(configPath, "utf8") === workerConfig).toBe(true);
   } finally {
     await desktop.stop();
-    await Promise.all([primaryClosed ? undefined : primary.close(0), alternate.close(0), untrusted.close(0)]);
+    await Promise.all([primary.close(0), alternate.close(0), untrusted.close(0)]);
   }
 }, 90_000);

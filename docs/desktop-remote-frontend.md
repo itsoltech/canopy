@@ -147,7 +147,8 @@ adres Desktopu przez prywatne środowisko procesu. Worker próbuje najpierw uży
 swojego zapisanego adresu. Po błędzie dostępności WorkerLink może spróbować
 alternatyw, jeśli pin Desktopu zgadza się z zapisanym pinem workera. Każda
 alternatywa musi przedstawić ten certyfikat i przyjąć poświadczenie workera w
-`ProbeNetworkRoute`. Worker przełącza WorkerLink i UpdateService w pamięci,
+`ProbeNetworkRoute`. Jeżeli jest alternatywa, oczekiwanie na pierwszy `Welcome`
+jest ograniczone do 30 s. Worker przełącza WorkerLink i UpdateService w pamięci,
 zachowując własne poświadczenie, tożsamość, journal i zapisany adres na następny
 start. Działające połączenie zachowuje swoją trasę.
 Nie wymagamy połączenia workera do otwarcia UI. Zmiana trybu nadal restartuje

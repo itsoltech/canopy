@@ -65,6 +65,22 @@ export class WorkerNetworkRoute {
     return this.#endpoint;
   }
 
+  get desktopWelcomeTimeoutMs() {
+    const routes = this.#pairedRoutes;
+
+    if (
+      routes &&
+      [this.#local.gateway_url, ...routes.addresses].some((origin) => origin !== this.#endpoint.gateway_url)
+    )
+      return 30_000;
+
+    return undefined;
+  }
+
+  get #pairedRoutes() {
+    return this.#desktopRoutes?.fingerprint === this.#local.gateway_fingerprint ? this.#desktopRoutes : undefined;
+  }
+
   status() {
     return create(NetworkRouteStatusSchema, {
       route: this.options.localWorker ? "local" : this.#endpoint.gateway_fingerprint ? "pinned" : "server",
@@ -73,18 +89,11 @@ export class WorkerNetworkRoute {
   }
 
   /** Pairing only provides hints. Reuse the worker's own pin and prove its credential on the alternate route. */
-  async recoverDesktopRoute() {
+  async recoverDesktopRoute(error: ConnectError) {
     const { signal } = this.options;
-    const desktopRoutes = this.#desktopRoutes;
-    const fingerprint = this.#local.gateway_fingerprint;
+    const desktopRoutes = this.#pairedRoutes;
 
-    if (
-      !desktopRoutes ||
-      desktopRoutes.fingerprint !== fingerprint ||
-      signal.aborted ||
-      this.#busy ||
-      Date.now() < this.#desktopRetryAt
-    )
+    if (!desktopRoutes || !routeUnavailable(error) || signal.aborted || this.#busy || Date.now() < this.#desktopRetryAt)
       return false;
 
     const origins = [...new Set([this.#local.gateway_url, ...desktopRoutes.addresses])]
@@ -97,7 +106,9 @@ export class WorkerNetworkRoute {
     const deadline = AbortSignal.any([signal, probes.signal, AbortSignal.timeout(5000)]);
 
     try {
-      const target = await Promise.any(origins.map((origin) => this.#verifyRoute(origin, fingerprint, deadline)));
+      const target = await Promise.any(
+        origins.map((origin) => this.#verifyRoute(origin, desktopRoutes.fingerprint, deadline)),
+      );
 
       if (signal.aborted) return false;
       this.#endpoint = target;
@@ -244,6 +255,16 @@ export class WorkerNetworkRoute {
       /* The next Hello reports it. */
     }
   }
+}
+
+function routeUnavailable(error: ConnectError) {
+  if ([Code.Unavailable, Code.Aborted, Code.Canceled].includes(error.code)) return true;
+  const cause = error.cause;
+
+  // connect-node maps socket reachability errors such as ENETUNREACH to Internal.
+  if (error.code !== Code.Internal || !(cause instanceof Error) || !("code" in cause)) return false;
+
+  return ["ENETUNREACH", "EHOSTUNREACH", "ENETDOWN", "EHOSTDOWN", "EPIPE"].some((code) => code === cause.code);
 }
 
 function routeFailure(error: Error | undefined) {
