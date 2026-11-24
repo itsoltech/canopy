@@ -1,6 +1,7 @@
 <script lang="ts">
   import { browser } from "$app/env";
   import type { ui } from "@canopy/contracts";
+  import { snoozeDeadline, snoozePresets } from "@canopy/domain/thread-snooze";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import MenuSub from "#lib/shared/ui/MenuSub.svelte";
@@ -46,11 +47,27 @@
         >
       </MenuSub>
     {/if}
-    <MenuItem
-      icon={item.icon}
-      disabled={item.disabled}
-      danger={item.id === "delete"}
-      onselect={() => void actions.run(item.id, thread)}>{item.label}</MenuItem
-    >
+    {#if item.id === "snooze"}
+      <MenuSub
+        label="Snooze options"
+        icon={item.icon}
+        disabled={item.disabled}
+        primary={{ label: "Snooze for 1 hour", onselect: () => void actions.snoozeUntil(thread, snoozeDeadline(1)) }}
+      >
+        {#each snoozePresets as preset (preset.value)}
+          <MenuItem onselect={() => void actions.snoozeUntil(thread, snoozeDeadline(preset.value))}
+            >{preset.label}</MenuItem
+          >
+        {/each}
+        <MenuItem onselect={() => actions.openSnooze(thread, true)}>Choose date and time</MenuItem>
+      </MenuSub>
+    {:else}
+      <MenuItem
+        icon={item.icon}
+        disabled={item.disabled}
+        danger={item.id === "delete"}
+        onselect={() => void actions.run(item.id, thread)}>{item.label}</MenuItem
+      >
+    {/if}
   {/each}
 </div>

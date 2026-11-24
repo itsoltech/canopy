@@ -1,7 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { goto } from "$app/navigation";
-import { getContext, setContext } from "svelte";
+import { getContext, setContext, tick } from "svelte";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { requestJson } from "#lib/shared/http.ts";
@@ -16,6 +16,22 @@ const KEY = Symbol("thread-actions");
 export const provideThreadActions = (actions: ThreadActions) => setContext(KEY, actions);
 export const useThreadActions = () => getContext<ThreadActions>(KEY);
 
+function focusOrigin(): HTMLElement | undefined {
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+  // A submenu closes with its parent. Restore focus to the trigger outside both.
+  const menu = focused?.closest('[role="menu"]:not([role="menu"] *)');
+
+  return menu?.id
+    ? (document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`) ?? focused)
+    : focused;
+}
+
+export function restoreSnoozeFocus(source?: HTMLElement): void {
+  if (source?.isConnected && !source.closest("[inert]")) source.focus({ preventScroll: true });
+  else if (document.activeElement === document.body)
+    document.querySelector<HTMLElement>("[data-snoozed-section] h2 button")?.focus({ preventScroll: true });
+}
+
 export class ThreadActions {
   dialog = $state.raw<{
     kind: "rename" | "delete" | "unpin" | "archive";
@@ -24,7 +40,7 @@ export class ThreadActions {
   }>();
   /** The thread "Move to…" is open for (MoveDialog). */
   moving = $state.raw<ui.Thread>();
-  snoozing = $state.raw<ui.Thread>();
+  snoozing = $state.raw<{ thread: ui.Thread; custom: boolean }>();
   saving = $state(false);
   returnFocus: HTMLElement | undefined;
   constructor(
@@ -91,8 +107,7 @@ export class ThreadActions {
           await this.lifecycle(thread.id, thread.markedUnread || thread.unseenResult ? "read" : "unread");
           break;
         case "snooze":
-          this.captureFocus();
-          this.snoozing = thread;
+          this.openSnooze(thread);
           break;
         case "wake":
           await this.setSnooze(thread.id, false);
@@ -121,6 +136,25 @@ export class ThreadActions {
     } catch (cause) {
       this.error(cause);
     }
+  }
+
+  openSnooze(thread: ui.Thread, custom = false): void {
+    this.returnFocus = focusOrigin();
+    this.snoozing = { thread, custom };
+  }
+
+  async snoozeUntil(thread: ui.Thread, until?: Date): Promise<void> {
+    const source = focusOrigin();
+
+    try {
+      await this.setSnooze(thread.id, true, until);
+    } catch {
+      toast("Could not snooze the thread. Try again.", { tone: "error" });
+    }
+
+    await tick();
+
+    if (document.activeElement === document.body) restoreSnoozeFocus(source);
   }
 
   async setSnooze(id: string, snoozed: boolean, until?: Date): Promise<void> {
@@ -212,15 +246,8 @@ export class ThreadActions {
       });
   }
   private openDialog(kind: "rename" | "delete" | "unpin" | "archive", thread: ui.Thread): void {
-    this.captureFocus();
+    this.returnFocus = focusOrigin();
     this.dialog = { kind, thread };
-  }
-  private captureFocus() {
-    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    const menu = focused?.closest('[role="menu"]');
-    this.returnFocus = menu?.id
-      ? (document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`) ?? focused)
-      : focused;
   }
   private publish(thread: ui.Thread) {
     this.overview.apply(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));

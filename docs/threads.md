@@ -3,6 +3,9 @@
 Status (2026-11-24): web i desktop rozdzielają sekcje Working i Snoozed liniami w nagłówkach
 i przygaszają uśpione wątki.
 
+Status (2026-11-24): w menu wątku w web i desktop można uśpić wątek na godzinę
+jednym kliknięciem lub wybrać inny termin z podmenu.
+
 Status (2026-11-24): w sidebarze web i desktop inicjały oraz logotypy projektów
 mają ten sam rozmiar co na przycisku pickera projektów w kompozytorze.
 Wskaźnik aktywności głównego wątku również ma 16 px. Znak projektu i wskaźnik
@@ -262,8 +265,10 @@ Oznaczenie pojawia się i znika animacją pop, z samą zmianą krycia przy ogran
 
 ## Usypianie
 
-**Snooze…** w menu aktywnego wątku głównego lub bocznego użytkownika przenosi go
-do zwijanej sekcji **Snoozed**. Można wybrać godzinę, 2 lub 6 godzin, koniec dnia
+Uśpienie aktywnego wątku głównego lub bocznego użytkownika przenosi go
+do zwijanej sekcji **Snoozed**. W menu web i desktop kliknięcie **Snooze for 1 hour**
+usypia wątek na godzinę. Najechanie na pozycję, kliknięcie jej strzałki
+lub naciśnięcie klawisza → otwiera podmenu. Można wybrać godzinę, 2 lub 6 godzin, koniec dnia
 w strefie urządzenia, konkretną datę i czas albo **Until I wake it**. Termin można
 zmienić, a **Wake thread** przywraca wątek od razu. Wątek z terminem sam wraca na
 listę po jego upływie, również po restarcie gatewaya.

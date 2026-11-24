@@ -10,10 +10,10 @@
   import FieldError from "#lib/shared/ui/FieldError.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import { localValue, parseDateTime } from "#lib/shared/ui/date-time.ts";
-  import { useThreadActions } from "../thread-actions.svelte.ts";
+  import { restoreSnoozeFocus, useThreadActions } from "../thread-actions.svelte.ts";
 
   const actions = useThreadActions();
-  const thread = $derived(actions.snoozing);
+  const thread = $derived(actions.snoozing?.thread);
   let custom = $state(false);
   let dateTime = $state("");
   let saving = $state(false);
@@ -33,17 +33,15 @@
   $effect(() => {
     if (thread) {
       origin = actions.returnFocus;
-      custom = false;
+
+      if (actions.snoozing?.custom) chooseDate(true);
+      else custom = false;
       dateTime = thread.snoozedUntil ? localValue(timestampDate(thread.snoozedUntil)) : "";
       failure = undefined;
     } else if (origin) {
       const source = origin;
       origin = undefined;
-      void tick().then(() => {
-        if (source.isConnected && !source.closest("[inert]")) source.focus({ preventScroll: true });
-        else if (document.activeElement === document.body)
-          document.querySelector<HTMLElement>("[data-snoozed-section] h2 button")?.focus({ preventScroll: true });
-      });
+      void tick().then(() => restoreSnoozeFocus(source));
     }
   });
 
@@ -105,7 +103,11 @@
         </Field>
         <FieldError message={failure} />
         <div class="flex justify-end gap-2">
-          <Button disabled={saving} onclick={() => chooseDate(false)}>Back</Button>
+          {#if actions.snoozing?.custom}
+            <Button disabled={saving} onclick={() => (actions.snoozing = undefined)}>Cancel</Button>
+          {:else}
+            <Button disabled={saving} onclick={() => chooseDate(false)}>Back</Button>
+          {/if}
           <Button type="submit" variant="primary" loading={saving} disabled={!dateTime}>Snooze</Button>
         </div>
       </form>
