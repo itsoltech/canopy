@@ -11,23 +11,22 @@
 
   /**
    * Segmented "Threads | Bots" switch at the top of the sidebar. Each segment links to the last page
-   * of its section; `attention` puts a dot on a segment you are not in: amber when something there needs
-   * you, emerald when something there finished and you have not seen it. `counts` shows a number instead (unread
-   * bot messages). `working` counts what runs right now (a thread's turn, a bot's execution) on every segment,
+   * of its section. On an inactive segment, `counts` shows unread bot messages and `needsAttention` shows
+   * an amber dot when there is no unread count. `working` counts running turns or bot executions on every segment,
    * the active one too, led by the spinner thread rows use; a narrow sidebar keeps the spinner alone. Markers
    * sit beside the label, outside its flow, so the label never moves when one appears. The raised pill slides to the active segment (sliding tabs, motion.css `t-tabs-pill`).
    */
   let {
     active,
     sections,
-    attention = {},
+    needsAttention = {},
     counts = {},
     working = {},
     class: className,
   }: {
     active: ModuleId;
     sections: readonly ModuleId[];
-    attention?: Partial<Record<ModuleId, "needs" | "unseen" | undefined>>;
+    needsAttention?: Partial<Record<ModuleId, boolean>>;
     counts?: Partial<Record<ModuleId, number>>;
     working?: Partial<Record<ModuleId, number>>;
     class?: ClassValue;
@@ -56,7 +55,6 @@
     {#each sections as section (section)}
       {@const current = section === active}
       {@const count = current ? 0 : (counts[section] ?? 0)}
-      {@const dot = !current && !count && attention[section]}
       {@const busy = working[section] ?? 0}
       <li>
         <a
@@ -87,10 +85,8 @@
                 <span class="rounded-full bg-action px-1.5 text-xs/4 font-medium text-on-accent tabular-nums">
                   {shown(count)}
                 </span><span class="sr-only">, {count} unread</span>
-              {:else if dot === "needs"}
+              {:else if !current && needsAttention[section]}
                 <StatusDot tone="amber" /><span class="sr-only">, needs you</span>
-              {:else if dot === "unseen"}
-                <StatusDot tone="emerald" /><span class="sr-only">, new results</span>
               {/if}
             </span>
           </span>
