@@ -1,6 +1,6 @@
 # Zwijanie pracy na osi wątku
 
-Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-20), w tym
+Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-24), w tym
 doczytywania brakującej pracy podczas przewijania lub na żądanie w web/desktop,
 stosowania „After the turn” do pracy poprzedzającej steer, kompaktowania kontekstu
 jako widocznej granicy segmentów pracy, odstępów wokół wiadomości postępu
@@ -15,7 +15,7 @@ Web/desktop i mobile zachowują tę kolejność na żywo, po ponownym odczycie h
 i przy doczytywaniu stron. `seq` logu nadal opisuje kolejność zapisu zdarzeń;
 steery zachowują swoje miejsce między segmentami, bo dołączają do trwającej tury.
 
-Każda tura od startu ma fold „Working for …”: czas aktualizowany co sekundę i krótki opis aktywnego narzędzia z dotychczasowym shimmerem. Settings → Threads → Turn activity zawiera trzy preferencje urządzenia, każdą z osobnym resetem:
+Każda tura od startu ma fold „Working for …”: czas aktualizowany co sekundę i krótki opis aktywnego narzędzia z dotychczasowym shimmerem. Grupa **Turn activity** zawiera trzy preferencje urządzenia, każdą z osobnym resetem. W web/desktop jest w zakładce **Conversation** sekcji Threads, a na mobile bezpośrednio w **Settings → Threads**.
 
 - „While working”: Expanded (domyślnie) lub Collapsed. Decyduje o całej sekcji pracy, zawierającej grupy narzędzi, podsumowania rozumowania i wiadomości postępu.
 - „Tool calls”: Collapsed (domyślnie) lub Expanded. Decyduje osobno o grupach narzędzi podczas pracy. Zwinięty nagłówek nadal pokazuje spinner, liczbę działających itemów oraz bieżącą komendę lub krok. Expanded automatycznie otwiera grupy; szczegóły pojedynczych itemów pozostają zwinięte.

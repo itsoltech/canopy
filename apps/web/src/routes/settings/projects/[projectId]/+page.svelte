@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
@@ -22,11 +23,11 @@
 
   const projectId = $derived(route.params.projectId ?? "");
   const project = $derived(overview.project(projectId));
-  let workspaces = $state<HTMLElement>();
+  let workspaceSection = $state<HTMLElement>();
 
   $effect(() => {
-    if (route.url.hash !== "#workspaces" || !workspaces) return;
-    const target = workspaces;
+    if (route.url.hash !== "#workspaces" || !workspaceSection) return;
+    const target = workspaceSection;
 
     const frame = requestAnimationFrame(() => {
       target.scrollIntoView({ block: "start" });
@@ -67,38 +68,51 @@
     onchange={() => void settings.reload()}
   />
 
-  {#if !project.nodeId && project.kind === "project"}
+  <SettingsTopics
+    label="Project settings"
+    defaultTopic={route.url.hash === "#workspaces" ? "workspaces" : undefined}
+    topics={[
+      { id: "workspaces", label: "Workspaces", content: workspaces },
+      { id: "threads", label: "Threads", content: threadSettings },
+      {
+        id: "details",
+        label: "Project details",
+        content: details,
+        hidden: !!project.nodeId || project.kind !== "project",
+      },
+    ]}
+  />
+
+  {#snippet workspaces()}
+    <div id="workspaces" bind:this={workspaceSection} tabindex="-1" class="scroll-mt-4 outline-none">
+      <SettingsGroup
+        title="Workspaces"
+        description="A new thread runs in one of these directories on the project's workers."
+      >
+        <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
+      </SettingsGroup>
+    </div>
+
+    {#if !project.nodeId}
+      {#key project.id}<ProjectWorktreeDefaults projectId={project.id} />{/key}
+    {/if}
+  {/snippet}
+  {#snippet threadSettings()}
+    <SettingsGroup title="Thread defaults" description="These override your defaults from Settings → Threads.">
+      <ThreadDefaultsFields
+        value={settings.projectDefaults(project.id)}
+        workspaces={[{ project, workspaces: project.workspaces }]}
+        inherited={settings.threadDefaults}
+        onchange={(next) => settings.updateProjectDefaults(project.id, next)}
+      />
+    </SettingsGroup>
+
+    <AutoArchiveSettings projectId={project.id} />
+  {/snippet}
+  {#snippet details()}
     <SettingsGroup>
       {#key project.id}<ProjectColor {project} />{/key}
-    </SettingsGroup>
-  {/if}
-
-  <div id="workspaces" bind:this={workspaces} tabindex="-1" class="scroll-mt-4 outline-none">
-    <SettingsGroup
-      title="Workspaces"
-      description="A new thread runs in one of these directories on the project's workers."
-    >
-      <ProjectWorkers {project} error={route.form?.action === "workspace" ? route.form.error : undefined} />
-    </SettingsGroup>
-  </div>
-
-  <SettingsGroup title="Thread defaults" description="These override your defaults from Settings → Threads.">
-    <ThreadDefaultsFields
-      value={settings.projectDefaults(project.id)}
-      workspaces={[{ project, workspaces: project.workspaces }]}
-      inherited={settings.threadDefaults}
-      onchange={(next) => settings.updateProjectDefaults(project.id, next)}
-    />
-  </SettingsGroup>
-
-  {#if !project.nodeId}
-    {#key project.id}<ProjectWorktreeDefaults projectId={project.id} />{/key}
-  {/if}
-  <AutoArchiveSettings projectId={project.id} />
-
-  {#if !project.nodeId && project.kind === "project"}
-    <SettingsGroup>
       <ProjectArchive {project} {threads} />
     </SettingsGroup>
-  {/if}
+  {/snippet}
 {/if}

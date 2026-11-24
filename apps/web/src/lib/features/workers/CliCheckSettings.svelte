@@ -27,7 +27,7 @@
   let error = $state("");
 
   async function change(value: string) {
-    if (pending) return;
+    if (pending || readOnly) return;
     error = "";
     pending = true;
 
@@ -60,7 +60,7 @@
   description={worker
     ? "Override how often this worker checks for new releases."
     : "Set how often your workers check for agent CLI releases."}
-  changed={worker ? worker.cliUpdateCheckMinutes !== undefined : account !== 360}
+  changed={!readOnly && (worker ? worker.cliUpdateCheckMinutes !== undefined : account !== 360)}
   onreset={() => change(worker ? "inherit" : "360")}
 >
   {#snippet control()}<div class="w-56 max-w-full">

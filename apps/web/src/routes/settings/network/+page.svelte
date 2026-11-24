@@ -1,5 +1,6 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -65,141 +66,169 @@
 </script>
 
 <svelte:head><title>Network access · Settings · {applicationName}</title></svelte:head>
-<div class="min-w-0 px-1">
-  <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Network access</h1>
-  <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    {capabilities?.linkedComputers
-      ? "Connect phones, linked computers and remote workers to this gateway."
-      : "Connect paired devices and remote workers to this gateway."}
-  </p>
-</div>
-{#if network.error}<ConnectionRequestError
-    title="Could not load network access"
-    error={network.error}
-    loaded={network.loaded}
-    loading={network.loading}
-    onretry={() => void network.reload()}
-  />{/if}
-{#if error && !hostnameOpen && !portOpen}<Alert tone="error"
-    >{error}<Button
-      size="sm"
-      onclick={() => {
-        error = "";
-        void network.reload();
-      }}>Retry</Button
-    ></Alert
-  >{/if}
-<SettingsGroup title="This computer">
-  <NetworkSwitchRow
-    {status}
-    disabled={!network.loaded || !!network.error || network.busy}
-    onchange={(enabled) => void change("set_enabled", { enabled })}
-  />
-  {#if status.allowedNetworks.length}<AllowedNetworksRow {network} />{/if}
-</SettingsGroup>
-{#if network.loaded}
-  {#if status.state === "error"}<Alert tone="error" title="Network access can't start"
-      >{status.error}{#if !status.portFixed}<Button
-          size="sm"
-          disabled={!!network.error || network.busy}
-          onclick={() => void change("choose_port")}>Pick a free port</Button
-        >{/if}</Alert
-    >{/if}
-  {#if status.note && !noAddresses}<Alert tone="warning">{status.note}</Alert>{/if}
-  <SettingsGroup
-    title="Reachable at"
-    description={capabilities?.linkedComputers
-      ? "Phones and linked computers try these addresses in turn. They follow this computer from network to network."
-      : "Paired devices and workers try these addresses in turn to reach this gateway."}
-  >
-    {#snippet actions()}<Button
+<SettingsTopics
+  label="Network access settings"
+  topics={[
+    { id: "connections", label: "Connections", content: connections },
+    { id: "tailscale", label: "Tailscale", content: tailscale, hidden: !network.loaded },
+    { id: "push-relay", label: "Push relay", content: relay, hidden: !capabilities?.pushRelaySettings },
+    { id: "attachments", label: "Attachments", content: attachments },
+  ]}
+/>
+
+{#snippet connectionError()}
+  {#if network.error}<ConnectionRequestError
+      title="Could not load network access"
+      error={network.error}
+      loaded={network.loaded}
+      loading={network.loading}
+      onretry={() => void network.reload()}
+    />{/if}
+{/snippet}
+
+{#snippet connections()}
+  <div class="min-w-0 px-1">
+    <h1 class="text-base/7 font-semibold text-zinc-950 dark:text-white">Network access</h1>
+    <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+      {capabilities?.linkedComputers
+        ? "Connect phones, linked computers and remote workers to this gateway."
+        : "Connect paired devices and remote workers to this gateway."}
+    </p>
+  </div>
+  {@render connectionError()}
+  {#if error && !hostnameOpen && !portOpen}<Alert tone="error"
+      >{error}<Button
         size="sm"
-        disabled={!!network.error || network.busy}
-        onclick={() => (hostnameOpen = true)}>Add hostname</Button
-      >{/snippet}
-    {#if status.addresses.length}
-      <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
-        {#each status.addresses as address (address.origin)}
-          <NetworkAddressRow
-            {address}
-            busy={!!network.error || network.busy}
-            onremove={address.kind === "hostname" ? () => removeHostname(address.host) : undefined}
-          />
-        {/each}
-      </ul>
-    {:else if noAddresses}
-      <p class="px-4 py-3 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        {status.note || "No connection addresses are available."}
-      </p>
-    {:else}
-      <SettingsRow
-        title="Not reachable"
-        description={network.error
-          ? undefined
-          : status.state === "off"
-            ? "Turn on network access to see this computer's addresses."
-            : "Resolve the network access error above to make this computer reachable."}
-      />
-    {/if}
+        onclick={() => {
+          error = "";
+          void network.reload();
+        }}>Retry</Button
+      ></Alert
+    >{/if}
+  <SettingsGroup title="This computer">
+    <NetworkSwitchRow
+      {status}
+      disabled={!network.loaded || !!network.error || network.busy}
+      onchange={(enabled) => void change("set_enabled", { enabled })}
+    />
+    {#if status.allowedNetworks.length}<AllowedNetworksRow {network} />{/if}
   </SettingsGroup>
-  {#if otherHostnames.length}
-    <SettingsGroup title="Saved hostnames">
-      <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
-        {#each otherHostnames as hostname (hostname)}
-          <li class="flex items-center gap-3 px-4 py-3">
-            <div class="min-w-0 flex-1">
-              <p class="font-mono text-base/6 break-all text-zinc-950 select-text sm:text-sm/6 dark:text-white">
-                {hostname}
-              </p>
-              <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{hostnameStatus(hostname)}</p>
-            </div>
-            <IconButton
-              icon="trash"
-              label={`Remove ${hostname}`}
-              size="sm"
-              disabled={!!network.error || network.busy}
-              onclick={() => removeHostname(hostname)}
-            />
-          </li>
-        {/each}
-      </ul>
-    </SettingsGroup>
-  {/if}
-  <TailscaleSettings {network} />
-  <SettingsGroup title="Advanced">
-    <SettingsRow
-      title={status.port ? `Port ${status.port}` : "Port"}
-      description={status.portFixed
-        ? "Set by this server's configuration."
-        : status.port
-          ? "Chosen automatically and kept. Change it only if a firewall allows certain ports."
-          : "Chosen automatically when you turn network access on."}
-    >
-      {#snippet control()}{#if !status.portFixed}<Button
+  {#if network.loaded}
+    {#if status.state === "error"}<Alert tone="error" title="Network access can't start"
+        >{status.error}{#if !status.portFixed}<Button
             size="sm"
             disabled={!!network.error || network.busy}
-            onclick={() => {
-              error = "";
-              portOpen = true;
-            }}>Change</Button
-          >{/if}{/snippet}
-    </SettingsRow>
-    {#if status.fingerprint}
-      <SettingsRow title="Certificate fingerprint">
-        <p class="font-mono text-sm/5 break-all text-zinc-500 dark:text-zinc-400">{status.fingerprint}</p>
-        {#snippet control()}<CopyButton text={status.fingerprint} label="Copy fingerprint" />{/snippet}
-      </SettingsRow>
+            onclick={() => void change("choose_port")}>Pick a free port</Button
+          >{/if}</Alert
+      >{/if}
+    {#if status.note && !noAddresses}<Alert tone="warning">{status.note}</Alert>{/if}
+    <SettingsGroup
+      title="Reachable at"
+      description={capabilities?.linkedComputers
+        ? "Phones and linked computers try these addresses in turn. They follow this computer from network to network."
+        : "Paired devices and workers try these addresses in turn to reach this gateway."}
+    >
+      {#snippet actions()}<Button
+          size="sm"
+          disabled={!!network.error || network.busy}
+          onclick={() => (hostnameOpen = true)}>Add hostname</Button
+        >{/snippet}
+      {#if status.addresses.length}
+        <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
+          {#each status.addresses as address (address.origin)}
+            <NetworkAddressRow
+              {address}
+              busy={!!network.error || network.busy}
+              onremove={address.kind === "hostname" ? () => removeHostname(address.host) : undefined}
+            />
+          {/each}
+        </ul>
+      {:else if noAddresses}
+        <p class="px-4 py-3 text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+          {status.note || "No connection addresses are available."}
+        </p>
+      {:else}
+        <SettingsRow
+          title="Not reachable"
+          description={network.error
+            ? undefined
+            : status.state === "off"
+              ? "Turn on network access to see this computer's addresses."
+              : "Resolve the network access error above to make this computer reachable."}
+        />
+      {/if}
+    </SettingsGroup>
+    {#if otherHostnames.length}
+      <SettingsGroup title="Saved hostnames">
+        <ul role="list" class="divide-y divide-zinc-950/5 dark:divide-white/8">
+          {#each otherHostnames as hostname (hostname)}
+            <li class="flex items-center gap-3 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="font-mono text-base/6 break-all text-zinc-950 select-text sm:text-sm/6 dark:text-white">
+                  {hostname}
+                </p>
+                <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">{hostnameStatus(hostname)}</p>
+              </div>
+              <IconButton
+                icon="trash"
+                label={`Remove ${hostname}`}
+                size="sm"
+                disabled={!!network.error || network.busy}
+                onclick={() => removeHostname(hostname)}
+              />
+            </li>
+          {/each}
+        </ul>
+      </SettingsGroup>
     {/if}
-  </SettingsGroup>
-{:else}
-  <SettingsGroup title="Reachable at">
-    <SettingsRow title={network.error ? "Addresses unavailable" : "Loading addresses…"} />
-  </SettingsGroup>
-{/if}
-{#if capabilities?.pushRelaySettings}
-  {#key capabilities.clientPreferencesScope}<PushRelaySettings gatewayScope={capabilities.clientPreferencesScope} />
-  {/key}
-{/if}
+    <SettingsGroup title="Port and certificate">
+      <SettingsRow
+        title={status.port ? `Port ${status.port}` : "Port"}
+        description={status.portFixed
+          ? "Set by this server's configuration."
+          : status.port
+            ? "Chosen automatically and kept. Change it only if a firewall allows certain ports."
+            : "Chosen automatically when you turn network access on."}
+      >
+        {#snippet control()}{#if !status.portFixed}<Button
+              size="sm"
+              disabled={!!network.error || network.busy}
+              onclick={() => {
+                error = "";
+                portOpen = true;
+              }}>Change</Button
+            >{/if}{/snippet}
+      </SettingsRow>
+      {#if status.fingerprint}
+        <SettingsRow title="Certificate fingerprint">
+          <p class="font-mono text-sm/5 break-all text-zinc-500 dark:text-zinc-400">{status.fingerprint}</p>
+          {#snippet control()}<CopyButton text={status.fingerprint} label="Copy fingerprint" />{/snippet}
+        </SettingsRow>
+      {/if}
+    </SettingsGroup>
+  {:else}
+    <SettingsGroup title="Reachable at">
+      <SettingsRow title={network.error ? "Addresses unavailable" : "Loading addresses…"} />
+    </SettingsGroup>
+  {/if}
+{/snippet}
+
+{#snippet tailscale()}
+  {@render connectionError()}
+  <TailscaleSettings {network} />
+{/snippet}
+
+{#snippet relay()}
+  {#if capabilities?.pushRelaySettings}
+    {#key capabilities.clientPreferencesScope}<PushRelaySettings gatewayScope={capabilities.clientPreferencesScope} />
+    {/key}
+  {/if}
+{/snippet}
+
+{#snippet attachments()}
+  <AttachmentLimitsSettings />
+{/snippet}
+
 <HostnameDialog
   bind:open={hostnameOpen}
   busy={network.busy}
@@ -209,7 +238,6 @@
       if (ok) hostnameOpen = false;
     })}
 />
-<AttachmentLimitsSettings />
 <PortDialog
   bind:open={portOpen}
   port={status.port}

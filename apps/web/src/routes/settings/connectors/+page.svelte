@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { onMount, untrack } from "svelte";
@@ -58,8 +59,6 @@
 
   let selected = $state("");
   let connecting = $state(false);
-  let addingSlackBot = $state(false);
-  let slackBotReady = $state(false);
   let oauthCompletion = $state<connectors.CompleteConnectorOAuthResponse>();
   let oauthError = $state<connectors.ConnectorError>();
   let notice = $state(untrack(() => route.url.searchParams.get("connection")));
@@ -165,6 +164,25 @@
 <div class="settings-stack">
   <SettingsHeading title="Connectors" description="Connect your apps and choose who can use each account." />
   <ConfigNotices match={(n) => n.kind === "connector" || n.kind === "oauth_app"} onchange={() => void reload()} />
+  {#if notice === "slack-bot-authorized"}<Alert>Slack Bot authorized.</Alert
+    >{:else if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
+      >Account connected. Manage access from the account menu.</Alert
+    >{:else if notice === "error" && oauthError}<ConnectionError
+      error={oauthError}
+    />{:else if notice === "error"}<Alert tone="error"
+      >Sign-in could not finish. Reconnect the account to try again.</Alert
+    >{/if}
+  <SettingsTopics
+    label="Connector settings"
+    defaultTopic={notice === "slack-bot-authorized" ? "slack-bots" : undefined}
+    topics={[
+      { id: "accounts", label: "Tool accounts", content: toolAccounts },
+      { id: "slack-bots", label: "Slack bots", content: slackBots, hidden: !settings.moduleEnabled("bots") },
+    ]}
+  />
+</div>
+
+{#snippet toolAccounts()}
   {#if settings.moduleEnabled("bots") && botList.error}
     <Alert tone="error"
       >Could not load bots for account access.
@@ -179,14 +197,6 @@
   {#each refreshing as computer (computer.nodeId)}
     <Alert>{computer.unavailableReason}</Alert>
   {/each}
-  {#if notice === "slack-bot-authorized"}<Alert>Slack Bot authorized.</Alert
-    >{:else if notice === "already-connected"}<Alert>Already connected.</Alert>{:else if notice === "connected"}<Alert
-      >Account connected. Manage access from the account menu.</Alert
-    >{:else if notice === "error" && oauthError}<ConnectionError
-      error={oauthError}
-    />{:else if notice === "error"}<Alert tone="error"
-      >Sign-in could not finish. Reconnect the account to try again.</Alert
-    >{/if}
   <section aria-label="Connect an app" class="grid gap-4">
     <h2 class="text-lg font-semibold text-balance">Add an account</h2>
     <div class="flex flex-wrap gap-2">
@@ -200,12 +210,6 @@
           class="max-w-full"
           ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 truncate">{entry.name}</span></Button
         >
-        {#if entry.id === "slack" && settings.moduleEnabled("bots")}
-          <Button size="sm" disabled={!slackBotReady} onclick={() => (addingSlackBot = true)}>
-            <ConnectorIcon type="slack" />
-            Slack Bot
-          </Button>
-        {/if}
       {/each}
     </div>
   </section>
@@ -231,13 +235,14 @@
         No accounts connected yet.
       </p>{/if}
   </section>
-  {#if settings.moduleEnabled("bots")}
-    <SlackBotConnections
-      slackUsers={accounts.filter((account) => account.connectorType === "slack")}
-      {oauthCompletion}
-      bind:adding={addingSlackBot}
-      bind:ready={slackBotReady}
-    />
-  {/if}
-</div>
+{/snippet}
+
+{#snippet slackBots()}
+  <SlackBotConnections
+    canAdd={catalog.types.some((entry) => entry.id === "slack")}
+    slackUsers={accounts.filter((account) => account.connectorType === "slack")}
+    {oauthCompletion}
+  />
+{/snippet}
+
 {#if connecting && type}<ConnectAccountDialog bind:open={connecting} {type} {oauthCompletion} onsave={update} />{/if}

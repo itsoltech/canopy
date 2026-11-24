@@ -102,7 +102,7 @@
     {#if !snapshot}<p class="py-2 text-xs/5 text-muted" role="status">Loading update status…</p>{/if}
   </div>
   <footer class="flex h-11 shrink-0 items-center gap-4 border-t border-divider pr-2 pl-3 text-xs/5 text-muted">
-    <a href="/settings/workers" class="rounded focus-ring hover:text-ink">Settings</a>
+    <a href="/settings/workers#topic-updates" class="rounded focus-ring hover:text-ink">Settings</a>
     {#if whatsNew.notice}<button
         type="button"
         class="t-rise rounded focus-ring hover:text-ink"

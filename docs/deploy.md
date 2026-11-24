@@ -6,6 +6,8 @@ uruchamiają osobną usługę web. Ten dokument opisuje kod na `dev`; poniższe 
 pobierania domyślnie wybierają stable. Wersje i kanały: [release.md](release.md). Wszystko pochodzi z
 `ghcr.io/itsoltech/canopy-*` albo z GitHub Releases `itsoltech/canopy`.
 
+Aktualizacja (2026-11-24): web/desktop udostępnia ustawienia relaya mobilnych powiadomień w zakładce **Push relay**.
+
 Status (2026-11-22): relay mobilnych powiadomień może wydawać poświadczenia
 po App Attest lub Play Integrity. Obsługuje ich odwołanie i ogranicza odnawianie
 do 90 dni od ostatniej atestacji. Gateway zachowuje obsługę własnych relayów.
@@ -996,7 +998,7 @@ konfiguruje właściciel aplikacji w EAS.
 
 Lokalny Desktop domyślnie używa `https://notifications-relay.canopy.itsol.tech`.
 Na gatewayu serwerowym włącz tę usługę przez **Settings → Network access →
-Mobile push relay → Use Canopy relay**. Można też wskazać zarządzany relay
+Push relay → Use Canopy relay**. Można też wskazać zarządzany relay
 z atestacją przez `CANOPY_MANAGED_PUSH_RELAY_ORIGIN`. Zapisany wybór ma
 pierwszeństwo przed ustawieniami wdrożenia.
 
@@ -1037,7 +1039,7 @@ jako base64url bez dopełnienia. Oblicz SHA-256 z 43 znaków tokenu bez końca l
 Po zmianie tokenu usuń jego stary hash z konfiguracji i uruchom relay ponownie.
 
 W **webie serwerowym** lub **Desktopie** otwórz **Settings →
-Network access → Mobile push relay → Use custom relay**. Podaj adres HTTPS
+Network access → Push relay → Use custom relay**. Podaj adres HTTPS
 i token tej instalacji. Jeśli relay korzysta z prywatnego CA, wklej jego
 certyfikat w formacie PEM. Zapis działa bez restartu. Zmiana adresu wymaga
 podania tokena dla nowego adresu.

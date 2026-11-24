@@ -19,7 +19,7 @@
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import SettingsOverlay from "#lib/features/settings/SettingsOverlay.svelte";
   import { settingsOverlay } from "#lib/features/settings/settings-overlay.svelte.ts";
-  import { followHabitSuggestions, memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
+  import { followHabitSuggestions, supportsHabits } from "#lib/features/memory/habit-suggestions.svelte.ts";
   import { moduleRedirect, sectionMemory } from "#lib/features/navigation/sections.svelte.ts";
   import { provideShell } from "#lib/features/navigation/shell.ts";
   import SidebarColumn from "#lib/features/navigation/SidebarColumn.svelte";
@@ -254,7 +254,7 @@
 
   followHabitSuggestions(
     overview,
-    () => capabilities.supports(memorySettingsPath) && capabilities.methods?.includes("GetMemoryHabits") !== false,
+    () => supportsHabits(capabilities),
     () => page.shallow?.url.pathname ?? settingsOverlay.bridging?.url.pathname ?? page.url.pathname,
   );
 

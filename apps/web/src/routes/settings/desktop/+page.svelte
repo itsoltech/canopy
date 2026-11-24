@@ -2,6 +2,7 @@
   import { applicationName } from "#lib/application-name.ts";
   import { onMount } from "svelte";
   import type { DesktopStatus } from "@canopy/ui/desktop";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
@@ -9,6 +10,7 @@
   import UsagePingSettings from "#lib/features/desktop/UsagePingSettings.svelte";
 
   let status = $state<DesktopStatus>();
+  let hasUsagePing = $state(false);
   let hasMigration = $state(false);
   let hasMigrationFollowUp = $state(false);
   const local = $derived((status?.configuration?.mode ?? status?.mode) === "local");
@@ -17,6 +19,7 @@
     const bridge = window.canopyDesktop;
 
     if (!bridge) return;
+    hasUsagePing = Boolean(bridge.usagePing);
     const migration = bridge.gatewayMigration;
     hasMigration = Boolean(migration);
     void migration?.status().then(
@@ -36,15 +39,23 @@
 </script>
 
 <svelte:head><title>Desktop · Settings · {applicationName}</title></svelte:head>
-<div class="settings-stack">
-  {#if status}
-    <WorkerStatus {status} />
-    <div class="flex flex-wrap items-center gap-2">
-      <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        Desktop settings apply only to this computer.
-      </p>
-    </div>
-    <div><Button onclick={() => window.canopyDesktop?.openSettings()}>Change desktop mode…</Button></div>
+{#if status}
+  {@const current = status}
+  <SettingsTopics
+    label="Desktop settings"
+    topics={[
+      { id: "gateway", label: "Gateway", content: gateway },
+      { id: "privacy", label: "Privacy", content: privacy, hidden: !hasUsagePing },
+    ]}
+  />
+  {#snippet gateway()}
+    <SettingsGroup title="This computer">
+      <WorkerStatus status={current} class="p-4" />
+      <SettingsRow title="Desktop mode">
+        {#snippet control()}<Button size="sm" onclick={() => window.canopyDesktop?.openSettings()}>Change mode…</Button
+          >{/snippet}
+      </SettingsRow>
+    </SettingsGroup>
     {#if local && hasMigration}
       <SettingsGroup>
         <SettingsRow
@@ -62,6 +73,10 @@
         />
       </SettingsGroup>
     {/if}
+  {/snippet}
+  {#snippet privacy()}
     <UsagePingSettings />
-  {:else}<p class="text-base/6 sm:text-sm/6">Desktop settings are available in the Canopy desktop app.</p>{/if}
-</div>
+  {/snippet}
+{:else}
+  <p class="text-base/6 sm:text-sm/6">Desktop settings are available in the Canopy desktop app.</p>
+{/if}

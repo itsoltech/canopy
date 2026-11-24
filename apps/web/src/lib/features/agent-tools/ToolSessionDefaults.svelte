@@ -89,19 +89,14 @@
 </script>
 
 <form
-  class="grid gap-4 border-t border-zinc-950/5 px-4 py-4 sm:px-5 dark:border-white/8"
+  class="grid gap-4 px-4 py-4 sm:px-5"
   aria-label={`${name} session defaults`}
   onsubmit={(event) => {
     event.preventDefault();
     void save();
   }}
 >
-  <div>
-    <h2 class="text-sm/6 font-semibold text-zinc-950 dark:text-white">Session defaults</h2>
-    <p class="text-sm/5 text-pretty text-zinc-500 dark:text-zinc-400">
-      For new sessions on all workers. Agents can override these values.
-    </p>
-  </div>
+  <h2 class="text-base/6 font-semibold text-zinc-950 dark:text-white">{name}</h2>
   <fieldset disabled={saving || !settings.loaded} class="grid min-w-0 gap-4">
     {#if draft.browser}
       <BrowserDefaultsFields bind:value={draft.browser} />

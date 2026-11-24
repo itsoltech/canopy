@@ -54,20 +54,22 @@
   let toggling = $state<string>();
   let failure = $state<string>();
 
+  const queryString = $derived(route.url.search);
+
   $effect(() => {
-    const query = route.url.searchParams;
+    const query = new URLSearchParams(queryString);
     const instance = query.get("instance");
     const workerId = query.get("worker");
     const add = query.get("add");
     const provider = query.get("provider") ?? "";
     const harness = add === "device" && isProviderKey(provider) ? Provider[provider] : undefined;
 
+    scope = workerId || undefined;
+
     if (instance) {
       selectedKey = instance;
-      scope = workerId || undefined;
       pane = query.get("view") === "list" ? "list" : "detail";
     } else if (workerId && (add === "proxy" || harness !== undefined)) {
-      scope = workerId;
       setupProxy = add === "proxy";
       deviceHarness = harness;
       adding = true;
@@ -77,6 +79,7 @@
   const workers = $derived(records.workers);
   const instances = $derived(providers.instances.map((i) => records.instance(i)));
   const worker = $derived(workers.find((w) => w.id === scope));
+  const missingWorker = $derived(Boolean(scope && !worker));
   const selected = $derived(instances.find((i) => instanceKeyOf(i) === selectedKey) ?? instances[0]);
 
   // A worker that reports again (applied a configuration, connected, went away): the instances' state follows.
@@ -171,6 +174,7 @@
     <Button
       icon="plus"
       aria-label="Add provider"
+      disabled={missingWorker}
       onclick={() => {
         setupProxy = false;
         deviceHarness = undefined;
@@ -195,59 +199,65 @@
     >{/if}
 
   <ProxyLimits proxies={proxies.data?.proxies ?? []} class={[pane === "detail" && "max-md:hidden"]} />
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)] md:items-start">
-    <nav aria-label="Provider instances" class={["md:sticky md:top-0", pane === "detail" && "max-md:hidden"]}>
-      <InsetList>
-        {#each instances as instance (instanceKeyOf(instance))}
-          <li>
-            <InstanceRow
-              {instance}
-              {worker}
-              selected={selected !== undefined && instanceKeyOf(selected) === instanceKeyOf(instance)}
-              busy={toggling === instanceKeyOf(instance)}
-              disabled={!!worker && !!records.readOnly(worker.id)}
-              onselect={() => select(instanceKeyOf(instance))}
-              ontoggle={(enabled) => toggle(instance, enabled)}
-            />
-          </li>
-        {/each}
-      </InsetList>
-    </nav>
+  {#if missingWorker}
+    <Alert>This worker is unavailable. Choose another worker or select All workers.</Alert>
+  {:else}
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)] md:items-start">
+      <nav aria-label="Provider instances" class={["md:sticky md:top-0", pane === "detail" && "max-md:hidden"]}>
+        <InsetList>
+          {#each instances as instance (instanceKeyOf(instance))}
+            <li>
+              <InstanceRow
+                {instance}
+                {worker}
+                selected={selected !== undefined && instanceKeyOf(selected) === instanceKeyOf(instance)}
+                busy={toggling === instanceKeyOf(instance)}
+                disabled={!!worker && !!records.readOnly(worker.id)}
+                onselect={() => select(instanceKeyOf(instance))}
+                ontoggle={(enabled) => toggle(instance, enabled)}
+              />
+            </li>
+          {/each}
+        </InsetList>
+      </nav>
 
-    <div class={["grid min-w-0 grid-cols-1", pane === "list" && "max-md:hidden"]}>
-      {#if selected}
-        {#key `${instanceKeyOf(selected)}:${scope ?? ""}`}
-          <div class="col-start-1 row-start-1 grid min-w-0 grid-cols-1 gap-4">
-            <button
-              type="button"
-              class="-ml-1 flex min-h-(--settings-target) items-center gap-1 justify-self-start rounded-md px-1 text-base/6 text-zinc-600 focus-ring hover:text-zinc-950 md:hidden dark:text-zinc-400 dark:hover:text-white"
-              onclick={() => (pane = "list")}>← All providers</button
-            >
-            <InstanceDetail
-              instance={selected}
-              {worker}
-              {workers}
-              state={providers}
-              {records}
-              ondeleted={() => ((selectedKey = undefined), (pane = "list"))}
-            />
-          </div>
-        {/key}
-      {/if}
+      <div class={["grid min-w-0 grid-cols-1", pane === "list" && "max-md:hidden"]}>
+        {#if selected}
+          {#key `${instanceKeyOf(selected)}:${scope ?? ""}`}
+            <div class="col-start-1 row-start-1 grid min-w-0 grid-cols-1 gap-4">
+              <button
+                type="button"
+                class="-ml-1 flex min-h-(--settings-target) items-center gap-1 justify-self-start rounded-md px-1 text-base/6 text-zinc-600 focus-ring hover:text-zinc-950 md:hidden dark:text-zinc-400 dark:hover:text-white"
+                onclick={() => (pane = "list")}>← All providers</button
+              >
+              <InstanceDetail
+                instance={selected}
+                {worker}
+                {workers}
+                state={providers}
+                {records}
+                ondeleted={() => ((selectedKey = undefined), (pane = "list"))}
+              />
+            </div>
+          {/key}
+        {/if}
+      </div>
     </div>
-  </div>
+  {/if}
 </div>
 
-<AddInstanceDialog
-  bind:open={adding}
-  instances={providers.instances}
-  {workers}
-  {scope}
-  {setupProxy}
-  {deviceHarness}
-  onadded={(instance) => {
-    providers.put(instance);
-    if (instance) select(instanceKeyOf(instance));
-    toast(`${instance ? instanceName(instance) : "Instance"} added`);
-  }}
-/>
+{#if !missingWorker}
+  <AddInstanceDialog
+    bind:open={adding}
+    instances={providers.instances}
+    {workers}
+    {scope}
+    {setupProxy}
+    {deviceHarness}
+    onadded={(instance) => {
+      providers.put(instance);
+      if (instance) select(instanceKeyOf(instance));
+      toast(`${instance ? instanceName(instance) : "Instance"} added`);
+    }}
+  />
+{/if}

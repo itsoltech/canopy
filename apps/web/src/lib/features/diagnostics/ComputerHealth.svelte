@@ -12,8 +12,7 @@
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
 
-  let { computer, selected, onselect }: { computer: ui.ComputerDiagnostics; selected: boolean; onselect: () => void } =
-    $props();
+  let { computer, onselect }: { computer: ui.ComputerDiagnostics; onselect: () => void } = $props();
 </script>
 
 <SettingsCard>
@@ -73,6 +72,6 @@
         History could not be saved. Live data is still available.
       </p>
     {/if}
-    <div><Button onclick={onselect} aria-pressed={selected}>View details</Button></div>
+    <div><Button onclick={onselect} aria-label={`View performance for ${computer.name}`}>View performance</Button></div>
   </div>
 </SettingsCard>

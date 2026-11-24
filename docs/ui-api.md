@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): wielotematyczne sekcje Settings w web i desktopie mają zakładki.
+
 Status (2026-11-24): w web i desktopie „Manage workers” w kompozytorze nowego wątku
 otwiera sekcję Workspaces wybranego projektu. Dla „No project” otwiera Settings → Workers.
 
@@ -55,7 +57,14 @@ web/desktop mieści się w zaokrąglonym obrysie stosu.
 Akcja Delete bot w web/desktop działa także dla aktywnego bota.
 Gateway ogranicza powtórki w strumieniu overview, a BFF współdzieli subskrypcję
 przy przełączaniu aktywnego wątku (§ „Współdzielone odczyty”).
-Wyszukiwarka ustawień podświetla dopasowania w otwartej sekcji z pominięciem treści dialogów.
+W web i desktopie użytkownik wybiera sekcję ustawień w nawigacji, a następnie temat
+nad formularzem. Na przykład **Threads → New threads** ustawia wartości domyślne,
+a **Threads → Archiving** grupuje archiwizację po scaleniu PR i retencję historii.
+Przy jednym dostępnym temacie formularz otwiera się od razu. Przełączenie
+zakładki zachowuje niezapisane pola. Fragment adresu (np. `/settings/threads#topic-archiving`)
+otwiera temat także po odświeżeniu. Back zamyka nakładkę jednym krokiem.
+Wyszukiwarka filtruje sekcje, wybiera temat z dopasowaniem i podświetla słowa
+w otwartej sekcji z pominięciem treści dialogów.
 Boczne menu ustawień web/desktop pokazuje ikony obok etykiet sekcji. Web, desktop
 i mobile używają logo GitHuba w sekcji GitHub, wtyczki w Connectors i strzałek
 w przeciwnych kierunkach w Proxies.
@@ -1357,8 +1366,8 @@ Pełne zasady tokenu, usług i zachowania historii: [worker-config.md](worker-co
 
 `Worker.cli_tools` (**800**) i `Worker.arch` (**801**) pokazują CLI workera z najnowszą wersją, akcją i powodem
 blokady. `InstallCli` (jeden worker albo `all_workers` dla dostawcy) i `CheckCliUpdates` są właścicielskie i
-egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers/cli/check`. UI: sekcja „Agent CLIs”
-w rozwiniętym workerze, „Agent CLI updates” z „Update all” i kropka przy Settings → Workers. Zasady:
+egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers/cli/check`. W web i desktopie „Agent CLIs” to zakładka na stronie wybranego workera.
+Settings → Workers → Updates zawiera „Agent CLI updates” z „Update all”. Kropka przy Workers sygnalizuje dostępne aktualizacje. Zasady:
 [provider-cli.md](provider-cli.md).
 
 Opcjonalne `InstallCliRequest.install_id` (**5**) jest UUID próby przekazywanym do workera;
@@ -1672,7 +1681,7 @@ i `Thread.snoozed_until` są częścią metadanych. Klient wylicza z nich sekcj�
 Lineage w panelu szczegółów pozostawia wątki boczne użytkownika widoczne. Subagenci mają jeden
 domyślnie zwinięty nagłówek „Subagents” z licznikami pracujących, oczekujących na odpowiedź
 i zakończonych. Rozwinięcie zapamiętuje profil urządzenia (`canopy:preferences:subagentsExpanded`).
-Settings → Threads → Thread details zawiera „Keep finished subagents in the list” (urządzenie,
+Na web/desktop Settings → Threads → Conversation → Thread details zawiera „Keep finished subagents in the list” (urządzenie,
 domyślnie Off, reset pojedynczej preferencji). Off przenosi zakończone wiersze do osobnego nagłówka
 „N finished”, domyślnie zwiniętego. Rozwinięcie zapamiętuje urządzenie
 (`canopy:preferences:finishedSubagentsExpanded`). Grupa pozostaje dostępna także bez aktywnych
@@ -1724,12 +1733,12 @@ usunięcia z ochroną forków, zachowanych dzieci i niedokończonej pracy; po je
 `archived_at`. Zapis zastępuje tę sekcję z kontrolą `expected_version`; istniejące
 BFF i `OverviewUpdate.user_settings` przenoszą ją bez nowego endpointu.
 Sekcja podlega synchronizacji konfiguracji. Web/desktop i mobile udostępniają
-ustawienie w Settings → Threads → Archived threads, z jawnym zapisem, aby edycja
+ustawienie Archived threads (w web/desktop pod Settings → Threads → Archiving), z jawnym zapisem, aby edycja
 liczby nie uruchomiła przypadkowo krótszej retencji.
 Po rozpoczęciu retencji wątek otrzymuje `deleted_at`, więc klienci używają zwykłej
 aktualizacji cyklu życia. `RestoreThread` odrzuca trwale usunięty wątek.
 Ręczne Delete ma niezależny, stały termin 31 dni od `deleted_at`, także gdy
-`archived_thread_days=0`. Settings → Threads → Archived threads podaje tę zasadę
+`archived_thread_days=0`. Grupa Archived threads podaje tę zasadę
 jako informację, bez nowej kontrolki; opcja archiwum steruje tylko terminem od
 `archived_at`. Szczegóły trwałego usuwania: [database-retention.md](database-retention.md).
 
@@ -1981,7 +1990,7 @@ Przy nawigacji TurnRail rezerwa do wyrównania ostatniego wiersza jest liczona r
 „Jump to latest” animuje pozostałą odległość do aktualnego końca na każdej klatce (`EndScroll`, `--duration-slow`, `smoothOut`). Pomiar wierszy i zmiana naturalnej wysokości kompozytora aktualizują cel podczas ruchu. Zakończenie animacji uruchamia zwykłe przypinanie dołu bez oczekiwania na natywne `scrollend` ani okno czasowe blokujące korekty. Zmiana skali interfejsu lub safe area aktualizuje pomiar stopki. Gest czytelnika, nawigacja do wiersza i otwarcie foldu przerywają animację; reduced motion i dalekie skoki używają ścieżki natychmiastowej.
 
 Grupy narzędzi w otwartej sekcji pracy są domyślnie zwinięte, także przy jednej grupie.
-Settings → Threads → Turn activity → „Tool calls” ustawia Collapsed albo Expanded niezależnie
+W web/desktop Settings → Threads → Conversation → Turn activity → „Tool calls” ustawia Collapsed albo Expanded niezależnie
 od „While working”. Preferencja jest lokalna dla przeglądarki lub telefonu; ręczny wybór
 grupy przetrwa streaming i wirtualizację. Zwinięty nagłówek zachowuje bieżący krok oraz
 status pracy. Szczegóły: [timeline-folding.md](timeline-folding.md).
@@ -2353,7 +2362,7 @@ Wiadomości czekające za turą w toku (tury `queued`) użytkownik układa. Kole
 | `SteerQueuedTurn` | wiadomość użytkownika (także z plikami, cytatami i wzmiankami; wejście takie, jakie dostałaby tura) idzie teraz do tury w toku: w jednej transakcji powstają steer (`Steer.from_turn_id` (160) = ta tura) i jego outbox, a tura wychodzi z kolejki (`withdrawn = steered`). Pliki trafiają do workera przed wywołaniem harnessu. Dalej jak steer z `SendMessage` (`pending` → `accepted` → `delivered`); gdy nie wejdzie, wraca ta sama tura na swoje miejsce w kolejce (`Steer.queued_turn_id = from_turn_id`), nie nowa na końcu. Bez tury w toku = `FailedPrecondition`, wiadomość zostaje w kolejce |
 | `UserSettings.composer` (160) | `ComposerSettings.running_delivery`: co robi Enter, gdy trwa tura — `STEER` (domyślnie; Mod+Enter = kolejka) albo `QUEUE` (Enter = kolejka, Mod+Enter = steer) |
 
-Settings → Threads → Messages udostępnia „When the agent is working, send messages as”
+W web/desktop Settings → Threads → Conversation → Messages udostępnia „When the agent is working, send messages as”
 z wyborem Steer / Queue. Web, desktop i mobile zapisują istniejące
 `UserSettings.composer.running_delivery` w JSONB ustawień właściciela; nie potrzeba
 nowego pola protokołu ani migracji. Brak wartości nadal oznacza Steer. Menu kolejki
@@ -3051,8 +3060,7 @@ Web po pierwszym pełnym pobraniu ustawień porównuje je z `userTimeZone()` i p
 różnicy zapisuje strefę urządzenia istniejącą kolejką zapisów. W danym załadowaniu
 aplikacji synchronizuje tylko raz; po 409 pobiera aktualną wersję i ponawia raz,
 bez komunikatów konfliktu. Nie uruchamia synchronizacji ponownie po SSE ani reconnect.
-Settings → General → Display pokazuje strefę tylko do odczytu jako
-„Time zone: Europe/Warsaw (from this device)”. Harmonogramy wątków tworzone w web
+Settings → General → Device pokazuje strefę konta w wierszu „Time zone”. Harmonogramy wątków tworzone w web
 nadal wysyłają strefę przeglądarki bez zmian.
 
 ## 5. Uruchomienie (development)

@@ -146,6 +146,18 @@
     async consumeQuery(name) {
       return shallowKey ? overlay.consumeQuery(name) : false;
     },
+    async selectTopic(hash) {
+      if (!shown || shown.url.hash === hash) return;
+      const url = new URL(shown.url.href);
+      url.hash = hash;
+      await goto(url, {
+        shallow: Boolean(shallowKey),
+        replace: true,
+        reset: false,
+        state: page.state,
+        persistState: true,
+      });
+    },
     close,
     async refresh(dependency) {
       // Keeps `page.state`; also drops the preloaded data, so the reload below fetches anew.

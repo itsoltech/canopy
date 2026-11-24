@@ -218,7 +218,7 @@
   <div class="settings-density bg-white dark:bg-zinc-950">
     <div class="settings-content mx-auto grid max-w-3xl grid-cols-1 gap-8 px-4 py-4 sm:px-6" id="settings">
       <div id="workers-updates"><UpdatesPanel fixture={{ updates, app }} /></div>
-      <div id="app-updates" class="grid gap-8"><AppUpdates /><LinkedAppUpdates fixture={linked} /></div>
+      <div id="app-updates" class="grid gap-8"><AppUpdates /><LinkedAppUpdates updates={linked} /></div>
     </div>
   </div>
 {:else}<div class="flex flex-wrap items-start gap-6 p-4">

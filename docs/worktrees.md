@@ -5,6 +5,8 @@ Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:
 [workspace-copy.md](workspace-copy.md).
 
+Aktualizacja (2026-11-24): w web/desktop reguły sprzątania i podgląd ich skutków mają osobne zakładki.
+
 Status: **etapy 1–3 zaimplementowane** (2026-11-23), w tym ponawianie odczytu opcji workspace'u
 po przejściowym błędzie w kompozytorze web/desktop i sprawdzanie dostępu konektora GitHub
 do projektu worktree przy potwierdzaniu merge, wydłużony limit checkoutu do 240 s na zgodnych wersjach
@@ -529,15 +531,15 @@ aplikacji (`Worker.desktop_bundled`). Inaczej folder otworzyłby się na innej m
 ### Settings → Worktrees (sekcja Code)
 
 Nagłówek: „Applying settings for **[All projects | projekt]** across **[All computers | komputer]**”
-(dwa własne pickery z kitu). Grupy:
+(dwa własne pickery z kitu). W web/desktop zakładka **New worktrees** grupuje ustawienia Creation, Branches i New threads.
 
 - **Creation:** Worktree location (pole tekstowe, pusty = zarządzany przez Canopy, opis, że istniejące
   zostają; w zakresie komputera placeholder i podpowiedź dziedziczenia pokazują zgłoszony
   `worktrees_root` tego workera, w szerszych zakresach „Managed by Canopy”), Start from remote (przełącznik), Advanced (zwijane): Remote.
 - **Branches:** Branch naming (Semantic prefix / Prefix / Thread title), Branch prefix.
 - **New threads:** Default workspace (Current checkout / New worktree).
-- **Cleanup:** powyższe polityki i ochrona zmian lokalnych.
-- **Worktrees:** lista bieżących worktree w wybranym zakresie, status, akcje Copy path i Reveal
+- **Cleanup rules** zawiera polityki sprzątania i ochronę zmian lokalnych.
+- **Manage worktrees** pokazuje listę w wybranym zakresie (przy wyborze workera z połączonego komputera ta zakładka jest ukryta), status, akcje Copy path i Reveal
   on computer, Remove, Refresh, „Preview cleanup” i „Run cleanup”. Preview pokazuje
   „Will remove N worktrees” oraz przyczynę pozostawienia pozostałych.
 - **Locked worktree:** „Clean up” przy zweryfikowanej pozostałości próby albo przyczyna, dla której
@@ -547,7 +549,7 @@ Każde pole pokazuje wartość efektywną; nadpisane w bieżącym zakresie ma �
 odziedziczonej, opisanej skąd pochodzi). Zapis od razu, z wersją; konflikt przeładowuje.
 
 `?project=<id>` otwiera stronę od razu w zakresie tego projektu. Ustawienia projektu (Settings → Projects →
-projekt) mają grupę **Worktrees** z tym samym Default workspace w zakresie projekt × All computers: wybór
+projekt → Workspaces w web/desktop) mają grupę **Worktrees** z tym samym Default workspace w zakresie projekt × All computers: wybór
 checkoutu albo nowego worktree per projekt bez szukania zakresu na stronie Worktrees.
 
 ### Kompozytor nowego wątku
@@ -688,8 +690,8 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   owner/repo i potwierdzony SHA, ponownie sprawdza je przed usunięciem; żadnych poświadczeń.
   Błąd konektora zostawia niezależny wynik gita; błąd fetch blokuje usunięcie. Commity potwierdzone
   jako scalone nie są traktowane jako niewypchnięta praca.
-- Raport **dry-run** w Settings → Worktrees → Cleanup: lista „would remove / kept because …” przed
-  włączeniem reguł i przycisk „Run cleanup now”.
+- W web/desktop **Settings → Worktrees → Manage worktrees → Preview cleanup** pokazuje wynik
+  reguł dla każdego worktree. Po podglądzie można wybrać **Run cleanup now**.
 - Gateway rezerwuje rekord w transakcji z blokadami wątków i worktree, a triggery blokują wyścig
   z nową turą/wątkiem/celem. Przed utrwaleniem komendy w rezerwacji ponownie sprawdza zgodę reguły zamkniętych wątków;
   okres ochronny po archiwizacji jest również sprawdzany pod blokadą przed zapisem automatycznej komendy.

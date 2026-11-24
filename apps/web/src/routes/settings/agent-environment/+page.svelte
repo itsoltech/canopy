@@ -17,7 +17,8 @@
   import type { PageProps } from "./$types";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
   import RemoteEnvironment from "#lib/features/agent-environment/RemoteEnvironment.svelte";
-  import LibrarySummary from "#lib/features/agent-environment/LibrarySummary.svelte";
+  import { librarySummary } from "@canopy/domain/environment-library";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
 
   let { data }: PageProps = $props();
   const overview = useOverview();
@@ -29,6 +30,7 @@
     () => records.records,
   );
 
+  const summary = $derived(librarySummary(state.snapshot, state.workers));
   const selectedWorker = $derived(records.workers.find((w) => w.id === state.workerId) ?? records.workers[0]);
 
   const worker = $derived(
@@ -37,18 +39,45 @@
 </script>
 
 <div class="settings-stack">
-  <SettingsHeading title="Agent environment" />
-  <LibrarySummary environment={state} />
+  <SettingsHeading
+    title="Agent environment"
+    description="Linked computers share this library. Assign items to computers or tags to install them."
+  />
   <EnvironmentNotices onchange={() => void state.refresh()} />
   {#if state.error}<Alert tone="error">{state.error}</Alert>{/if}
   {#if state.notice}<Alert>{state.notice}</Alert>{/if}
+  <SettingsTopics
+    label="Agent environment settings"
+    topics={[
+      { id: "instructions", label: "Instructions", content: instructions },
+      { id: "skills", label: "Skills", content: skills },
+      { id: "plugins", label: "Plugins", content: plugins },
+      { id: "computers", label: "Computers", content: computers },
+    ]}
+  />
+</div>
+
+{#snippet status(value: string)}
+  <p role="status" class="text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400">{value}</p>
+{/snippet}
+
+{#snippet instructions()}
+  {#if state.snapshot.documents.length}{@render status(summary.instructions)}{/if}
   <InstructionLibrary {state} />
-  <SkillsLibrary environment={state} />
+{/snippet}
+
+{#snippet skills()}
+  {#if state.snapshot.skills.length}{@render status(summary.skills)}{/if}
+  <SkillsLibrary environment={state} notInstalled={summary.notInstalled} />
+{/snippet}
+
+{#snippet plugins()}
+  {#if state.snapshot.marketplaces.length || state.snapshot.plugins.length}{@render status(summary.plugins)}{/if}
   <MarketplaceLibrary environment={state} />
-  <section
-    class="grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10"
-    aria-label="Environment computers"
-  >
+{/snippet}
+
+{#snippet computers()}
+  <section class="grid min-w-0 gap-3" aria-label="Environment computers">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-balance">Computers & preview</h2>
       {#if !selectedWorker?.nodeId}<Button
@@ -83,4 +112,4 @@
         Add a worker in Settings → Workers to preview and sync instructions.
       </p>{/if}
   </section>
-</div>
+{/snippet}

@@ -94,7 +94,7 @@
 
   // Settings as a page (loaded on its own) or over the current one.
   const settingsActive = $derived(isSettingsRoute(page.route.id) || isSettingsRoute(page.shallow?.route?.id));
-  const habitCount = $derived(pendingHabitCount(overview));
+  const habitCount = $derived(pendingHabitCount(overview, capabilities));
   const settingsLabel = $derived(habitCount ? `Open settings, ${habitSuggestionCount(habitCount)}` : "Open settings");
 
   const iconLink =

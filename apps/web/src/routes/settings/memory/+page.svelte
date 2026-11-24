@@ -1,7 +1,11 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import type { ui } from "@canopy/contracts";
   import { memoryScopes } from "@canopy/domain/memory-scopes";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import { habitRead, habitsTopicHash, supportsHabits } from "#lib/features/memory/habit-suggestions.svelte.ts";
+  import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import { listMemoryNotes, type MemoryFilters } from "#lib/features/memory/api.ts";
   import MemoryFilterPicker from "#lib/features/memory/MemoryFilterPicker.svelte";
@@ -23,6 +27,10 @@
   let page = $state(0);
   let cursors = $state.raw([""]);
   let loading = $state(true);
+  const capabilities = useGatewayCapabilities();
+  const route = useSettingsRoute();
+  const habitsSupported = $derived(supportsHabits(capabilities) && habitRead.data !== null);
+  let topics = $state<ReturnType<typeof SettingsTopics>>();
   let failedPage = $state<number>();
   let request: AbortController | undefined;
   let debounce: ReturnType<typeof setTimeout> | undefined;
@@ -32,6 +40,11 @@
   const filtered = $derived(
     filters.scope !== "all" || !!filters.projectId || !!filters.workerId || !!filters.query.trim(),
   );
+
+  // Review habits explicitly opens the panel even if the settings search currently matches Notes.
+  $effect(() => {
+    if (route.url.hash === habitsTopicHash && topics) untrack(() => topics?.selectTopic("habits"));
+  });
 
   async function load(index = 0, reveal = false) {
     const after = cursors[index];
@@ -119,99 +132,112 @@
   }
 </script>
 
-<HabitSettings onapproved={() => void load()} />
-
 <svelte:head><title>Memory · Settings · {applicationName}</title></svelte:head>
 
-<section aria-label="Memory notes" class="grid min-w-0 grid-cols-1 gap-4">
-  <div class="min-w-0 px-1">
-    <h2 class="text-base/7 font-semibold">Memory</h2>
-    <p class="text-base/6 text-pretty text-muted sm:text-sm/6">Notes that agents and bots save for future turns.</p>
-  </div>
+<SettingsTopics
+  bind:this={topics}
+  label="Memory settings"
+  topics={[
+    { id: "notes", label: "Notes", content: memoryNotes },
+    { id: "habits", label: "Habits", content: habits, hidden: !habitsSupported },
+  ]}
+/>
 
-  <div
-    class="grid min-w-0 grid-cols-2 items-center gap-2 @min-[34rem]/settings-content:grid-cols-[repeat(3,minmax(0,1fr))_auto] @min-[48rem]/settings-content:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto]"
-  >
-    {#if filterOptions}
-      <SearchField
-        id={searchId}
-        label="Search notes"
-        placeholder="Search notes"
-        bind:value={() => filters.query, search}
-        maxlength={200}
-        class="col-span-full min-h-(--settings-control-height) bg-surface @min-[48rem]/settings-content:col-span-1"
-      />
-    {/if}
-    <Select
-      aria-label={`Scope — ${memoryScopes.find((item) => item.value === filters.scope)?.label ?? "All scopes"}`}
-      options={memoryScopes}
-      value={filters.scope}
-      onchange={(scope) => applyFilters({ ...filters, scope })}
-    />
-    {#if filterOptions}
-      <MemoryFilterPicker
-        label="Project"
-        allLabel="All projects"
-        searchLabel="Find a project"
-        options={filterOptions.projects}
-        value={filters.projectId}
-        onchange={(projectId) => applyFilters({ ...filters, projectId })}
-      />
-      <MemoryFilterPicker
-        label="Worker"
-        allLabel="All workers"
-        searchLabel="Find a worker"
-        options={filterOptions.workers}
-        value={filters.workerId}
-        onchange={(workerId) => applyFilters({ ...filters, workerId })}
-      />
-      <div class="justify-self-end">
-        <Button variant="ghost" disabled={!filtered} onclick={clearFilters}>Clear filters</Button>
-      </div>
-    {/if}
-  </div>
-
-  {#if notes.length}
-    <div class="grid min-w-0 gap-2" aria-busy={loading}>
-      <h3 bind:this={resultsHeading} tabindex="-1" class="w-fit rounded-sm px-1 text-sm/5 font-medium focus-ring">
-        Notes by last update
-      </h3>
-      <MemoryNoteList {notes} query={filters.query.trim()} onopen={(note) => dialog.inspect(note)} />
+{#snippet memoryNotes()}
+  <section aria-label="Memory notes" class="grid min-w-0 grid-cols-1 gap-4">
+    <div class="min-w-0 px-1">
+      <h2 class="text-base/7 font-semibold">Memory notes</h2>
+      <p class="text-base/6 text-pretty text-muted sm:text-sm/6">Notes that agents and bots save for future turns.</p>
     </div>
-  {/if}
 
-  {#if loading}
-    <p class="flex items-center justify-center gap-2 py-6 text-base/6 text-muted sm:text-sm/6" role="status">
-      <Spinner />Loading notes…
-    </p>
-  {:else if failedPage !== undefined}
-    <Alert tone="error" title="Could not load notes">
-      Check your connection and try again.
-      {#snippet actions()}<Button size="sm" onclick={() => load(failedPage)}>Try again</Button>{/snippet}
-    </Alert>
-  {:else if !notes.length}
-    {#if filtered && filterOptions}
-      <EmptyState title="No matching notes" description="Try a different search or clear the filters." />
-    {:else if filtered}
-      <EmptyState title="No notes in this scope">
-        {#snippet action()}<Button size="sm" onclick={clearFilters}>Show all notes</Button>{/snippet}
-      </EmptyState>
-    {:else}
-      <EmptyState title="No memory notes yet" description="Ask an agent or bot to remember something." />
-    {/if}
-  {/if}
+    <div
+      class="grid min-w-0 grid-cols-2 items-center gap-2 @min-[34rem]/settings-content:grid-cols-[repeat(3,minmax(0,1fr))_auto] @min-[48rem]/settings-content:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto]"
+    >
+      {#if filterOptions}
+        <SearchField
+          id={searchId}
+          label="Search notes"
+          placeholder="Search notes"
+          bind:value={() => filters.query, search}
+          maxlength={200}
+          class="col-span-full min-h-(--settings-control-height) bg-surface @min-[48rem]/settings-content:col-span-1"
+        />
+      {/if}
+      <Select
+        aria-label={`Scope — ${memoryScopes.find((item) => item.value === filters.scope)?.label ?? "All scopes"}`}
+        options={memoryScopes}
+        value={filters.scope}
+        onchange={(scope) => applyFilters({ ...filters, scope })}
+      />
+      {#if filterOptions}
+        <MemoryFilterPicker
+          label="Project"
+          allLabel="All projects"
+          searchLabel="Find a project"
+          options={filterOptions.projects}
+          value={filters.projectId}
+          onchange={(projectId) => applyFilters({ ...filters, projectId })}
+        />
+        <MemoryFilterPicker
+          label="Worker"
+          allLabel="All workers"
+          searchLabel="Find a worker"
+          options={filterOptions.workers}
+          value={filters.workerId}
+          onchange={(workerId) => applyFilters({ ...filters, workerId })}
+        />
+        <div class="justify-self-end">
+          <Button variant="ghost" disabled={!filtered} onclick={clearFilters}>Clear filters</Button>
+        </div>
+      {/if}
+    </div>
 
-  {#if notes.length && cursors.length > 1}
-    <nav aria-label="Notes pagination" class="flex flex-wrap items-center justify-between gap-2 px-1">
-      <span class="text-sm/5 text-muted tabular-nums sm:text-xs/5" role="status">Page {page + 1}</span>
-      <div class="flex flex-wrap gap-2">
-        <Button disabled={loading || page === 0} icon="chevron-left" onclick={() => load(page - 1, true)}>
-          Previous
-        </Button>
-        <Button disabled={loading || page + 1 >= cursors.length} onclick={() => load(page + 1, true)}>Next</Button>
+    {#if notes.length}
+      <div class="grid min-w-0 gap-2" aria-busy={loading}>
+        <h3 bind:this={resultsHeading} tabindex="-1" class="w-fit rounded-sm px-1 text-sm/5 font-medium focus-ring">
+          Notes by last update
+        </h3>
+        <MemoryNoteList {notes} query={filters.query.trim()} onopen={(note) => dialog.inspect(note)} />
       </div>
-    </nav>
-  {/if}
-</section>
+    {/if}
+
+    {#if loading}
+      <p class="flex items-center justify-center gap-2 py-6 text-base/6 text-muted sm:text-sm/6" role="status">
+        <Spinner />Loading notes…
+      </p>
+    {:else if failedPage !== undefined}
+      <Alert tone="error" title="Could not load notes">
+        Check your connection and try again.
+        {#snippet actions()}<Button size="sm" onclick={() => load(failedPage)}>Try again</Button>{/snippet}
+      </Alert>
+    {:else if !notes.length}
+      {#if filtered && filterOptions}
+        <EmptyState title="No matching notes" description="Try a different search or clear the filters." />
+      {:else if filtered}
+        <EmptyState title="No notes in this scope">
+          {#snippet action()}<Button size="sm" onclick={clearFilters}>Show all notes</Button>{/snippet}
+        </EmptyState>
+      {:else}
+        <EmptyState title="No memory notes yet" description="Ask an agent or bot to remember something." />
+      {/if}
+    {/if}
+
+    {#if notes.length && cursors.length > 1}
+      <nav aria-label="Notes pagination" class="flex flex-wrap items-center justify-between gap-2 px-1">
+        <span class="text-sm/5 text-muted tabular-nums sm:text-xs/5" role="status">Page {page + 1}</span>
+        <div class="flex flex-wrap gap-2">
+          <Button disabled={loading || page === 0} icon="chevron-left" onclick={() => load(page - 1, true)}>
+            Previous
+          </Button>
+          <Button disabled={loading || page + 1 >= cursors.length} onclick={() => load(page + 1, true)}>Next</Button>
+        </div>
+      </nav>
+    {/if}
+  </section>
+{/snippet}
+
+{#snippet habits()}
+  <HabitSettings onapproved={() => void load()} />
+{/snippet}
 
 <MemoryNoteDialog bind:this={dialog} onchange={changeNote} onreload={() => load()} />

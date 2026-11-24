@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, type Snippet } from "svelte";
   import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import type { ClassValue } from "svelte/elements";
   import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
@@ -14,7 +14,14 @@
   import PreferenceRow from "#lib/features/settings/PreferenceRow.svelte";
   import { formatLocalDateTime } from "#lib/shared/format.ts";
 
-  let { class: className }: { class?: ClassValue } = $props();
+  let {
+    class: className,
+    layout,
+  }: {
+    class?: ClassValue;
+    layout?: Snippet<[Snippet, Snippet, boolean]>;
+  } = $props();
+
   let status = $state<DesktopUpdateStatus>();
   let error = $state("");
   let pending = $state(false);
@@ -90,126 +97,143 @@
   const checkedTime = (value: number | undefined) => (value ? formatLocalDateTime(new Date(value)) : "never");
 </script>
 
-{#if status}
-  {@const current = status}
-  <SettingsGroup title="App updates" description="This device" class={className}>
-    {#snippet actions()}<Button
-        size="sm"
-        disabled={busy}
-        onclick={() =>
-          run(async () => {
-            if (window.canopyDesktop?.setUpdateCheckInterval)
-              receive(await window.canopyDesktop.setUpdateCheckInterval(360));
-            if (status && status.channel !== status.buildChannel)
-              receive(await window.canopyDesktop!.setUpdateChannel(status.buildChannel));
-          })}>Restore defaults</Button
-      >{/snippet}
-    <SettingsRow title="Installed version">
-      {#snippet control()}<span class="text-base/6 tabular-nums sm:text-sm/6">{current.version}</span><Badge
-          >{label(current.buildChannel)}</Badge
-        >{/snippet}
-    </SettingsRow>
-    {#if current.checkIntervalMinutes !== undefined}
-      <PreferenceRow
-        title="Update check frequency"
-        description="Check for releases while Canopy is open."
-        changed={current.checkIntervalMinutes !== 360}
-        onreset={() => changeInterval("360")}
-      >
-        {#snippet control()}<div class="w-56 max-w-full">
-            <Select
-              aria-label="Update check frequency"
-              value={String(current.checkIntervalMinutes)}
-              options={updateCheckChoices}
-              onchange={changeInterval}
-              disabled={pending}
-            />
-          </div>{/snippet}
-        <p class="mt-1 text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400" role="status">
-          Last checked {checkedTime(current.lastCheckedAt)}{#if current.checkIntervalMinutes !== 0}{" · Next check "}
-            {current.nextCheckAt ? checkedTime(current.nextCheckAt) : "unavailable in this installation"}{/if}
-        </p>
-        {#if current.checkIntervalMinutes === 0}<p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
-            Automatic downloads are off.
-          </p>{/if}
-      </PreferenceRow>
-    {/if}
-    <PreferenceRow
-      title="Update channel"
-      changed={current.channel !== current.buildChannel}
-      onreset={() => change(current.buildChannel)}
-    >
-      {#snippet control()}<div class="w-40">
-          <Select aria-label="Update channel" {options} bind:value={choice} onchange={change} disabled={busy} />
-        </div>{/snippet}
-    </PreferenceRow>
-    <div class="grid gap-4 px-4 py-4">
-      {#if status.message !== status.error}
-        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
-          {status.message}{status.updateVersion ? ` · ${status.updateVersion}` : ""}
-        </p>
-      {/if}
-      {#if status.phase === "downloading"}
-        <p
-          class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400"
-          role="progressbar"
-          aria-label="Update download"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(status.progress ?? 0)}
-        >
-          {Math.round(status.progress ?? 0)}%
-        </p>
-      {/if}
-      {#if status.error}
-        <Alert
-          tone="error"
-          title={status.updateVersion && status.message === status.error ? `Update ${status.updateVersion}` : ""}
-        >
-          {status.error}
-        </Alert>
-      {/if}
-      {#if status.stagedVersion || status.phase === "downloaded"}
-        <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          {status.phase === "checking" || status.phase === "downloading"
-            ? "Restart waits for this download, then stops agents running on this computer."
-            : "Restarting stops the agents running on this computer."}
-        </p>
-      {/if}
-      <div class="flex flex-wrap gap-3">
-        {#if status.stagedVersion || status.phase === "downloaded"}
-          <Button
-            variant="primary"
-            disabled={restarting || status.changingChannel}
-            loading={restarting}
-            onclick={async () => {
-              restarting = true;
-              try {
-                await window.canopyDesktop!.restartToUpdate();
-              } catch {
-                error = "Could not finish this update action. Try again.";
-              } finally {
-                restarting = false;
-              }
-            }}>Restart to update</Button
-          >
+{#snippet releases()}
+  {#if status}
+    {@const current = status}
+    <SettingsGroup title="This app" class={className}>
+      <SettingsRow title="Installed version">
+        {#snippet control()}<span class="text-base/6 tabular-nums sm:text-sm/6">{current.version}</span><Badge
+            >{label(current.buildChannel)}</Badge
+          >{/snippet}
+      </SettingsRow>
+      <div class="grid gap-4 px-4 py-4">
+        {#if status.message !== status.error}
+          <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400" role="status">
+            {status.message}{status.updateVersion ? ` · ${status.updateVersion}` : ""}
+          </p>
         {/if}
-        <Button
-          disabled={busy || restarting || status.phase === "disabled"}
-          loading={status.phase === "checking"}
-          onclick={() => run(async () => receive(await window.canopyDesktop!.checkForUpdates()))}
-          >Check for updates</Button
-        >
+        {#if status.phase === "downloading"}
+          <p
+            class="text-base/6 text-zinc-500 tabular-nums sm:text-sm/6 dark:text-zinc-400"
+            role="progressbar"
+            aria-label="Update download"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(status.progress ?? 0)}
+          >
+            {Math.round(status.progress ?? 0)}%
+          </p>
+        {/if}
+        {#if status.error}
+          <Alert
+            tone="error"
+            title={status.updateVersion && status.message === status.error ? `Update ${status.updateVersion}` : ""}
+          >
+            {status.error}
+          </Alert>
+        {/if}
+        {#if status.stagedVersion || status.phase === "downloaded"}
+          <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            {status.phase === "checking" || status.phase === "downloading"
+              ? "Restart waits for this download, then stops agents running on this computer."
+              : "Restarting stops the agents running on this computer."}
+          </p>
+        {/if}
+        <div class="flex flex-wrap gap-3">
+          {#if status.stagedVersion || status.phase === "downloaded"}
+            <Button
+              variant="primary"
+              disabled={restarting || status.changingChannel}
+              loading={restarting}
+              onclick={async () => {
+                restarting = true;
+                try {
+                  await window.canopyDesktop!.restartToUpdate();
+                } catch {
+                  error = "Could not finish this update action. Try again.";
+                } finally {
+                  restarting = false;
+                }
+              }}>Restart to update</Button
+            >
+          {/if}
+          <Button
+            disabled={busy || restarting || status.phase === "disabled"}
+            loading={status.phase === "checking"}
+            onclick={() => run(async () => receive(await window.canopyDesktop!.checkForUpdates()))}
+            >Check for updates</Button
+          >
+        </div>
+        {#if current.publishing && current.publishing !== current.message}<p
+            class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+          >
+            {current.publishing}
+          </p>{/if}
+        {#if current.updateVersion && ["downloading", "downloaded", "error"].includes(current.phase)}
+          <UpdateReleaseNotes releases={current.releases ?? []} channel={current.channel} />
+        {/if}
       </div>
-      {#if current.publishing && current.publishing !== current.message}<p
-          class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400"
+    </SettingsGroup>
+  {/if}
+{/snippet}
+
+{#snippet preferences()}
+  {#if status}
+    {@const current = status}
+    <SettingsGroup title="Update preferences" description="This device" class={className}>
+      {#snippet actions()}<Button
+          size="sm"
+          disabled={busy}
+          onclick={() =>
+            run(async () => {
+              if (window.canopyDesktop?.setUpdateCheckInterval)
+                receive(await window.canopyDesktop.setUpdateCheckInterval(360));
+              if (status && status.channel !== status.buildChannel)
+                receive(await window.canopyDesktop!.setUpdateChannel(status.buildChannel));
+            })}>Restore defaults</Button
+        >{/snippet}
+      {#if current.checkIntervalMinutes !== undefined}
+        <PreferenceRow
+          title="Update check frequency"
+          description="Check for releases while Canopy is open."
+          changed={current.checkIntervalMinutes !== 360}
+          onreset={() => changeInterval("360")}
         >
-          {current.publishing}
-        </p>{/if}
-      {#if current.updateVersion && ["downloading", "downloaded", "error"].includes(current.phase)}
-        <UpdateReleaseNotes releases={current.releases ?? []} channel={current.channel} />
+          {#snippet control()}<div class="w-56 max-w-full">
+              <Select
+                aria-label="Update check frequency"
+                value={String(current.checkIntervalMinutes)}
+                options={updateCheckChoices}
+                onchange={changeInterval}
+                disabled={pending}
+              />
+            </div>{/snippet}
+          <p class="mt-1 text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400" role="status">
+            Last checked {checkedTime(current.lastCheckedAt)}{#if current.checkIntervalMinutes !== 0}{" · Next check "}
+              {current.nextCheckAt ? checkedTime(current.nextCheckAt) : "unavailable in this installation"}{/if}
+          </p>
+          {#if current.checkIntervalMinutes === 0}<p class="mt-1 text-sm/5 text-zinc-500 dark:text-zinc-400">
+              Automatic downloads are off.
+            </p>{/if}
+        </PreferenceRow>
       {/if}
-    </div>
-  </SettingsGroup>
+      <PreferenceRow
+        title="Update channel"
+        changed={current.channel !== current.buildChannel}
+        onreset={() => change(current.buildChannel)}
+      >
+        {#snippet control()}<div class="w-40">
+            <Select aria-label="Update channel" {options} bind:value={choice} onchange={change} disabled={busy} />
+          </div>{/snippet}
+      </PreferenceRow>
+    </SettingsGroup>
+  {/if}
+{/snippet}
+
+{#if layout}
+  {@render layout(releases, preferences, Boolean(status))}
+{:else}
+  {@render releases()}
+  {@render preferences()}
 {/if}
 {#if error}<Alert tone="error" class="mt-4">{error}</Alert>{/if}

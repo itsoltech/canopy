@@ -43,7 +43,9 @@ export function useSettingsSections() {
       return sections.find((section) => isActive(section.href));
     },
     get habitCount() {
-      return sections.some((section) => section.href === memorySettingsPath) ? pendingHabitCount(overview) : 0;
+      return sections.some((section) => section.href === memorySettingsPath)
+        ? pendingHabitCount(overview, capabilities)
+        : 0;
     },
     isActive,
     hinted: (href: string) => hinted.has(href),

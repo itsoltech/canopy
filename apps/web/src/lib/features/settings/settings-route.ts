@@ -20,6 +20,8 @@ export interface SettingsRoute<Form = SettingsForm> {
   readonly form: Form;
   /** Removes a one-shot query parameter once the overlay is open, without adding a history entry. */
   consumeQuery(name: string): Promise<boolean>;
+  /** Changes the visible topic in the current Settings history entry. */
+  selectTopic(hash: string): Promise<void>;
   /** Returns to the page underneath the Settings overlay. */
   close(): void;
   /**

@@ -33,7 +33,7 @@
   }
 </script>
 
-<section class={["grid min-w-0 gap-3 border-t border-divider pt-4", className]} aria-label="Marketplaces and plugins">
+<section class={["grid min-w-0 gap-3", className]} aria-label="Marketplaces and plugins">
   <div class="grid gap-2">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-balance">Marketplaces & plugins</h2>

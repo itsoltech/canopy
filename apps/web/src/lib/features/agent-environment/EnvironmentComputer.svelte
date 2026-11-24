@@ -37,7 +37,11 @@
           >{tag}</Badge
         >{/each}
     </div>
-    <div><ButtonLink size="sm" href={`/settings/workers/${worker.workerId}`}>Edit in Workers</ButtonLink></div>
+    <div>
+      <ButtonLink size="sm" href={`/settings/workers/${encodeURIComponent(worker.workerId)}#topic-tags`}
+        >Edit in Workers</ButtonLink
+      >
+    </div>
   </div>
   {#if worker.compositionError}<Alert tone="error"
       >{worker.compositionError} The last synced files have been preserved.</Alert

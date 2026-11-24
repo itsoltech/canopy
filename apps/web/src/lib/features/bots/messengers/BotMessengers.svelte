@@ -92,7 +92,9 @@
   {/if}
   {#if !loading && loaded}
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <a href="/settings/connectors" class="font-medium underline underline-offset-4">Manage Slack Bot accounts</a>
+      <a href="/settings/connectors#topic-slack-bots" class="font-medium underline underline-offset-4"
+        >Manage Slack Bot accounts</a
+      >
       <Button size="sm" disabled={busy || !!editRoute} onclick={reload}>Refresh status</Button>
     </div>
     <div class="grid min-w-0 gap-3">

@@ -19,7 +19,16 @@
   import SkillInstall from "./SkillInstall.svelte";
   import { assignedWorkers } from "@canopy/domain/environment-library";
 
-  let { environment, class: className }: { environment: EnvironmentState; class?: ClassValue } = $props();
+  let {
+    environment,
+    notInstalled,
+    class: className,
+  }: {
+    environment: EnvironmentState;
+    notInstalled: EnvironmentState["snapshot"]["skills"];
+    class?: ClassValue;
+  } = $props();
+
   const controller = new SkillsState(untrack(() => environment));
   let choose = $state(false);
   let sourceOpen = $state(false);
@@ -53,13 +62,19 @@
   }
 </script>
 
-<section
-  class={["grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10", className]}
-  aria-label="Skill library"
->
+<section class={["grid min-w-0 gap-3", className]} aria-label="Skill library">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <h2 class="text-lg font-semibold text-balance">Skill library</h2>
-    <Button size="sm" onclick={() => (choose = true)}>Add skill</Button>
+    <div class="flex flex-wrap gap-2">
+      {#if notInstalled.length}
+        <Button
+          size="sm"
+          disabled={environment.busy || deleting}
+          onclick={() => (installing = notInstalled.map((s) => s.id))}>Install unassigned skills…</Button
+        >
+      {/if}
+      <Button size="sm" onclick={() => (choose = true)}>Add skill</Button>
+    </div>
   </div>
   {#if environment.snapshot.skills.length}
     <div class="flex min-h-12 flex-wrap items-center gap-2">

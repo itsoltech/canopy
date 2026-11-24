@@ -1,5 +1,7 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-24): w web/desktop wiersz workera otwiera jego ustawienia z podziałem na zakładki.
+
 Aktualizacja (2026-11-23) włącza **Use CLI home** domyślnie dla wbudowanej instancji `codex/native` z logowaniem urządzenia na Windowsie, macOS i Linuksie.
 
 Aktualizacja (2026-11-22): katalog konektorów wątku wynika z dostępu jego projektu.
@@ -143,10 +145,10 @@ przypisane instrukcje, skille i pluginy na podstawie tagów ręcznych i automaty
 Ponowna instalacja SSH istniejącego workera zachowuje jego konfigurację i tagi;
 zmiany wykonuje się w jego szczegółach w Workers.
 
-W **Settings → Workers** rozwiń maszynę albo otwórz jej szczegóły. Każdy worker jest
-osobną kartą pod nagłówkiem swojego komputera: nagłówek karty pokazuje nazwę, host, system,
-wersję i stan, a rozwinięcie płaskie sekcje **Agent CLIs**, **Configuration**,
-**Provider accounts** i **Tags**. Sekcja **Tags**
+W web/desktop otwórz **Settings → Workers** i wybierz maszynę pod nazwą jej komputera.
+Wiersz pokazuje nazwę, host, system, wersję i stan workera. W jego szczegółach
+**Configuration** obejmuje konfigurację i **Provider accounts**. Narzędzia CLI
+mają zakładkę **Agent CLIs**. Zakładka **Tags**
 pokazuje wykryte OS/architekturę i pozostałe automatyczne fakty tylko do odczytu,
 oraz edytowalne **Manual tags**. **Save tags** zapisuje zmianę z kontrolą rewizji,
 audytuje ją i uruchamia ponowne uzgodnienie przypisań. Worker offline odbierze
@@ -214,7 +216,7 @@ wydrukowanych poleceń. Szczegóły: [deploy.md](deploy.md).
 
 ### Instalacja przez SSH
 
-W **Settings → Workers → Install over SSH** wybierz **Show public key** i skopiuj
+W **Settings → Workers → Connections → Install over SSH** wybierz **Show public key** i skopiuj
 publiczny klucz Ed25519 do `~/.ssh/authorized_keys` docelowego użytkownika.
 Gateway tworzy jedną parę na właściciela; prywatny klucz jest szyfrowany AES-256-GCM
 tym samym `CANOPY_SECRETS_KEY` co pozostałe sekrety. Nigdy nie trafia do BFF, przeglądarki,
@@ -590,7 +592,7 @@ Pickery (nowy wątek i wątek) pokazują dla wybranego workera tylko instancje `
 
 ### Ustawienia CLI zapisane w Canopy
 
-W **Settings → Providers → CLI settings** format zależy od instancji.
+W web/desktop ustawienia CLI są w **Settings → Providers**, po wybraniu instancji w zakładce **Configuration**. Format zależy od instancji.
 Claude używa JSON w formacie `settings.json`. Codex i Grok używają TOML
 w formacie `config.toml`. Zakres **All workers** ustawia wspólne wartości dla workerów
 korzystających z wybranej instancji, także przyszłych. Po wybraniu workera

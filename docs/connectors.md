@@ -1,5 +1,8 @@
 # Konektory Canopy
 
+Status (2026-11-24): w web/desktop **Tool accounts** zawiera konta MCP, a po włączeniu modułu Bots
+zakładka **Slack bots** udostępnia konta wiadomości.
+
 Status (2026-11-23): sparowany telefon kończy OAuth kodem wklejonym ze strony powrotu.
 
 Projekt i wdrożenie: 2026-11-02. Zakres: konta zdalnych serwerów MCP,
@@ -568,7 +571,7 @@ narzędzie w rzeczywistym modelu Codexa.
 
 ## Slack jako komunikator bota
 
-W Settings → Connectors → Slack Bot właściciel może utworzyć aplikację z manifestu
+W web/desktop w **Settings → Connectors → Slack bots** właściciel może utworzyć aplikację z manifestu
 dla bota i zainstalować ją w workspace. Przy wyłączonej rotacji zapisuje app-level
 token `xapp-…` z `connections:write` oraz Bot User OAuth Token `xoxb-…` z tej samej
 aplikacji. Połączenie działa bez konta Slack User.

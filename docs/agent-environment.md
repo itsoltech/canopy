@@ -11,6 +11,7 @@ w katalogach skilli, obsługuje dłuższe opisy w `SKILL.md` i zgłasza pominię
 pliki z błędną składnią YAML.
 Aktualizacja (2026-11-23): status wiersza biblioteki uwzględnia raporty
 dotyczące danego skilla, pluginu lub harnessu instrukcji.
+Aktualizacja (2026-11-24): w web/desktop każda biblioteka ma własną zakładkę i podsumowanie.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -50,15 +51,17 @@ kodu/diff, przypisanie oraz osobne, domyślnie niezaznaczone potwierdzenie check
 Check upstream także otwiera panel. Dotychczasowe porównania i rozwiązywanie driftu
 pozostają przy statusie komputera. Błędy walidacji i zapisu są widoczne w panelu.
 
-Nad bibliotekami znajduje się zwięzłe podsumowanie skilli z potwierdzoną instalacją,
-przypisanych bez aktualnego potwierdzenia synchronizacji i bez instalacji,
-pluginów oczekujących na przegląd oraz dokumentów instrukcji.
+W web/desktop **Instructions** podaje liczbę dokumentów, **Skills** pokazuje skille
+z potwierdzoną instalacją, przypisane bez potwierdzenia i bez instalacji,
+a **Plugins** podaje liczbę pluginów oczekujących na przegląd. Na mobile wspólne
+podsumowanie znajduje się nad bibliotekami.
 Biblioteka jest wspólna dla konta i połączonych komputerów, ale obecność elementu
 w bibliotece nie instaluje go na workerach. Instalację zleca dopiero przypisanie:
 wszystkie komputery, wybrane workery albo tagi. Licznik przypisań obejmuje także
 komputery offline; nie jest potwierdzeniem zapisu plików.
 
-**Computers & preview** podaje zbiorczy status komputera i szczegóły problemów.
+W web/desktop zakładka **Computers** otwiera **Computers & preview** ze zbiorczym statusem
+komputera i szczegółami problemów.
 Wiersz przypisanego elementu pokazuje **Error**, gdy raport zawiera problem
 dotyczący tego skilla, pluginu lub harnessu instrukcji. Błąd wyznaczenia celów
 dla całej kategorii dotyczy wszystkich jej wierszy na tym komputerze.
@@ -69,8 +72,8 @@ Plugin z katalogu bez zatwierdzonego przypisania pokazuje **Review required**
 i akcję **Review**. Przypisanie nadal wymaga przeglądu i osobnego potwierdzenia checksumu.
 
 Checkboxy skilli pozwalają wybrać wiele pozycji i użyć **Install on…** albo
-**Remove from library**. Podsumowanie udostępnia też instalację wszystkich skilli
-bez pasującego komputera. Obie ścieżki używają tego samego pickera przypisań,
+**Remove from library**. Wszystkie skille bez pasującego komputera można
+przypisać z zakładki **Skills** w web/desktop lub z podsumowania na mobile. Obie ścieżki używają tego samego pickera przypisań,
 zachowują nadpisania maszyn i kontrolę rewizji. Zapisy są kolejno wykonywanymi
 RPC, nie jedną transakcją: po błędzie UI pokazuje częściowy wynik. Usunięcie
 z biblioteki usuwa także zarządzane instalacje na przypisanych komputerach.

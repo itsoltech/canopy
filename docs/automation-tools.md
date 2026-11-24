@@ -16,9 +16,9 @@ Desktop Preview zachowuje katalog okien, gdy narzędzie zgłosi nieprawidłową 
 Web/desktop potwierdza klatki po narysowaniu obrazu; odświeżanie metadanych celu
 i naprawa kursora historii zachowują działający podgląd.
 Osobne okno ponawia pojedynczy nieudany odczyt stanu wątku bez przerywania podglądu.
-Osobna zakładka Settings → Agent tools grupuje dostęp i instalacje według narzędzia;
-włączenie na połączonym workerze automatycznie rozpoczyna potrzebną instalację.
-Karty mają zapisane ustawienia początkowe sesji wspólne dla workerów użytkownika.
+Aktualizacja (2026-11-24): w web/desktop **Settings → Agent tools → Worker access** grupuje dostęp
+i instalacje według narzędzia. Włączenie na połączonym workerze uruchamia potrzebną instalację.
+Zakładka **Session defaults** zawiera ustawienia początkowe sesji wspólne dla workerów użytkownika.
 Natywny mobile ma ręczny pełnoekranowy Preview Browser/Desktop/Device z wyborem celu,
 dotykiem, nawigacją i wpisywaniem tekstu przez Connect z przypiętym TLS. Wszystkie
 trzy narzędzia mają stałą belkę zamknięcia i możliwość ukrycia kontrolek.

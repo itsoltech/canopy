@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import {
     chatWidthOf,
@@ -31,7 +32,8 @@
 
 <svelte:head><title>Appearance · Settings · {applicationName}</title></svelte:head>
 
-<div class="mb-4 flex justify-end">
+<div class="flex flex-wrap items-center justify-between gap-2">
+  <p class="text-sm/5 text-muted">Appearance preferences stay on this device.</p>
   <Button
     size="sm"
     icon="arrow-path"
@@ -39,69 +41,86 @@
       settings.updateAppearance(deviceAppearanceDefaults);
       devicePreferences.reset(appearanceDeviceKeys);
       setAnimatedMascots(true);
-    }}>Restore device defaults</Button
+    }}>Reset appearance</Button
   >
 </div>
 
-<SettingsGroup title={colorSchemePreference.group}>
-  <PreferenceRow
-    title={colorSchemePreference.label}
-    changed={scheme !== colorSchemePreference.defaultChoice}
-    onreset={() => settings.updateAppearance({ colorScheme: schemeChoices[colorSchemePreference.defaultChoice].value })}
-  >
-    {#snippet control()}
-      <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label={colorSchemePreference.label}>
-        {#each schemes as mode (mode)}
-          <OptionTile
-            checked={scheme === mode}
-            label={schemeChoices[mode].label}
-            onchange={() => settings.updateAppearance({ colorScheme: schemeChoices[mode].value })}
-            class="grid gap-2 p-2"
-          >
-            <div class="relative overflow-hidden rounded-lg">
-              <ThemePreview
-                theme={themeOf(settings.appearance, mode === "dark" ? "dark" : "light")}
-                mode={mode === "dark" ? "dark" : "light"}
-              />
-              {#if mode === "system"}<div class="absolute inset-0 [clip-path:inset(0_0_0_50%)]">
-                  <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
-                </div>{/if}
-            </div>
-            <div class="text-center font-medium">{schemeChoices[mode].label}</div>
-          </OptionTile>
-        {/each}
-      </div>
-    {/snippet}
-  </PreferenceRow>
-</SettingsGroup>
+<SettingsTopics
+  label="Appearance settings"
+  topics={[
+    { id: "themes", label: "Themes", content: themes },
+    { id: "interface", label: "Interface", content: interfaceOptions },
+    { id: "typography", label: "Typography", content: typography },
+  ]}
+/>
 
-<ThemePicker />
-
-<SettingsGroup title={threadWidthPreference.group}>
-  <InterfaceSettings />
-  {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
-  {#if settings.moduleEnabled("threads")}
+{#snippet themes()}
+  <SettingsGroup title={colorSchemePreference.group}>
     <PreferenceRow
-      title={threadWidthPreference.label}
-      description={threadWidthPreference.description}
-      changed={chatWidth !== threadWidthPreference.defaultChoice}
-      onreset={() => settings.updateAppearance({ chatWidth: widthChoices[threadWidthPreference.defaultChoice].value })}
+      title={colorSchemePreference.label}
+      changed={scheme !== colorSchemePreference.defaultChoice}
+      onreset={() =>
+        settings.updateAppearance({ colorScheme: schemeChoices[colorSchemePreference.defaultChoice].value })}
     >
       {#snippet control()}
-        <Select
-          name="chatWidth"
-          aria-label={threadWidthPreference.label}
-          value={chatWidth}
-          onchange={(value) => {
-            const choice = namesOf(widthChoices).find((name) => name === value);
-            if (choice) settings.updateAppearance({ chatWidth: widthChoices[choice].value });
-          }}
-          class="w-40"
-          options={namesOf(widthChoices).map((value) => ({ value, label: widthChoices[value].label }))}
-        />
+        <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label={colorSchemePreference.label}>
+          {#each schemes as mode (mode)}
+            <OptionTile
+              checked={scheme === mode}
+              label={schemeChoices[mode].label}
+              onchange={() => settings.updateAppearance({ colorScheme: schemeChoices[mode].value })}
+              class="grid gap-2 p-2"
+            >
+              <div class="relative overflow-hidden rounded-lg">
+                <ThemePreview
+                  theme={themeOf(settings.appearance, mode === "dark" ? "dark" : "light")}
+                  mode={mode === "dark" ? "dark" : "light"}
+                />
+                {#if mode === "system"}<div class="absolute inset-0 [clip-path:inset(0_0_0_50%)]">
+                    <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
+                  </div>{/if}
+              </div>
+              <div class="text-center font-medium">{schemeChoices[mode].label}</div>
+            </OptionTile>
+          {/each}
+        </div>
       {/snippet}
     </PreferenceRow>
-  {/if}
-</SettingsGroup>
+  </SettingsGroup>
 
-<TypographySettings />
+  <ThemePicker />
+{/snippet}
+
+{#snippet interfaceOptions()}
+  <SettingsGroup title={threadWidthPreference.group}>
+    <InterfaceSettings />
+    {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
+    {#if settings.moduleEnabled("threads")}
+      <PreferenceRow
+        title={threadWidthPreference.label}
+        description={threadWidthPreference.description}
+        changed={chatWidth !== threadWidthPreference.defaultChoice}
+        onreset={() =>
+          settings.updateAppearance({ chatWidth: widthChoices[threadWidthPreference.defaultChoice].value })}
+      >
+        {#snippet control()}
+          <Select
+            name="chatWidth"
+            aria-label={threadWidthPreference.label}
+            value={chatWidth}
+            onchange={(value) => {
+              const choice = namesOf(widthChoices).find((name) => name === value);
+              if (choice) settings.updateAppearance({ chatWidth: widthChoices[choice].value });
+            }}
+            class="w-40"
+            options={namesOf(widthChoices).map((value) => ({ value, label: widthChoices[value].label }))}
+          />
+        {/snippet}
+      </PreferenceRow>
+    {/if}
+  </SettingsGroup>
+{/snippet}
+
+{#snippet typography()}
+  <TypographySettings />
+{/snippet}

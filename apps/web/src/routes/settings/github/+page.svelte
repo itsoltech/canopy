@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
+  import { onMount, tick } from "svelte";
   import type { github } from "@canopy/contracts";
   import { GITHUB_ACCOUNTS, GITHUB_HOME, qualifyId } from "@canopy/domain/computers";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -13,6 +14,7 @@
   import InsetList from "#lib/shared/ui/InsetList.svelte";
 
   const overview = useOverview();
+  let topics = $state<ReturnType<typeof SettingsTopics>>();
   let homeId = $state("");
   let data = $state<github.GitHubAccountsResponse>();
   let error = $state("");
@@ -45,14 +47,23 @@
     }
   }
 
+  async function connected(home: string, showAccount: boolean) {
+    await reload(home);
+    await tick();
+
+    if (showAccount && home === homeId && !error && data?.accounts.length) topics?.selectTopic("accounts");
+  }
+
   async function usePat(id: string) {
+    const home = homeId;
     busy = true;
 
     try {
-      await api.usePat(homeId, id);
-      await reload();
+      await api.usePat(home, id);
+      await connected(home, true);
     } catch {
-      error = "Could not use this personal access token. Reconnect it in Settings → Connectors, then retry.";
+      if (home === homeId)
+        error = "Could not use this personal access token. Reconnect it in Settings → Connectors, then retry.";
     } finally {
       busy = false;
     }
@@ -99,40 +110,49 @@
       <div class="mt-2"><Button size="sm" onclick={() => reload()}>Retry</Button></div></Alert
     >{/if}
   {#if data}
-    {#key homeId}<ConnectGitHub
-        {homeId}
-        configured={data.configured}
-        hasAccounts={data.accounts.length > 0}
-        onconnected={() => {
-          void reload();
-        }}
-      />{/key}
-    {#if data.patCandidates.length}<section class="flex flex-col gap-3">
-        <h2 class="text-base font-semibold">Existing personal access tokens</h2>
-        <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Canopy verifies the GitHub account for each token you use from Connectors.
-        </p>
-        <div class="flex flex-wrap gap-2">
-          {#each data.patCandidates as pat (pat.connectorAccountId)}<Button
-              size="sm"
-              disabled={busy}
-              onclick={() => usePat(pat.connectorAccountId)}>Use {pat.name}</Button
-            >{/each}
-        </div>
-      </section>{/if}
-    {#if data.accounts.length}<InsetList label="GitHub accounts">
-        {#each data.accounts as account (`${homeId}:${account.id}:${account.revision}`)}<li>
+    {@const current = data}
+    <SettingsTopics
+      bind:this={topics}
+      label="GitHub settings"
+      topics={[
+        { id: "accounts", label: "Accounts and access", content: accounts, hidden: !current.accounts.length },
+        { id: "connect", label: "Connect account", content: connect },
+      ]}
+    />
+    {#snippet accounts()}
+      <InsetList label="GitHub accounts">
+        {#each current.accounts as account (`${homeId}:${account.id}:${account.revision}`)}<li>
             <GitHubAccount
               {account}
-              installUrl={data.installUrl}
+              installUrl={current.installUrl}
               onchanged={() => {
                 void reload();
               }}
             />
           </li>{/each}
-      </InsetList>{:else}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-        No GitHub accounts connected on this computer.
-      </p>{/if}
+      </InsetList>
+    {/snippet}
+    {#snippet connect()}
+      {#key homeId}<ConnectGitHub
+          {homeId}
+          configured={current.configured}
+          hasAccounts={current.accounts.length > 0}
+          onconnected={(justConnected) => void connected(homeId, justConnected)}
+        />{/key}
+      {#if current.patCandidates.length}<section class="flex flex-col gap-3">
+          <h2 class="text-base font-semibold">Existing personal access tokens</h2>
+          <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
+            Canopy verifies the GitHub account for each token you use from Connectors.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            {#each current.patCandidates as pat (pat.connectorAccountId)}<Button
+                size="sm"
+                disabled={busy}
+                onclick={() => usePat(pat.connectorAccountId)}>Use {pat.name}</Button
+              >{/each}
+          </div>
+        </section>{/if}
+    {/snippet}
   {:else if !error}<p role="status" class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       Loading GitHub accounts…
     </p>{/if}
