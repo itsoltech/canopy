@@ -9,6 +9,8 @@ poświadczenia UI (2026-11-19). Sparowany Desktop konfiguruje relay powiadomień
 na zdalnym gatewayu, jeśli gateway ogłasza tę możliwość (2026-11-23).
 Ręczny adres HTTPS w ustawieniach Desktopu jest trasą przypiętą do dotychczasowego
 certyfikatu gatewaya i może też posłużyć do wymiany zaproszenia (2026-11-23).
+Nowe i ponowne parowanie Desktopu odróżnia przyjęcie zaproszenia od pierwszego
+uwierzytelnionego połączenia w Settings → Devices (2026-11-24).
 Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
@@ -46,6 +48,14 @@ infrastrukturę urządzeń, ale nie rozszerza uprawnień telefonów.
    anulowane przy odwołaniu. Settings → Devices pokazuje nazwę, platformę,
    rodzaj, ostatnie użycie i Revoke. Audyt obejmuje zaproszenie, parowanie
    i odwołanie, bez kodów i tokenów.
+
+Potwierdzenie w oknie zaproszenia oznacza, że gateway przyjął zaproszenie
+i utworzył poświadczenie. W Device access nowy wpis na liście Paired devices,
+także przy ponownym parowaniu, pokazuje „Not connected yet” do pierwszego
+żądania uwierzytelnionego tym poświadczeniem. „Last seen” podaje czas ostatniego
+uwierzytelnionego żądania aplikacji. Parowanie aplikacji remote zapewnia dostęp
+do wybranego gatewaya. Listę Linked computers tworzą osobne powiązania między
+lokalnymi gatewayami desktopów ([linked-computers.md](linked-computers.md)).
 
 Desktop otrzymuje pełny zakres UI tego samego właściciela, włącznie z administracją
 urządzeń, workerów i Network access, w tym relaya powiadomień push. Zakres

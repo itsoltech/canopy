@@ -93,6 +93,57 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
     expect(await failure(pairDesktop(text))).toContain("already used");
   });
 
+  test("new and replacement desktop pairings stay unseen until the client uses its credential", async () => {
+    async function pairAndConnect() {
+      const invitation = await invite();
+      const client = await pairDesktop(toJsonString(ui.CreateMobilePairingResponseSchema, invitation));
+      const devices = await gw.api.getMobileDevices({});
+      const accepted = devices.pairings.find((entry) => entry.id === invitation.pairing?.id);
+      expect(accepted?.usedAt).toBeDefined();
+      expect(accepted?.deviceId === client.deviceId).toBe(true);
+      const paired = devices.devices.find((entry) => entry.id === client.deviceId);
+      expect(paired?.clientKind).toBe("desktop");
+      expect(paired?.lastSeenAt).toBeUndefined();
+
+      const watch = gw.api
+        .watchOverview({ includeSnapshot: true }, { signal: AbortSignal.timeout(5000) })
+        [Symbol.asyncIterator]();
+
+      try {
+        expect((await watch.next()).done).toBe(false);
+        expect(await api(client.token).getClientCapabilities({})).toMatchObject({
+          gatewayRole: "server",
+          linkedComputers: false,
+        });
+
+        let firstSeen: ui.MobileDevice["lastSeenAt"];
+
+        for (let next = await watch.next(); !next.done; next = await watch.next()) {
+          const { change } = next.value;
+
+          if (change.case === "mobileDevice" && change.value.id === client.deviceId && change.value.lastSeenAt) {
+            firstSeen = change.value.lastSeenAt;
+            break;
+          }
+        }
+
+        const connected = (await gw.api.getMobileDevices({})).devices.find((entry) => entry.id === client.deviceId);
+        expect(firstSeen).toBeDefined();
+        expect(connected?.lastSeenAt).toEqual(firstSeen);
+      } finally {
+        await watch.return?.();
+      }
+
+      return client;
+    }
+
+    const original = await pairAndConnect();
+    await gw.api.revokeMobileDevice({ id: original.deviceId });
+    const replacement = await pairAndConnect();
+    expect(replacement.deviceId !== original.deviceId).toBe(true);
+    expect(await failure(api(original.token).getClientCapabilities({}))).toContain("revoked");
+  });
+
   test("phone codes cannot grant desktop scope, desktop codes cannot be used by phones", async () => {
     const mobile = await gw.api.createMobilePairing({});
     const transport = routedPinnedTransport(routes()).transport;
