@@ -3,7 +3,7 @@
  * The redirect page has a CSP that allows only its inline script and style, by hash.
  */
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
   DEFAULT_OAUTH_REDIRECT_URL,
@@ -70,9 +70,7 @@ const metadataFile = basename(new URL(OAUTH_CLIENT_METADATA_URL).pathname);
 
 await writeFile(join(out, "oauth", metadataFile), `${JSON.stringify(metadata, null, 2)}\n`);
 
-await mkdir(join(out, "demo"), { recursive: true });
-
-await copyFile(join(root, "site/demo/canopy-demo.mp4"), join(out, "demo/canopy-demo.mp4"));
+await cp(join(root, "site/demo"), join(out, "demo"), { recursive: true });
 
 // GitHub Pages serves a Jekyll build unless told otherwise.
 await writeFile(join(out, ".nojekyll"), "");

@@ -1,6 +1,6 @@
 # Wydania: wersje, CI, artefakty
 
-Status: opis zaimplementowanego workflow (2026-11-23). Push CI weryfikuje dokładny commit źródłowy.
+Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
 Nightly, beta i stable wymagają jego sukcesu przed buildem, tagowaniem, podpisywaniem i publikacją.
 Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
@@ -10,7 +10,7 @@ Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
 wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
 Pakowanie macOS i test natywny CI kompilują ikony na `macos-26`.
-GitHub Pages udostępnia film demonstracyjny z README i strony głównej Canopy.
+GitHub Pages udostępnia film demonstracyjny Canopy w formatach 16:9 i 4:5 oraz kadry startowe obu wersji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
 Smoke Desktop czeka na zapis trasy Network access przed restartem workera podczas parowania.
@@ -356,8 +356,11 @@ Kontroler uruchamia osobne procesy i ładuje gotowy BFF. Te zależności wykracz
 `scripts/build-site.ts` do `dist/site` i publikuje go `actions/deploy-pages`. Strona
 przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callback`
 ([konektory](connectors.md#stały-redirect-zarejestrowanych-aplikacji)).
-Film demonstracyjny z `site/demo/canopy-demo.mp4` jest dostępny pod
-[`/canopy/demo/canopy-demo.mp4`](https://itsoltech.github.io/canopy/demo/canopy-demo.mp4).
+Katalog `site/demo/` trafia w całości do `dist/site/demo/`. README prowadzi do
+[filmu 16:9](https://itsoltech.github.io/canopy/demo/canopy-demo.mp4).
+[Montaż 4:5](https://itsoltech.github.io/canopy/demo/canopy-demo-mobile.mp4) ma ten sam dźwięk i czas trwania,
+więc oba filmy korzystają na stronie z tych samych napisów WebVTT. Kadry startowe
+`canopy-demo-poster.webp` i `canopy-demo-mobile-poster.webp` są dostępne pod tą samą ścieżką co filmy.
 Zmiany `.github/**` zawsze wymagają całości, również przy rozszerzeniu `.md`.
 Zakres PR-a liczymy od wspólnego przodka z gałęzią bazową. Porównanie obejmuje oba końce rename.
 Błąd odczytu zmian blokuje PR.
