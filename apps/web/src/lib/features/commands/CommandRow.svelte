@@ -40,7 +40,12 @@
 
 {#snippet body()}
   {#if command.projectName}
-    <ProjectMark name={command.projectName} kind={command.projectKind} color={command.projectColor} />
+    <ProjectMark
+      name={command.projectName}
+      kind={command.projectKind}
+      color={command.projectColor}
+      imageBase64={command.projectImageBase64}
+    />
   {:else if command.icon}
     <Icon name={command.icon} class={paletteRowIconClass} />
   {:else if !thread}
@@ -59,6 +64,7 @@
           name={thread.projectName}
           kind={thread.projectKind}
           color={thread.projectColor}
+          imageBase64={thread.projectImageBase64}
           class="size-3.5 text-[0.5rem]/none"
         />
         <span class="min-w-0 truncate"

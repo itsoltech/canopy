@@ -90,6 +90,7 @@
           name={project?.name ?? "?"}
           kind={project?.kind}
           color={project?.color}
+          imageBase64={project?.imageBase64}
         />{/snippet}{project?.name ?? "Project"}</Crumb
     >
     {#snippet workspace()}<WorkspaceTabs title="Starting thread" />{/snippet}

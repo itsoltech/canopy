@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { isAbsolutePath, pathStyle } from "../store/paths.ts";
-import { NotFound } from "../store/index.ts";
+import { NotFound, type GatewayStore } from "../store/index.ts";
 import { coreState, InvalidError, UnavailableError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { coreWorkerQuery } from "./core-mentions.ts";
@@ -13,6 +13,7 @@ import { decorateOrigins, rememberUnpublishedOrigin } from "./workspace-origins.
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { configLock } from "../config-sync/persistence.ts";
+import { normalizeProjectImage } from "./project-image.ts";
 
 export async function coreValidateWorkspaceDirectory(
   hostContext: GatewayCore,
@@ -40,12 +41,32 @@ export async function corePublishProject(hostContext: GatewayCore, projectId: st
   }
 }
 
+async function saveProjectAppearance<E>(
+  core: GatewayCore,
+  write: (store: GatewayStore["Service"], owner: string) => Effect.Effect<string, E>,
+) {
+  const { actions, options } = core[coreState];
+
+  return actions.transaction(async () => {
+    const id = await coreRun(core, (store) => write(store, options.userId));
+    // Keep this projection under the mutation's lock. The hub publishes it after commit.
+    const projects = await coreRun(core, (s) => s.listProjects(options.userId));
+    const project = projects.find((p) => p.id === id);
+
+    if (!project) throw new NotFound("project not found or is system-managed");
+    core.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
+
+    return project;
+  });
+}
+
 export interface CoreProjectsMethods {
   overview(): Promise<ui.GetOverviewResponse>;
   listDirectory(workerId: string, path: string): Promise<ui.ListDirectoryResponse>;
   createProject(name: string, id?: string): Promise<ui.Project>;
   renameProject(projectId: string, name: string): Promise<ui.Project>;
   setProjectColor(projectId: string, color: string): Promise<ui.Project>;
+  setProjectImage(projectId: string, image: Uint8Array): Promise<ui.Project>;
   archiveProject(projectId: string): Promise<void>;
   createWorkspace(request: ui.CreateWorkspaceRequest): Promise<ui.Workspace>;
   updateWorkspace(request: ui.UpdateWorkspaceRequest): Promise<ui.Workspace>;
@@ -99,21 +120,14 @@ export const coreProjectsMethods: CoreProjectsMethods = {
     return project;
   },
 
-  async setProjectColor(this: GatewayCore, projectId: string, color: string): Promise<ui.Project> {
-    const { actions, options } = this[coreState];
+  setProjectColor(this: GatewayCore, projectId: string, color: string): Promise<ui.Project> {
+    return saveProjectAppearance(this, (s, owner) => s.setProjectColor(owner, projectId, color));
+  },
 
-    return actions.transaction(async () => {
-      const id = await coreRun(this, (s) => s.setProjectColor(options.userId, projectId, color));
-      // decorateOrigins persists the workspace origins this reads. Keep the projection
-      // under the mutation's lock and let Hub publish it after commit.
-      const projects = await coreRun(this, (s) => s.listProjects(options.userId));
-      const project = projects.find((p) => p.id === id);
+  async setProjectImage(this: GatewayCore, projectId: string, image: Uint8Array): Promise<ui.Project> {
+    const normalized = await normalizeProjectImage(image);
 
-      if (!project) throw new NotFound("project not found or is system-managed");
-      this.hub.publishOverview(create(ui.OverviewUpdateSchema, { change: { case: "project", value: project } }));
-
-      return project;
-    });
+    return saveProjectAppearance(this, (s, owner) => s.setProjectImage(owner, projectId, normalized));
   },
 
   /** Soft archive through the same thread lifecycle, retaining history and worker files. */

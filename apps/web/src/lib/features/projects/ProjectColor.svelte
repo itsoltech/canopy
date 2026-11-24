@@ -49,7 +49,12 @@
   {#snippet control()}<Button onclick={edit}>Change color…</Button>{/snippet}
 </SettingsRow>
 
-<Dialog bind:open title="Change project color" dismissible={!busy}>
+<Dialog
+  bind:open
+  title="Change project color"
+  description={project.imageBase64 ? "The color applies to the project’s initials." : undefined}
+  dismissible={!busy}
+>
   <form
     onsubmit={(event) => {
       event.preventDefault();
@@ -58,7 +63,12 @@
     }}
   >
     <div class="mb-3 flex min-w-0 items-center gap-2">
-      <ProjectAvatar name={project.name} color={color ?? project.color} class="size-8 rounded-md text-xs/none" />
+      <ProjectAvatar
+        name={project.name}
+        color={color ?? project.color}
+        imageBase64={project.imageBase64}
+        class="size-8 rounded-md text-xs/none"
+      />
       <span class="min-w-0 truncate text-sm/6 font-medium" title={project.name}>{project.name}</span>
     </div>
     <CustomColorPicker bind:value={draft} disabled={busy} />

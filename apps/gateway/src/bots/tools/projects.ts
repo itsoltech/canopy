@@ -11,8 +11,8 @@ export const projectTools = [
     async ({ core }) =>
       Promise.all(
         (await core.linkedAgents.overview("bot-thread")).projects.map(async (p) => ({
-          // Sidebar ordering metadata need not consume the bounded tool-result audit used by handoffs.
-          ...jsonObject(ui.ProjectSchema, { ...p, createdAt: undefined }),
+          // Keep sidebar presentation data out of the bounded tool-result audit used by handoffs.
+          ...jsonObject(ui.ProjectSchema, { ...p, createdAt: undefined, imageBase64: "" }),
           machine: await core.linkedAgents.machine(p.nodeId),
         })),
       ),
@@ -32,7 +32,12 @@ export const projectTools = [
     object({ project_id: str, name: str }, ["project_id", "name"]),
     (a) => `Renaming ${label(a["project_name"], "a project")}`,
     ({ core, string, action }) =>
-      action(async () => json(ui.ProjectSchema, await core.renameProject(string("project_id"), string("name", 200)))),
+      action(async () =>
+        json(ui.ProjectSchema, {
+          ...(await core.renameProject(string("project_id"), string("name", 200))),
+          imageBase64: "",
+        }),
+      ),
   ),
   define(
     "archive_project",

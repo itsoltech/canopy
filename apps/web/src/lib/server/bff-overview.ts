@@ -7,7 +7,7 @@ import { BffOverviewState } from "./bff-overview-state.ts";
 const MAX_HEADS = 32;
 const MAX_SUBSCRIBERS = 32;
 const MAX_QUEUE_ITEMS = 128;
-const MAX_QUEUE_BYTES = 4 * 1024 * 1024;
+const MAX_QUEUE_BYTES = 8 * 1024 * 1024;
 const MAX_BUFFER_ITEMS = 64;
 const MAX_BUFFER_BYTES = 1024 * 1024;
 const MAX_UPDATE_BYTES = 1024 * 1024;
@@ -318,7 +318,10 @@ export class BffOverview {
     if (epoch !== this.#epoch || !update.change.case) throw new Error("Invalid BFF overview update");
     const bytes = this.#updateBytes(update);
 
-    if (bytes > MAX_UPDATE_BYTES) throw new Error("BFF overview update is too large");
+    // Match the gateway's routed overview bound for snapshots, which can carry many project thumbnails.
+    const maxBytes = update.change.case === "mobileSnapshot" ? MAX_QUEUE_BYTES : MAX_UPDATE_BYTES;
+
+    if (bytes > maxBytes) throw new Error("BFF overview update is too large");
 
     if (!this.#state.hasSnapshot && update.change.case !== "mobileSnapshot") {
       if (this.#pending.length >= MAX_BUFFER_ITEMS || this.#pendingBytes + bytes > MAX_BUFFER_BYTES)

@@ -27,8 +27,9 @@ import sandboxProfileOutbox from "./0199_sandbox_profile_outbox.sql" with { type
 import botSteerSenders from "./0200_bot_steer_senders.sql" with { type: "text" };
 import connectorNoProject from "./0207_connector_no_project.sql" with { type: "text" };
 import projectColor from "./0208_project_color.sql" with { type: "text" };
-import threadWorktreeSwitch from "./0212_thread_worktree_switch.sql" with { type: "text" };
+import threadWorktreeSwitch from "./0213_thread_worktree_switch.sql" with { type: "text" };
 import botApprovalRestrictedThread from "./0210_bot_approval_restricted_thread.sql" with { type: "text" };
+import projectImage from "./0212_project_image.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
 import githubPrProjection from "./0177_github_pr_projection.sql" with { type: "text" };
 import messageDelegatingBot from "./0176_message_delegating_bot.sql" with { type: "text" };
@@ -399,7 +400,8 @@ export const migrations = Migrator.fromRecord({
   "0208_project_color": sqlFile(projectColor),
   "0210_bot_approval_restricted_thread": sqlFile(botApprovalRestrictedThread),
   "0211_project_secrets": sqlFile(projectSecrets),
-  "0212_thread_worktree_switch": sqlFile(threadWorktreeSwitch),
+  "0212_project_image": sqlFile(projectImage),
+  "0213_thread_worktree_switch": sqlFile(threadWorktreeSwitch),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

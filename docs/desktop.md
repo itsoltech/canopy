@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-24): **Settings → Projects → Project details** obsługuje zdjęcie
+projektu i kwadratowe kadrowanie we wspólnym interfejsie [web i desktopu](ui-api.md).
+
 Aktualizacja (2026-11-24): skrót zamykania aplikacji znajduje się w zakładce **Device** ustawień General.
 Pickery Typography wczytują listę zainstalowanych fontów przy otwarciu.
 Desktop sprawdza, czy macOS pozwala na powiadomienia, zanim poprosi o zgodę.

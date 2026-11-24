@@ -325,6 +325,7 @@
           name={project?.name ?? "No project"}
           kind={project?.kind}
           color={project?.color}
+          imageBase64={project?.imageBase64}
         />{/snippet}{project?.name ?? "No project"}</Crumb
     >
     <Crumb>New thread</Crumb>

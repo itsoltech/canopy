@@ -1,6 +1,6 @@
 # Model danych (PostgreSQL)
 
-Status (2026-11-24): migracja `0212_thread_worktree_switch` wiąże zmianę cwd i worktree z aktywną turą
+Status (2026-11-24): migracja `0213_thread_worktree_switch` wiąże zmianę cwd i worktree z aktywną turą
 i zapisuje jej źródłowy katalog na czas ochrony checkoutu i kontroli checkpointów.
 
 Status (2026-11-24): migracja `0211_project_secrets` dodaje

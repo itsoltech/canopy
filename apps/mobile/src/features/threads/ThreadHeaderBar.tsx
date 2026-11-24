@@ -61,7 +61,7 @@ export function ThreadHeaderBar({
       {project && (
         <View accessible accessibilityRole="image" accessibilityLabel={project.name} style={s.project}>
           <ThreadSyncStatus key={thread?.id} syncing={syncing}>
-            <ProjectMark name={project.name} color={project.color} kind={project.kind} />
+            <ProjectMark project={project} />
           </ThreadSyncStatus>
         </View>
       )}

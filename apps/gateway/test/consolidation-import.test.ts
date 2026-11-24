@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { SQL } from "bun";
+import sharp from "sharp";
 import { create, toJson } from "@bufbuild/protobuf";
 import { SandboxProfileBindingSchema, SandboxProfileSchema } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -10,6 +11,7 @@ import { sandboxBinding } from "@canopy/domain/sandbox-profiles";
 import { tempDir } from "@canopy/testing";
 import { startTestPostgresServer, testAdmin } from "../../../packages/db/src/testing-server.ts";
 import { generateIdentity } from "../src/computers/identity.ts";
+import { normalizeProjectImage } from "../src/core/project-image.ts";
 import {
   importConsolidation,
   inspectConsolidation,
@@ -32,6 +34,12 @@ const snoozedUntil = "2099-12-31T23:59:59.123Z";
 const memoryCreatedAt = "2026-08-01T09:15:30.123Z";
 const sandbox = sandboxBinding(create(SandboxProfileSchema, { id: uuid(), name: "Offline" }));
 const sandboxJson = toJson(SandboxProfileBindingSchema, sandbox);
+
+const projectImage = await normalizeProjectImage(
+  await sharp({ create: { width: 128, height: 128, channels: 4, background: "#557799a0" } })
+    .png()
+    .toBuffer(),
+);
 
 type Fixture = Awaited<ReturnType<typeof seedInstallation>>;
 
@@ -100,8 +108,9 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
   await s`INSERT INTO gateway_relocation_fence(operation_id,state) VALUES(${operationId},'drained')`;
   await d`INSERT INTO gateway_relocation_fence(operation_id,state) VALUES(${operationId},'drained')`;
   await s`INSERT INTO users(id,email,display_name,role) VALUES(${foreignOwner},'other@example.test','Other','user')`;
-  await s`INSERT INTO projects(id,owner_user_id,name,slug,color) VALUES
-    (${sourceProject},${localOwner},'Source project','common','#3366ff'),(${foreignProject},${foreignOwner},'Foreign','foreign',NULL)`;
+  await s`INSERT INTO projects(id,owner_user_id,name,slug,color,image_base64) VALUES
+    (${sourceProject},${localOwner},'Source project','common','#3366ff',${projectImage}),
+    (${foreignProject},${foreignOwner},'Foreign','foreign',NULL,NULL)`;
   await d`INSERT INTO projects(id,owner_user_id,name,slug,color)
     VALUES (${targetProject},${centralOwner},'Target project','common','#ff6633')`;
   await s`INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
@@ -537,7 +546,9 @@ test.skipIf(!dockerAvailable)(
       await checkResult(target, source, fixture, operationId);
 
       await using sql = new SQL({ url: target.url, max: 1 });
-      expect(await sql`SELECT color FROM projects WHERE id=${fixture.targetProject}`).toEqual([{ color: "#3366ff" }]);
+      expect(await sql`SELECT color,image_base64 FROM projects WHERE id=${fixture.targetProject}`).toEqual([
+        { color: "#3366ff", image_base64: projectImage },
+      ]);
       expect(await sql`SELECT settings->'sandboxProfile' AS profile FROM threads WHERE id=${fixture.archived}`).toEqual(
         [{ profile: sandboxJson }],
       );

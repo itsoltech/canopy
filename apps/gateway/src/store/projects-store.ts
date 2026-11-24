@@ -16,6 +16,7 @@ export interface ProjectStore {
   lockProject(ownerUserId: string, projectId: string): Fx<void>;
   renameProject(ownerUserId: string, projectId: string, name: string): Fx<void>;
   setProjectColor(ownerUserId: string, projectId: string, color: string): Fx<string>;
+  setProjectImage(ownerUserId: string, projectId: string, imageBase64: string): Fx<string>;
   archiveProject(ownerUserId: string, projectId: string): Fx<void>;
   createWorkspace(input: { projectId: string; workerId: string; rootPath: string; label: string }): Fx<ui.Workspace>;
   /** Another directory (same worker) or label; unset = unchanged. Threads keep their own directory. */
@@ -127,10 +128,12 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
         slug: string;
         kind: string;
         color: string;
+        image_base64: string;
         created_at: Date;
         global_id: string;
       }>`
-            SELECT p.id,p.name,p.slug,p.kind,COALESCE(p.color,'') AS color,p.created_at,COALESCE(c.global_id,'') AS global_id
+            SELECT p.id,p.name,p.slug,p.kind,COALESCE(p.color,'') AS color,COALESCE(p.image_base64,'') AS image_base64,
+              p.created_at,COALESCE(c.global_id,'') AS global_id
             FROM projects p LEFT JOIN config_items c ON c.owner_user_id=p.owner_user_id AND c.kind='project' AND c.local_id=p.id::text
             WHERE p.owner_user_id = ${ownerUserId}::uuid AND p.archived_at IS NULL ORDER BY (p.kind = 'scratch') DESC, p.created_at`;
 
@@ -171,6 +174,7 @@ const listProjects = (sql: SqlClient.SqlClient, ownerUserId: string) =>
         create(ui.ProjectSchema, {
           ...p,
           globalId: p.global_id,
+          imageBase64: p.image_base64,
           createdAt: timestampFromDate(new Date(p.created_at)),
           workspaces: byProject.get(p.id) ?? [],
         }),
@@ -188,16 +192,38 @@ const setProjectColor = (sql: SqlClient.SqlClient, ownerUserId: string, projectI
 
       if (normalized === undefined) return yield* Effect.fail(new Invalid("Enter a color as #RGB or #RRGGBB."));
 
-      const project = (yield* sql<{ id: string }>`
-        UPDATE projects SET color = ${normalized}, updated_at = now()
-        WHERE id = ${projectId}::uuid AND owner_user_id = ${ownerUserId}::uuid
-          AND kind = 'project' AND archived_at IS NULL RETURNING id::text`)[0];
-
-      if (!project) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
-
-      return project.id;
+      return yield* updateProjectAppearance(sql, ownerUserId, projectId, "color", normalized);
     }),
   );
+
+const setProjectImage = (sql: SqlClient.SqlClient, ownerUserId: string, projectId: string, imageBase64: string) =>
+  projectTransaction(
+    sql,
+    Effect.gen(function* () {
+      if (!UUID.test(projectId)) return yield* Effect.fail(new Invalid("Choose a valid project."));
+
+      return yield* updateProjectAppearance(sql, ownerUserId, projectId, "image_base64", imageBase64);
+    }),
+  );
+
+function updateProjectAppearance(
+  sql: SqlClient.SqlClient,
+  ownerUserId: string,
+  projectId: string,
+  column: "color" | "image_base64",
+  value: string,
+) {
+  return Effect.gen(function* () {
+    const [project] = yield* sql<{ id: string }>`
+      UPDATE projects SET ${sql(column)} = ${value}, updated_at = now()
+      WHERE id = ${projectId}::uuid AND owner_user_id = ${ownerUserId}::uuid
+        AND kind = 'project' AND archived_at IS NULL RETURNING id::text`;
+
+    if (!project) return yield* Effect.fail(new NotFound("project not found or is system-managed"));
+
+    return project.id;
+  });
+}
 
 export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
   return {
@@ -240,6 +266,8 @@ export function projectStore(sql: SqlClient.SqlClient): ProjectStore {
       }).pipe((fx) => projectTransaction(sql, fx)),
 
     setProjectColor: (ownerUserId, projectId, color) => setProjectColor(sql, ownerUserId, projectId, color),
+
+    setProjectImage: (ownerUserId, projectId, imageBase64) => setProjectImage(sql, ownerUserId, projectId, imageBase64),
 
     archiveProject: (ownerUserId, projectId) =>
       Effect.gen(function* () {

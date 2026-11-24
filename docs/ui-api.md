@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): web, desktop i mobile zapisują kwadratowe zdjęcie projektu
+i pokazują je w miejscach, w których wcześniej były inicjały.
+
 Status (2026-11-24): w web i desktopie Settings → Projects → projekt ma zakładkę Secrets.
 Pozwala dodać sekret projektu, podmienić jego wartość i go usunąć; wartości nie da się odczytać.
 Panel wątku oznacza przydział sekretu projektu i cofa go tylko w tym wątku.
@@ -1595,6 +1598,21 @@ szesnastkowy w formacie `#RGB` lub `#RRGGBB`. Pusty ciąg przywraca dobór z naz
 Operacja obejmuje aktywne zwykłe projekty właściciela. `Project.color` przenosi zapisane
 `#rrggbb` w odpowiedzi, snapshotach i zmianach overview. Pusta wartość wskazuje kolor
 automatyczny, również w projektach zapisanych przed migracją.
+
+`SetProjectImage` (BFF: `PUT /api/projects/:projectId/image`) przyjmuje kwadratowy
+PNG, JPEG lub WebP do 10 MiB i 4096 × 4096 pikseli. Puste bajty usuwają zdjęcie. Gateway sprawdza
+właściciela i stan projektu, normalizuje kadr do PNG 128 × 128 z przezroczystością,
+usuwa metadane źródła i zapisuje zakodowaną miniaturę do 24 KiB. Pole
+`Project.image_base64` trafia do odpowiedzi oraz snapshotów i aktualizacji overview.
+Limit snapshotu w BFF wynosi 8 MiB, tak jak w kolejkach routingu overview gatewaya.
+Puste pole przywraca inicjały w kolorze projektu.
+
+W web i desktopie właściciel otwiera **Settings → Projects → projekt → Project details**.
+Wiersz **Project image** pozwala wybrać plik, przesunąć obraz w kwadratowym podglądzie
+myszą, dotykiem lub strzałkami, wyśrodkować kliknięty punkt, zmienić powiększenie
+i zapisać kadr. Akcja **Remove** przywraca inicjały po potwierdzeniu. Te same
+oznaczenia projektu są widoczne w nagłówkach, na pasku bocznym, w selektorach
+i palecie komend.
 
 Sekcja Bots korzysta z tego samego `GatewayService` i uwierzytelnienia BFF. Osobny
 kontrakt `bots.proto` opisuje CRUD botów, rozmowy i ich stream, zgody oraz zdalne MCP.

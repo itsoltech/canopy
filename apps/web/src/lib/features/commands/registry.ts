@@ -22,6 +22,7 @@ export const groupLabels: Record<CommandGroup, string> = {
 export interface ThreadMeta {
   readonly projectKind?: string | undefined;
   readonly projectColor?: string | undefined;
+  readonly projectImageBase64?: string | undefined;
   readonly projectName: string;
   readonly workerName: string;
   readonly provider?: ProviderKey | undefined;
@@ -66,10 +67,11 @@ export interface Command {
   readonly placeholder?: string | undefined;
   /** Searching from the top level also finds the submenu's entries ("Change theme › Ocean"). */
   readonly searchChildren?: boolean | undefined;
-  /** Leading mark instead of the icon: a project's avatar (its name). */
+  /** Leading project mark. */
   readonly projectName?: string | undefined;
   readonly projectKind?: string | undefined;
   readonly projectColor?: string | undefined;
+  readonly projectImageBase64?: string | undefined;
   readonly thread?: ThreadMeta | undefined;
 }
 

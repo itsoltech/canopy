@@ -12,6 +12,7 @@ import { DEFAULT_FIELDS, knownProjectOrigin, patchLeaves, POLICY_FIELDS, UUID } 
 import { valuesOf } from "./provider-values.ts";
 import { settingsProblem } from "../worktrees/settings.ts";
 import type { SharedHost } from "./host.ts";
+import { isProjectImage } from "../core/project-image.ts";
 
 type Stored = { settings: SettingsJson };
 
@@ -47,6 +48,7 @@ export function applyProject(sql: SqlClient.SqlClient, owner: string, row: Confi
     const v = valuesOf(row.fields);
     const name = v["name"];
     const color = v["color"];
+    const image = v["imageBase64"];
 
     if (
       !Predicate.isString(name) ||
@@ -57,14 +59,15 @@ export function applyProject(sql: SqlClient.SqlClient, owner: string, row: Confi
       !Predicate.isBoolean(v["archived"]) ||
       !Predicate.isString(v["origin"]) ||
       (!!v["origin"] && !knownProjectOrigin(v["origin"])) ||
-      (color !== undefined && (!Predicate.isString(color) || (color !== "" && normalizeColor(color) !== color)))
+      (color !== undefined && (!Predicate.isString(color) || (color !== "" && normalizeColor(color) !== color))) ||
+      (image !== undefined && (!Predicate.isString(image) || !(yield* Effect.promise(() => isProjectImage(image)))))
     )
       return void (row.unsupported = NOT_SUPPORTED);
-    yield* sql`INSERT INTO projects(id,owner_user_id,name,slug,kind,archived_at,color)
+    yield* sql`INSERT INTO projects(id,owner_user_id,name,slug,kind,archived_at,color,image_base64)
       VALUES(${row.local_id}::uuid,${owner}::uuid,${name},${`project-${row.local_id}`},'project',
-        CASE WHEN ${v["archived"]} THEN now() ELSE NULL END,${color ?? null})
+        CASE WHEN ${v["archived"]} THEN now() ELSE NULL END,${color ?? null},${image ?? null})
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,archived_at=excluded.archived_at,
-        color=COALESCE(excluded.color,projects.color),
+        color=COALESCE(excluded.color,projects.color),image_base64=COALESCE(excluded.image_base64,projects.image_base64),
         config_deleted=false,updated_at=now() WHERE projects.owner_user_id=${owner}::uuid AND projects.kind='project'`;
 
     if (v["archived"]) yield* cancelSchedules(sql, owner, row.local_id);

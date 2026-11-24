@@ -550,7 +550,12 @@
               >{#snippet mark()}{#key thread.id}<ThreadSyncStatus
                     syncing={!away && !view.failure && view.connection !== "live"}
                   >
-                    <ProjectMark name={project?.name ?? "?"} kind={project?.kind} color={project?.color} />
+                    <ProjectMark
+                      name={project?.name ?? "?"}
+                      kind={project?.kind}
+                      color={project?.color}
+                      imageBase64={project?.imageBase64}
+                    />
                   </ThreadSyncStatus>{/key}{/snippet}<span class="sr-only">{project?.name ?? "Project"}</span></Crumb
             >
           {:else}

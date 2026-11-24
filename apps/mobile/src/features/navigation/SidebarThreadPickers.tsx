@@ -62,7 +62,7 @@ export function SidebarProjectFilter({
             return {
               value: project.id,
               label: project.name,
-              leading: <ProjectMark name={project.name} color={project.color} kind={project.kind} />,
+              leading: <ProjectMark project={project} />,
               badge: away ? "Offline" : undefined,
               description: [away, details.detail(project)].filter(Boolean).join(" · "),
               keywords: project.aliases.join(" "),

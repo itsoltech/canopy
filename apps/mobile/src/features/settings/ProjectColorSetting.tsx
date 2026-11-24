@@ -28,7 +28,11 @@ export function ProjectColorSetting({ project, resource }: { project: ui.Project
   return (
     <SettingsRow
       title="Project color"
-      description="Enter a hex color, such as #a3e635."
+      description={
+        project.imageBase64
+          ? "The color applies to project initials when there is no image."
+          : "Enter a hex color, such as #a3e635."
+      }
       accessory={
         <ResetSetting
           label="Use automatic project color"
@@ -40,7 +44,7 @@ export function ProjectColorSetting({ project, resource }: { project: ui.Project
       control={
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <ProjectMark name={project.name} color={preview} size={24} />
+            <ProjectMark project={project} color={preview} size={24} />
           </View>
           <TextInput
             accessibilityLabel="Project color"

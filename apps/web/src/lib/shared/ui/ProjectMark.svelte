@@ -7,8 +7,15 @@
     name,
     kind,
     color,
+    imageBase64,
     class: className,
-  }: { name: string; kind?: string | undefined; color?: string | undefined; class?: ClassValue } = $props();
+  }: {
+    name: string;
+    kind?: string | undefined;
+    color?: string | undefined;
+    imageBase64?: string | undefined;
+    class?: ClassValue;
+  } = $props();
 </script>
 
 {#if kind === "scratch"}
@@ -21,5 +28,5 @@
     aria-hidden="true"
   ></span>
 {:else}
-  <ProjectAvatar {name} {color} class={className} />
+  <ProjectAvatar {name} {color} {imageBase64} class={className} />
 {/if}

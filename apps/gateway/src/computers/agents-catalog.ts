@@ -73,7 +73,7 @@ export const agentsCatalogMethods: AgentsCatalogMethods = {
             ...machine,
             ...availability,
             loading: reachable && (!overview || !models || (connected && !botList && signal.aborted)),
-            projects: overview?.projects.map((v) => toJson(ui.ProjectSchema, v)) ?? [],
+            projects: overview?.projects.map((v) => toJson(ui.ProjectSchema, { ...v, imageBase64: "" })) ?? [],
             workers:
               overview?.workers.map((w) => ({ worker_id: w.id, name: w.name, online: reachable && w.online })) ?? [],
             bots: botList?.bots.map((b) => ({ bot_id: b.id, name: b.configuration?.name ?? "Bot" })) ?? [],
