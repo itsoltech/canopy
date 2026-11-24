@@ -48,13 +48,16 @@ export async function pushPermission(native: NativeNotifications, prompt: () => 
       importance: native.AndroidImportance.DEFAULT,
       sound: "default",
       lockscreenVisibility: native.AndroidNotificationVisibility.PRIVATE,
+      showBadge: true,
     });
 
   const permission = await native.getPermissionsAsync();
+  const granted = pushPermissionGranted(native, permission);
+  const canRequest = granted ? Boolean(permission.ios && !permission.ios.allowsBadge) : permission.canAskAgain;
 
   const current =
-    !pushPermissionGranted(native, permission) && permission.canAskAgain && prompt()
-      ? await native.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } })
+    canRequest && prompt()
+      ? await native.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true, allowBadge: true } })
       : permission;
 
   if (Platform.OS === "android") {
@@ -95,6 +98,20 @@ export function getPreviewKey(deviceId: string, current: () => boolean) {
   });
 }
 
+let badgeWork = Promise.resolve();
+
+export function setIconBadge(count: number, current = () => true) {
+  if (Platform.OS !== "ios") return Promise.resolve();
+
+  const next = badgeWork.then(async () => {
+    const native = await loadNotifications();
+
+    if (current()) await native?.setBadgeCountAsync(count);
+  });
+
+  return (badgeWork = next.catch(() => {}));
+}
+
 export async function withdrawMobilePushLocally() {
   try {
     await withPreviewKey((module) => module.clearKey());
@@ -104,6 +121,6 @@ export async function withdrawMobilePushLocally() {
     return false;
   } finally {
     const native = await loadNotifications();
-    await native?.dismissAllNotificationsAsync().catch(() => {});
+    await Promise.all([native?.dismissAllNotificationsAsync().catch(() => {}), setIconBadge(0)]);
   }
 }

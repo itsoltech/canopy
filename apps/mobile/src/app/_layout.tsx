@@ -20,6 +20,7 @@ import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { PushProvider } from "../features/notifications/PushProvider";
 import { PushTaps } from "../features/notifications/PushTaps";
 import { DismissReadPushes } from "../features/notifications/DismissReadPushes";
+import { AppIconBadge } from "../features/notifications/AppIconBadge";
 import { ConfirmHost } from "../ui/Confirm";
 import { OverlayLayer } from "../ui/overlay-stack";
 import { ToastHost } from "../ui/Toast";
@@ -108,6 +109,7 @@ function SessionUI() {
           <UpdatesProvider key={session?.deviceId ?? "unpaired"}>
             <LayoutProvider>
               <BotListSync />
+              {Platform.OS === "ios" && <AppIconBadge />}
               <Navigation />
             </LayoutProvider>
           </UpdatesProvider>

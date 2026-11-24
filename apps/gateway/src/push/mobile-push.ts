@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { CoreRuntime, GatewayCoreOptions } from "../core/core-context.ts";
 import { decryptSecret } from "../store/secrets.ts";
+import { readMobilePushBadge } from "./badge.ts";
 import { encryptPushPreview, readPushPreview } from "./previews.ts";
 import { EXPO_TOKEN, PUSH_ID, PUSH_KEY, relayPush, type PushRelayOptions } from "./relay.ts";
 import { loadPushRelaySettings, savePushRelaySettings, updatedRelayChoice } from "./relay-settings.ts";
@@ -256,7 +257,16 @@ export class MobilePush {
   async #dispatchPushJobs(relay: ActiveRelay) {
     const managedOrigin = relay.kind === "managed" ? relay.options.origin : undefined;
     const jobs = await this.runtime.runPromise(claimPushJobs(this.userId, managedOrigin));
-    const results = await Promise.allSettled(jobs.map((job) => this.#deliver(relay, job)));
+
+    const badge = jobs.some((job) => job.platform === "ios" && !job.ticket_id)
+      ? await this.runtime.runPromise(readMobilePushBadge(this.userId)).catch(() => {
+          this.log?.("Mobile push badge unavailable");
+
+          return undefined;
+        })
+      : undefined;
+
+    const results = await Promise.allSettled(jobs.map((job) => this.#deliver(relay, job, badge)));
 
     if (results.some((result) => result.status === "rejected")) this.log?.("Mobile push settlement deferred");
   }
@@ -321,14 +331,14 @@ export class MobilePush {
     return relay;
   }
 
-  async #deliver(relay: ActiveRelay, job: PushJob) {
+  async #deliver(relay: ActiveRelay, job: PushJob, badge: number | undefined) {
     const {
       options,
       abort: { signal },
     } = relay;
 
     if (signal.aborted) return;
-    const payload = job.ticket_id ? { ticketId: job.ticket_id } : await this.#payload(options.secretsKey, job);
+    const payload = job.ticket_id ? { ticketId: job.ticket_id } : await this.#payload(options.secretsKey, job, badge);
     const credentials = await this.#deliveryCredentials(relay, job);
 
     if (signal.aborted || !credentials) return;
@@ -382,7 +392,7 @@ export class MobilePush {
     };
   }
 
-  async #payload(key: Buffer, job: PushJob) {
+  async #payload(key: Buffer, job: PushJob, badge: number | undefined) {
     const content = await this.runtime.runPromise(readPushPreview(this.userId, job));
 
     if (!content) return;
@@ -392,7 +402,10 @@ export class MobilePush {
       receiptId: job.id,
       platform: job.platform,
       token: decryptSecret(key, job.encrypted_token),
-      preview: encryptPushPreview(previewKey, job.id, content),
+      preview: encryptPushPreview(previewKey, job.id, {
+        ...content,
+        ...(job.platform === "ios" && badge !== undefined && { badge }),
+      }),
     };
   }
 }

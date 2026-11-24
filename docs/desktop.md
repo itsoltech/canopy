@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-24): ikona pokazuje licznik w Docku macOS, na pasku zadań Windows
+i w obsługiwanych launcherach Linuksa. [Licznik na ikonie](notifications.md#licznik-na-ikonie)
+
 Status (2026-11-24): **Settings → Accessibility** udostępnia preferencje fokusu
 i czytelności dla tego profilu Desktop w trybie lokalnym i zdalnym.
 [Ustawienia dostępności](appearance.md#dostępność-w-desktopie)

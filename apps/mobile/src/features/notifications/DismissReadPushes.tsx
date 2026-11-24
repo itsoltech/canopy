@@ -15,8 +15,12 @@ export function DismissReadPushes() {
   const schedule = useRef<() => void>(undefined);
 
   useOverviewEvents(({ change }) => {
-    // Read acknowledgements and answers broadcast a thread change after committing to the gateway.
-    if (change.case === "mobileSnapshot" || (change.case === "thread" && !change.value.nodeId)) schedule.current?.();
+    // Read acknowledgements and answers broadcast the changed thread or bot after committing.
+    if (
+      change.case === "mobileSnapshot" ||
+      ((change.case === "thread" || change.case === "bot") && !change.value.nodeId)
+    )
+      schedule.current?.();
   });
 
   useEffect(() => {

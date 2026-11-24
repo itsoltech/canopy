@@ -69,6 +69,14 @@ export const dismissibleMobilePush = (owner: string, device: string, ids: string
             SELECT 1 FROM interaction_requests i WHERE i.id = o.event_id AND i.thread_id = o.destination_id
               AND (i.status <> 'pending' OR i.expires_at <= now())
           ))
+          OR (o.event_kind = 'message' AND EXISTS (
+            SELECT 1 FROM bot_messages m JOIN bots b ON b.id = m.bot_id AND b.owner_user_id = o.owner_user_id
+            WHERE m.id = o.event_id AND m.bot_id = o.destination_id AND m.seq <= b.last_read_seq
+          ))
+          OR (o.event_kind = 'approval' AND EXISTS (
+            SELECT 1 FROM bot_approvals a JOIN bots b ON b.id = a.bot_id AND b.owner_user_id = o.owner_user_id
+            WHERE a.id = o.event_id AND a.bot_id = o.destination_id AND (a.status <> 'pending' OR a.expires_at <= now())
+          ))
         )`;
   });
 
