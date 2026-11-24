@@ -130,7 +130,9 @@ Odbudowana historia zawiera ten sam identyfikator w polu `message_id` przy
 wiadomości właściciela. Narzędzie `react_to_message` przyjmuje ten identyfikator,
 emoji i opcjonalny stan `active` (domyślnie `true`, przy usuwaniu `false`).
 Bot może w ten sposób krótko potwierdzić odbiór. Zakończenie tury po reakcji
-z pustą odpowiedzią pozostawia w rozmowie samą reakcję.
+z pustą odpowiedzią pozostawia w rozmowie samą reakcję. Podczas odbudowy sesji
+pole `bot_reactions` przy wiadomości właściciela zachowuje aktualne reakcje
+bota, także gdy były jego jedyną odpowiedzią.
 
 `RunBotTurn.conversation_id` (17) wybiera katalog izolowanej sesji przez
 capability `bot_conversations_v1`. Dla Slacka zawiera UUID rozmowy, a dla

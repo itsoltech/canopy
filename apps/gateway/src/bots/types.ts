@@ -29,6 +29,7 @@ export interface ModelMessage {
   attachments?: readonly import("../store/attachments.ts").StoredAttachment[];
   messageId?: string;
   ownerMessage?: boolean;
+  botReactions?: readonly string[];
   createdAt?: string;
   calls?: ToolCall[];
   callId?: string;

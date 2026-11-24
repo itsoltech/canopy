@@ -60,6 +60,7 @@ export async function botImageInput(
     return {
       role: m.role,
       ...(messageId && { message_id: messageId }),
+      ...("botReactions" in m && m.botReactions?.length && { bot_reactions: m.botReactions }),
       text: m === current && messageId ? ownerMessagePrompt(messageId, text) : text,
     };
   });

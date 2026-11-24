@@ -132,5 +132,13 @@ describe.skipIf(!dockerAvailable)("private bot message reactions", () => {
     const done = await f.settled(bot.id);
     expect(done.messages.find((message) => message.id === target.id)?.reactions).toEqual(["👍"]);
     expect(done.messages.map((message) => message.text)).toEqual([...previous.messages.map((m) => m.text), prompt]);
+
+    await f.gw.api.updateBot({ botId: bot.id, configuration: { ...bot.configuration!, files: false } });
+    await f.send(bot.id, "Which message did you acknowledge?");
+    await f.settled(bot.id);
+    const history = f.inputs().at(-1)?.parts[0]?.text?.split("\n\nCurrent input:\n")[0];
+    expect(history).toContain(
+      JSON.stringify({ role: "user", message_id: target.id, bot_reactions: ["👍"], text: target.text }),
+    );
   }, 30_000);
 });
