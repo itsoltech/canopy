@@ -8,6 +8,7 @@ import type { JsonObject } from "@canopy/domain";
 import { tempDirs } from "@canopy/testing";
 import { Effect, Schema } from "effect";
 import { fakeModelHandler } from "../import/fixtures/fake-model.ts";
+import { CodexAppServerError, CodexAppServerStartupError } from "../providers/codex/app-server.ts";
 import { codexAppServerLaunch } from "../providers/codex/launch.ts";
 import { profileBotLogin } from "../providers/codex/profile-auth.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
@@ -23,6 +24,34 @@ const userId = crypto.randomUUID();
 const profileInstructions = "FIXTURE_SOURCE_PROFILE_INSTRUCTIONS";
 const botInstructions = "FIXTURE_BOT_INSTRUCTIONS";
 const readRefresh = Schema.decodeUnknownSync(Schema.Struct({ refresh_token: Schema.String }));
+
+function safeFailure(error: Error): string {
+  const kind =
+    error instanceof CodexAppServerError
+      ? (["thread/start", "thread/resume", "turn/start", "config/read"].find((method) => method === error.method) ??
+        "rpc")
+      : error instanceof CodexAppServerStartupError
+        ? "app-server startup"
+        : error instanceof BotHarnessFailure
+          ? "harness"
+          : "other";
+
+  const reason = [
+    [/os error 206|filename.*too long|path.*too long/i, "path length"],
+    [/os error 32|os error 33|sharing violation|locked|busy/i, "file busy"],
+    [/os error 5|permission|access.*denied/i, "file permission"],
+    [/rollout|transcript|session.*file/i, "rollout"],
+    [/app-server disconnected|transport.*closed|closed.*pipe/i, "closed transport"],
+    [/sandbox/i, "sandbox"],
+    [/not found|no such file|os error [23]\b/i, "missing file"],
+    [/invalid config|configuration/i, "configuration"],
+  ] as const;
+
+  const code = error instanceof CodexAppServerError ? error.code : undefined;
+  const matched = reason.find(([pattern]) => pattern.test(error.message))?.[1] ?? "unclassified";
+
+  return `${kind}, ${matched}${code === undefined ? "" : `, RPC ${code}`}`;
+}
 
 function fictionalLogin() {
   const idToken = jwt({
@@ -359,6 +388,8 @@ test.skipIf(!enabled)(
               let completed = false;
               let cleanEvents = true;
               let outcome = "completed";
+              let failure = "";
+              let phase = "before profile login";
 
               try {
                 await runCodexBot({
@@ -371,6 +402,7 @@ test.skipIf(!enabled)(
                   codexLogin: async (destination, scope) => {
                     const credential = await Effect.runPromise(login(destination, scope), { signal });
                     admittedLogin = true;
+                    phase = "after profile credential";
 
                     return credential;
                   },
@@ -384,6 +416,7 @@ test.skipIf(!enabled)(
                   },
                   noteHarness: async (harness) => {
                     lastSessionId = harness.sessionId;
+                    phase = harness.providerTurn ? "after turn admission" : "after conversation admission";
                   },
                   content: async () => ({ text, images: [], documents: [] }),
                 });
@@ -394,9 +427,10 @@ test.skipIf(!enabled)(
                   "Worker error contained credentials",
                 ).toBe(false);
                 outcome = error instanceof BotHarnessFailure && error.code === "auth_required" ? error.code : "failed";
+                failure = Error.isError(error) ? safeFailure(error) : "non-error";
               }
 
-              const diagnostics = `model generations ${backend.authAttempts}, fixture failures ${[...backend.failures]}`;
+              const diagnostics = `${phase}, failure ${failure}, model generations ${backend.authAttempts}, fixture failures ${[...backend.failures]}`;
               expect(outcome, `Expected bot outcome for ${text} after ${diagnostics}`).toBe(expected);
               expect(backend.clean, `Bot or profile files failed audit during ${text} after ${diagnostics}`).toBe(true);
               expect(admittedLogin, "Selected profile delivered a credential").toBe(expected === "completed");
