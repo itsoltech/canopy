@@ -1,6 +1,17 @@
+import { Effect } from "effect";
 import type { SqlClient, Statement } from "effect/sql";
 import { canReportBotTurn } from "./report-origin.ts";
 import { WORKER_RESTARTED } from "../store/worker-oom-recovery.ts";
+import type { RoutineOrigin } from "./routines.ts";
+
+/** Under the bot row lock, check the durable input even if its watch was processed in an earlier batch. */
+export const hasThreadReport = (sql: SqlClient.SqlClient, botId: string, turnId: string, origin: RoutineOrigin) =>
+  sql`SELECT 1 FROM bot_thread_watches w JOIN bot_turns queued
+    ON queued.bot_id=w.bot_id AND queued.client_request_id='thread:' || w.call_id::text AND queued.hops=w.hops
+    WHERE w.target_turn_id=${turnId}::uuid AND w.bot_id=${botId}::uuid AND w.delivered
+      AND queued.conversation_id IS NOT DISTINCT FROM ${origin.conversationId ?? null}::uuid
+      AND queued.routine_id IS NOT DISTINCT FROM ${origin.routineId ?? null}::uuid
+    LIMIT 1`.pipe(Effect.map((rows) => rows.length > 0));
 
 /** An unchanged pending watch needs attention only at its next deadline. */
 export function watchNeedsCheck(sql: SqlClient.SqlClient) {

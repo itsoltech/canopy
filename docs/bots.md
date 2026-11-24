@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-24): kilka subskrypcji wyniku tej samej lokalnej tury kolejkuje
+jeden raport dla danego bota i tego samego zakresu rozmowy lub rutyny.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): prywatna tura właściciela i zaplanowane wystąpienie jego rutyny
 mogą wysłać wiadomość do lokalnego wątku o innym zakresie po jednorazowej zgodzie.
 Dostępność w kanałach określa [promocja wydań](release.md).
@@ -965,6 +969,10 @@ i `BotMessage.setting_changes` mają numer **430** w swoich komunikatach.
    przez `read_thread` i zaproponować odpowiedź przez `answer_interaction`. Zapis
    powiadomienia i jego deduplikacja są atomowe. Subskrypcja pozostaje aktywna do
    zakończenia tury lub [potwierdzonej kontynuacji](#wynik-pracy-kontynuowanej-przez-claude).
+   Jeśli kilka wiadomości bota trafia do tej samej tury, gateway kolejkuje jeden
+   raport końcowy na bota, turę i zakres odbiorcy (rozmowa lub rutyna). Zapisana
+   tura bota potwierdza doręczenie także po restarcie gatewaya. Odrębne tury
+   wątku mają osobne raporty, nawet gdy zawierają ten sam tekst.
    W lokalnych powiadomieniach tytuł zajmuje do 200 jednostek
    UTF-16, a treść raportu końcowego do 80 000. Pełny tytuł i wynik pozostają
    zapisane w wątku. Prośby o uprawnienia nadal obsługują karty zgód.
