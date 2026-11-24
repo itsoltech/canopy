@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, setSystemTime, test } from "bun:test";
 import { toJsonString } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { usageSummary } from "@canopy/domain/usage-summary";
@@ -138,13 +139,23 @@ describe.skipIf(!dockerAvailable)("Claude usage through the proxy management API
   });
 
   test("a fresh zero after reset wins over a larger passive balance", async () => {
+    const afterReset = new Date("2026-11-16T10:00:01Z");
     used = 0;
     reset = "2026-11-21T10:00:00Z";
-    const accounts = await refresh();
-    const weekly = accounts.accounts.find((account) => account.id === "oauth")?.windows[0];
+    setSystemTime(afterReset);
 
-    expect(weekly).toMatchObject({ key: "seven_day", usedPercent: 0, reached: false });
-    expect(weekly?.resetsAt?.seconds).toBe(BigInt(Date.parse(reset) / 1000));
+    try {
+      const accounts = await refresh();
+      const weekly = accounts.accounts.find((account) => account.id === "oauth")?.windows[0];
+      const cached = accounts.accounts.find((account) => account.id === "key")?.windows[0];
+
+      expect(weekly).toMatchObject({ key: "seven_day", usedPercent: 0, reached: false });
+      expect(weekly?.resetsAt?.seconds).toBe(BigInt(Date.parse(reset) / 1000));
+      expect(weekly?.observedAt && timestampDate(weekly.observedAt)).toEqual(afterReset);
+      expect(cached?.observedAt && timestampDate(cached.observedAt)).toEqual(NOW);
+    } finally {
+      setSystemTime(NOW);
+    }
   });
 
   test("an exhausted model allowance does not erase the shared weekly balance", async () => {

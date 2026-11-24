@@ -61,7 +61,14 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
     if (usedPercent === undefined && !reached) continue;
 
     if (!usedPercent && !resetsAt && !status) continue;
-    result.push({ key, windowMinutes, usedPercent, resetsAt, reached });
+    result.push({
+      key,
+      windowMinutes,
+      usedPercent,
+      resetsAt,
+      reached,
+      observedAt: observed && timestampFromDate(observed),
+    });
   }
 
   return result;

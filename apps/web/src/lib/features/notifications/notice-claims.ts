@@ -50,7 +50,8 @@ export async function claimNotice(key: string): Promise<boolean> {
 
   void navigator.locks
     .request(`canopy:notice:${key}`, { ifAvailable: true }, async (lock) => {
-      const first = Boolean(lock) && claim(key);
+      // Different notices (including the system alert and toast) share one read-modify-write in storage.
+      const first = lock !== null && (await navigator.locks.request("canopy:notifications:sent", () => claim(key)));
       resolve(first);
 
       if (first) await new Promise((done) => setTimeout(done, HOLD_MS));

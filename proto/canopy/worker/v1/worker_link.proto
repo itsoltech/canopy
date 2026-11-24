@@ -1068,6 +1068,8 @@ message ProviderUsageWindow {
   bool warning = 5;
   // Duration reported by the upstream, for windows outside the named standard periods.
   uint32 window_minutes = 6;
+  // Time of this window's upstream observation, when it differs from the enclosing report's timestamp.
+  google.protobuf.Timestamp observed_at = 7;
 }
 
 message ProviderUsageSnapshot {

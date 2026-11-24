@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { toJson } from "@bufbuild/protobuf";
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { proxyAccount, proxyAccountsOf, secretRedactor } from "./management.ts";
 import { usageWindowName, usageReset } from "@canopy/domain/provider-usage";
@@ -44,9 +45,16 @@ describe("proxy account observations", () => {
     );
 
     expect(parsed).toHaveLength(1);
-    expect(parsed[0]?.windows.map((window) => [window.key, window.usedPercent, window.resetsAt?.seconds])).toEqual([
-      ["seven_day", 83, 1794909600n],
-      ["five_hour", 22, 1794661200n],
+    expect(
+      parsed[0]?.windows.map((window) => [
+        window.key,
+        window.usedPercent,
+        window.resetsAt?.seconds,
+        window.observedAt && timestampDate(window.observedAt).toISOString(),
+      ]),
+    ).toEqual([
+      ["seven_day", 83, 1794909600n, "2026-11-14T10:00:00.000Z"],
+      ["five_hour", 22, 1794661200n, "2026-11-14T09:00:00.000Z"],
     ]);
 
     // A later reset or manual refill must be able to lower usage, including all the way to zero.
@@ -66,6 +74,7 @@ describe("proxy account observations", () => {
         const account = proxyAccount({ model_quotas: Object.fromEntries(order.map((value, index) => [index, value])) });
 
         expect(account.windows[0]?.usedPercent).toBe(83);
+        expect(account.windows[0]?.observedAt?.seconds).toBe(entries[0]?.observed_at ? BigInt(now / 1000) : undefined);
       }
     }
   });
