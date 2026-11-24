@@ -45,6 +45,7 @@
   const rows = $derived(choices.filter((choice) => settings.moduleEnabled(choice.module)));
 
   const permissionRow = $derived(rows.find((row) => device.values[row.key] !== "off")?.key);
+
   const warningRow = $derived(
     attempted ?? permissionRow ?? (macOS && permission === "denied" ? rows[0]?.key : undefined),
   );
