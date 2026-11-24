@@ -236,6 +236,7 @@
       {#if working?.heading && shown.length === inboxLength}
         <li class="min-w-0">
           <SidebarThreadDisclosure
+            working
             label={working.heading}
             expanded={workingOpen}
             ontoggle={() => (workingOpen = !workingOpen)}

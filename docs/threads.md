@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): web i desktop rozdzielają sekcje Working i Snoozed liniami w nagłówkach
+i przygaszają uśpione wątki.
+
 Status (2026-11-24): w sidebarze web i desktop inicjały oraz logotypy projektów
 mają ten sam rozmiar co na przycisku pickera projektów w kompozytorze.
 Wskaźnik aktywności głównego wątku również ma 16 px. Znak projektu i wskaźnik
@@ -265,7 +268,11 @@ zmienić, a **Wake thread** przywraca wątek od razu. Wątek z terminem sam wrac
 listę po jego upływie, również po restarcie gatewaya.
 
 W web/desktop nagłówki **Snoozed** i **Working** mają strzałkę rozwijania po lewej
-i licznik w nawiasie po nazwie. Każda sekcja rozwija i zwija listę jako całość.
+i licznik w nawiasie po nazwie. Za licznikiem biegnie cienka linia, a nagłówek
+Working ma kolor nawiązujący do wskaźnika pracy. Uśpione wątki mają przygaszone
+tytuły i znaki projektów. Otwarty wątek oraz wiersz pod kursorem, z fokusem
+lub otwartym menu mają zwykłe wyróżnienie tytułu i znaku projektu.
+Każda sekcja rozwija i zwija listę jako całość.
 Przy ograniczonym ruchu przełączenie jest natychmiastowe.
 
 Uśpiony wątek pozostaje dostępny z sekcji, wyszukiwania i bezpośredniego linku.

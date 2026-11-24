@@ -7,11 +7,13 @@
 
   let {
     label,
+    working = false,
     expanded,
     ontoggle,
     children,
   }: {
     label: string;
+    working?: boolean;
     expanded: boolean;
     ontoggle: () => void;
     children: Snippet;
@@ -31,9 +33,18 @@
   }
 </script>
 
-<h2>
-  <Button size="sm" variant="ghost" icon="chevron-right" aria-expanded={expanded} aria-controls={id} onclick={ontoggle}>
+<h2 class:working>
+  <Button
+    class="w-full"
+    size="sm"
+    variant="ghost"
+    icon="chevron-right"
+    aria-expanded={expanded}
+    aria-controls={id}
+    onclick={ontoggle}
+  >
     {label}
+    <span aria-hidden="true" class="ms-1 h-px flex-1 bg-current opacity-25"></span>
   </Button>
 </h2>
 <div {id}>
@@ -52,6 +63,11 @@
 </div>
 
 <style>
+  .working :global(button) {
+    color: color-mix(in oklab, light-dark(var(--theme-sky-700), var(--theme-sky-400)) 60%, var(--theme-muted));
+    --icon-color: currentColor;
+  }
+
   h2 :global(button > svg:first-child) {
     transition: rotate var(--duration-fast) var(--ease-in-out);
   }
