@@ -13,12 +13,17 @@ export const FULL_ACCESS = "full_access";
 export const FULL_ACCESS_REFUSED =
   "Full access is not available on this computer. Its worker is too old or has full access turned off. Update the worker or choose another mode.";
 
-/** The refusal a StartTurn in Full access gets instead of being sent to a worker without the capability. */
+/** Refuse Full access turns and forks if the worker lacks the capability at delivery. */
 export function fullAccessRefusal(capabilities: readonly string[], command: Command): CommandResult | undefined {
-  if (command.kind.case !== "startTurn" || capabilities.includes(FULL_ACCESS)) return undefined;
-  const { permissionMode, thread } = command.kind.value;
+  if (capabilities.includes(FULL_ACCESS)) return undefined;
+  const { kind } = command;
+  let mode: PermissionMode | undefined;
 
-  if ((permissionMode || thread?.permissionMode) !== PermissionMode.FULL_ACCESS) return undefined;
+  if (kind.case === "startTurn") mode = kind.value.permissionMode || kind.value.thread?.permissionMode;
+
+  if (kind.case === "createThread" && kind.value.fork) mode = kind.value.thread?.permissionMode;
+
+  if (mode !== PermissionMode.FULL_ACCESS) return undefined;
 
   return create(CommandResultSchema, {
     ok: false,
@@ -35,10 +40,3 @@ export function coreCheckFullAccess(hostContext: GatewayCore, workerId: string |
   if (connection?.isOpen && !connection.hello.capabilities.includes(FULL_ACCESS))
     throw new InvalidError(FULL_ACCESS_REFUSED);
 }
-
-/**
- * User-created forks and side-thread drafts require choosing Full access again. Agent-created children
- * instead use the owner's inheritance policy (store/automated-permissions.ts).
- */
-export const inheritedPermissionMode = (mode: PermissionMode): PermissionMode =>
-  mode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : mode;

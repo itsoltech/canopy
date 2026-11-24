@@ -9,7 +9,7 @@ import { GatewayStore, NotFound, type ThreadRow } from "../store/index.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
 import { coreState, InvalidError, TTL } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
-import { coreCheckFullAccess, inheritedPermissionMode } from "./full-access.ts";
+import { coreCheckFullAccess } from "./full-access.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
 import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
@@ -69,6 +69,7 @@ export async function coreCheckProvider(
 export async function coreForkRequest(
   hostContext: GatewayCore,
   request: ui.CreateThreadRequest,
+  automated: boolean,
 ): Promise<ui.CreateThreadRequest> {
   if (!request.forkThreadId) throw new InvalidError("fork_at_turn_id needs the thread to fork from (fork_thread_id)");
   const from = await coreRun(hostContext, (s) => s.thread(request.forkThreadId));
@@ -79,6 +80,10 @@ export async function coreForkRequest(
 
   if (threadSandbox(from)) throw new InvalidError(SANDBOX_DERIVATION_UNAVAILABLE);
   const source = coreUiThread(hostContext, from);
+  const permissionMode = automated ? request.permissionMode : source.permissionMode;
+
+  // The source workspace can be archived and absent from the provider check's project list.
+  if (!automated) coreCheckFullAccess(hostContext, from.worker_id, permissionMode);
 
   return create(ui.CreateThreadRequestSchema, {
     ...request,
@@ -90,8 +95,7 @@ export async function coreForkRequest(
     model: source.model,
     effort: source.effort,
     serviceTier: source.serviceTier,
-    // Full access is chosen again in the fork, never inherited (docs/threads.md).
-    permissionMode: inheritedPermissionMode(source.permissionMode),
+    permissionMode,
     instructions: from.settings.instructions ?? "",
     fork: false,
     title: request.title.trim() || `Fork of ${from.title}`,

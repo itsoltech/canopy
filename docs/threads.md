@@ -4,6 +4,7 @@ Status (2026-11-24): w web i desktop oznaczenie wyniku w sidebarze znika po
 potwierdzeniu odczytu widocznego końca rozmowy.
 
 Status (2026-11-24): w web/desktop ustawienia archiwizacji są w zakładce **Archiving** sekcji Threads.
+Fork użytkownika zachowuje zapisany tryb uprawnień wątku źródłowego, także Full access.
 
 Status (2026-11-23): w Settings → Projects można zmienić kolor istniejącego projektu
 w web, desktop, iOS i Androidzie. **Use automatic color** przywraca dobór z nazwy.
@@ -69,7 +70,8 @@ pozostają widoczne przez znaczniki w sidebarze. Szczegóły i zabezpieczenia:
 `/threads/[id]/new-side-thread`. Widok używa tego samego `ComposerBox`, `ModelControls`
 i `PermissionPicker` co nowy wątek. Fokus trafia do wiadomości; Escape oraz „Back”
 wracają do wątku głównego. Escape w otwartym pickerze najpierw zamyka picker.
-Szkic bierze tryb uprawnień wątku głównego, z wyjątkiem Full access: wtedy zaczyna od Full auto.
+Szkic bierze tryb uprawnień wątku głównego. Jeśli wątek główny ma Full access,
+szkic zaczyna w trybie Sandbox.
 
 **Tryby uprawnień** (`PermissionPicker`, „Permissions…”, domyślne wątków): Ask first, Accept edits,
 Read only, Sandbox i Full access (bez pytań i bez sandboxa,
@@ -84,7 +86,7 @@ Full access ma kolor rose i ikonę `shield-off`
 (pigułka kompozytora, panel, hover card, `PermissionModeTitle` z odznaką „No sandbox”). Każdy wybór
 Full access w pickerze i w domyślnych wątków potwierdza dialog „Turn on full access?”
 (`FullAccessConfirm`); w „Permissions…” potwierdzeniem jest przycisk „Turn on full access” zamiast
-„Save”. Fork użytkownika, szkic wątku bocznego i harmonogram dostają co najwyżej Full auto.
+„Save”.
 Po jawnym zapisie domyślnego trybu wątku nowa wiadomość bez wyboru w szkicu dziedziczy
 zapisany tryb. Tryb widoczny w historii pozostaje trybem tamtej tury. Kompozytor może
 wybrać inny tryb pojedynczej wiadomości, a steer korzysta z uprawnień działającej tury.
@@ -339,7 +341,7 @@ Użytkownik może wybrać inną dostępną gałąź.
 Źródło zachowuje id, cwd, worktree i archiwizację; przywrócenie go nie jest wymagane.
 
 Nowa sesja dziedziczy instancję, model, wysiłek i instrukcje, a Full access zostaje ograniczony
-do Full auto tak jak przy forku użytkownika. Zapisany przed uruchomieniem sesji handoff
+do Sandbox. Zapisany przed uruchomieniem sesji handoff
 przekazuje ograniczony fragment widocznej rozmowy (także odziedziczonej), id źródła i informację
 o zmianie katalogu. Jest to skrót kontekstu, nie natywny fork ani pełna historia dostawcy;
 działa także dla Groka i bez plików starej sesji. Kliknięcie nie uruchamia inferencji.
@@ -547,7 +549,8 @@ Wspólny mianownik i reguła platformy: **fork zawsze na granicy zakończonej tu
 
 Przycisk pod zakończoną turą (obok „Copy answer”) albo „Fork thread” w menu wątku i palecie (od ostatniej zakończonej tury) tworzy **nowy wątek główny** z historią do tej tury włącznie i od razu go otwiera.
 
-- **Gdzie:** ten sam projekt, workspace i katalog, ten sam dostawca, instancja, model, wysiłek, tryb uprawnień i instrukcje co wątek, z którego forkujemy. Wyjątek: Full access się nie dziedziczy, fork zaczyna w Full auto. Wątek główny, a nie boczny: to nowa rozmowa użytkownika (osobna pozycja w skrzynce, własne wątki boczne), a nie praca pod źródłem; wątek boczny z forkiem do wybranej tury też jest możliwy (`parent_thread_id` + `fork` + `fork_at_turn_id`), ale UI go nie oferuje.
+- **Ustawienia forka:** ten sam projekt, workspace i katalog, ten sam dostawca, instancja, model, wysiłek, zapisany tryb uprawnień i instrukcje co wątek, z którego forkujemy. Tryb wynika z ustawień źródła w chwili tworzenia forka. Full access wymaga workera z capability `full_access`.
+- **Typ wątku:** fork użytkownika tworzy wątek główny z osobną pozycją w skrzynce i własnymi wątkami bocznymi. API obsługuje też wątek boczny z forkiem do wybranej tury (`parent_thread_id` + `fork` + `fork_at_turn_id`).
 - **Drzewo:** forkowany wątek główny zaczyna własne drzewo (`root_thread_id` = on sam). Baza (migracja 0020) wymaga od niego tego samego projektu, właściciela i workera co źródło (historia dostawcy leży na tym workerze); wątek boczny z forkiem nadal musi być w drzewie źródła.
 - **Punkt:** `CreateThread.fork_at_turn_id` to tura z widocznej historii wątku `fork_thread_id`: jego własna albo odziedziczona do jego punktu forka. Tura odziedziczona należy do innego wątku; źródłem forka (`fork_source_thread_id`) staje się wtedy wątek, do którego tura należy — jego historia do tej tury jest dokładnie tym, co widać. Tura musi być zakończona i mieć punkt u dostawcy (`provider_turn_ref`); tura, której dostawca nie zaczął (np. worker odrzucił `StartTurn`), nie ma go, więc gateway odmawia („fork from an earlier turn”). Worker też odmawia (`FORK_POINT_UNKNOWN`), gdy `ForkSpec.after_turn_id` nie ma `after_provider_turn_ref` — nigdy nie kopiuje wtedy całej historii po cichu.
 - **Tury nieudane i przerwane:** fork od nich jest dozwolony (historia do tego miejsca; Codex `thread/fork` przyjmuje każdą turę poza tą w toku, Claude kopiuje transkrypt do ostatniego wpisu tury).
