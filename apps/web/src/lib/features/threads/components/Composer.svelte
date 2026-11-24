@@ -122,6 +122,7 @@
   // Blocking questions stay expanded; asynchronous answers follow composer compaction.
   const folded = $derived(compact && active?.asynchronous !== false);
   let root = $state<HTMLDivElement>();
+  let focused = $state(false);
 </script>
 
 {#snippet permissionControl()}
@@ -142,11 +143,16 @@
   onfocusin={(event) => {
     // Panels that open on their own (subagents) leave the compact composer folded.
     if (event.target instanceof Element && event.target.closest("[data-keeps-compact]")) return;
+    focused = true;
     onfocuschange?.(true);
     onexpand?.();
   }}
   onfocusout={() => {
-    void tick().then(() => onfocuschange?.(Boolean(root?.contains(document.activeElement))));
+    void tick().then(() => {
+      const target = document.activeElement;
+      focused = Boolean(root?.contains(target) && !target?.closest("[data-keeps-compact]"));
+      onfocuschange?.(focused);
+    });
   }}
 >
   {#if top || status || (session && !session.done)}
@@ -206,6 +212,7 @@
       {onsent}
       ongoal={permissions.sandboxProfile ? undefined : ongoal}
       compact={folded || Boolean(approval)}
+      collapseWhenIdle={!focused && !approval}
       {panelsLabel}
       {onexpand}
     />
