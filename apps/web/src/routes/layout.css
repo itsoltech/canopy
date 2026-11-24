@@ -269,7 +269,7 @@ html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), 
 }
 
 :root {
-  /* Width of the chat column (Appearance → Chat width). */
+  /* Appearance → Thread width, shared by the thread, pull requests and rendered Markdown. */
   --chat-width: 48rem;
   --bot-chat-width: var(--chat-width);
   --chat-bubble-width: 100%;
