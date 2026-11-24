@@ -196,7 +196,7 @@
     (quote) => revealQuote(quote.sourceItemId),
   );
 
-  // Its latest result counts as seen once it has been on screen (the sidebar's "Completed" goes out everywhere).
+  // The composer and reading position follow the thread's timeline.
   let atEnd = $state(true);
 
   // The composer folds in step with the reader's scroll, inside the feed's fixed end reserve.
@@ -220,17 +220,12 @@
     composer.update(blocking, atEnd);
   });
 
-  trackSeen(() => {
-    const live = overview.threads.get(threadId) ?? thread;
-
-    return {
-      threadId,
-      unseen: !away && Boolean(live?.unseenResult || live?.markedUnread),
-      markedUnread: live?.markedUnread ?? false,
-      lastSeq: live?.lastSeq ?? 0n,
-      atEnd,
-    };
-  });
+  trackSeen(() => ({
+    threadId,
+    thread: overview.threads.get(threadId) ?? thread,
+    rendered: thread,
+    showsLatest: !away && !fileTab && view.connection === "live" && Boolean(feed?.showsLatest()),
+  }));
 
   // The subagents its agent started (spawn_thread), live from the thread index: the panel above the composer.
   const subagents = $derived(keepSubagents(thread ? subagentsOf(threads, thread.id) : []));
@@ -425,6 +420,7 @@
   let feed = $state<
     FoldReader &
       CreationFeedReader & {
+        showsLatest: () => boolean;
         reveal: (key: string) => Promise<boolean>;
         keep: (key: string) => void;
         scrollToRow: (index: number, options: { align: "start"; smooth?: boolean }) => Promise<boolean>;

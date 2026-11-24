@@ -438,6 +438,9 @@
   export const savePosition = () => handoff.save();
   export const restorePosition = (position: Parameters<FeedHandoff["restore"]>[0]) => handoff.restore(position);
 
+  export const showsLatest = () =>
+    !loading && ready && opening.positioned && viewport > 0 && extent.endVisible && (stuck || !extent.overflows);
+
   /** Read-only estimated/measured row offset, relative to the start of the list. */
   export const rowOffset = (at: number): number => (void layout, index.offset(at));
 

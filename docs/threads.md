@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): w web i desktop oznaczenie wyniku w sidebarze znika po
+potwierdzeniu odczytu widocznego końca rozmowy.
+
 Status (2026-11-24): w web/desktop ustawienia archiwizacji są w zakładce **Archiving** sekcji Threads.
 
 Status (2026-11-23): w Settings → Projects można zmienić kolor istniejącego projektu
@@ -249,6 +252,10 @@ Tło zaznaczenia w sidebarze wskazuje wyłącznie otwarty wątek, także podczas
 Pracę oznaczają pierścień i etykieta „Working” z czasem; sam stan pracy nie dodaje tła ani
 nie przygasza tekstu. Hover niezaznaczonego wiersza jest słabszy od zaznaczenia, a fokus
 klawiatury ma osobny obrys. Te same reguły obowiązują dla wątków głównych i bocznych.
+
+W web i desktop „Completed” oznacza nieprzeczytany wynik. Klient zgłasza odczyt,
+gdy koniec rozmowy jest wczytany i widoczny, również jeśli zaraz potem przejdziesz do
+innego wątku. Po potwierdzeniu odczytu wiersz od razu pokazuje czas ostatniej aktywności.
 
 Opcjonalna sekcja „Working” w web/desktop i mobile grupuje nieprzypięte drzewa z pracującą
 lub startującą turą, pytaniem do rodzica-agenta albo samymi zadaniami w tle. Licznik obejmuje

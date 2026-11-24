@@ -6,10 +6,9 @@
   import Icon from "#lib/shared/ui/Icon.svelte";
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
-  import { activityOf, asksAgent, needsYou } from "./activity.ts";
+  import { activityOf, asksAgent, needsYou, unseenResult } from "./activity.ts";
   import { workingLabel } from "@canopy/domain/thread-activity";
   import { workingColors } from "@canopy/ui/thread-row";
-  import { lingeringResult } from "./result.svelte.ts";
 
   /**
    * Thread status in lists: what needs attention in colour (needs you, asking its
@@ -21,9 +20,6 @@
   const at = $derived(activityOf(thread));
   const age = $derived(formatAge(at, clock.now));
 
-  // A finished turn you have not seen yet (kept a moment after you saw it) wins over the quiet states.
-  const result = lingeringResult(() => thread);
-
   const state = $derived(
     needsYou(thread)
       ? "needs"
@@ -33,7 +29,7 @@
           ? "creating"
           : thread.status === "running" || thread.status === "creating"
             ? thread.status
-            : (result.current ?? thread.status),
+            : (unseenResult(thread) ?? thread.status),
   );
 </script>
 
