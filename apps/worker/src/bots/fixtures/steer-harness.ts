@@ -139,6 +139,21 @@ for await (const line of createInterface({ input: process.stdin })) {
   let result: JsonObject = {};
 
   if (method === "initialize") result = { userAgent: "steer-fixture" };
+  else if (method === "getAuthStatus")
+    result = { authMethod: "apikey", authToken: "steering-fixture", requiresOpenaiAuth: true };
+  else if (method === "account/login/start") result = { type: "apiKey" };
+  else if (method === "config/read")
+    result = {
+      config: {
+        model_provider: "openai",
+        ...(process.argv.includes('cli_auth_credentials_store="ephemeral"') && {
+          cli_auth_credentials_store: "ephemeral",
+        }),
+      },
+      origins: {},
+      layers: null,
+    };
+  else if (method === "configRequirements/read") result = { requirements: null };
   else if (method === "thread/start" || method === "thread/resume") result = { thread: { id: session, path: null } };
   else if (method === "turn/start") {
     result = { turn: turn("inProgress") };

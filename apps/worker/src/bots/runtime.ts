@@ -1,5 +1,6 @@
 import { workerDiagnostics } from "../diagnostics/worker.ts";
 import { Match } from "effect";
+import { isDeepStrictEqual } from "node:util";
 import { classifyFailure } from "@canopy/domain";
 import {
   Provider,
@@ -13,9 +14,12 @@ import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";
 import { readHarnessRecord, reconcileEvents } from "../providers/reconcile.ts";
 import { CommandError, type CommandOutput } from "../runtime/host-types.ts";
+import type { UsageObserver } from "../runtime/usage-limits.ts";
 import type { HostContext } from "../runtime/host-context.ts";
 import { botSession } from "./session.ts";
 import { runClaudeBot } from "./claude.ts";
+import type { CodexBotAuthRoute } from "../providers/codex/bot-auth-route.ts";
+import type { CodexBotLoginScope } from "../providers/codex/profile-auth.ts";
 import { runCodexBot } from "./codex.ts";
 import { runGrokBot } from "./grok.ts";
 import { BotHarnessFailure } from "./types.ts";
@@ -54,12 +58,61 @@ function sessionOptions(
   return {
     dataDir: ctx.state.options.dataDir,
     sourceHome,
+    ...(provider === "codex" && {
+      codexProfileEnv: profile.env,
+      protectedCodexHomes: config.profiles.flatMap(({ config: other }) => {
+        if (!providersOf(other).includes("codex")) return [];
+        const shadow = instanceShadowHome(ctx.state.options.dataDir, "codex", other.id, other.runtime);
+
+        return [other.runtime?.homePath, shadow].filter((path): path is string => Boolean(path));
+      }),
+    }),
     ...(provider === "claude" &&
       !runtime.ownLogin &&
       !runtime.homePath && {
         secureStorageDir: ctx.state.deviceHomes.claudeSecureStorage ?? sourceHome,
       }),
     linkLogin: profile.kind === "native" && (runtime.ownLogin === true || config[provider].linkDeviceLogin),
+  };
+}
+
+function selectedCodexLogin(ctx: HostContext, profile: ResolvedProfile, admitted: AppliedConfig, signal: AbortSignal) {
+  const key = `codex/${profile.id}`;
+  const generation = ctx.state.loginGenerations.get(key);
+
+  const checkProfile = () => {
+    signal.throwIfAborted();
+    const config = ctx.state.config;
+
+    const current = config?.profiles.find((p) => p.config.id === profile.id && providersOf(p.config).includes("codex"));
+
+    if (
+      ctx.state.loginGenerations.get(key) !== generation ||
+      !config?.codex.enabled ||
+      profile.kind !== "native" ||
+      !isDeepStrictEqual(current?.resolved, profile) ||
+      !(profile.runtime.ownLogin || config.codex.linkDeviceLogin) ||
+      (!profile.runtime.executablePath && admitted.codex.executable !== config.codex.executable)
+    )
+      throw new BotHarnessFailure("connection_changed");
+  };
+
+  return async (destination: CodexBotAuthRoute, scope?: CodexBotLoginScope) => {
+    checkProfile();
+
+    const login = await ctx.ops.runCodex(
+      Provider.CODEX,
+      (threads) => {
+        checkProfile();
+
+        return threads.botLogin(destination, scope);
+      },
+      ctx.ops.codexGroupOf(profile.id),
+    );
+
+    checkProfile();
+
+    return login;
   };
 }
 
@@ -175,26 +228,16 @@ export class BotTurns {
       );
     const session = botSession(input, sessionOptions(this.ctx, config, profile, provider));
 
+    const codexLogin =
+      provider === "codex" && session.linkLogin && selectedCodexLogin(this.ctx, profile, config, abort.signal);
+
     const active = this.#active.get(`${input.botId}/${input.turnId}`)!;
     active.workspace = session.workspace;
     active.files = input.files;
     const release = session.workspace.hold();
     const usage = this.ctx.state.usageObservers.get(`${input.provider}/${profile.id}`);
 
-    const record = async (event: ThreadEventInit) => {
-      const safeEvent = botFailureEvent(usage?.failure(event) ?? event);
-
-      const saved = await this.ctx.state.options.runtime.runPromise(
-        Journal.use((j) => j.append(input.botId, { ...safeEvent, turnId: input.turnId })),
-      );
-
-      this.ctx.ops.publish(saved);
-
-      if (safeEvent.body?.case === "turnFinished" && safeEvent.body.value.outcome === TurnOutcome.FAILED)
-        this.ctx.ops.log(
-          `bots: turn failed source harness class ${classifyFailure("", safeEvent.body.value.errorClass)}`,
-        );
-    };
+    const record = this.#recordTurn(input, usage);
 
     const bus = botConnectorMcp(this.ctx.ops, input, abort.signal);
 
@@ -232,6 +275,7 @@ export class BotTurns {
       input,
       session,
       profile,
+      ...(codexLogin && { codexLogin }),
       signal: abort.signal,
       executable: profile.runtime.executablePath || config[provider].executable || provider,
       clientVersion: this.ctx.state.options.clientVersion,
@@ -286,6 +330,22 @@ export class BotTurns {
       });
 
     return {};
+  }
+  #recordTurn(input: RunBotTurn, usage: UsageObserver | undefined) {
+    return async (event: ThreadEventInit) => {
+      const safeEvent = botFailureEvent(usage?.failure(event) ?? event);
+
+      const saved = await this.ctx.state.options.runtime.runPromise(
+        Journal.use((j) => j.append(input.botId, { ...safeEvent, turnId: input.turnId })),
+      );
+
+      this.ctx.ops.publish(saved);
+
+      if (safeEvent.body?.case === "turnFinished" && safeEvent.body.value.outcome === TurnOutcome.FAILED)
+        this.ctx.ops.log(
+          `bots: turn failed source harness class ${classifyFailure("", safeEvent.body.value.errorClass)}`,
+        );
+    };
   }
   async #failed(input: RunBotTurn, aborted: boolean, record: (event: ThreadEventInit) => Promise<void>, error: Error) {
     const open = (await this.ctx.state.options.runtime.runPromise(Journal.use((j) => j.openTurns()))).find(

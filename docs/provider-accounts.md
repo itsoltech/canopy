@@ -1,12 +1,15 @@
 # Status kont dostawców
 
+Aktualizacja (2026-11-24): natywny bot Codexa pobiera login wybranej instancji z
+osobnego lokalnego RPC. Raport konta nadal zawiera wyłącznie metadane.
+
 Aktualizacja (2026-11-23): Refresh konta lub workera uwzględnia zmianę pliku
 logowania Codexa w terminalu. Worker wznawia obsługę instancji z nowym loginem,
 gdy zakończą się jej aktywne tury i zadania w tle.
 Jeśli loginu brakuje, próba uruchomienia tury podaje przyczynę niedostępności wybranej instancji.
-Jeśli worker nie może dowiązać pliku loginu lub jego blokady, przy koncie
-i w błędzie tury pokazuje się przyczyna. Instancja ze zgłoszonym błędem
-udostępniania loginu ma status **Login unavailable**.
+Jeśli worker nie może dowiązać pliku loginu lub jego blokady w izolowanej
+instancji Codexa, Canopy pokazuje przyczynę przy koncie i w błędzie tury.
+Instancja ze zgłoszonym błędem udostępniania loginu ma status **Login unavailable**.
 
 Status (2026-11-24) obejmuje widok limitów kont proxy w Providers, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
@@ -29,7 +32,7 @@ każdego modelu ani dostępności endpointu.
 | Harness | Odczyt | Dostępne metadane |
 | --- | --- | --- |
 | Claude | `claude auth status --json` | `loggedIn`, metoda, email, nazwa organizacji, subskrypcja, opcjonalny termin wygaśnięcia. Nieznane pola są odrzucane. |
-| Codex | `codex login status` | Status w stderr i kod wyjścia; rozpoznawane ChatGPT/API key/managed credentials. Opcjonalnie działający app-server tej samej instancji: `account/read {refreshToken:false}` daje email i plan. Nie uruchamiamy kolejnego app-servera ani nie czytamy `auth.json`. |
+| Codex | `codex login status` | Status w stderr i kod wyjścia; rozpoznawane ChatGPT/API key/managed credentials. Raport może pobrać email i plan z działającego app-servera tej samej instancji przez `account/read {refreshToken:false}`. |
 | Grok Build 1.0.70 | obecność pliku wskazanego przez `GROK_AUTH_PATH` (bez czytania treści) | Brak read-only auth status/whoami. „Login saved” potwierdza zapisany login, nie jego ważność; dopiero tura może go odrzucić. Brak pliku oznacza „Not signed in”. Klucz w env ma osobny opis „API key configured”. |
 | Proxy | konfiguracja instancji | „Proxy: nazwa”, bez uruchamiania auth status i bez tożsamości konta upstream. Nie jest to test poprawności klucza ani połączenia. |
 
@@ -59,7 +62,8 @@ w systemowym magazynie poświadczeń, sama dostępność instancji oznacza, że
 worker może uruchomić CLI. Stan zalogowania podaje `codex login status`
 w raporcie konta. Ręczny **Refresh** po zmianie takiego loginu odtwarza
 procesy korzystające z tego magazynu po zakończeniu aktywnej pracy.
-W trybie **Isolated** Canopy używa dowiązań symbolicznych do pliku logowania i jego blokady zapisu.
+W trybie **Isolated** z logowaniem urządzenia instancja Codexa używa dowiązań
+symbolicznych do pliku logowania i jego blokady zapisu.
 Dowiązanie do `auth.json` pozostaje na miejscu także wtedy, gdy przy sprawdzaniu
 konta pomiędzy wylogowaniem i ponownym logowaniem z terminala brakuje pliku źródłowego. Worker
 migruje wcześniejsze twarde dowiązania na Windowsie podczas wczytywania
@@ -74,8 +78,20 @@ w nadpisaniu dla workera. Na Windowsie, macOS i Linuksie
 app-server korzysta wtedy z katalogu wybranego dla logowania CLI i czyta
 jego konfigurację, w tym instrukcje, serwery MCP oraz hooki. Ten tryb nie wymaga
 nowego logowania ani uprawnienia do tworzenia dowiązań. Własny login instancji
-pozostaje opcją dla osób, które potrzebują osobnego konta. Boty i generator
-tytułów mają prywatne katalogi i do użycia plikowego loginu nadal potrzebują dowiązań.
+pozostaje opcją dla osób, które potrzebują osobnego konta. Generator tytułów
+używa własnego katalogu i dowiązań przy plikowym logowaniu natywnym.
+
+Na początku natywnej tury bota Codexa worker wywołuje `getAuthStatus` na
+krótkotrwałym app-serverze wybranej instancji po sprawdzeniu efektywnej trasy
+połączenia. Odczyt jest niezależny od cache raportu konta i od długo działającego
+procesu wątków. Bot otrzymuje klucz API albo token dostępu ChatGPT w lokalnym
+RPC i przechowuje je w pamięci procesu tury. Przy odświeżaniu worker najpierw
+sprawdza, czy instancja ma już aktualny token tego samego obszaru roboczego
+ChatGPT i użytkownika. Bot zgłasza błąd logowania przy niezgodnej trasie,
+nieobsługiwanych wymaganiach zarządzanych lub gdy CLI nie zwraca obsługiwanych
+poświadczeń przez RPC. Raport może nadal wskazywać stan zalogowania, np. dla
+managed credentials. Szczegóły odświeżania i sprzątania katalogów opisuje
+[logowanie harnessów](bots-harness.md#logowanie-harnessów).
 
 Jeśli tura zgłasza `refresh_token_reused` lub „refresh token was already used”,
 Canopy udostępnia akcję ponownego logowania. Jeśli terminal ma już świeży login,
@@ -147,8 +163,9 @@ peer odmawiają operacji. Jeden magazyn ma najwyżej jedną zmianę loginu w tok
 wylogowanie jest odrzucane do zakończenia logowania. Każdy wynik jest przypisany do
 konkretnego `login_id`, osobno dla harnessu i instancji. Kod trafia wyłącznie
 do pamięci oraz stdin CLI; polecenia nie trafiają do journala ani outboxa.
-Output CLI ma limit, deadline i jest odrzucany bez logowania. Tokeny nie
-opuszczają magazynu CLI. Zamknięcie workera anuluje proces logowania.
+Output CLI ma limit, deadline i jest odrzucany bez logowania. Proces logowania
+zapisuje poświadczenia bezpośrednio w magazynie CLI. Zamknięcie workera anuluje
+proces logowania.
 
 ### Login odrzucony w turze
 

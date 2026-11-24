@@ -53,6 +53,40 @@ jobs:
       - name: Windows CLI launcher argument round-trip
         if: matrix.target == 'windows-x64'
         run: bun test ./packages/process-governor/src/windows-command.test.ts
+      - name: Codex profile login and isolated bot turns on Windows
+        if: matrix.target == 'windows-x64'
+        run: bun test ./tests/integration/codex-bot-profile-login.test.ts ./apps/worker/src/bots/codex-sqlite-home.test.ts
+      - name: Codex profile login with the released Windows CLI
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        env:
+          CANOPY_LIVE_CODEX_PROFILE_AUTH: "1"
+          CANOPY_LIVE_CODEX_EXPECT_WINDOWS: "1"
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $checksums = [ordered]@{
+            '0.164.0' = 'urWPhwh9YavuoAPIkmVYKBTtd5OtGVL4Ki0Fb28dhK/Mz6Pt4LSy+gbRrZFz5+RXrw9ubvXuXDCcd8beYcWhDg=='
+            '0.172.0' = '48pULjlTwpBZ/TfbOnpnmloHaTQAYELbaiKHEX7qmrtLFIcnPigaNN3omyetPdAuvrRXrmNFRlKfvQme19ZmRA=='
+          }
+          $failed = $false
+          foreach ($version in $checksums.Keys) {
+            $directory = Join-Path $env:RUNNER_TEMP "codex-profile-auth-$version"
+            New-Item -ItemType Directory -Path $directory | Out-Null
+            $archive = Join-Path $directory 'codex.tgz'
+            $url = "https://registry.npmjs.org/@openai/codex/-/codex-${version}-win32-x64.tgz"
+            Invoke-WebRequest -Uri $url -OutFile $archive
+            $sha512 = (Get-FileHash -LiteralPath $archive -Algorithm SHA512).Hash
+            $integrity = [Convert]::ToBase64String([Convert]::FromHexString($sha512))
+            if ($integrity -cne $checksums[$version]) { throw "Unexpected Codex $version archive checksum" }
+            tar -xzf $archive -C $directory
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $env:CANOPY_LIVE_CODEX_BIN = Join-Path $directory 'package/vendor/x86_64-pc-windows-msvc/bin/codex.exe'
+            $env:CANOPY_LIVE_CODEX_EXPECT_VERSION = $version
+            Write-Host "Testing Codex $version"
+            bun test ./apps/worker/src/bots/codex-profile-auth.live.test.ts
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
       - name: Codex device login recovery
         run: bun test ./apps/worker/src/providers/codex/home.test.ts ./apps/worker/src/bots/codex-login.test.ts
       - name: Default Codex CLI home after upgrade

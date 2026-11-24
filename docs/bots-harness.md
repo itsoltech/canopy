@@ -1,8 +1,9 @@
 # Boty przez oficjalne harnessy
 
-Aktualizacja (2026-11-23): na Windowsie istniejące rozmowy botów Codex przechodzą
-z twardych dowiązań na dowiązania symboliczne przy użyciu bieżącego loginu instancji.
-Na wszystkich systemach plikowa blokada zapisu loginu jest współdzielona z instancją.
+Status (2026-11-24): natywne boty Codexa pobierają bieżący login wybranej instancji
+przez lokalne RPC app-servera i używają go w pamięci procesu tury. Worker usuwa
+rozpoznane pozostałości po dowiązaniach z katalogów botów, zachowując ich sesje.
+Na Windowsie boty Codexa z długimi ścieżkami używają krótszego katalogu SQLite.
 
 Status (2026-11-22): Claude, Codex i Grok otrzymują aktualną pamięć bota lub rozmowy również po wznowieniu
 sesji. Tury przekazujące wiadomości między botami mają oddzielne katalogi sesji i ograniczoną historię.
@@ -189,12 +190,32 @@ Samo `CODEX_HOME` nie izoluje `~/.agents/skills`. Codex ma dodatkowo
 Zmiana izolacji unieważnia cache sesji, żeby odbudowa usunęła wcześniejszy
 kontekst skilli z transkryptu harnessu. Wątki zachowują swoje skille i instrukcje.
 
+Na Windowsie Codex potrzebuje miejsca na pliki pomocnicze SQLite, w tym
+`thread_history_1.sqlite-journal`. Gdy domyślna ścieżka tego pliku osiąga limit
+Win32, worker podaje prywatny podkatalog `<data_dir>/bdb` przez
+`CODEX_SQLITE_HOME`. Podkatalog wyznacza skrót identyfikatorów bota, rozmowy
+i instancji. Jawne `CODEX_SQLITE_HOME` workera lub instancji oraz `sqlite_home`
+w konfiguracji bota zachowują dotychczasowe działanie. Codex stosuje własne
+reguły pierwszeństwa konfiguracji. Bazy w `CODEX_HOME` pozostają domyślne na
+pozostałych systemach oraz dla krótkich ścieżek bez wcześniejszej migracji.
+
+Przy pierwszym uruchomieniu w krótszej lokalizacji worker odczytuje istniejące bazy
+stanu, historii, celów, pamięci i kolejki jako spójne migawki SQLite, także z
+zatwierdzonymi transakcjami z WAL. Udostępnia nowy katalog po ukończeniu wszystkich
+migawek, a kolejne tury korzystają z niego. Błąd odczytu pozwala ponowić operację
+ze źródłowych baz. Pliki logowania, źródłowe bazy i rollouty pozostają w swoich
+katalogach. Zapisany identyfikator sesji nadal wskazuje ten sam rollout w
+`CODEX_HOME`. Jeśli plik pomocniczy przekracza limit również w `bdb`,
+worker wymaga krótszego katalogu danych.
+
 Menedżery wersji zachowują katalogi urządzenia (`MISE_DATA_DIR`, `MISE_CONFIG_DIR`,
 `MISE_STATE_DIR`, `MISE_GLOBAL_CONFIG_ROOT`, `ASDF_DATA_DIR`, `VOLTA_HOME`; poza Windows).
 Discovery często wybiera shim (np. `~/.local/share/mise/shims/codex`), a launcher CLI może
 wołać `node` z PATH. Shim szuka instalacji, ustawień i zaufanych konfiguracji pod HOME/XDG,
 więc przy prywatnym HOME kończyłby się od razu, zanim CLI wystartuje. Te katalogi
 zawierają wersje narzędzi, nie konfigurację providera.
+
+### Logowanie harnessów
 
 Claude zachowuje `HOME`, `USERPROFILE` i XDG procesu workera; izoluje wyłącznie
 `CLAUDE_CONFIG_DIR`. `settingSources: []`, puste pluginy i własny system prompt
@@ -203,18 +224,51 @@ przechwycenie żądania CLI z zasianym katalogiem użytkownika. Nie zmieniamy HO
 żeby nie wpływać na odkrywanie loginu i macOS Keychain; nie jest to deklaracja
 sprawdzenia rzeczywistego logowania na macOS.
 
-Codex także na macOS odczytuje plik `auth.json` spod `CODEX_HOME`. Bot jawnie
-ustawia `cli_auth_credentials_store="file"` i dowiązuje symbolicznie ten plik oraz `auth.lock` z
-katalogu logowania wybranej instancji. Istniejąca rozmowa zachowuje sesję przy
-migracji dowiązania. Na Windowsie udostępnienie loginu botowi wymaga uprawnienia
-do tworzenia dowiązań symbolicznych, które zapewnia m.in. tryb dewelopera.
-Zmiana HOME nie zmienia źródła ani dowiązania.
-Konfiguracja instancji nie jest kopiowana. Magazyny `keyring` i `auto` są osobnymi
-trybami CLI: bezpośredni wpis keyringu jest identyfikowany hashem kanonicznego
-`CODEX_HOME`. Samo zachowanie HOME nie przeniosłoby takiego wpisu do prywatnego
-`CODEX_HOME` bota. Obecna integracja wymaga loginu dostępnego jako `auth.json`
-albo proxy; nie eksportuje wpisów Keychain/keyringu. Login istniejący wyłącznie
-w keyringu był już ograniczeniem izolowanego `CODEX_HOME`, przed tą poprawką.
+Bot Codexa zachowuje prywatny `CODEX_HOME` i używa
+`cli_auth_credentials_store="ephemeral"`. Przy **Device login** i **Own login**
+worker uruchamia krótkotrwały app-server z efektywną konfiguracją wybranej
+instancji na tym samym workerze. Przed pobraniem poświadczeń worker odczytuje
+z obu procesów efektywną konfigurację i wymagania zarządzane przez `config/read`
+oraz `configRequirements/read`. Proces bota uwzględnia katalog roboczy rozmowy.
+Worker wymaga wbudowanego dostawcy `openai`, zgodnych adresów OpenAI API,
+zaplecza ChatGPT i katalogu modeli oraz nietrwałego magazynu w procesie bota.
+Adresy używają HTTPS lub HTTP pod `127.0.0.1` i `::1`, bez danych logowania,
+parametrów zapytania ani fragmentów.
+Niezgodne adresy, wymuszony obszar roboczy lub nieobsługiwane wymagania zarządzane,
+np. dotyczące routingu sieci albo rezydencji danych, blokują przekazanie poświadczeń.
+
+Worker wywołuje `getAuthStatus` na świeżym app-serverze, dzięki czemu kolejna
+tura może użyć loginu zmienionego w terminalu bez restartu procesu wątków.
+Obsługiwany klucz API albo token dostępu ChatGPT z identyfikatorem obszaru
+roboczego przekazuje przez `account/login/start`. Przekazane poświadczenia
+pozostają w pamięci procesów na workerze. Brak obsługi odczytu, poświadczeń lub
+rozpoznawanej metody logowania powoduje błąd tury. Boty proxy używają klucza
+skonfigurowanego dla endpointu.
+
+Przy każdym `account/chatgptAuthTokens/refresh` worker porównuje trasę wybranej
+instancji z trasą bota sprawdzoną na początku tury. Przez `accountSession/list`
+z `refreshWorkspaceMetadata:false` sprawdza zapisanego aktywnego użytkownika
+i obszar roboczy bez żądania odświeżenia OAuth. Codex 0.164 i 0.165 nie obsługują
+tego RPC. Po potwierdzonej odmowie metody te wersje przechodzą do bezpośredniego
+odczytu statusu. Worker następnie wywołuje `getAuthStatus` z `refreshToken:false`.
+Codex może sam odświeżyć token podczas uruchamiania app-servera, jeszcze przed
+sprawdzeniem tożsamości, oraz podczas odczytu statusu. Jeśli odpowiedź
+zawiera aktualny token tego samego obszaru roboczego ChatGPT i użytkownika,
+różny od tokenu odrzuconego w turze, worker używa go bez wymuszania odświeżenia.
+Jeśli odczyt potwierdza tożsamość, lecz token nadal wymaga wymiany, worker
+wywołuje `getAuthStatus` z `refreshToken:true` w tej samej instancji. Akceptuje
+wyłącznie nowy, aktualny token tego samego obszaru roboczego i użytkownika.
+
+Poprzedni mechanizm używał w katalogach botów twardych lub symbolicznych
+dowiązań loginu, a przy dowiązaniu symbolicznym współdzielił `auth.lock`.
+Worker przy wczytaniu konfiguracji i przygotowaniu sesji usuwa dowiązania
+`auth.json` i `auth.lock` do rozpoznanych źródeł. Zachowuje pliki niezależne,
+nierozpoznane dowiązania, kopie zapasowe i sesje. Przed uruchomieniem Codexa
+worker zmienia nazwę pozostałego pliku loginu lub dowiązania na prywatną kopię
+`*.canopy-backup-…`. Dzięki temu CLI nie odczyta poprzedniego konta przy starcie.
+Katalog bota nie wymaga
+uprawnienia do tworzenia dowiązań. Wymagania dla magazynu źródłowej instancji
+oraz osobną ścieżkę generatora tytułów opisuje [adapter Codexa](codex-adapter.md#korzystanie-z-katalogu-cli).
 
 Grok przechowuje login w `auth.json`; `GROK_AUTH_PATH` jest jawną, bezwzględną
 ścieżką do tego pliku w katalogu logowania wybranej instancji, również na macOS.
@@ -222,6 +276,8 @@ Worker wybiera źródło przed uruchomieniem CLI. Prywatne `GROK_HOME` służy
 konfiguracji procesu i sesjom, a prywatne HOME nie zmienia `GROK_AUTH_PATH`.
 Nie kopiujemy pozostałych plików katalogu użytkownika. Proxy przekazuje klucz
 w środowisku zamiast używać loginu plikowego.
+
+### Wznowienie sesji
 
 Claude zapisuje sesję i wznawia ją przez `resume`, Codex przez `thread/resume`,
 Grok przez `session/load`. Identyfikator sesji jest cache'em. Transkrypt
@@ -521,6 +577,15 @@ fixtures i wygenerowanym kodem. Endpointy inferencji oraz klienci HTTP SDK powod
 błąd CI; generowanie tytułów nie ma wyjątku.
 
 ## Testy
+
+`codex-bot-profile-login.test.ts` sprawdza przez WorkerHost i kontrolowany
+app-server wybór loginu instancji, zwykłą turę i wznowienie bota przy odmowie
+utworzenia dowiązania. `codex-profile-auth.live.test.ts` uruchamia rzeczywisty
+app-server z fikcyjnym loginem i lokalnym endpointem, aby sprawdzić zmianę loginu
+między turami, odświeżenie podczas tury i wylogowanie. `profile-auth.test.ts`
+sprawdza ponowne użycie odnowionego tokenu oraz odmowę przy innej tożsamości
+lub trasie docelowej. `codex-login.test.ts` sprawdza zachowanie sesji i kopii
+zapasowej przy sprzątaniu katalogu bota.
 
 `bots-harness-approvals.test.ts` sprawdza przez prawdziwy WorkerLink i kontrolowane
 CLI każdą politykę wszystkich trzech harnessów: kartę `create_bot`, brak efektu

@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { Schema } from "effect";
 import { Provider, type RunBotTurn } from "@canopy/contracts";
 import { prepareClaudeHome } from "../providers/claude/home.ts";
-import { prepareCodexHome } from "../providers/codex/home.ts";
+import { deviceCodexHome } from "../providers/codex/home.ts";
+import { cleanLegacyCodexBotLogin } from "../providers/codex/legacy-login.ts";
+import { providerHomeProblem } from "../providers/home-paths.ts";
+import type { Env } from "../providers/profiles.ts";
+import { prepareBotCodexSqliteHome } from "./codex-sqlite-home.ts";
 import { BotWorkspace } from "./workspace.ts";
 
 const SavedSession = Schema.Struct({
@@ -14,6 +18,10 @@ const SavedSession = Schema.Struct({
 });
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function botSessionInstanceKey(provider: Provider, profileId: string): string {
+  return createHash("sha256").update(`${provider}/${profileId}`).digest("hex");
+}
 
 function directory(parent: string, name: string): string {
   const path = join(parent, name);
@@ -26,17 +34,23 @@ function directory(parent: string, name: string): string {
   return path;
 }
 
-/** No project path or device settings; only this instance's login enters the isolated home. */
+/** A durable, isolated bot home with no project path or device settings. */
 export function botSession(
   input: RunBotTurn,
-  options: { dataDir: string; sourceHome: string; linkLogin: boolean; secureStorageDir?: string },
-  platform = process.platform,
+  options: {
+    dataDir: string;
+    sourceHome: string;
+    linkLogin: boolean;
+    secureStorageDir?: string;
+    protectedCodexHomes?: readonly string[];
+    codexProfileEnv?: Env;
+  },
 ) {
   if (!ID.test(input.botId) || !ID.test(input.turnId) || (input.conversationId && !ID.test(input.conversationId)))
     throw new Error("Invalid bot, turn or conversation id");
   const bot = directory(directory(options.dataDir, "bots"), input.botId);
   const root = input.conversationId ? directory(directory(bot, "conversations"), input.conversationId) : bot;
-  const instance = createHash("sha256").update(`${input.provider}/${input.profileId}`).digest("hex");
+  const instance = botSessionInstanceKey(input.provider, input.profileId);
   const path = directory(root, instance);
   // Provider changes share files only within this conversation; private history keeps its existing path.
   const workspace = new BotWorkspace(directory(root, "workspace"));
@@ -86,13 +100,24 @@ export function botSession(
         })
       : undefined;
 
-  if (input.provider === Provider.CODEX) {
-    const codex = prepareCodexHome(
-      { dataDir: options.dataDir, path: home, linkDeviceLogin: options.linkLogin, deviceCodexHome: options.sourceHome },
-      platform,
-    );
+  let codexSqliteHome: string | undefined;
 
-    if (codex.linkFailed) throw new Error(codex.problem);
+  if (input.provider === Provider.CODEX) {
+    const deviceHome = deviceCodexHome(process.env);
+    const problem = providerHomeProblem(home, options.sourceHome || deviceHome, deviceHome);
+
+    if (problem) throw new Error(problem);
+    const protectedHomes = [options.sourceHome, deviceHome, ...(options.protectedCodexHomes ?? [])];
+    cleanLegacyCodexBotLogin(home, protectedHomes);
+
+    if (process.platform === "win32")
+      codexSqliteHome = prepareBotCodexSqliteHome(
+        options.dataDir,
+        home,
+        [input.botId.toLowerCase(), input.conversationId.toLowerCase(), instance],
+        protectedHomes,
+        { ...process.env, ...options.codexProfileEnv },
+      );
   }
 
   const pending = new Set<string>();
@@ -108,6 +133,7 @@ export function botSession(
     cwd,
     workspace,
     home,
+    codexSqliteHome,
     sourceHome: options.sourceHome,
     secureStorageDir: claude?.secureStorageDir ?? home,
     linkLogin: options.linkLogin,

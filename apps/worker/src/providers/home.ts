@@ -82,6 +82,8 @@ export interface ProviderHomeOptions {
   readonly ownLogin?: boolean;
   /** In managed homes only, preserve a possible detached legacy link under a backup name. */
   readonly recoverLegacyLogin?: () => boolean;
+  /** Prepare dependencies of the shared store before replacing its existing login. */
+  readonly prepareLink?: () => string | undefined;
   readonly linkProblem?: (cause: unknown) => string;
   /** Shown when the device has no login file. */
   readonly missingLogin: string;
@@ -113,8 +115,7 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
     if (!current.isFile() || !options.recoverLegacyLogin?.())
       throw new Error("The shadow home already contains a login. Use its own login or choose a different shadow home.");
 
-    if (options.linkDeviceLogin && existsSync(source))
-      return installLoginLink(path, source, target, options.linkProblem, true);
+    if (options.linkDeviceLogin && existsSync(source)) return installLoginLink(options, source, target, "independent");
 
     archiveLogin(target, Bun.randomUUIDv7());
   }
@@ -134,47 +135,72 @@ export function prepareProviderHome(options: ProviderHomeOptions): ProviderHome 
     return { path, login: "none", problem: `${options.missingLogin} (${source})` };
   }
 
-  if (current?.isSymbolicLink() && sameResolvedPath(target, source)) return { path, login: "linked" };
-  removeIfPresent(target);
+  if (current?.isSymbolicLink() && sameResolvedPath(target, source)) return prepareLink(options);
 
-  return installLoginLink(path, source, target, options.linkProblem);
+  return installLoginLink(options, source, target, current && "shared");
 }
 
 function installLoginLink(
-  path: string,
+  options: ProviderHomeOptions,
   source: string,
   target: string,
-  linkProblem?: ProviderHomeOptions["linkProblem"],
-  backupCurrent = false,
+  existing?: "shared" | "independent",
 ): ProviderHome {
-  // Stage the link first so a privilege error leaves any independent login in place.
-  const suffix = backupCurrent ? Bun.randomUUIDv7() : undefined;
+  const { path } = options;
+  const suffix = existing ? Bun.randomUUIDv7() : undefined;
   const staged = suffix ? `${target}.canopy-link-${suffix}` : target;
 
   try {
     symlinkSync(source, staged, "file");
   } catch (cause) {
     const problem =
-      linkProblem?.(cause) ??
+      options.linkProblem?.(cause) ??
       "Could not link the device login. Allow symbolic links on this computer or use an instance with its own login.";
 
     return { path, login: "none", linkFailed: true, problem };
   }
 
-  if (suffix) {
-    try {
-      archiveLogin(target, suffix);
-      renameSync(staged, target);
-    } finally {
-      removeIfPresent(staged);
-    }
-  }
+  try {
+    const result = prepareLink(options);
 
-  return { path, login: "linked" };
+    if (result.linkFailed) {
+      if (!suffix) removeIfPresent(target);
+
+      return result;
+    }
+
+    if (suffix) replaceLogin(staged, target, existing === "independent" ? suffix : undefined);
+
+    return result;
+  } finally {
+    if (suffix) removeIfPresent(staged);
+  }
 }
 
-function archiveLogin(path: string, suffix: string): void {
-  renameSync(path, `${path}.canopy-backup-${suffix}`);
+function prepareLink(options: ProviderHomeOptions): ProviderHome {
+  const problem = options.prepareLink?.();
+
+  return problem
+    ? { path: options.path, login: "none", linkFailed: true, problem }
+    : { path: options.path, login: "linked" };
+}
+
+function replaceLogin(staged: string, target: string, suffix?: string): void {
+  const backup = suffix && archiveLogin(target, suffix);
+
+  try {
+    renameSync(staged, target);
+  } catch (error) {
+    if (backup && !lstatSync(target, { throwIfNoEntry: false })) renameSync(backup, target);
+    throw error;
+  }
+}
+
+export function archiveLogin(path: string, suffix: string): string {
+  const backup = `${path}.canopy-backup-${suffix}`;
+  renameSync(path, backup);
+
+  return backup;
 }
 
 export function isLegacyHardLink(path: string, sources: readonly string[]): boolean {

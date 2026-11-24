@@ -35,7 +35,10 @@ export async function codexModelEntry(
   if (!executable) return undefined;
 
   try {
-    const command = windowsCommand([executable, "debug", "models"], launch.env);
+    const command = windowsCommand(
+      [executable, "debug", "models", "-c", 'cli_auth_credentials_store="ephemeral"'],
+      launch.env,
+    );
 
     const child = governBunSpawn("harness", () =>
       startWorkload(command.argv, (argv) =>

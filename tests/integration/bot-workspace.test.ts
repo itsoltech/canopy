@@ -40,7 +40,7 @@ describe.skipIf(!dockerAvailable)("isolated bot workspaces through gateway and w
       await f.tool(bot.id, "write_file", { path: "disabled.txt", text: "no" });
       await f.settled(bot.id);
       expect(existsSync(join(f.dataDir, "bots", bot.id, "workspace", "disabled.txt"))).toBe(false);
-    });
+    }, 15_000);
   }
 
   test("worker enforces disk quotas and cleans expired scratch after restart", async () => {

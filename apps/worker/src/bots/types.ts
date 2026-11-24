@@ -1,6 +1,8 @@
 import type { RunBotTurn, ProviderUsageSnapshot } from "@canopy/contracts";
 import type { ThreadEventInit, TurnHarness } from "../journal/index.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
+import type { CodexBotAuthRoute } from "../providers/codex/bot-auth-route.ts";
+import type { CodexBotLogin, CodexBotLoginScope } from "../providers/codex/profile-auth.ts";
 import type { BotSession } from "./session.ts";
 import type { BotContent } from "./images.ts";
 import type { BotSteering } from "./steering.ts";
@@ -25,6 +27,7 @@ export interface BotHarnessContext {
   input: RunBotTurn;
   session: BotSession;
   profile: ResolvedProfile;
+  codexLogin?: (destination: CodexBotAuthRoute, scope?: CodexBotLoginScope) => Promise<CodexBotLogin>;
   executable: string;
   signal: AbortSignal;
   clientVersion: string;
