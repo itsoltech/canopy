@@ -2,8 +2,9 @@
 
 Status (2026-11-24): web i desktop obsługują dodawanie i cofanie reakcji w prywatnej rozmowie z botem.
 
-Status (2026-11-24): pusty kompozytor istniejącego wątku w web i desktopie
-pokazuje tekst i główną akcję w jednym wierszu.
+Status (2026-11-24): kompozytor istniejącego wątku w web i desktopie otwiera się
+w pełnym rozmiarze na końcu rozmowy. Podczas czytania historii zwija się
+do jednego wiersza z tekstem i główną akcją.
 
 Status (2026-11-24): stopka sidebara w web i desktopie pokazuje podsumowania Usage i Workers.
 
@@ -2079,10 +2080,10 @@ Status: **zaimplementowane na `dev`** (2026-11-15), w tym adaptacyjny układ zad
 i przycisku powrotu przy widocznej krawędzi composera oraz izolacja zapętlonych animacji
 od zwijania. Dostępność w kanałach określają wydania.
 
-Na końcu rozmowy pusty edytor bez fokusu mieści się w jednym wierszu z przyciskiem
-Continue lub Stop. Fokus, przeciąganie pliku albo szkic rozwija pole i pasek narzędzi.
-Po opuszczeniu pustego pola wraca wiersz. W trybie kompaktowym miejsce pod edytorem
-na komunikat powłoki zwija się razem z paskiem narzędzi.
+Na końcu rozmowy edytor i pasek narzędzi są rozwinięte także przy pustym szkicu
+i bez fokusu. W trybie kompaktowym miejsce pod edytorem na komunikat powłoki
+zwija się razem z paskiem narzędzi. Pierwsza linia edytora i główna akcja
+są wyśrodkowane w pionie w jednym wierszu.
 
 Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie lub wklejenie pliku i otwarcie kontrolek rozwijają pole. Przycisk „Jump to latest” przywraca układ właściwy dla końca rozmowy. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem. Edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
 
