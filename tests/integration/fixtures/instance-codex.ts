@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
-import type { JsonObject } from "@canopy/domain";
+import { isAgentBusTool, type JsonObject } from "@canopy/domain";
 import { isMemoryTool } from "@canopy/domain/memory-tools";
 import { recordInput, recordProbe, releaseProbe } from "./instance-probe.ts";
 import { botFailure, botTool, codexBotConfig } from "./bot-probe.ts";
@@ -306,8 +306,8 @@ for await (const line of createInterface({ input: process.stdin })) {
       !existsSync(join(dirname(process.env["INSTANCE_TRACE"]!), "release-attach"));
 
     const names = catalogs.get(params.threadId) ?? [];
-    // Simulate a missing external connector while the platform's memory catalog remains attached.
-    const attached = attachFailed ? names.filter(isMemoryTool) : names;
+    // The external connector is missing, but the platform's built-in tools still attach.
+    const attached = attachFailed ? names.filter((name) => isMemoryTool(name) || isAgentBusTool(name)) : names;
 
     send({
       id,

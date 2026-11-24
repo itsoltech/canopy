@@ -168,17 +168,9 @@ function lockCreationSources(sql: SqlClient.SqlClient, ownerUserId: string, requ
 
     if (sourcePolicies.some(threadSandbox)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
 
-    const fork = sourcePolicies.find((row) => row.id === request.forkThreadId);
-
-    if (
-      !request.parentThreadId &&
-      request.forkAtTurnId &&
-      fork &&
-      (fork.cwd !== request.cwd || (fork.worktree_id ?? "") !== request.worktreeId)
-    )
-      return yield* Effect.fail(
-        new Invalid("The source thread switched worktrees. Retry the fork in its current directory."),
-      );
+    return !request.parentThreadId && request.forkAtTurnId
+      ? sourcePolicies.find((row) => row.id === request.forkThreadId)
+      : undefined;
   });
 }
 
@@ -207,7 +199,7 @@ export function threadCreation(
 
           if (!provider) return yield* Effect.fail(new Invalid("unknown provider"));
           const id = movedId ?? Bun.randomUUIDv7();
-          yield* lockCreationSources(sql, ownerUserId, request);
+          const forkPlacement = yield* lockCreationSources(sql, ownerUserId, request);
 
           if (request.sandboxProfileDigest && request.sandboxProfileDigest !== sandboxProfile?.digest)
             return yield* Effect.fail(new Invalid(DRAFT_SANDBOX_RESELECT));
@@ -297,6 +289,13 @@ export function threadCreation(
               ? scratchCwd(workspace.root_path, id, style)
               : (requested ?? workspace.root_path));
 
+          const worktreeId = worktree?.id ?? inherited?.worktree_id ?? null;
+
+          if (forkPlacement && (forkPlacement.cwd !== cwd || forkPlacement.worktree_id !== worktreeId))
+            return yield* Effect.fail(
+              new Invalid("The source thread switched worktrees. Retry the fork in its current directory."),
+            );
+
           const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
 
           const audience = yield* creationAudience(sql, request.parentThreadId, forkSource, request, automated);
@@ -314,7 +313,7 @@ export function threadCreation(
                           ${parent?.id ?? null}::uuid, ${parent?.root_thread_id ?? id}::uuid, ${parent ? parent.depth + 1 : 0}, 'worker', ${provider},
                           ${request.providerProfileId && request.providerProfileId !== "native" ? request.providerProfileId : null}, ${workspace.worker_id}::uuid, ${workspace.id}::uuid, ${preparationFingerprint ? null : cwd},
                           ${forkSource}::uuid, ${forkAfterTurn}::uuid, ${settings}::jsonb, 'creating', ${request.title.trim() || request.initialMessage.trim().split("\n")[0]?.slice(0, 60) || "New thread"}, ${request.title.trim() ? "user" : "provisional"},
-                          ${worktree?.id ?? inherited?.worktree_id ?? null}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null}, ${audience})`;
+                          ${worktreeId}::uuid, ${request.clientRequestId || null}, ${preparationFingerprint ?? null}, ${audience})`;
 
           if (automated?.startedByBot)
             yield* sql`INSERT INTO bot_started_threads(thread_id, bot_id) VALUES (${id}::uuid, ${automated.startedByBot}::uuid)`;
