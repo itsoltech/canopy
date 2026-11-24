@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-24): przeciągnięcie odsyłacza w oknie aplikacji nie wyświetla jego adresu.
+Kliknięcie logo w nagłówku paska bocznego pozostawia bieżący widok otwarty.
+
 Status (2026-11-24): pipeline buduje osobne instalatory macOS dla Intela (x64) i Apple Silicon (arm64).
 
 Status (2026-11-24): ikona pokazuje licznik w Docku macOS, na pasku zadań Windows
