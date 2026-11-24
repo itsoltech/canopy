@@ -60,6 +60,7 @@ export function mobileHandlers(
   | "beginManagedMobilePush"
   | "completeManagedMobilePush"
   | "resolveMobilePush"
+  | "listDismissibleMobilePush"
   | "getPushRelaySettings"
   | "updatePushRelaySettings"
 > {
@@ -99,6 +100,8 @@ export function mobileHandlers(
       mobileGuard(() => core.mobilePush.completeManaged(pairedPhone(core, context), request, context.signal)),
     resolveMobilePush: (request, context) =>
       mobileGuard(() => core.mobilePush.resolve(pairedPhone(core, context), request.receiptId)),
+    listDismissibleMobilePush: (request, context) =>
+      mobileGuard(() => core.mobilePush.listDismissible(pairedPhone(core, context), request.receiptIds)),
 
     revokeMobilePairing: (r) =>
       mobileGuard(async () => {

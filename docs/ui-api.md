@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): `ListDismissibleMobilePush` dopasowuje dostarczone powiadomienia
+do stanu odczytu wątków i ich interakcji.
+
 Status (2026-11-24): web, desktop i mobile zapisują kwadratowe zdjęcie projektu
 i pokazują je w miejscach, w których wcześniej były inicjały.
 
@@ -1042,8 +1045,10 @@ token urządzenia, przechowywany jako hash w DB i w SecureStore na telefonie.
 Sparowany telefon może odczytać `GetClientCapabilities.mobile_push`
 i zarządzać własnym pushem przez `SetMobilePushSubscription`. Włączenie przyjmuje
 token Expo i klucz podglądu. `ResolveMobilePush` przyjmuje losowy identyfikator
-i zwraca wątek lub bota bieżącego właściciela i parowania. Te dwa RPC wymagają
-tokenu telefonu na listenerze Network access. Podglądy są szyfrowane od gatewaya
+i zwraca wątek lub bota bieżącego właściciela i parowania. `ListDismissibleMobilePush`
+przyjmuje do 100 identyfikatorów i zwraca te z bieżącego parowania, które dotyczą
+przeczytanych wyników wątków lub zamkniętych interakcji z ostatniej doby. Te RPC
+wymagają tokenu telefonu na listenerze Network access. Podglądy są szyfrowane od gatewaya
 do telefonu. [Powiadomienia](notifications.md#push-na-ios-i-androidzie).
 
 BFF serwera i Desktopu odczytuje `GetClientCapabilities.push_relay_settings`

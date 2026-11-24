@@ -6,7 +6,14 @@ import { decryptSecret } from "../store/secrets.ts";
 import { encryptPushPreview, readPushPreview } from "./previews.ts";
 import { EXPO_TOKEN, PUSH_ID, PUSH_KEY, relayPush, type PushRelayOptions } from "./relay.ts";
 import { loadPushRelaySettings, savePushRelaySettings, updatedRelayChoice } from "./relay-settings.ts";
-import { claimPushJobs, livePushDelivery, resolveMobilePush, settlePushJob, type PushJob } from "./store.ts";
+import {
+  claimPushJobs,
+  dismissibleMobilePush,
+  livePushDelivery,
+  resolveMobilePush,
+  settlePushJob,
+  type PushJob,
+} from "./store.ts";
 import {
   beginManagedMobilePush,
   completeManagedMobilePush,
@@ -190,6 +197,17 @@ export class MobilePush {
         value: job.destination_id,
       },
     });
+  }
+
+  async listDismissible(deviceId: string, receipts: string[]) {
+    if (receipts.length > 100 || receipts.some((id) => !PUSH_ID.test(id)))
+      throw new ConnectError("Invalid notification receipts", Code.InvalidArgument);
+
+    const rows = receipts.length
+      ? await this.runtime.runPromise(dismissibleMobilePush(this.userId, deviceId, receipts))
+      : [];
+
+    return create(ui.ListDismissibleMobilePushResponseSchema, { receiptIds: rows.map(({ id }) => id) });
   }
 
   start() {

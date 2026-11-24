@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): systemowe powiadomienia o wynikach wątków znikają z iOS i Androida
+po zsynchronizowaniu odczytu. Zgody i pytania znikają po rozstrzygnięciu lub wygaśnięciu.
+
 Status (2026-11-24): szczegóły projektu pozwalają wybrać, wykadrować i usunąć zdjęcie
 projektu w natywnym kliencie iOS i Android.
 

@@ -193,6 +193,7 @@ service GatewayService {
   rpc BeginManagedMobilePush(BeginManagedMobilePushRequest) returns (BeginManagedMobilePushResponse);
   rpc CompleteManagedMobilePush(CompleteManagedMobilePushRequest) returns (MobileOperationResponse);
   rpc ResolveMobilePush(ResolveMobilePushRequest) returns (ResolveMobilePushResponse);
+  rpc ListDismissibleMobilePush(ListDismissibleMobilePushRequest) returns (ListDismissibleMobilePushResponse);
   rpc GetWorkerSetup(GetWorkerSetupRequest) returns (GetWorkerSetupResponse);
   rpc CreateWorkerEnrollment(CreateWorkerEnrollmentRequest) returns (CreateWorkerEnrollmentResponse);
   rpc RevokeWorkerEnrollment(RevokeWorkerEnrollmentRequest) returns (WorkerOperationResponse);

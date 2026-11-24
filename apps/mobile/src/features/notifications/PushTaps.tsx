@@ -1,15 +1,13 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { router, useRootNavigationState } from "expo-router";
 import { isEntityId } from "@canopy/domain/computers";
-import { isString } from "@canopy/domain/json";
 import type { ui } from "@canopy/contracts";
 import type { NotificationResponse } from "expo-notifications";
 import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { loadNotifications, type NativeNotifications } from "./native-push";
 import { useMobilePush } from "./PushProvider";
-
-const receiptPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { pushReceiptId } from "./push-receipt";
 
 export function PushTaps() {
   const { state } = useMobilePush();
@@ -32,9 +30,9 @@ function PushTapListener() {
     if (!client || pairingSignal.aborted || !state?.requested || state.saving) return;
 
     if (response.actionIdentifier !== native.DEFAULT_ACTION_IDENTIFIER) return;
-    const id: unknown = response.notification.request.content.data?.receiptId;
+    const id = pushReceiptId(response.notification.request);
 
-    if (!isString(id) || !receiptPattern.test(id) || id === lastReceipt.current) return;
+    if (!id || id === lastReceipt.current) return;
     lastReceipt.current = id;
     setReceiptId(id);
   });

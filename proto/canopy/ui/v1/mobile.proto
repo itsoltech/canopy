@@ -143,6 +143,13 @@ message ResolveMobilePushResponse {
     string bot_id = 2;
   }
 }
+message ListDismissibleMobilePushRequest {
+  // Up to 100 receipts for notifications still presented on this phone.
+  repeated string receipt_ids = 1;
+}
+message ListDismissibleMobilePushResponse {
+  repeated string receipt_ids = 1;
+}
 message ExchangeMobilePairingRequest {
   string code = 1;
   string name = 2;

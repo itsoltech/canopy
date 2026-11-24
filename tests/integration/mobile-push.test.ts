@@ -280,8 +280,27 @@ describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () 
       expect(await failure(otherPhone.resolveMobilePush({ receiptId }))).toContain(
         "Notification is no longer available",
       );
+      const { thread } = await gw.api.getThread({ threadId });
+      expect(thread?.unseenResult).toBe("completed");
+      expect((await subscriber.listDismissibleMobilePush({ receiptIds: [receiptId] })).receiptIds).toEqual([]);
+
+      await gw.api.sendMessage({ threadId, text: "Another reply", clientRequestId: "push-2" });
+      await eventually(
+        () => gw.api.getThread({ threadId }),
+        (result) => result.thread?.noticePreview.includes("Another reply") === true,
+      );
+      await restarted.dispatch();
+      expect(input.received).toHaveLength(2);
+      const newer = input.received[1]!.receiptId;
+
+      await subscriber.markThreadSeen({ threadId, upToSeq: thread!.lastSeq });
+      const receipts = { receiptIds: [receiptId, newer, crypto.randomUUID()] };
+      expect((await subscriber.listDismissibleMobilePush(receipts)).receiptIds).toEqual([receiptId]);
+      expect((await otherPhone.listDismissibleMobilePush(receipts)).receiptIds).toEqual([]);
+      expect(await connectCode(gw.api.listDismissibleMobilePush(receipts))).toBe(Code.Unauthenticated);
       await gw.api.revokeMobileDevice({ id: paired.device!.id });
       expect(await failure(subscriber.resolveMobilePush({ receiptId }))).toContain("revoked device token");
+      expect(await connectCode(subscriber.listDismissibleMobilePush(receipts))).toBe(Code.Unauthenticated);
     } finally {
       await restarted.close();
     }
