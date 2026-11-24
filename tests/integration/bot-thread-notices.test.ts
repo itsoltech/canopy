@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { Provider } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { GatewayCore } from "@canopy/gateway/core";
 import { SqlClient } from "effect/sql";
+import { coreIngest } from "../../apps/gateway/src/core/core-workers.ts";
 import { failAfterCommentary } from "./support/agent-report.ts";
-import { botsSuite } from "./support/bots.ts";
+import { botsSuite, lastInput, reply } from "./support/bots.ts";
 import { eventually } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
@@ -35,6 +37,101 @@ describe.skipIf(!dockerAvailable)("local bot thread notices", () => {
 
     return thread!;
   }
+
+  test("one completion report for multiple steers, with separate reports for distinct turns", async () => {
+    const bot = await add("Coordinator");
+    const { bots, link } = suite.current;
+    const { userId, runtime, workerId } = suite.gw;
+    const worker = suite.currentWorker;
+    const thread = await createThread("Check the report");
+    const result = "The check passed.";
+    const deliver = (core = suite.current) => core.bots.run((s) => s.deliver(userId));
+
+    const reports = () =>
+      query<{ input: string }>("SELECT input FROM bot_turns WHERE bot_id=$1 AND client_request_id LIKE 'thread:%'", [
+        bot.id,
+      ]);
+
+    await bots.stop();
+    worker.holdTurns = true;
+
+    try {
+      await bots.run((s) => s.enqueue(userId, bot.id, "Check the report", Bun.randomUUIDv7()));
+      const source = (await bots.run((s) => s.claim(userId)))!;
+      expect(source.bot_id).toBe(bot.id);
+
+      const send = async (text: string, delivery: "queue" | "steer") => {
+        const args = { thread_id: thread.id, text, delivery };
+
+        const call = await bots.run((s) =>
+          s.planCall(
+            source,
+            Bun.randomUUIDv7(),
+            { name: "send_message", description: "", source: "platform", parameters: {} },
+            args,
+          ),
+        );
+
+        return suite.current.sendBotThreadMessage(source, call, thread.id, text, delivery);
+      };
+
+      const first = await send("Start checking", "queue");
+      await expectStatus(first.turn_id, "running");
+
+      for (const text of ["Check the title", "Check the references", "Check the summary"]) {
+        const steer = await send(text, "steer");
+        expect(steer).toMatchObject({ delivery: "steer", turn_id: first.turn_id });
+      }
+
+      const steers = () =>
+        query<{ status: string }>("SELECT status FROM turn_steers WHERE turn_id=$1 ORDER BY id", [first.turn_id]);
+
+      expect(
+        await eventually(steers, (rows) => rows.filter((row) => row.status === "delivered").length === 3),
+      ).toHaveLength(3);
+
+      const second = await send("Check the report again", "queue");
+      expect(second.turn_id).not.toBe(first.turn_id);
+      await bots.run((s) => s.finish(source, "completed", ""));
+
+      const completion = worker.finish(thread.id, first.turn_id, result);
+      await expectStatus(first.turn_id, "completed");
+      const restarted = new GatewayCore({ runtime, userId, instanceId: Bun.randomUUIDv7() });
+      await Promise.all([deliver(), deliver(restarted)]);
+      expect(await reports()).toEqual([{ input: expect.stringContaining(result) }]);
+
+      // Replay the same journal event after its first delivery, as on reconnect.
+      expect(await coreIngest(suite.current, link.connections.get(workerId)!, [completion])).toBeUndefined();
+      await deliver(restarted);
+      expect(await reports()).toHaveLength(1);
+
+      await expectStatus(second.turn_id, "running");
+      worker.finish(thread.id, second.turn_id, result);
+      await expectStatus(second.turn_id, "completed");
+      await deliver(restarted);
+
+      const queued = await reports();
+      expect(queued).toHaveLength(2);
+      expect(queued[0]?.input).toBe(queued[1]?.input);
+
+      const handled: string[] = [];
+      suite.model = async (input) => {
+        handled.push(lastInput(input));
+
+        return reply("Report received.");
+      };
+
+      bots.start();
+      await eventually(
+        () => read(bot.id),
+        ({ working }) => !working,
+      );
+      expect(handled).toEqual(queued.map(({ input }) => input));
+    } finally {
+      worker.holdTurns = false;
+      await bots.remove(bot.id);
+    }
+  }, 15_000);
 
   for (const kind of ["completion", "question", "failure"] as const) {
     test(`a long title in a ${kind} notice leaves other completion notices deliverable`, async () => {
