@@ -15,6 +15,7 @@ wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Ic
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
 Pakowanie macOS i test natywny CI kompilują ikony na `macos-26` lub `macos-26-intel`, zgodnie z architekturą aplikacji.
 Na runnerze Intel test pakowania ma limit 180 s na przypadek, aby uwzględnić zimny start narzędzi Apple.
+Zmiana tego testu uruchamia pełne CI PR-a, w tym natywne zadania macOS.
 GitHub Pages udostępnia film demonstracyjny Canopy w formatach 16:9 i 4:5 oraz kadry startowe obu wersji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
