@@ -31,11 +31,11 @@ export function reconcileSkill(
   try {
     if (ledger.problem) throw new Error(ledger.problem);
     recoverSkillSwap(target.path, target.targetId, ledger);
-    const current = readSkillTree(target.path);
     const previous = ledger.entries.get(target.targetId);
-    status.observedChecksum = current.checksum;
     const owned = previous?.owned && previous.skillId === target.skillId;
     status.owned = Boolean(owned);
+    const current = readSkillTree(target.path);
+    status.observedChecksum = current.checksum;
     const managed = owned ? current.files.filter((f) => previous.files.some((p) => p.path === f.path)) : [];
 
     // Active Claude sessions keep per-process files in the cache liveness directory.

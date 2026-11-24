@@ -3,6 +3,9 @@ import { existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { clone, create, toJson } from "@bufbuild/protobuf";
 import { AgentEnvironmentReportSchema, SkillFileSchema, ui, type EnvironmentSkillStatus } from "@canopy/contracts";
+import { environmentDigest } from "@canopy/domain/agent-environment";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { libraryItemState, workerSyncState } from "@canopy/domain/environment-library";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
@@ -260,7 +263,8 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     expect(skill.artifact?.files.every((f) => f.checksum.length === 64)).toBe(true);
     const worker = await settled();
     expect(worker.report?.skills.length).toBeGreaterThanOrEqual(8);
-    expect(worker.report?.skills.every((f) => f.status === "applied")).toBe(true);
+    expect(worker.report?.skills.filter((f) => f.skillId).every((f) => f.status === "applied")).toBe(true);
+    expect(worker.report?.skills.find((f) => f.localName === "personal")?.status).toBe("local");
 
     for (const path of [
       join(linux.deviceHomes.claude, "skills/code-review"),
@@ -492,20 +496,123 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     const skill = librarySkill();
     skill.id = id;
     expect(await failure(save(skill))).toContain("not found");
-    expect(
-      await failure(
-        foreign.skills.resolve(
-          create(ui.ResolveSkillDriftRequestSchema, {
-            workerId: linux.workerId,
-            action: "overwrite",
-            expectedRevision: created.revision,
-          }),
+
+    for (const action of ["overwrite", "archive"])
+      expect(
+        await failure(
+          foreign.skills.resolve(
+            create(ui.ResolveSkillDriftRequestSchema, {
+              workerId: linux.workerId,
+              action,
+              expectedRevision: created.revision,
+            }),
+          ),
         ),
-      ),
-    ).toContain("not found");
+      ).toContain("not found");
     const own = clone(ui.LibrarySkillSchema, state.skills[0]!);
     own.version = 999n;
     expect(await failure(save(own, []))).toContain("version not found");
     expect((await foreign.snapshot()).skills[0]?.artifact?.name).toBe("foreign");
   });
+});
+
+test("a local copy requires a current owner-scoped report and its confirmation is consumed exactly once", async () => {
+  const { workerId, credential } = await gateway.addWorker("inventory");
+  const options = { hello: { capabilities: ["agent_environment_v1", "agent_skills_v1"] } };
+  const script = await gateway.connect(workerId, credential, "linux", options);
+  const read = () => gateway.api.getWorkerEnvironment({ workerId });
+  const initial = await eventually(read, (state) => state.worker?.automaticTags.includes("os:linux") === true);
+  const path = "/home/test/.agents/skills/private";
+  const targetId = environmentDigest(`skill:${path}`);
+  const archiveToken = environmentDigest("preview of the private folder");
+
+  const file = {
+    path,
+    targetId,
+    harness: "codex",
+    scope: "device",
+    status: "local",
+    localName: "private",
+    archiveToken,
+  };
+
+  const report = create(AgentEnvironmentReportSchema, {
+    revision: initial.revision,
+    skills: [file],
+    skillInventoryScanned: true,
+  });
+
+  script.link.send({ case: "agentEnvironment", value: report });
+
+  const ready = await eventually(read, (state) => state.worker?.report?.skills[0]?.archiveToken === archiveToken);
+  expect(ready.worker?.report?.skillInventoryScanned).toBe(true);
+  expect(ready.worker?.report?.revision).toBe(ready.revision);
+
+  const request = {
+    workerId,
+    targetId,
+    action: "archive",
+    expectedRevision: ready.revision,
+    observedChecksum: archiveToken,
+  };
+
+  const resolve = (changes: Partial<typeof request> = {}) => gateway.api.resolveSkillDrift({ ...request, ...changes });
+  await expect(resolve({ workerId: linux.workerId })).rejects.toThrow();
+  await expect(resolve({ observedChecksum: environmentDigest("stale") })).rejects.toThrow();
+
+  // The stored report survives transport loss. A new connection must report before it can receive a move.
+  script.link.close();
+  const replacement = await gateway.connect(workerId, credential, "linux", options);
+  await eventually(
+    async () => replacement.configs.length,
+    (count) => count > 0,
+  );
+  expect((await read()).worker?.report?.skills[0]?.archiveToken).toBe("");
+  await expect(resolve()).rejects.toThrow();
+
+  const connection = gateway.core.link.connections.get(workerId)!;
+  await eventually(async () => Boolean(connection.registrationEpoch), Boolean);
+  await gateway.core.environment.report(
+    connection,
+    create(AgentEnvironmentReportSchema, {
+      revision: ready.revision,
+      skills: [{ ...file, skillId: Bun.randomUUIDv7(), status: "error", desiredChecksum: "unassigned" }],
+    }),
+  );
+  await expect(resolve()).rejects.toThrow();
+
+  for (const change of [{ owned: true }, { scope: "platform" }, { managedFiles: skillFiles() }]) {
+    await gateway.core.environment.report(
+      connection,
+      create(AgentEnvironmentReportSchema, {
+        revision: ready.revision,
+        skills: [{ ...file, ...change }],
+      }),
+    );
+    expect((await read()).worker?.report?.skills[0]?.archiveToken).toBe("");
+    await expect(resolve()).rejects.toThrow();
+  }
+
+  await gateway.core.environment.report(connection, report);
+  const fresh = await read();
+  expect(fresh.worker?.report?.skills[0]?.archiveToken).toBe(archiveToken);
+  expect(fresh.worker?.report?.revision).toBe(fresh.revision);
+  expect(fresh.worker?.compositionError).toBe("");
+  const claims = await Promise.allSettled([resolve(), resolve()]);
+  expect(claims.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+  expect((await read()).revision).toBe(ready.revision);
+  expect((await read()).worker?.report?.skills[0]?.archiveToken).toBe("");
+
+  const [audit] = await gateway.runtime.runPromise(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      return yield* sql<{ events: number; queued: boolean }>`SELECT (SELECT count(*)::int FROM audit_log
+      WHERE actor_user_id=${gateway.userId}::uuid AND target_id=${workerId}::uuid AND action='environment.skill.archive'
+      AND details->>'targetId'=${targetId}) AS events, resolutions ? 'skillResolutions' AS queued
+      FROM worker_environments WHERE worker_id=${workerId}::uuid`;
+    }),
+  );
+
+  expect(audit).toEqual({ events: 1, queued: false });
 });

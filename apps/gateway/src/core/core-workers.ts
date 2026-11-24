@@ -123,7 +123,7 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
           await coreBroadcastWorkers(hostContext, "status", workerId);
           break;
         case "agentEnvironment":
-          await hostContext.environment.report(workerId, message.payload.value);
+          await hostContext.environment.report(connection, message.payload.value);
           break;
         case "gitHeads":
           await coreGitHeads(hostContext, workerId, message.payload.value);

@@ -1,7 +1,11 @@
 import type { GatewayCore } from "../core/core.ts";
 import { workerGuard } from "../core/worker-administration.ts";
 import type { UiHandlers } from "./ui-service.ts";
-import { setWorkerEnvironmentOverride, workerEnvironment } from "../agent-environment/worker-settings.ts";
+import {
+  archiveWorkerSkill,
+  setWorkerEnvironmentOverride,
+  workerEnvironment,
+} from "../agent-environment/worker-settings.ts";
 
 export function agentEnvironmentHandlers(
   core: GatewayCore,
@@ -28,8 +32,10 @@ export function agentEnvironmentHandlers(
   | "resolvePluginDrift"
   | "getWorkerEnvironment"
   | "setWorkerEnvironmentOverride"
+  | "archiveWorkerSkill"
 > {
   return {
+    archiveWorkerSkill: (r) => workerGuard(() => archiveWorkerSkill(core.environment, r)),
     getWorkerEnvironment: (r) => workerGuard(() => workerEnvironment(core.environment, r.workerId)),
     setWorkerEnvironmentOverride: (r) => workerGuard(() => setWorkerEnvironmentOverride(core.environment, r)),
     getAgentEnvironment: (r) => workerGuard(() => core.environment.snapshot(r)),

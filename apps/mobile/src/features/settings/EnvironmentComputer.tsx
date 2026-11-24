@@ -162,7 +162,13 @@ function EnvironmentSkillReports({
         <SettingsRow
           key={file.targetId}
           title={file.path}
-          description={`${file.harness} · ${file.scope} · ${file.status} · Version ${file.version}`}
+          description={
+            file.status === "local"
+              ? `${file.harness} · Local installation`
+              : [file.harness, file.scope, file.status, file.version > 0n && `Version ${file.version}`]
+                  .filter(Boolean)
+                  .join(" · ")
+          }
         >
           {file.detail && <Notice>{file.detail}</Notice>}
           {["drift", "kept"].includes(file.status) && (

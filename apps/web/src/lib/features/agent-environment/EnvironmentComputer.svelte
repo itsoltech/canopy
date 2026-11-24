@@ -1,95 +1,69 @@
 <script lang="ts">
+  import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { ui } from "@canopy/contracts";
+  import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
-  import Alert from "#lib/shared/ui/Alert.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import InstructionPreview from "./InstructionPreview.svelte";
-  import InstructionDiff from "./InstructionDiff.svelte";
+  import ComputerInstructions from "./ComputerInstructions.svelte";
+  import ComputerPlugins from "./ComputerPlugins.svelte";
   import ComputerSkills from "./ComputerSkills.svelte";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
-  import { workerSyncState } from "@canopy/domain/environment-library";
 
   let {
     worker,
     state: environment,
+    onadd,
     class: className,
-  }: { worker: ui.EnvironmentWorker; state: EnvironmentState; class?: ClassValue } = $props();
+  }: {
+    worker: ui.EnvironmentWorker;
+    state: EnvironmentState;
+    onadd?: (name: string) => void;
+    class?: ClassValue;
+  } = $props();
 
-  const pending = $derived(!worker.report || worker.report.revision !== worker.desiredRevision);
-  const problems = $derived(worker.report?.files.filter((f) => f.status === "drift" || f.status === "error") ?? []);
-  const kept = $derived(worker.report?.files.some((f) => f.status === "kept"));
+  function issues(files: readonly { status: string }[] = []) {
+    return files.filter((f) => f.status === "drift" || f.status === "error").length;
+  }
 </script>
 
 <div class={["settings-stack", className]}>
-  <div role="status">
-    <Badge
-      tone={workerSyncState(worker) === "Synced" ? "emerald" : workerSyncState(worker) === "Error" ? "rose" : "neutral"}
-      >{workerSyncState(worker)}</Badge
-    >
-  </div>
-  <div class="grid gap-3">
-    <div class="flex flex-wrap gap-1.5" aria-label="Worker tags">
-      {#each worker.automaticTags as tag (tag)}<Badge class="max-w-full break-all whitespace-normal">{tag}</Badge
-        >{/each}
-      {#each worker.manualTags as tag (tag)}<Badge tone="sky" class="max-w-full break-all whitespace-normal"
-          >{tag}</Badge
-        >{/each}
-    </div>
-    <div>
-      <ButtonLink size="sm" href={`/settings/workers/${encodeURIComponent(worker.workerId)}#topic-tags`}
-        >Edit in Workers</ButtonLink
-      >
-    </div>
-  </div>
-  {#if worker.compositionError}<Alert tone="error"
-      >{worker.compositionError} The last synced files have been preserved.</Alert
-    >
-  {:else if !worker.supported}<Alert tone="warning">Update this worker to sync its agent environment.</Alert>
-  {:else if !worker.online}<Alert>This computer receives the latest instructions when it reconnects.</Alert>
-  {:else if pending}<Alert>Waiting for this computer to report the saved instructions.</Alert>
-  {:else if kept}<Alert
-      >Local instructions are kept on this computer. Compare versions below to return to the library.</Alert
-    >
-  {:else if problems.length === 0}<p class="text-base text-emerald-700 sm:text-sm dark:text-emerald-400">
-      New agent sessions use the saved instructions.
-    </p>{/if}
-  <InstructionPreview {worker} draft={environment.draft} />
-  <section aria-label="Files on this computer" class="grid min-w-0 gap-4">
-    <h3 class="text-base font-semibold text-balance">Files on this computer</h3>
-    {#each worker.report?.files ?? [] as file (file.targetId)}
-      <div class="grid min-w-0 gap-3 border-t border-zinc-950/10 pt-4 dark:border-white/10">
-        <div class="flex flex-wrap items-center gap-2 text-base sm:text-sm">
-          <p class="min-w-0 flex-1 font-mono break-all">{file.path || "Instruction destinations"}</p>
-          <Badge
-            tone={file.status === "applied"
-              ? "emerald"
-              : file.status === "error"
-                ? "rose"
-                : file.status === "drift"
-                  ? "amber"
-                  : "neutral"}>{file.status}</Badge
-          >
-        </div>
-        {#if file.status === "drift" || file.status === "kept"}
-          <Disclosure open={file.status === "drift"}>
-            {#snippet summary()}<div class="text-base sm:text-sm">Compare versions</div>{/snippet}
-            <InstructionDiff
-              class="pt-4"
-              {file}
-              busy={environment.busy || !worker.online || pending}
-              expected={worker.preview.find(
-                (i) => i.harness === file.harness && (file.scope === "device" ? i.deviceHome : i.platformHome),
-              )?.content ?? ""}
-              onresolve={(action) => environment.resolve(file, action)}
-            />
-          </Disclosure>
-        {:else if file.status === "error"}<Alert tone="error">{file.detail}</Alert>{/if}
+  {#if worker.compositionError}<Alert tone="error">{worker.compositionError}</Alert>
+  {:else if !worker.supported}<Alert tone="warning">Update this worker to sync its agent environment.</Alert>{/if}
+  {#if !worker.online}<Alert>This computer is offline. Reconnect it to review current files and make changes.</Alert
+    >{/if}
+  <ComputerSkills {worker} {environment} {onadd} />
+  <div class="grid min-w-0 divide-y divide-divider border-y border-divider">
+    <Disclosure class="py-3">
+      {#snippet summary()}<div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="font-medium">Instruction files and preview</span>
+          {@render attention(issues(worker.report?.files))}
+        </div>{/snippet}
+      <ComputerInstructions {worker} {environment} />
+    </Disclosure>
+    <Disclosure class="py-3">
+      {#snippet summary()}<div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="font-medium">Plugins</span>
+          {@render attention(issues(worker.report?.plugins))}
+        </div>{/snippet}
+      <ComputerPlugins class="pt-3" {worker} {environment} />
+    </Disclosure>
+    <Disclosure class="py-3">
+      {#snippet summary()}<span class="font-medium">Computer tags</span>{/snippet}
+      <div class="flex flex-wrap items-center gap-2 pt-3">
+        {#each worker.automaticTags as tag (tag)}<Badge class="max-w-full break-all whitespace-normal">{tag}</Badge
+          >{/each}
+        {#each worker.manualTags as tag (tag)}<Badge tone="sky" class="max-w-full break-all whitespace-normal"
+            >{tag}</Badge
+          >{/each}
+        <ButtonLink size="sm" href={`/settings/workers/${encodeURIComponent(worker.workerId)}#topic-tags`}
+          >Edit tags</ButtonLink
+        >
       </div>
-    {:else}<p class="text-base text-pretty text-zinc-500 sm:text-sm dark:text-zinc-400">
-        Assigned files appear here after the worker's first sync.
-      </p>{/each}
-  </section>
-  <ComputerSkills {worker} {environment} />
+    </Disclosure>
+  </div>
 </div>
+
+{#snippet attention(count: number)}
+  {#if count}<Badge tone="amber">{count === 1 ? "1 issue" : `${count} issues`}</Badge>{/if}
+{/snippet}

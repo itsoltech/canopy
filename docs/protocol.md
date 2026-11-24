@@ -1,5 +1,9 @@
 # Protokół gateway ↔ worker
 
+Status (2026-11-24): raport środowiska zawiera inwentaryzację lokalnych skilli i tokeny
+do archiwizacji pojedynczej kopii na urządzeniu. Pola i akcję opisuje
+[środowisko agentów](agent-environment.md#lokalne-kopie-skilli).
+
 Status (2026-11-24): fork użytkownika przekazuje zapisany tryb uprawnień źródła.
 Gateway sprawdza capability `full_access` również przy dostawie komendy utworzenia forka.
 

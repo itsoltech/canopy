@@ -72,6 +72,12 @@ message SetWorkerEnvironmentOverrideRequest {
   bool remove = 3;
   uint64 expected_revision = 4;
 }
+message ArchiveWorkerSkillRequest {
+  string worker_id = 1;
+  string target_id = 2;
+  string archive_token = 3;
+  uint64 expected_revision = 4;
+}
 message WorkerEnvironmentResponse {
   EnvironmentWorker worker = 1;
   repeated WorkerEnvironmentOverride overrides = 2;
@@ -83,6 +89,8 @@ message WorkerEnvironmentItem {
   string item = 2;
   string name = 3;
   repeated WorkerEnvironmentVersion versions = 4;
+  string local_id = 5; // skill id at the worker's home, as used in its report
+  string artifact_name = 6; // skill directory name at the selected library version
 }
 message WorkerEnvironmentVersion {
   uint64 version = 1;
@@ -224,7 +232,7 @@ message DeleteLibrarySkillRequest {
 message ResolveSkillDriftRequest {
   string worker_id = 1;
   string target_id = 2;
-  string action = 3; // keep | overwrite | import
+  string action = 3; // keep | overwrite | import | archive (uses archive_token as observed_checksum)
   string observed_checksum = 4;
   uint64 expected_revision = 5;
 }

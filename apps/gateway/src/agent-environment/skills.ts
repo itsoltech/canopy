@@ -10,6 +10,7 @@ import { foreignWorkers } from "./composition.ts";
 import { checkSkillAssignment, desiredSkills } from "./skill-assignment.ts";
 import { addSkillVersion, saveSkillDefinition, skills, skillVersion } from "./skill-database.ts";
 import { skillZip } from "./skill-zip.ts";
+import { archiveSkill } from "./skill-archive.ts";
 import type { AgentEnvironment } from "./service.ts";
 
 export class EnvironmentSkills {
@@ -137,6 +138,7 @@ export class EnvironmentSkills {
   }
 
   async resolve(request: ui.ResolveSkillDriftRequest) {
+    if (request.action === "archive") return archiveSkill(this.environment, request);
     const owner = this.environment.options.userId;
     await this.environment.db.mutate(request.expectedRevision, (sql) =>
       Effect.gen(function* () {

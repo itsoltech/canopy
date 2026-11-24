@@ -8,7 +8,24 @@ import type { AgentEnvironment } from "./service.ts";
 
 /** Read only the selected worker's state, with global library keys and content hashes for pins. */
 export async function workerEnvironment(environment: AgentEnvironment, workerId: string) {
-  const snapshot = await environment.snapshot();
+  return workerResponse(environment, workerId, await environment.snapshot());
+}
+
+export async function archiveWorkerSkill(environment: AgentEnvironment, request: ui.ArchiveWorkerSkillRequest) {
+  const snapshot = await environment.skills.resolve(
+    create(ui.ResolveSkillDriftRequestSchema, {
+      workerId: request.workerId,
+      targetId: request.targetId,
+      action: "archive",
+      observedChecksum: request.archiveToken,
+      expectedRevision: request.expectedRevision,
+    }),
+  );
+
+  return workerResponse(environment, request.workerId, snapshot);
+}
+
+async function workerResponse(environment: AgentEnvironment, workerId: string, snapshot: ui.AgentEnvironmentSnapshot) {
   const worker = snapshot.workers.find((w) => w.workerId === workerId);
 
   if (!worker) throw new ConnectError("Worker not found. Choose another worker.", Code.NotFound);
@@ -70,7 +87,10 @@ export async function workerEnvironment(environment: AgentEnvironment, workerId:
               kind,
               item: ids.toGlobal(item.id),
               name: item.name,
-              versions: versions.map((v) => ({ version: BigInt(v.version), hash: v.content_hash })),
+              ...(kind === "skill" && { localId: item.id, artifactName: item.artifact?.name ?? "" }),
+              versions: versions.map((v) =>
+                create(ui.WorkerEnvironmentVersionSchema, { version: BigInt(v.version), hash: v.content_hash }),
+              ),
             }),
           );
           const override = item.overrides.find((o) => o.workerId === workerId);

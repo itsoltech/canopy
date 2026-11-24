@@ -5,6 +5,9 @@ pokazuje tekst i główną akcję w jednym wierszu.
 
 Status (2026-11-24): stopka sidebara w web i desktopie pokazuje podsumowania Usage i Workers.
 
+Status (2026-11-24): web i desktop pobierają listę skilli z domu wybranego workera
+i umożliwiają archiwizację lokalnej kopii na połączonym komputerze ze wspólną konfiguracją.
+
 Status (2026-11-24): w web i desktopie popover obrazu dopasowuje całą miniaturę
 do wolnego miejsca nad lub pod załącznikiem i nie ma własnego przewijania.
 
@@ -3320,6 +3323,10 @@ Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
 Workery innych komputerów grupy: GET `/api/workers/:id/environment` (`GetWorkerEnvironment`)
 zwraca podgląd, raport, wyjątki maszyn, rewizję domu oraz wybór elementów zapisanej biblioteki.
 PUT tego samego adresu (`SetWorkerEnvironmentOverride`) zmienia lub usuwa jeden wyjątek.
+POST `/api/workers/:id/environment/skills/archive` (`ArchiveWorkerSkill`) przyjmuje
+`target_id`, `archive_token` i `expected_revision` z raportu domu. Zwraca
+`WorkerEnvironmentResponse` dla workera wskazanego w URL. Kolejny raport workera zawiera
+wynik operacji.
 `WorkerEnvironmentOverride.item` jest globalnym kluczem biblioteki; `version_hash` skilla wskazuje
 treść niezależnie od lokalnych numerów wersji. Plugin nie obsługuje przypinania wersji per worker.
 Żądanie wymaga rewizji odczytanej z domu, a gateway po obu stronach sprawdza łącze i właściciela workera.

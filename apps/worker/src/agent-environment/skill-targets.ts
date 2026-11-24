@@ -19,6 +19,17 @@ export interface SkillTarget {
 export const platformSkillRoot = (home: string, harness: string): string =>
   harness === "claude" ? join(home, "canopy-environment", "skills") : join(home, "skills");
 
+export function deviceSkillRoots(homes: EnvironmentHomes) {
+  const { claude, codex, grok, agents } = homes.deviceHomes;
+  const parent = dirname(codex);
+
+  return {
+    claude: join(claude, "skills"),
+    codex: agents ?? join(parent, ".agents", "skills"),
+    grok: join(grok ?? join(parent, ".grok"), "skills"),
+  };
+}
+
 export function skillTargets(
   desired: AgentEnvironmentDesired,
   homes: EnvironmentHomes,
@@ -44,19 +55,7 @@ export function skillTargets(
       if (harness !== "claude" && harness !== "codex" && harness !== "grok")
         throw new Error("Unsupported skill harness.");
 
-      if (skill.deviceHome) {
-        const root =
-          harness === "codex"
-            ? (homes.deviceHomes.agents ?? join(dirname(homes.deviceHomes.codex), ".agents", "skills"))
-            : join(
-                harness === "grok"
-                  ? (homes.deviceHomes.grok ?? join(dirname(homes.deviceHomes.codex), ".grok"))
-                  : homes.deviceHomes.claude,
-                "skills",
-              );
-
-        add(root, harness, "device");
-      }
+      if (skill.deviceHome) add(deviceSkillRoots(homes)[harness], harness, "device");
 
       if (!skill.platformHome) continue;
       add(platformSkillRoot(join(homes.dataDir, `${harness}-home`), harness), harness, "platform");
