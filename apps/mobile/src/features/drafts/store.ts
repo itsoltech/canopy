@@ -4,6 +4,7 @@ import {
   ComposerLocalStore,
   composerTargetKey,
   hasComposerContent,
+  isUnplacedComposerTarget,
   mergeComposerContent,
   sameComposerInput,
 } from "@canopy/domain/composer-drafts";
@@ -257,7 +258,10 @@ export class MobileComposerState {
     } catch (cause) {
       if (this.id !== draft.id || this.locked) return draft;
 
-      if (![Code.NotFound, Code.FailedPrecondition].includes(ConnectError.from(cause).code)) throw cause;
+      const code = ConnectError.from(cause).code;
+
+      if (code !== Code.FailedPrecondition && (code !== Code.NotFound || isUnplacedComposerTarget(draft.target)))
+        throw cause;
       const page = await api.listComposerDrafts({ deviceId: draft.deviceId, sourceDraftIds: [draft.id] });
       const move = page.moves.find((row) => row.id === draft.id);
 
@@ -277,7 +281,14 @@ export class MobileComposerState {
 
     return saved;
   }
-  async publishForSend() {
+  async publishForSend(api?: Client<typeof ui.GatewayService>) {
+    if (api && this.revision && !this.#published && isUnplacedComposerTarget(this.#entry.draft?.target)) {
+      await this.publish(api);
+
+      if (this.revision && !this.#published)
+        throw new ConnectError("Could not save this draft. Retry before sending.", Code.Unavailable);
+    }
+
     this.persist();
 
     return this.#entry.draft;

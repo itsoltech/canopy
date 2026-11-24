@@ -1,3 +1,4 @@
+import { isUnplacedComposerTarget } from "@canopy/domain/composer-drafts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { createHash } from "node:crypto";
@@ -90,12 +91,20 @@ export function prepareDraftDelivery(
         row.target_key === `${kind}:${target}` &&
         row.sending_request_id === requestId;
 
+      const draftTarget = draft.target;
+
+      const matchesTarget =
+        kind === "send"
+          ? draftTarget?.threadId === target
+          : draftTarget?.parentThreadId === parent &&
+            (draftTarget.workspaceId === target || (!parent && isUnplacedComposerTarget(draftTarget)));
+
       if (
         (!row.sent &&
           !unsavedRetry &&
           BigInt(row.revision) !== revision &&
           (row.taken_by || draft.content?.clientRequestId !== requestId)) ||
-        (!row.sent && !unsavedRetry && (draft.target?.threadId || draft.target?.workspaceId) !== target) ||
+        (!row.sent && !unsavedRetry && !matchesTarget) ||
         (row.send_kind && row.send_kind !== kind) ||
         (signature && !signature.subarray(0, DIGEST_BYTES).equals(hash))
       )

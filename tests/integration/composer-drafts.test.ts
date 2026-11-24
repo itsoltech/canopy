@@ -603,6 +603,61 @@ describe.skipIf(!dockerAvailable)("owner composer drafts", () => {
     );
   });
 
+  test("an unplaced draft survives a handoff and binds to the workspace only when sent", async () => {
+    const original = (await gw.api.getOverview({})).projects.find((project) => project.workspaces.length);
+    const originalWorkspace = original?.workspaces[0];
+    const { project } = await gw.api.createProject({ name: "Draft destination" });
+
+    if (!original || !originalWorkspace || !project) throw new Error("Missing project");
+
+    const { workspace } = await gw.api.createWorkspace({
+      projectId: project.id,
+      workerId: gw.workerId,
+      rootPath: "/repo",
+    });
+
+    if (!workspace) throw new Error("Missing workspace");
+    const source = draft();
+    source.target = create(ui.ComposerDraftTargetSchema, {
+      projectId: original.id,
+      workspaceId: originalWorkspace.id,
+    });
+    const legacy = await save(source);
+
+    const saved = await gw.api.saveComposerDraft({
+      draft: { ...legacy, target: create(ui.ComposerDraftTargetSchema) },
+      expectedRevision: legacy.revision,
+      mutationId: crypto.randomUUID(),
+    });
+
+    const claimed = await gw.api.continueComposerDraft({
+      id: saved.id,
+      expectedRevision: saved.revision,
+      deviceId: "desktop",
+      deviceName: "Mac",
+      mutationId: crypto.randomUUID(),
+    });
+
+    const request = {
+      projectId: project.id,
+      workspaceId: workspace.id,
+      provider: Provider.CODEX,
+      initialMessage: claimed.content?.text ?? "",
+      clientRequestId: claimed.content?.clientRequestId ?? "",
+      draftId: claimed.id,
+      draftRevision: claimed.revision,
+    };
+
+    expect(await failure(gw.api.createThread({ ...request, parentThreadId: threadId }))).toContain("changed");
+    const { thread } = await gw.api.createThread(request);
+    expect(thread?.projectId).toBe(project.id);
+    expect(thread?.workspaceId).toBe(workspace.id);
+    expect((await gw.api.createThread(request)).thread?.id).toBe(thread?.id);
+    expect(
+      await failure(gw.api.createThread({ ...request, projectId: original.id, workspaceId: originalWorkspace.id })),
+    ).toContain("changed");
+  });
+
   test("oversized drafts are refused before storage", async () => {
     const source = draft();
 

@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-24): szkic nowego wątku w web, desktopie i mobile jest wspólny dla
+projektów i workerów. Powrót do kompozytora odtwarza jego treść.
+
 Status (2026-11-24): wielotematyczne sekcje Settings w web i desktopie mają zakładki.
 
 Status (2026-11-24): w web i desktopie „Manage workers” w kompozytorze nowego wątku
@@ -451,9 +454,14 @@ filtrów albo ponowieniem.
 
 ## Szkice kompozytora i przekazywanie między urządzeniami
 
-`@canopy/domain/composer-drafts` jest wspólnym magazynem lokalnym. Klucz to wątek
-albo `(project_id, workspace_id, parent_thread_id)` nowego wątku. Web/desktop
-zapisuje osobny protobuf JSON celu w localStorage rozdzielonym według
+`@canopy/domain/composer-drafts` jest wspólnym magazynem lokalnym. Klucz to wątek,
+`(project_id, workspace_id, parent_thread_id)` wątku bocznego albo pusty cel zwykłego
+nowego wątku. Zmiana projektu lub workera zachowuje szkic. Formularz przy wysłaniu
+zapisuje wybraną lokalizację w niezmiennym żądaniu. Przy wczytaniu magazynu klient
+przywraca najnowszy wcześniejszy szkic nowego wątku przypisany do lokalizacji, jeśli
+brakuje wspólnego szkicu. Odzyskana oczekująca wysyłka zachowuje pierwotne żądanie.
+
+Web/desktop zapisuje osobny protobuf JSON celu w localStorage rozdzielonym według
 `client_preferences_scope`; zdarzenie `storage` aktualizuje pozostałe karty.
 Mobile zapisuje osobny plik celu atomowo w Documents, według parowania i certyfikatu. Magazyn ma do 100 szkiców,
 4 MiB i retencję 30 dni; usuwa najstarsze wpisy po przekroczeniu limitów.
@@ -485,7 +493,9 @@ zanim można go przekazać dalej.
 
 Wysyłka nie wymaga `SaveComposerDraft` ani odpowiedzi zapisu już w toku: jeden `SendMessage` lub `CreateThread`
 przenosi treść i opcjonalną rewizję ostatniego zapisu. Limit handoffu ani błąd
-jego zapisu nie blokują zwykłego wysyłania. Krótka transakcja kontroluje rewizję
+jego zapisu nie blokują zwykłego wysyłania. Po przywróceniu szkicu zapisanego wcześniej
+dla konkretnej lokalizacji klient aktualizuje cel jego istniejącej kopii w gatewayu
+przed rozpoczęciem nowej wysyłki. Krótka transakcja kontroluje rewizję
 i rezerwuje receipt, dostawa odbywa się poza transakcją, a druga krótka transakcja
 zapisuje wynik. SQL nie utrzymuje połączenia ani blokady wątku podczas zdalnego RPC,
 pump lub steer; nie ma blokady doradczej właściciela.
@@ -529,8 +539,8 @@ konwersja końców linii na CRLF w `multipart/form-data` nie przesuwa tych zakre
 | `GetComposerDraftDelivery` | ID szkicu, `client_request_id` i cel; owner-scoped odczyt `confirmed` / `in_flight`, z routingiem do domu zdalnego wątku; nie ponawia wysyłki |
 
 Zakładka `Drafts` z licznikiem jest przyłączona do górnej krawędzi kompozytora.
-Nie renderuje się bez dostępnych szkiców. Panel zawiera wyłącznie szkice innych
-urządzeń dla pełnego celu kompozytora (wątek, projekt, workspace i rodzic), bez
+Nie renderuje się bez dostępnych szkiców. Panel zawiera szkice innych
+urządzeń dla celu kompozytora (w tym wspólnego celu nowego wątku), bez
 modala, pustego stanu ani ręcznego odświeżania. Każdy wiersz ma jednoliniowy podgląd,
 liczbę załączników, urządzenie, względny czas i `Discard draft` (×).
 Kliknięcie wiersza przenosi szkic do pustego kompozytora. `Append draft`

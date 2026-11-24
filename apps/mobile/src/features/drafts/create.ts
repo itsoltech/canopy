@@ -22,7 +22,7 @@ export async function createFromDraft(
     if (draft) draft.preparing = true;
 
     if (!outgoing) {
-      const published = await draft?.publishForSend();
+      const published = await draft?.publishForSend(api);
       outgoing = create(ui.CreateThreadRequestSchema, {
         ...request,
         draftId: published?.id ?? "",

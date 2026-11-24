@@ -1,6 +1,7 @@
 import { create, toBinary } from "@bufbuild/protobuf";
 import { MentionKind, ui } from "@canopy/contracts";
 import { checkMentions } from "@canopy/domain";
+import { isUnplacedComposerTarget } from "@canopy/domain/composer-drafts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "../store/errors.ts";
@@ -56,7 +57,7 @@ export function validateDraft(sql: SqlClient.SqlClient, owner: string, draft: ui
       if (target.parentThreadId && (target.projectId !== row.project_id || target.workspaceId !== row.workspace_id))
         return yield* Effect.fail(new NotFound("Workspace not found"));
       title = row.title;
-    } else {
+    } else if (!isUnplacedComposerTarget(target)) {
       if (!uuid.test(target.projectId) || !uuid.test(target.workspaceId))
         return yield* Effect.fail(new NotFound("Workspace not found"));
 

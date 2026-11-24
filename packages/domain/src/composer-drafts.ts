@@ -9,6 +9,11 @@ export const composerTargetKey = (target: ui.ComposerDraftTarget) =>
 export const matchesComposerTarget = (target: ui.ComposerDraftTarget | undefined, key: string | undefined) =>
   Boolean(target && key && composerTargetKey(target) === key);
 
+export const newThreadDraftTarget = create(ui.ComposerDraftTargetSchema);
+
+export const isUnplacedComposerTarget = (target: ui.ComposerDraftTarget | undefined) =>
+  Boolean(target && !target.threadId && !target.parentThreadId && !target.projectId && !target.workspaceId);
+
 /** Ignore sync metadata when deciding whether the user edited a taken draft. */
 export const sameComposerInput = (a: ui.LocalComposerDraft, b: ui.LocalComposerDraft) =>
   equals(
@@ -181,6 +186,29 @@ export class ComposerLocalStore {
         touchedAtMs: BigInt(Date.now()),
       })
     );
+  }
+  restoreNewThreadDraft() {
+    if (this.get(newThreadDraftTarget)) return;
+
+    const previous = this.list()
+      .filter(({ draft }) => draft?.target && !draft.target.threadId && !draft.target.parentThreadId)
+      .sort((a, b) => Number(b.touchedAtMs - a.touchedAtMs))[0];
+
+    const draft = previous?.draft;
+
+    if (!previous || !draft?.target) return;
+
+    // Retarget the existing gateway row on its next save. Pending requests keep their original receipt and payload.
+    this.put(
+      create(ui.LocalComposerDraftSchema, {
+        ...previous,
+        draft: { ...draft, target: newThreadDraftTarget },
+        mutationId: this.newId(),
+        publishedContent: "",
+      }),
+    );
+
+    return draft.target;
   }
   put(entry: ui.LocalComposerDraft) {
     if (this.closed) return;

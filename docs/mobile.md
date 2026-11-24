@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): szkic nowego wątku zachowuje treść po zmianie projektu lub
+workera oraz po opuszczeniu kompozytora.
+
 Status (2026-11-24): Agent environment ma cztery zakładki i kompaktowe wiersze biblioteki.
 Każda zakładka zachowuje pozycję przewinięcia podczas korzystania z ustawień.
 
@@ -337,6 +340,8 @@ stały slot, a tekst i etykieta dostępności zachowują nazwę szybkości. Wyzw
 pokazuje również efektywną szybkość odziedziczoną z wątku przy wyborze `Default`.
 
 Szkice wątków, nowych wątków i wątków bocznych są trwałe po restarcie aplikacji.
+Zwykły nowy wątek ma jeden szkic na parowanie. Wysłanie wiąże żądanie z wybranym
+workspace'em i zachowuje ten wybór przy odzyskiwaniu wyniku.
 Wspólny `usePersistentMessage` rozszerza istniejący `useMessageDraft` i adaptery
 załączników/cytatów. Documents zawiera atomowy plik protobuf JSON dla bieżącego
 parowania. Przed usunięciem parowania kończymy zapis i zamykamy magazyn, aby późny
@@ -376,7 +381,8 @@ banner niepotwierdzonego wysłania i akcje edycji/usunięcia są ukryte.
 `Discard draft` usuwa lokalną treść. Komunikat uprzedza, że poprzednia wiadomość
 mogła już zostać wysłana. Jednoznaczna odmowa, także `Internal` lub konflikt,
 odblokowuje edycję. Pozwala to ponownie użyć „Edit from here” i „Swap drafts”.
-Wysyłka nie wywołuje zapisu handoffu. Każdy cel ma osobny plik w Documents;
+Wysyłka korzysta z ostatniego zapisu handoffu. Przywrócenie szkicu z wcześniejszej
+wersji aktualizuje jego cel w gatewayu przed pierwszą nową wysyłką. Każdy cel ma osobny plik w Documents;
 zmiana jednego szkicu nie przepisuje pozostałych. Szczegóły API:
 [ui-api.md](ui-api.md#szkice-kompozytora-i-przekazywanie-między-urządzeniami).
 Jeśli gateway nie obsługuje RPC szkiców, zwykłe wysyłanie i lokalna trwałość nadal

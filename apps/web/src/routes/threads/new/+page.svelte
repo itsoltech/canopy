@@ -4,7 +4,8 @@
   import { onNavigate } from "$app/navigation";
   import { page } from "$app/state";
   import { Provider, PermissionMode, ui } from "@canopy/contracts";
-  import { create, toJsonString } from "@bufbuild/protobuf";
+  import { toJsonString } from "@bufbuild/protobuf";
+  import { newThreadDraftTarget } from "@canopy/domain/composer-drafts";
   import { untrack } from "svelte";
   import { webDrafts } from "#lib/features/drafts/local.svelte.ts";
   import DraftPersistence from "#lib/features/drafts/DraftPersistence.svelte";
@@ -64,14 +65,20 @@
   const overview = useOverview();
   const capabilities = useGatewayCapabilities();
   const settings = useSettings();
+  const saved = $derived(webDrafts.get(newThreadDraftTarget, () => limitsOf(settings.attachmentLimits)));
+  const pending = $derived(new URLSearchParams(saved.pendingForm));
+  const pendingRequestId = $derived(pending.get("clientRequestId"));
 
   // Sidebar links can select the project alone or an exact checkout.
   const requested = $derived(page.url.searchParams.get("project") ?? "");
   let picks = $state<{ projectId?: string; workspaceId?: string }>();
-  const linkedWorktree = $derived(picks ? null : page.url.searchParams.get("worktree"));
+
+  const linkedWorktree = $derived(
+    pendingRequestId ? pending.get("worktreeId") || null : picks ? null : page.url.searchParams.get("worktree"),
+  );
 
   const project = $derived(
-    overview.projectChoice(picks?.projectId ?? "") ??
+    overview.projectChoice(pending.get("projectId") ?? picks?.projectId ?? "") ??
       defaultProject({
         projects: overview.projectChoices,
         threads: overview.threads.values(),
@@ -87,10 +94,12 @@
   const workspace = $derived.by(() => {
     if (!project) return undefined;
 
-    const requestedWorkspace = picks?.workspaceId ?? page.url.searchParams.get("workspace");
+    const requestedWorkspace =
+      pending.get("workspaceId") ?? picks?.workspaceId ?? page.url.searchParams.get("workspace");
+
     const pick = project.workspaces.find((w) => w.id === requestedWorkspace);
 
-    if (linkedWorktree !== null) return pick;
+    if (pendingRequestId || linkedWorktree !== null) return pick;
 
     const online = (id: string) => overview.worker(id)?.online ?? false;
 
@@ -129,11 +138,11 @@
   let branchBusy = $state(false);
 
   const pickProject = (next: ProjectChoice) => {
-    if (!branchBusy) picks = { projectId: next.id };
+    if (!branchBusy && !saved.locked) picks = { projectId: next.id };
   };
 
   const pickWorkspace = (next: ui.Workspace) => {
-    if (!branchBusy) picks = { projectId: project?.id, workspaceId: next.id };
+    if (!branchBusy && !saved.locked) picks = { projectId: project?.id, workspaceId: next.id };
   };
 
   // Model options (provider × profile × model) from the worker's catalog. Until you pick one: the defaults'
@@ -145,18 +154,6 @@
   const options = $derived(
     modelOptions({ worker, catalog: models.of(workerId), threads: overview.threads.values(), defaults }),
   );
-
-  const saved = $derived(
-    webDrafts.get(
-      create(ui.ComposerDraftTargetSchema, {
-        projectId: workspace?.projectId ?? project?.id ?? "",
-        workspaceId: workspace?.id ?? "",
-      }),
-      () => limitsOf(settings.attachmentLimits),
-    ),
-  );
-
-  const pendingRequestId = $derived(new URLSearchParams(saved.pendingForm).get("clientRequestId"));
 
   $effect(() => {
     const draft = saved;
