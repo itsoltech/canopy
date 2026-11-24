@@ -80,6 +80,7 @@ export function sourceGitHttp(root: string) {
           PATH_INFO: url.pathname,
           QUERY_STRING: url.search.slice(1),
           REQUEST_METHOD: request.method,
+          HTTP_GIT_PROTOCOL: request.headers.get("git-protocol") ?? "",
           CONTENT_TYPE: request.headers.get("content-type") ?? "",
           REMOTE_USER: "fixture",
         },

@@ -154,7 +154,7 @@ export class EnvironmentSources {
 
     const parsed = {
       source: clone(ui.SkillSourceSchema, skill.source),
-      names: [],
+      names: skill.artifact ? [skill.artifact.name] : [],
       fullDepth: false,
       filter: "",
       deviceHome: skill.deviceHome,
@@ -167,7 +167,11 @@ export class EnvironmentSources {
     try {
       preview = await this.fetch(parsed);
 
-      if (preview.skills.length !== 1 || preview.skills[0]?.artifact?.name !== skill.artifact?.name)
+      if (
+        preview.skills.length !== 1 ||
+        preview.skills[0]?.path !== skill.source.path ||
+        preview.skills[0]?.artifact?.name !== skill.artifact?.name
+      )
         throw new Error("Source skill identity changed.");
     } catch (error) {
       if (this.#abort.signal.aborted || (error instanceof ConnectError && error.code === Code.ResourceExhausted))
