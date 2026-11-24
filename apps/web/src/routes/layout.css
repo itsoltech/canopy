@@ -44,6 +44,9 @@ html[data-canopy-platform] {
   --window-safe-top: calc(var(--window-titlebar-size) / var(--window-zoom, 1));
   --window-titlebar-height: max(var(--window-titlebar-size), var(--window-safe-top));
 }
+html[data-canopy-platform] :is(a[href], a[href] img) {
+  -webkit-user-drag: none;
+}
 html[data-canopy-platform="darwin"] {
   --window-controls-inset: calc(80px / var(--window-zoom, 1));
 }
