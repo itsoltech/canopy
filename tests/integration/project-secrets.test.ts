@@ -228,17 +228,25 @@ describe.skipIf(!dockerAvailable)("project secrets (gateway ↔ worker)", () => 
     );
   }, 15_000);
 
-  test("issues separate leases, revokes their revisions on rotation and deletion, and removes the file on turn end", async () => {
+  test("shares a project secret across two workers with independently revocable thread leases", async () => {
     const original = value();
     await gw.api.putProjectSecret({ projectId, name: secretName, value: original });
+    const device = await gw.addWorker("Second project worker");
+    const worker = await gw.connect(device.workerId, device.credential, undefined, workerOptions("/private/second"));
+
+    const workspace = (await gw.api.createWorkspace({ projectId, workerId: device.workerId, rootPath: "/second-repo" }))
+      .workspace!;
+
     const first = await start();
-    const second = await start();
+    const second = await start(worker, projectId, workspace.id);
     expect(
       JSON.parse((await gw.worker.callTool({ ...first, tool: "list_project_secrets", args: {} })).content),
     ).toEqual({ names: [secretName] });
-    const [a, b] = (await Promise.all([request(first), request(second)])).map(leaseResult);
+    const [a, b] = (await Promise.all([request(first), request(second, { worker })])).map(leaseResult);
     expect(a!.status).toBe("saved");
     expect(b!.status).toBe("saved");
+    expect(a!.file).toBe("/private/initial");
+    expect(b!.file).toBe("/private/second");
     expect(a!.request_id === b!.request_id).toBe(false);
     expect(Date.parse(a!.expires_at!) - Date.now()).toBeLessThanOrEqual(900_000);
     expect(events).toContainEqual({
@@ -255,9 +263,9 @@ describe.skipIf(!dockerAvailable)("project secrets (gateway ↔ worker)", () => 
       revision: 1,
       remove: false,
       digest: Bun.hash(original),
-      cwd: "/repo",
+      cwd: "/second-repo",
     });
-    expect((await request(second, { retryId: a!.request_id })).isError).toBe(true);
+    expect((await request(second, { worker, retryId: a!.request_id })).isError).toBe(true);
     const argumentsJson = JSON.stringify({ project_secret: secretName });
 
     const resultJson = JSON.stringify(a);
@@ -338,11 +346,11 @@ describe.skipIf(!dockerAvailable)("project secrets (gateway ↔ worker)", () => 
     gw.worker.finish(first.threadId, first.turnId);
     expect(await removed(fresh.request_id)).toEqual([{ status: "expired" }]);
 
-    const last = leaseResult(await request(second));
+    const last = leaseResult(await request(second, { worker }));
     await gw.api.deleteProjectSecret({ projectId, name: secretName });
     expect(await removed(last.request_id)).toEqual([{ status: "revoked" }]);
-    expect((await request(second)).isError).toBe(true);
-    gw.worker.finish(second.threadId, second.turnId);
+    expect((await request(second, { worker })).isError).toBe(true);
+    worker.finish(second.threadId, second.turnId);
   }, 20_000);
 
   test("fails before delivery on an older worker and stops waiting on an exact terminal rejection", async () => {
