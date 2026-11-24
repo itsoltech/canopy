@@ -1,4 +1,5 @@
 import {
+  isString,
   listOf,
   num,
   objectOf,
@@ -171,6 +172,53 @@ export function busLook(
   }
 
   return { title: running ? look.doing : look.done, icon: look.icon };
+}
+
+const WORK_LABELS = new Map([
+  ["send_message", "Sending a message"],
+  ["get_thread", "Checking a thread’s status"],
+  ["read_thread", "Reading a thread’s history"],
+  ["interrupt_thread", "Stopping a turn"],
+  ["close_thread", "Closing a side thread"],
+  ["ask_user", "Asking a question"],
+  ["get_answers", "Checking for answers"],
+  ["list_background_tasks", "Listing background tasks"],
+  ["get_background_task", "Checking a background task"],
+  ["stop_background_task", "Stopping a background task"],
+  ["find_canopy_settings", "Looking up Canopy settings"],
+  ["list_project_secrets", "Listing project secrets"],
+  ["import_image_reply", "Importing an image"],
+  ["show_images", "Sharing images"],
+  ["render_html", "Preparing a visual"],
+  ["render_visual", "Preparing a visual"],
+  ["memory_search", "Searching memory notes"],
+  ["memory_save", "Saving a memory note"],
+]);
+
+/** A standalone activity label, including the subject when the item row would supply it separately. */
+export function busWorkLabel(
+  tool: string,
+  argumentsJson: string,
+  threadTitle?: (id: string) => string | undefined,
+): string {
+  if (tool === "wait_threads") {
+    const threads = listOf(parseObject(argumentsJson)["thread_ids"]).filter(isString).filter(Boolean);
+
+    if (threads.length > 1) return `Waiting for ${threads.length} side threads`;
+    const title = threads[0] && threadTitle?.(threads[0])?.trim();
+
+    return title ? `Waiting for “${title}”` : "Waiting for a side thread";
+  }
+
+  if (tool === "get_answers" && parseObject(argumentsJson)["wait"] === true) return "Waiting for an answer";
+
+  if (tool === "list_threads") {
+    const args = parseObject(argumentsJson);
+
+    return args["scope"] === "all" ? "Listing threads" : busLook(tool, args, true).title;
+  }
+
+  return WORK_LABELS.get(tool) ?? LOOKS.get(tool)?.doing ?? "Using a Canopy tool";
 }
 
 /** The reason a refused call gives (`{"error": "…"}` or its text), without the tool's name in front. */

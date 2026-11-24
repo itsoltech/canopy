@@ -1,6 +1,7 @@
 import { ItemStatus, type Item } from "@canopy/contracts";
 import type { IconName } from "@canopy/ui/icons";
 import { previewLine } from "./first-line.ts";
+import { busWorkLabel } from "./tools/agent-bus.ts";
 import { describeTool } from "./tools/registry.ts";
 
 /**
@@ -176,7 +177,10 @@ function ongoingHint(text: string): string {
  */
 export function currentWorkHint(
   items: readonly Item[],
-  running: (item: Item) => boolean = (item) => item.status === ItemStatus.IN_PROGRESS,
+  {
+    running = (item) => item.status === ItemStatus.IN_PROGRESS,
+    threadTitle,
+  }: { running?: (item: Item) => boolean; threadTitle?: ((id: string) => string | undefined) | undefined } = {},
 ): string {
   const active = items.filter(running);
   const reads = active.filter((item) => activity(item) === "read");
@@ -199,7 +203,14 @@ export function currentWorkHint(
 
   if (content.case === "backgroundTask") return previewLine(content.value.description) || "Running a background task…";
 
-  if (content.case === "agentBusCall") return ongoingHint(`Calling ${content.value.toolName}`);
+  if (content.case === "agentBusCall")
+    return ongoingHint(busWorkLabel(content.value.toolName, content.value.argumentsJson, threadTitle));
+
+  if (content.case === "webSearch") {
+    const query = content.value.query.trim();
+
+    return ongoingHint(query ? `Searching the web for ${query}` : "Searching the web");
+  }
 
   if (content.case === "subagent") return previewLine(content.value.description) || "Waiting for a subagent…";
 

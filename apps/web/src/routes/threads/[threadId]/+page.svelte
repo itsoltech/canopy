@@ -190,9 +190,11 @@
     return () => current.dispose();
   });
 
+  const threadById = (id: string) => (id === thread?.id ? thread : overview.threads.get(id));
+
   providePageDirectory(
     () => ({ id: threadId, view, readOnly: Boolean(away) || worktreeRemoved, canFork }),
-    (id) => (id === thread?.id ? thread : overview.threads.get(id)),
+    threadById,
     (quote) => revealQuote(quote.sourceItemId),
   );
 
@@ -279,6 +281,7 @@
       results: view.turnResults,
       steering: view.steering,
       working,
+      threadTitle: (id) => threadById(id)?.title,
       forkSourceId,
       inheritedEntries: view.inheritedEntries,
       inheritedTurns: view.inheritedTurns,
