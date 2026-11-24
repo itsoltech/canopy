@@ -48,6 +48,7 @@
   let panel = $state<HTMLDivElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const mode = $derived(devicePreferences.values.attachmentMarkdown);
+  const isImage = $derived(kind === "image");
   const isText = $derived(kind === "text" || kind === "markdown");
 
   function close() {
@@ -151,14 +152,25 @@
   });
 </script>
 
-<Popover bind:open={hover} {anchor} label={file.name} placement="top-start" focusOnOpen={false}>
+<Popover
+  bind:open={hover}
+  {anchor}
+  label={file.name}
+  placement="top-start"
+  focusOnOpen={false}
+  scrollable={!isImage}
+  class={isImage ? "has-[[role=alert]]:overflow-auto has-[[role=alert]]:overscroll-contain" : undefined}
+>
   <div
     bind:this={panel}
     role="group"
     aria-label="Attachment preview"
     onpointerenter={() => clearTimeout(timer)}
     onpointerleave={leave}
-    class="grid w-72 max-w-[calc(100vw-2rem)] gap-2 p-3"
+    class={[
+      "w-72 max-w-[calc(100vw-2rem)] gap-2 p-3",
+      isImage ? "flex max-h-(--float-available-height) flex-col has-[[role=alert]]:max-h-none" : "grid",
+    ]}
   >
     {#if kind === "video"}
       <button
@@ -182,16 +194,16 @@
         onload={imageLoaded}
         src={attachmentUrl(file, file.hasThumbnail ? "thumbnail" : "image")}
         entityId={file.id}
-        class="min-h-36 rounded-lg bg-zinc-950/3 dark:bg-white/5"
-        imageClass="h-36 w-full object-contain"
+        class="h-36 min-h-0 grid-rows-1 rounded-lg bg-zinc-950/3 has-[[role=alert]]:h-auto has-[[role=alert]]:grid-rows-none dark:bg-white/5"
+        imageClass="h-full min-h-0 w-full object-contain"
       />
     {:else if isText}
       <div class="max-h-40 overflow-hidden rounded-lg bg-zinc-950/3 p-2 dark:bg-white/5">
         <AttachmentContent {file} compact />
       </div>
     {/if}
-    <div class="min-w-0">
-      <p class="font-medium break-all">{file.name}</p>
+    <div class="min-w-0 shrink-0">
+      <p class={["font-medium", isImage ? "truncate" : "break-all"]}>{file.name}</p>
       <p class="text-xs/5 text-muted tabular-nums">{detail}</p>
     </div>
   </div>

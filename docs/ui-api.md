@@ -2,6 +2,9 @@
 
 Status (2026-11-24): stopka sidebara w web i desktopie pokazuje podsumowania Usage i Workers.
 
+Status (2026-11-24): w web i desktopie popover obrazu dopasowuje całą miniaturę
+do wolnego miejsca nad lub pod załącznikiem i nie ma własnego przewijania.
+
 Status (2026-11-24): web i desktop łączą subagenta z wątkiem nadrzędnym po
 `Thread.parent_thread_id` w indeksie wszystkich projektów. Obejmuje to delegację
 do **No project** na połączonym komputerze.
@@ -2292,6 +2295,12 @@ Co jest na zrzucie?
 Ścieżki liczy gateway z `Hello.attachments_root` workera wątku; worker zapisuje plik dokładnie tam przed turą ([protocol.md](protocol.md#załączniki)).
 
 **Worker offline.** Wiadomość z załącznikami do istniejącego wątku idzie do kolejki jak każda (bajty czekają w gateway, worker pobiera je przy starcie tury). Nowego wątku na workerze offline kompozytor nie wysyła (jak dotąd). Worker, który nigdy nie zgłosił `attachments_root` (starsza wersja), nie przyjmie załączników: `SendMessage` zwraca powód.
+
+Popover obrazu otwiera się pod załącznikiem, gdy nad nim brakuje miejsca, a pod
+nim jest go więcej. Przy ograniczonej wysokości skaluje całą miniaturę z
+zachowaniem proporcji. Długą nazwę skraca w podglądzie, a kliknięcie załącznika
+otwiera obraz z pełną nazwą w `Lightbox`. Po błędzie ładowania panel pozwala
+przewinąć dłuższy komunikat do przycisku Retry.
 
 Podgląd obrazu pobiera odpowiedź BFF przed utworzeniem adresu Blob dla `<img>`.
 Odmowa HTTP pokazuje komunikat JSON i Retry zamiast uszkodzonego obrazu; tekst
