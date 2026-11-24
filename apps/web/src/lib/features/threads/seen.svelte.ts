@@ -1,15 +1,14 @@
-/** How long the latest result stays on screen before it counts as seen. */
-const SEEN_AFTER_MS = 1_000;
+import type { ui } from "@canopy/contracts";
 
 /**
- * Reports a thread seen (MarkThreadSeen through the BFF) once its unseen result has been on screen: the tab
- * visible and the timeline following its end for a moment. Again whenever a newer result arrives while that
- * holds, or once the reader scrolls back down to it. Call from a component's script (it sets up effects).
+ * Reports the visible end of a thread seen through the BFF. A newer result can be reported as soon as
+ * it is shown, including after the reader scrolls back down to it.
  */
 export function trackSeen(
-  read: () => { threadId: string; unseen: boolean; markedUnread?: boolean; lastSeq: bigint; atEnd: boolean },
+  read: () => { threadId: string; thread?: ui.Thread; rendered?: ui.Thread; showsLatest: boolean },
 ): void {
   let lastId: string | undefined;
+  let reportedSeq: bigint | undefined;
   let wasMarked = false;
   let preserve = false;
   let visible = $state(typeof document !== "undefined" && document.visibilityState === "visible");
@@ -21,27 +20,35 @@ export function trackSeen(
     return () => document.removeEventListener("visibilitychange", sync);
   });
   $effect(() => {
-    const { threadId, unseen, lastSeq, atEnd, markedUnread = false } = read();
+    const { threadId, thread, rendered, showsLatest } = read();
+    const markedUnread = thread?.markedUnread ?? false;
 
-    if (threadId !== lastId) preserve = false;
-    else if (markedUnread && !wasMarked) preserve = true;
+    if (threadId !== lastId) {
+      preserve = false;
+      reportedSeq = undefined;
+    } else if (markedUnread && !wasMarked) preserve = true;
 
     if (!markedUnread) preserve = false;
     lastId = threadId;
     wasMarked = markedUnread;
 
-    if (preserve) return;
+    if (preserve || !visible || !showsLatest || !thread || !(thread.unseenResult || markedUnread)) {
+      reportedSeq = undefined;
 
-    if (!unseen || !atEnd || !visible) return;
+      return;
+    }
 
-    const timer = setTimeout(() => {
-      void fetch(`/api/threads/${threadId}/seen`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ upToSeq: lastSeq.toString() }),
-      }).catch(() => {});
-    }, SEEN_AFTER_MS);
+    const lastSeq = thread.lastSeq;
 
-    return () => clearTimeout(timer);
+    if (rendered?.id !== threadId || rendered.lastSeq < lastSeq) return;
+
+    if (lastSeq === reportedSeq) return;
+    reportedSeq = lastSeq;
+
+    void fetch(`/api/threads/${threadId}/seen`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ upToSeq: lastSeq.toString() }),
+    }).catch(() => {});
   });
 }

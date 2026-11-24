@@ -12,7 +12,7 @@ export function workingLabel(thread: ui.Thread, now = Date.now()): string {
   return age && age !== "now" ? `Working ${age}` : "Working";
 }
 
-/** Current list status; clients can keep a just-seen result visible briefly without changing these rules. */
+/** Current list status, including the outcome of an unseen turn. */
 export function threadRowLabel(thread: ui.Thread, now = Date.now()): string {
   const state = workState(thread);
 
