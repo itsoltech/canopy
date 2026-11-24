@@ -1,5 +1,10 @@
 import { isJsonArray, isJsonObject, type JsonValue, type JsonObject } from "@canopy/domain/json";
-import { promotionCommitLinks, type PromotionCommit, type PromotionInput } from "./promotion-policy.ts";
+import {
+  promotionCommitLinks,
+  type PromotionCommit,
+  type PromotionInput,
+  type ReleaseAttempt,
+} from "./promotion-policy.ts";
 import { attributePromotionFix } from "./promotion-attribution.ts";
 import { promotionReleaseState } from "./promotion-release-state.ts";
 import { firstNightlyAfterRelease, publishedReleaseTags } from "./release-version-policy.mjs";
@@ -188,12 +193,14 @@ export function latestRuns(repo: string, source: string, adapters: PromotionAdap
 }
 
 export function releaseJobs(repo: string, run: JsonObject, adapters: PromotionAdapters): JsonObject[] {
+  return jobsAt(`repos/${repo}/actions/runs/${number(run["id"])}`, adapters);
+}
+
+function jobsAt(runPath: string, adapters: PromotionAdapters): JsonObject[] {
   const jobs: JsonObject[] = [];
 
   for (let page = 1; ; page++) {
-    const response = object(
-      adapters.api(`repos/${repo}/actions/runs/${number(run["id"])}/jobs?per_page=100&page=${page}`),
-    );
+    const response = object(adapters.api(`${runPath}/jobs?per_page=100&page=${page}`));
 
     const batch = array(response["jobs"]);
     jobs.push(...batch.map(object));
@@ -202,6 +209,33 @@ export function releaseJobs(repo: string, run: JsonObject, adapters: PromotionAd
   }
 
   return jobs;
+}
+
+export function describeFailedRelease(repo: string, run: ReleaseAttempt, adapters: PromotionAdapters): string {
+  const path = `${repo}/actions/runs/${run.id}/attempts/${run.attempt}`;
+  const attempt = `[Release attempt ${run.attempt}](https://github.com/${path})`;
+  const required: string[] = [];
+  const optional: string[] = [];
+
+  try {
+    for (const job of jobsAt(`repos/${path}`, adapters)) {
+      if (job["conclusion"] !== "failure" && job["conclusion"] !== "timed_out") continue;
+      const name = string(job["name"]);
+      const link = isString(job["html_url"]) ? `[${name}](${job["html_url"]})` : name;
+
+      // Release marks the Linux ARM64 desktop matrix experimental; historical runs also had desktop-smoke.
+      if (/^desktop(?:-build|-smoke)? \(linux-arm64, [^,]+, true\)$/.test(name))
+        optional.push(`Optional job ${link} failed.`);
+      else required.push(`Required job ${link} failed.`);
+    }
+  } catch {
+    // Job details only explain the failed run. Keep its decision and link if the jobs API is unavailable.
+    return `See ${attempt}. Job details unavailable.`;
+  }
+
+  if (!required.length) required.push("No failed required job identified.");
+
+  return [`See ${attempt}.`, ...required, ...optional].join(" ");
 }
 
 function successfulSmoke(jobs: JsonObject[]): boolean {
@@ -329,6 +363,13 @@ export async function loadPromotion(
 
   const prs = mergedPrs(repo, source, adapters);
   const { runs } = latestRuns(repo, source, adapters);
+
+  if (path === "next-main" && input.activeBeta) {
+    const run = runs.get(input.activeBeta.sha);
+
+    if (run?.["status"] === "completed" && run["conclusion"] === "failure")
+      input.activeBeta.failedRelease = { id: number(run["id"]), attempt: number(run["run_attempt"]) };
+  }
 
   const previous = new Map(
     [...(previousInput?.commits ?? []), ...(previousInput?.pendingFixes ?? [])].map((commit) => [commit.sha, commit]),
