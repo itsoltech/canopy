@@ -1,4 +1,7 @@
 <script lang="ts">
+  import HabitReviewBadge from "#lib/features/memory/HabitReviewBadge.svelte";
+  import { memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
+  import { habitSuggestionCount } from "#lib/features/memory/habits-format.ts";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import MenuGroup from "#lib/shared/ui/MenuGroup.svelte";
@@ -10,25 +13,37 @@
 
   /**
    * The open settings section as a menu button (narrow screens, where the side nav does not fit): it names
-   * where you are and lists every section by group, the open one checked. A dot marks waiting updates.
+   * where you are and lists every section by group, the open one checked. A dot marks sections that need attention.
    */
   const sections = useSettingsSections();
   const current = $derived(sections.current);
   const waiting = $derived(sections.all.some((s) => sections.hinted(s.href)));
+  const habitCount = $derived(sections.habitCount);
+
+  const label = $derived(
+    [
+      `Settings section: ${current?.label ?? "Settings"}`,
+      habitCount && habitSuggestionCount(habitCount),
+      waiting && "updates available",
+    ]
+      .filter(Boolean)
+      .join(", "),
+  );
 </script>
 
 <DropdownMenu label="Settings sections" sheet>
   {#snippet trigger(props)}
     <button
       type="button"
-      aria-label="Settings section: {current?.label ?? 'Settings'}"
+      aria-label={label}
       class="relative flex min-h-(--settings-target) items-center gap-2 rounded-lg px-2 whitespace-nowrap text-zinc-950 focus-ring hover:bg-zinc-950/5 aria-expanded:bg-zinc-950/5 dark:text-white dark:hover:bg-white/5 dark:aria-expanded:bg-white/8"
       {...props}
     >
-      {current?.label ?? "Settings"}{#if waiting}<StatusDot tone="amber" />{/if}<Icon
-        name="chevron-up-down"
-        class="fill-zinc-500 dark:fill-zinc-400"
-      />
+      {current?.label ?? "Settings"}
+      <span class="relative inline-flex">
+        <Icon name="chevron-up-down" class="fill-zinc-500 dark:fill-zinc-400" />
+        {#if waiting || habitCount}<span class="absolute -top-0.5 -right-1 flex"><StatusDot tone="amber" /></span>{/if}
+      </span>
       <TouchTarget />
     </button>
   {/snippet}
@@ -40,8 +55,13 @@
           <MenuItem
             href={section.href}
             current={sections.isActive(section.href)}
-            description={sections.hinted(section.href) ? "Updates available" : undefined}>{section.label}</MenuItem
+            description={sections.hinted(section.href) ? "Updates available" : undefined}
           >
+            {section.label}
+            {#if section.href === memorySettingsPath && habitCount}
+              <HabitReviewBadge count={habitCount} class="ml-1.5 align-middle" />
+            {/if}
+          </MenuItem>
         {/each}
       </MenuGroup>
     {/if}

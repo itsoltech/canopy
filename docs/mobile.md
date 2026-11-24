@@ -8,6 +8,7 @@ z listą. Czytnik ekranu może odczytać widoczną nazwę aplikacji i etykietę 
 Przełącznik modułu, wyszukiwarka i akcje listy zatrzymują się pod paskiem stanu.
 Gradient i drzewo pozostają na miejscu przy pociągnięciu listy w dół i zanikają
 w miarę chowania nazwy. Lista zaczyna się bezpośrednio pod kontrolkami lub widocznym banerem połączenia.
+Nowe sugestie Habits mają powiadomienie w aplikacji i licznik w nawigacji ustawień.
 
 Status (2026-11-23): Settings otwiera General. Menu sekcji na telefonie i panel boczny
 na tablecie zachowują wyszukiwanie i pozycję listy. Każda odwiedzona sekcja
@@ -2469,6 +2470,8 @@ użytkownik może wczytać aktualną wersję do porównania, zachowując zmienio
 Habits używa osobnych arkuszy konfiguracji refleksji i przeglądu sugestii.
 Właściciel wybiera projekty, harmonogram, model z profilu dostawcy oraz poziom
 rozumowania. Z sugestii może otworzyć wątki źródłowe. Zatwierdzenie odświeża listę notatek.
+Powiadomienie `Review habits` otwiera Memory, a licznik informuje o sugestiach
+czekających na decyzję również po ponownym połączeniu.
 [Refleksja](agent-memory.md#refleksja)
 
 Settings → Import pokazuje przebiegi importu CLI: postęp, datę, liczniki, bieżący wątek i akcje

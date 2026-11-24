@@ -1,5 +1,7 @@
 <script lang="ts">
   import { CANOPY_VERSION } from "@canopy/domain/release/version";
+  import HabitReviewBadge from "#lib/features/memory/HabitReviewBadge.svelte";
+  import { memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
@@ -11,6 +13,7 @@
   let { query = $bindable() }: { query: string } = $props();
 
   const visible = $derived(sections.all.filter((section) => matchesSettingsSection(section, query)));
+  const habitCount = $derived(sections.habitCount);
 
   const itemClass =
     "flex min-h-(--settings-target) items-center gap-2 rounded-lg whitespace-nowrap px-2.5 py-1 text-base/5 text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 focus-ring aria-[current=page]:bg-zinc-950/5 aria-[current=page]:text-zinc-950 sm:text-sm/5 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/8 dark:aria-[current=page]:text-white";
@@ -34,6 +37,9 @@
               >
                 <Icon name={section.icon} tone="inherit" />
                 {section.label}
+                {#if section.href === memorySettingsPath && habitCount}
+                  <HabitReviewBadge count={habitCount} class="ml-auto" />
+                {/if}
                 {#if sections.hinted(section.href)}
                   <StatusDot tone="amber" class="ml-auto" />
                   <span class="sr-only">(updates available)</span>

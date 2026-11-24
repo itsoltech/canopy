@@ -23,7 +23,7 @@ function useOverviewBusState() {
     client
       ? (signal) =>
           client.api.watchOverview(
-            { includeSnapshot: true, threadHeadIds: headIds ? headIds.split(",") : [] },
+            { includeSnapshot: true, threadHeadIds: headIds ? headIds.split(",") : [], watchMemoryHabits: true },
             { signal },
           )
       : null,

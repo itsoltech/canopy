@@ -85,7 +85,7 @@ test.skipIf(!dockerAvailable)(
       await gw.api.updateMemoryReflection({
         settings: {
           enabled: true,
-          intervalMinutes: 360,
+          intervalMinutes: 60,
           projectIds: projects,
           provider: Provider.CODEX,
           profileId: "native",
@@ -106,6 +106,7 @@ test.skipIf(!dockerAvailable)(
       const runs = () => gw.api.getMemoryHabits({});
       const completed = await runs();
       expect(completed.settings?.lastRunState).toBe("completed");
+      expect(completed.settings?.intervalMinutes).toBe(60);
       expect(completed.usage?.attempts).toBe(1);
       const command = first.worker.commands.find((kind) => kind.case === "generateText");
       expect(command?.value).toMatchObject({
@@ -125,6 +126,10 @@ test.skipIf(!dockerAvailable)(
         (online) => !online,
       );
       const next = timestampDate(completed.settings!.nextRunAt!);
+      expect(next.getTime() - start.getTime()).toBe(60 * 60_000);
+      await tickReflection(gw.core, new Date(next.getTime() - 1));
+      expect((await runs()).settings?.lastRunState).toBe("completed");
+
       await tickReflection(gw.core, next);
       const unavailable = await runs();
       expect(unavailable.settings?.lastRunState).toBe("unavailable");

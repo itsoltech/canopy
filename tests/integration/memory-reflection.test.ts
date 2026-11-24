@@ -9,8 +9,11 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 
 describe.skipIf(!dockerAvailable)("memory reflection from owner messages to a worker turn", () => {
   let gateway: TestGateway | undefined;
+  let stopWatching: (() => Promise<void>) | undefined;
 
   afterEach(async () => {
+    await stopWatching?.();
+    stopWatching = undefined;
     await gateway?.close();
     gateway = undefined;
   });
@@ -117,8 +120,45 @@ describe.skipIf(!dockerAvailable)("memory reflection from owner messages to a wo
       },
     });
 
+    const abort = new AbortController();
+    const call = { signal: abort.signal, timeoutMs: 10_000 };
+    const updates = gw.api.watchOverview({ watchMemoryHabits: true }, call)[Symbol.asyncIterator]();
+    const legacyUpdates = gw.api.watchOverview({}, call)[Symbol.asyncIterator]();
+    stopWatching = async () => {
+      abort.abort();
+      await Promise.all([updates.return?.(), legacyUpdates.return?.()]);
+    };
+
+    async function waitForHabitReviews() {
+      for (;;) {
+        const update = await updates.next();
+
+        if (update.done) throw new Error("Overview closed before the Habits update");
+
+        if (update.value.change.case === "memoryHabitsChanged") return;
+      }
+    }
+
+    expect((await legacyUpdates.next()).value?.change.case).toBe("feeds");
+    await waitForHabitReviews();
+    expect((await gw.api.getMemoryHabits({})).suggestions).toEqual([]);
+
     const now = new Date(Date.now() + 1000);
     await tickReflection(gw.core, now);
+    await waitForHabitReviews();
+
+    const marker = await gw.api.createProject({ name: "After the Habits suggestion" });
+
+    for (;;) {
+      const update = await legacyUpdates.next();
+
+      if (update.done) throw new Error("Legacy overview closed before the project update");
+      const { change } = update.value;
+      expect(change.case).not.toBe("memoryHabitsChanged");
+
+      if (change.case === "project" && change.value.id === marker.project?.id) break;
+    }
+
     const reviewed = await gw.api.getMemoryHabits({});
     expect(reviewed.settings?.workerId).toBe(gw.workerId);
     expect(reviewed.settings?.lastRunState).toBe("completed");
@@ -143,6 +183,7 @@ describe.skipIf(!dockerAvailable)("memory reflection from owner messages to a wo
 
     const rule = "After UI changes, capture a screenshot. Show it with show_images.";
     await gw.api.resolveMemoryHabit({ habitId: habit.id, expectedRevision: habit.revision, approve: true, rule });
+    await waitForHabitReviews();
     expect((await gw.api.getMemoryHabits({})).suggestions).toEqual([]);
     expect((await gw.api.listMemoryNotes({ scope: ui.MemoryNoteScope.PROJECT })).notes).toEqual([
       expect.objectContaining({ body: rule, projectId: project.id }),

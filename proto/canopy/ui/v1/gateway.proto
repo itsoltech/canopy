@@ -1161,6 +1161,8 @@ message WatchOverviewRequest {
   bool include_snapshot = 762;
   // At most 32 threads. One multiplexed head probe, never a watch per thread.
   repeated string thread_head_ids = 830;
+  // Clients that can decode the Habits invalidation.
+  bool watch_memory_habits = 834;
 }
 
 message ThreadHeads {
@@ -1249,6 +1251,8 @@ message OverviewUpdate {
     WorkspaceCopyJob workspace_copy_job = 832;
     // A finished background copy was dismissed.
     string workspace_copy_job_removed = 833;
+    // This gateway's Habits suggestions changed. Read GetMemoryHabits again.
+    bool memory_habits_changed = 834;
   }
 }
 

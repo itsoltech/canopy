@@ -31,6 +31,7 @@
   const tokens = $derived(usage ? usage.inputTokens + usage.outputTokens : 0n);
 
   const intervals = [
+    { value: "60", label: "Every hour" },
     { value: "360", label: "Every 6 hours" },
     { value: "720", label: "Every 12 hours" },
     { value: "1440", label: "Every 24 hours" },

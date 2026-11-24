@@ -15,6 +15,7 @@ import { PreferencesProvider } from "../state/preferences";
 import { useColors } from "../ui/theme";
 import { useReducedMotion } from "../ui/motion";
 import { DevicePreferencesProvider } from "../features/settings/device-preferences";
+import { HabitReviewNotice } from "../features/settings/HabitReviewNotice";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { PushProvider } from "../features/notifications/PushProvider";
 import { PushTaps } from "../features/notifications/PushTaps";
@@ -81,6 +82,7 @@ function Navigation() {
       </Stack>
       <PushTaps />
       <InAppAlerts />
+      <HabitReviewNotice />
       <UpdateCenter />
       <WhatsNewSheet />
       <WhatsNewNotice />

@@ -1,5 +1,8 @@
 # Powiadomienia wątków i botów
 
+Aktualizacja (2026-11-24): nowe sugestie Habits mają powiadomienie w aplikacji
+i licznik oczekujących sugestii w ustawieniach.
+
 Status (2026-11-23): kod iOS/Android obsługuje push z podglądem szyfrowanym od
 gatewaya do telefonu. Funkcja wymaga nowego buildu natywnego i konfiguracji relaya.
 Lokalny Desktop domyślnie używa relaya Canopy. W webie serwerowym i w obu
@@ -103,6 +106,16 @@ Animacja korzysta ze wspólnych tokenów i respektuje `prefers-reduced-motion`.
 
 Kontener przepuszcza kliknięcia poza kartą. Toast nie ma `data-window-no-drag`,
 bo leży poza paskami tytułu i nie powinien zawieszać przeciągania całego okna.
+
+### Sugestie Habits
+
+Gdy podczas pracy w Canopy pojawi się nowa sugestia gotowa do przeglądu,
+web, desktop i mobile pokazują powiadomienie z akcją `Review habits`.
+Akcja otwiera Settings → Memory. Powiadomienie respektuje `In-app notifications`
+i jest pomijane, gdy użytkownik już ogląda Memory. Przy pierwszym odczycie
+i po ponownym połączeniu aplikacja odtwarza licznik bieżących sugestii.
+Rozstrzygnięcie lub utrata podstawy sugestii zmniejsza licznik.
+Zdarzenie pozostaje w aplikacji. [Refleksja](agent-memory.md#refleksja)
 
 ## Fokus i dźwięk
 

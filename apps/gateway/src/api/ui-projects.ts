@@ -29,7 +29,7 @@ export function projectsHandlers(
     getOverview: () => guard(() => core.overview()),
 
     watchOverview: (request, context) =>
-      core.watchOverview(context.signal, request.includeSnapshot, request.threadHeadIds),
+      core.watchOverview(context.signal, request.includeSnapshot, request.threadHeadIds, request.watchMemoryHabits),
 
     listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
 

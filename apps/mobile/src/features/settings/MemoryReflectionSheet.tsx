@@ -15,6 +15,7 @@ import { SettingChoice, SettingsGroup, SettingsRow, SettingToggle } from "./Sett
 import { MemoryReflectionModelFields } from "./MemoryReflectionModelFields";
 
 const intervals = [
+  { value: 60, label: "Every hour" },
   { value: 360, label: "Every 6 hours" },
   { value: 720, label: "Every 12 hours" },
   { value: 1440, label: "Every 24 hours" },

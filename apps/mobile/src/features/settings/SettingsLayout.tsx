@@ -13,6 +13,7 @@ import { SettingsCatalog, useSettingsCatalog } from "./section-catalog";
 import { SettingsNavigation, useWorkerUpdateHint } from "./SettingsNavigation";
 import { SettingsSearch } from "./SettingsSearch";
 import { SettingsOffsets } from "./SettingsScroll";
+import { habitSuggestionLabel, usePendingHabitReviews } from "./memory-habits";
 
 const SIDEBAR_WIDTH = 256;
 
@@ -38,6 +39,8 @@ export function SettingsLayout({
   const section = selected || "general";
   const current = catalog.sections.find((entry) => entry.href === `/settings/${section}`);
   const updates = useWorkerUpdateHint() && catalog.available.some((entry) => entry.href === "/settings/workers");
+  const pendingHabits = usePendingHabitReviews();
+  const memoryAvailable = catalog.available.some((entry) => entry.href === "/settings/memory");
 
   if (wide && menu) setMenu(false);
 
@@ -67,6 +70,7 @@ export function SettingsLayout({
       onQuery={setQuery}
       compact={!wide}
       updates={updates}
+      pendingHabits={pendingHabits}
     />
   );
 
@@ -99,6 +103,7 @@ export function SettingsLayout({
                     wide={wide}
                     label={current?.label ?? "Settings"}
                     updates={updates}
+                    pendingHabits={section !== "memory" && memoryAvailable ? pendingHabits : 0}
                     menu={menu}
                     openMenu={() => setMenu(true)}
                     general={section === "general"}
@@ -128,6 +133,7 @@ function SettingsHeader({
   wide,
   label,
   updates,
+  pendingHabits,
   menu,
   openMenu,
   general,
@@ -137,6 +143,7 @@ function SettingsHeader({
   wide: boolean;
   label: string;
   updates: boolean;
+  pendingHabits: number;
   menu: boolean;
   openMenu: () => void;
   general: boolean;
@@ -145,6 +152,14 @@ function SettingsHeader({
 }) {
   const c = useColors();
   const type = useTypography();
+
+  const hint = [
+    "Choose a section.",
+    updates && "Worker updates available.",
+    pendingHabits > 0 && `${habitSuggestionLabel(pendingHabits)} to review.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <>
@@ -171,7 +186,7 @@ function SettingsHeader({
               accessibilityRole="button"
               accessibilityLabel={`Settings section: ${label}`}
               accessibilityState={{ expanded: menu }}
-              accessibilityHint={updates ? "Choose a section. Worker updates available." : "Choose a section."}
+              accessibilityHint={hint}
               onPress={openMenu}
               style={({ pressed }) => [
                 styles.row,
@@ -187,8 +202,8 @@ function SettingsHeader({
               <Text numberOfLines={1} style={[type.chrome, { color: c.text, flexShrink: 1 }]}>
                 {label}
               </Text>
-              {updates && <StatusDot tone="amber" />}
               <Icon name="chevron-up-down" color={c.icon} />
+              {(updates || pendingHabits > 0) && <StatusDot tone="amber" />}
             </Pressable>
           </View>
         )}
