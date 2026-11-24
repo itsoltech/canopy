@@ -11,6 +11,28 @@ import type { GatewayCore } from "./core.ts";
 
 export const THREAD_AUDIENCE_ERROR = "Choose a thread delegated from this conversation, or start a new thread here.";
 
+/**
+ * Only the scheduler assigns the wakeup key with the stored positive hop. That receipt survives a
+ * harness retry moving the input message. Every ancestor consumes one hop and belongs to the same bot.
+ */
+function priorWakeupTurns(sql: SqlClient.SqlClient, turn: BotTurn) {
+  return sql<{ turn_id: string }>`WITH RECURSIVE lineage(turn_id, source_turn_id, hops) AS (
+    SELECT NULL::uuid, ${turn.id}::uuid, ${turn.hops}::int + 1
+    UNION ALL
+    SELECT t.id, c.turn_id, t.hops
+    FROM lineage l
+    JOIN bot_turns t ON t.id=l.source_turn_id AND t.bot_id=${turn.bot_id}::uuid AND t.hops=l.hops-1
+    JOIN bot_wakeups w ON w.id=CASE
+      WHEN starts_with(t.client_request_id,'wakeup:') AND pg_input_is_valid(substr(t.client_request_id,8),'uuid')
+      THEN substr(t.client_request_id,8)::uuid END
+      AND t.client_request_id='wakeup:' || w.id::text
+      AND w.bot_id=t.bot_id AND w.hops=t.hops AND w.hops>0 AND w.delivered
+    JOIN bot_tool_calls c ON c.id=w.id AND c.tool->>'source'='platform' AND c.tool->>'name'='schedule_wakeup'
+    WHERE t.conversation_id IS NULL AND t.routine_id IS NULL AND t.handoff_configuration IS NULL
+      AND t.reply_to_bot_id IS NULL AND t.exchange_id IS NULL AND t.remote_recipient_ref IS NULL
+  ) SELECT turn_id FROM lineage WHERE turn_id<>${turn.id}::uuid`;
+}
+
 /** The lease, durable input and reply recipient determine capability even when a native bot session is reused. */
 export async function botThreadAudience(core: GatewayCore, turn: BotTurn): Promise<string> {
   const { actions, options } = core[coreState];
@@ -26,15 +48,34 @@ export async function botThreadAudience(core: GatewayCore, turn: BotTurn): Promi
   return `turn:${turn.bot_id}:${turn.id}`;
 }
 
-export async function requireThreadAudience(core: GatewayCore, id: string, audience: string, writing: boolean) {
-  if (!audience && !writing) return;
+/** An empty list means an owner-wide read. Continuing a delegation can include prior wakeup turns. */
+export async function botThreadAudiences(core: GatewayCore, turn: BotTurn, includePriorWakeups: boolean) {
+  const current = await botThreadAudience(core, turn);
+
+  if (!current) return [];
+
+  if (!includePriorWakeups || !current.startsWith("turn:") || !turn.client_request_id.startsWith("wakeup:"))
+    return [current];
+  const { actions } = core[coreState];
+  const ancestors = await actions.run(SqlClient.SqlClient.use((sql) => priorWakeupTurns(sql, turn)));
+
+  return [current, ...ancestors.map(({ turn_id }) => `turn:${turn.bot_id}:${turn_id}`)];
+}
+
+export async function requireThreadAudience(
+  core: GatewayCore,
+  id: string,
+  audiences: readonly string[],
+  writing: boolean,
+) {
+  if (!audiences.length && !writing) return;
   const { actions, options } = core[coreState];
 
   const rows = await actions.run(
     SqlClient.SqlClient.use(
       (sql) =>
         sql`SELECT id FROM threads WHERE id=${id}::uuid AND owner_user_id=${options.userId}::uuid
-      AND deleted_at IS NULL AND moved_to IS NULL AND memory_audience=${audience}`,
+      AND deleted_at IS NULL AND moved_to IS NULL AND memory_audience=ANY(${audiences.length ? [...audiences] : [""]}::text[])`,
     ),
   );
 
@@ -80,8 +121,8 @@ export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, c
     (!usesThreadConnection(call.tool.name) && call.tool.name !== "send_bot_message")
   )
     return;
-  const audience = await botThreadAudience(core, turn);
   const name = call.tool.name;
+  const audiences = await botThreadAudiences(core, turn, ["get_thread", "read_thread", "send_message"].includes(name));
 
   const keys = ["thread_id", "parent_thread_id", "request_id", "bot_id"];
 
@@ -102,18 +143,18 @@ export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, c
     // A bot exchange can cross homes because the destination must accept an isolated bot turn.
     if (name === "send_bot_message" && key === "bot_id" && !turn.conversation_id) continue;
 
-    if (audience && splitId(ref).node)
+    if (audiences.length && splitId(ref).node)
       throw new Invalid("Choose a thread on this computer for delegated work from this conversation.");
   }
 
   if (
-    audience &&
+    audiences.length &&
     (["create_schedule", "update_schedule", "set_schedule_status"].includes(name) ||
       (["list_schedules", "cancel_schedule"].includes(name) && call.arguments["scope"] !== "wakeup"))
   )
     throw new Invalid("Platform schedules are unavailable to this conversation.");
 
-  if (audience) {
+  if (audiences.length) {
     const question = await deliveredQuestion(core, turn, call);
 
     if (question) return question;
@@ -127,7 +168,7 @@ export async function authorizeBotThreadCall(core: GatewayCore, turn: BotTurn, c
     if (!Predicate.isString(target)) continue;
     const ref = core.computers?.redirects.map("thread", target) ?? target;
 
-    if (!splitId(ref).node) await requireThreadAudience(core, ref, audience, writing);
+    if (!splitId(ref).node) await requireThreadAudience(core, ref, audiences, writing);
   }
 
   return undefined;

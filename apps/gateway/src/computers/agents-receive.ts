@@ -241,7 +241,7 @@ export const agentsReceiveMethods: AgentsReceiveMethods = {
       );
 
       if (!owned.length) return fail("You can only control threads you spawned on this computer");
-      await requireThreadAudience(this.core, id, "", true);
+      await requireThreadAudience(this.core, id, [], true);
 
       if (call.operation === "answer") {
         const answer = await this.core.answerInteraction(
@@ -393,7 +393,7 @@ async function receiveLinkedTurn(
           qualifyId(call.actorId, node),
         ]);
       } else {
-        await requireThreadAudience(hostContext.core, target, "", true);
+        await requireThreadAudience(hostContext.core, target, [], true);
         const thread = await hostContext.core.getThread(target);
 
         if (!(await hostContext.core.overview()).workers.some((w) => w.id === thread.workerId && w.online))
