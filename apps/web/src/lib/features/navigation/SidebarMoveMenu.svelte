@@ -16,7 +16,7 @@
   ];
 </script>
 
-{#if ordering?.available(thread)}
+{#if ordering?.canReorder(thread)}
   <div class={className}>
     <MenuSub label="Move" icon="arrows-right-left">
       {#each moves as move (move.value)}

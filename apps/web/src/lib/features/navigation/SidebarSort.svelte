@@ -25,10 +25,11 @@
       >
     </Button>
   {/each}
+  <p class="px-2 py-1 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400 pointer-coarse:hidden">
+    Drag a thread to the top to pin it.
+    {#if devicePreferences.view.threadSortMode === "custom"}Drag within a section to reorder.{/if}
+  </p>
   {#if devicePreferences.view.threadSortMode === "custom"}
-    <p class="px-2 py-1 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
-      Drag within a section to reorder. Drag to Pinned to pin.
-    </p>
     <p class="px-2 pb-1 text-sm/5 text-zinc-500 sm:text-xs/4 dark:text-zinc-400">
       Use Move in the thread menu, or Alt+↑/↓.
     </p>

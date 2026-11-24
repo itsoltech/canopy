@@ -1,24 +1,35 @@
 <script lang="ts">
+  import "./sidebar-drag.css";
   import type { SidebarOrder } from "./sidebar-order.svelte.ts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import type { ClassValue } from "svelte/elements";
 
   let { ordering, class: className }: { ordering: SidebarOrder; class?: ClassValue } = $props();
+  const pinned = $derived(ordering.settings.sidebar.pinnedThreadIds.includes(ordering.dragging));
+  const showZone = $derived(Boolean(ordering.dragging) && (ordering.custom || !pinned));
 </script>
 
-<div class={["sticky top-0 z-20 h-0", className]}>
+<div class={["pointer-events-none sticky top-0 z-20 h-0", className]}>
   <p role="status" class="sr-only">{ordering.message}</p>
-  {#if ordering.dragging}
+  <div
+    class="sidebar-pin-zone"
+    data-sidebar-pin-zone={showZone || undefined}
+    data-active={ordering.pinTarget || undefined}
+    aria-hidden="true"
+  >
     <div
-      data-sidebar-pin-zone
-      class="pointer-events-none rounded-lg border-2 border-dashed bg-panel px-3 py-2 text-center text-base sm:text-sm {ordering.pinTarget
-        ? 'border-brand-500 text-brand-700 dark:text-brand-300'
-        : 'border-zinc-400 text-zinc-600 dark:border-zinc-600 dark:text-zinc-300'}"
+      class="sidebar-pin-label flex items-center justify-center gap-2 rounded-lg px-2 py-2 text-center text-sm font-medium"
     >
-      {ordering.pinTarget ? "Release to pin" : "Drop here to pin"}
+      <Icon name="star" size="sm" />
+      {#if pinned}
+        {ordering.pinTarget ? "Release to move to top" : "Move to top of Pinned"}
+      {:else}
+        {ordering.pinTarget ? "Release to pin" : "Drop here to pin"}
+      {/if}
     </div>
-  {/if}
+  </div>
 </div>
 <Dialog
   title="Unpin thread?"
