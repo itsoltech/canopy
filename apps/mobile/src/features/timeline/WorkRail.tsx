@@ -11,6 +11,7 @@ import { workRows, type BodyRow, type WorkRow } from "./turn-plan";
 import { BodyRowView } from "./TimelineBodyRow";
 import { TimelineDisclosure } from "./TimelineDisclosure";
 import { useThreadScrollTarget } from "../../ui/thread-scroll-items";
+import { useTimelineDirectory } from "./directory";
 
 type GroupRow = Extract<WorkRow, { kind: "group" }>;
 
@@ -83,7 +84,8 @@ export const WorkRail = memo(
     choices: WorkGroupChoices;
   }) {
     const c = useColors();
-    const rows = useMemo(() => workRows(work), [work]);
+    const { thread } = useTimelineDirectory();
+    const rows = useMemo(() => workRows(work, (id) => thread(id)?.title), [work, thread]);
 
     return (
       <View style={{ paddingTop: 4, marginLeft: 8, paddingLeft: 16, borderLeftWidth: 1, borderColor: c.rule, gap: 4 }}>
