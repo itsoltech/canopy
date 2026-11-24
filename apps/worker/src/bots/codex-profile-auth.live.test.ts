@@ -135,7 +135,9 @@ function cleanFixtureFiles(
     if (stat.isFile()) {
       if (stat.nlink !== 1) return false;
 
-      if (path === sourceAuthFile) continue;
+      // The native CLI keeps its empty startup and helper lockfiles exclusively open on Windows.
+      // No bytes can be present in an empty file. The scan still checks file type and link count.
+      if (path === sourceAuthFile || (live && process.platform === "win32" && stat.size === 0)) continue;
       const contents = readFixtureFile(path, live);
 
       if (contents && forbidden.some((token) => contents.includes(token))) return false;
