@@ -32,8 +32,8 @@ dystrybucyjne, sprawdza ich podpisy i testuje wydawany instalator Windows.
 Ekran startu, okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
 Nightly i lokalnego Dev. Ekran startu pokazuje pełną wersję uruchomionego pakietu
 Desktop przed połączeniem z gatewayem. Ikona w nagłówku sidebara ma bok 32 px przy domyślnej
-skali w każdym kanale. Opis obejmuje też dzienny ping użycia z przełącznikiem
-prywatności i pomijaniem wysyłki offline. Aktualizator używa
+skali w każdym kanale. Dzienny ping użycia wymaga ręcznego włączenia.
+Aktualizator używa
 `electron-updater` 6.8.11. Build i ustawienia
 udostępniają licencje dołączonych komponentów. Powłoka ładowania
 korzysta z wyglądu tej instalacji także przy niedostępnym gatewayu.
@@ -90,11 +90,13 @@ Produkt: **Canopy** — jedna instalacja z lokalnym wyborem kanału aktualizacji
 
 ## Dzienny ping użycia
 
-Canopy Desktop domyślnie wysyła do `https://analytics.itsol.tech/api/send` sygnał
-`/ping` w Umami, najwyżej raz na dobę UTC na profil aplikacji. Służy do
-szacowania liczby aktywnych instalacji i używanych wersji. Podczas pierwszej
-konfiguracji lub później w **Settings → Desktop → Privacy** przełącznik
-**Send daily usage ping** pozwala wyłączyć kolejne wysyłki bez restartu.
+Dzienny ping użycia jest domyślnie wyłączony. Można go włączyć lub wyłączyć
+bez restartu podczas pierwszej konfiguracji albo w **Settings → Desktop → Privacy**
+przełącznikiem **Send daily usage ping**. Po aktualizacji z wcześniejszych
+buildów, które włączały ping domyślnie, Desktop wymaga ponownego włączenia.
+Po włączeniu Canopy Desktop wysyła do `https://analytics.itsol.tech/api/send`
+sygnał `/ping` w Umami, najwyżej raz na dobę UTC na profil aplikacji. Służy do
+szacowania liczby aktywnych instalacji i używanych wersji.
 Przełącznik jest też w oknie wyboru trybu desktopu, dostępnym z ekranu
 odzyskiwania nawet przy niedostępnym gatewayu.
 Pierwsza próba następuje po zapisaniu konfiguracji. Przy kolejnych uruchomieniach

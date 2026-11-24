@@ -14,9 +14,9 @@ let retryAfter = 0;
 export async function readUsagePingEnabled() {
   const value = await SecureStore.getItemAsync(preferenceKey);
 
-  if (value === null || value === "on") return true;
+  if (value === "on") return true;
 
-  if (value === "off") return false;
+  if (value === null || value === "off") return false;
   throw new Error("Invalid usage ping preference");
 }
 
