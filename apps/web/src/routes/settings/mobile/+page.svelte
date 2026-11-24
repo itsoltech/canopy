@@ -34,6 +34,27 @@
   const setup = $derived(request.data);
   const activeDevices = $derived(setup.devices.filter((device) => !device.revokedAt));
   const revokedDevices = $derived(setup.devices.filter((device) => Boolean(device.revokedAt)));
+
+  const desktopAccessLabels = $derived.by(() => {
+    const labels = new Map<string, string>();
+    const counts = new Map<string, number>();
+
+    // Include revoked grants so the labels stay stable when a grant is revoked.
+    for (const device of setup.devices) {
+      if (device.clientKind !== "desktop") continue;
+      const pairedAt = formatDateTime(device.createdAt);
+      const label = `Desktop app · ${device.platform}${pairedAt ? ` · Paired ${pairedAt}` : ""}`;
+      labels.set(device.id, label);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+
+    for (const [id, label] of labels) {
+      if ((counts.get(label) ?? 0) > 1) labels.set(id, `${label} · Access ID ${id}`);
+    }
+
+    return labels;
+  });
+
   let invitation = $state<ui.CreateMobilePairingResponse>();
   let open = $state(false);
   let qr = $state("");
@@ -246,19 +267,34 @@
 {/snippet}
 
 {#snippet devices()}
-  <SettingsGroup title="Paired devices">
+  <SettingsGroup
+    title="Paired devices"
+    description={activeDevices.filter((device) => device.clientKind === "desktop").length > 1
+      ? "Each desktop pairing grants separate access."
+      : undefined}
+  >
     {#each activeDevices as device (device.id)}
-      <SettingsRow
-        title={device.name}
-        description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform} · ${device.pairingVersion < 2 ? "Pair again to use this computer's secure network connection." : device.lastSeenAt ? `Last seen ${formatDateTime(device.lastSeenAt)}` : "Not connected yet"}`}
-      >
+      <SettingsRow title={device.name}>
+        {@render deviceDetails(
+          device,
+          device.pairingVersion < 2
+            ? "Pair again to use this computer's secure network connection."
+            : device.lastSeenAt
+              ? `Last seen ${formatDateTime(device.lastSeenAt)}`
+              : "Not connected yet",
+        )}
         {#snippet control()}{#if device.pairingVersion < 2}<Button
               size="sm"
               disabled={busy}
               onclick={() => void pair(device.clientKind === "desktop" ? "desktop" : "mobile")}>Pair again</Button
             >
-          {:else}<Button size="sm" variant="ghost" disabled={busy} onclick={() => void revoke(device.id, "device")}
-              >Revoke access</Button
+          {:else}<Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={`Revoke access for ${device.name}`}
+              aria-describedby={`device-access-${device.id}`}
+              onclick={() => void revoke(device.id, "device")}>Revoke access</Button
             >{/if}{/snippet}
       </SettingsRow>
     {:else}<SettingsRow
@@ -286,15 +322,18 @@
         {/snippet}
         <div class="divide-y divide-zinc-950/5 dark:divide-white/8">
           {#each revokedDevices as device (device.id)}
-            <SettingsRow
-              title={device.name}
-              description={`${device.clientKind === "desktop" ? "Desktop app · " : ""}${device.platform}`}
-            />
+            <SettingsRow title={device.name}>{@render deviceDetails(device)}</SettingsRow>
           {/each}
         </div>
       </Disclosure>
     {/if}
   </SettingsGroup>
+{/snippet}
+
+{#snippet deviceDetails(device: ui.MobileDevice, status?: string)}
+  <p id={`device-access-${device.id}`} class="text-sm/5 text-pretty wrap-anywhere text-zinc-500 dark:text-zinc-400">
+    {desktopAccessLabels.get(device.id) ?? device.platform}{status ? ` · ${status}` : ""}
+  </p>
 {/snippet}
 
 <DevicePairingDialog

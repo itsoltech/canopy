@@ -103,6 +103,7 @@ appear only as the literal name used by an external tool).
 | worker | the Canopy process that runs agents on a computer | runner, agent host, node |
 | computer | a physical machine running Canopy or a worker | machine, host, box, node |
 | device | a phone or tablet paired with Canopy | phone app, client |
+| Access ID | identifier of an individual grant in Settings → Devices when pairing details match | device ID, computer ID |
 | project | a set of directories (workspaces) on workers | repo, repository |
 | workspace | a project's directory on one worker | folder, path |
 | directory | a directory on disk | folder (exception: a "skill folder" picked in the file manager) |

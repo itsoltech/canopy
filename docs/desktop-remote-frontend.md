@@ -14,6 +14,9 @@ gatewaya. Dostęp do edycji tego adresu działa również podczas awarii (2026-1
 Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 [zasady wydań](release.md) i GitHub Releases.
 
+Device access pokazuje datę każdego parowania desktopu i rozróżnia wpisy,
+gdy platforma i wyświetlana data są identyczne (2026-11-24).
+
 ## Decyzja
 
 Desktop zawsze ładuje dołączony frontend przez swój BFF na `127.0.0.1`.
@@ -56,6 +59,12 @@ dodatkowo nie mogą tworzyć enrollmentu ani rotować poświadczeń workera.
 Nie ma parametru pozwalającego klientowi wybrać właściciela. Zapytania core/store
 pozostają ograniczone do właściciela gatewaya. Nie zmieniamy sekretów dostawców
 ani ich granic przechowywania.
+
+Każde wykorzystane zaproszenie desktopowe tworzy osobne uprawnienie. Nazwa
+i platforma nie identyfikują konkretnej instalacji. W Device access data
+„Paired” oraz identyfikator dostępu przy zbieżnej platformie i dacie pomagają
+rozróżnić uprawnienia, także po odwołaniu. „Revoke access” odwołuje wyłącznie
+poświadczenie wybranego wpisu.
 
 BFF słucha wyłącznie na loopback i wymaga `X-Canopy-Desktop-Session` z losowym
 256-bitowym sekretem uruchomienia. Electron main przekazuje go kontrolerowi prywatnym

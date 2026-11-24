@@ -347,6 +347,35 @@ describe.skipIf(!dockerAvailable)("desktop client: owner-scoped pairing and pinn
     ).toContain("desktop.pair");
   });
 
+  test("pairing the same desktop twice lists separate grants and revokes only the chosen one", async () => {
+    const firstInvitation = await invite();
+    const first = await pairDesktop(toJsonString(ui.CreateMobilePairingResponseSchema, firstInvitation));
+    const secondInvitation = await invite();
+    const second = await pairDesktop(toJsonString(ui.CreateMobilePairingResponseSchema, secondInvitation));
+    const list = () => gw.api.getMobileDevices({});
+
+    expect(first.deviceId).not.toBe(second.deviceId);
+    const { devices, pairings } = await list();
+    const firstGrant = devices.find((device) => device.id === first.deviceId);
+    const secondGrant = devices.find((device) => device.id === second.deviceId);
+
+    expect(Boolean(firstGrant && secondGrant && firstGrant.name === secondGrant.name)).toBe(true);
+    expect([firstGrant, secondGrant].every((grant) => grant?.createdAt && !grant.revokedAt)).toBe(true);
+    expect(pairings.find((pairing) => pairing.id === firstInvitation.pairing?.id)?.deviceId).toBe(first.deviceId);
+    expect(pairings.find((pairing) => pairing.id === secondInvitation.pairing?.id)?.deviceId).toBe(second.deviceId);
+    expect((await api(first.token).getSettings({})).user).toBeDefined();
+    expect((await api(second.token).getSettings({})).user).toBeDefined();
+
+    await gw.api.revokeMobileDevice({ id: first.deviceId });
+    const updated = (await list()).devices;
+
+    expect(updated.find((device) => device.id === first.deviceId)?.revokedAt).toBeDefined();
+    expect(updated.find((device) => device.id === second.deviceId)?.createdAt).toEqual(secondGrant?.createdAt);
+    expect(updated.find((device) => device.id === second.deviceId)?.revokedAt).toBeUndefined();
+    expect(await failure(api(first.token).getSettings({}))).toContain("revoked");
+    expect((await api(second.token).getSettings({})).user).toBeDefined();
+  });
+
   test("restart reuses stored owner, worker, desktop and phone authorization and preserves revocation", async () => {
     const desktop = await pair();
     const revoked = await pair();
