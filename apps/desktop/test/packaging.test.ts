@@ -272,10 +272,13 @@ async function verifyMacPackaging(arch: "x64" | "arm64") {
   }
 }
 
+// On Intel macOS runners, a cold Icon Composer build and Swift launch can take more than a minute.
+const macPackagingTimeout = process.platform === "darwin" && process.arch === "x64" ? 180_000 : 60_000;
+
 test.each(macArchitectures)(
   "macOS packaging signs the %s adapters and preserves localized identity",
   verifyMacPackaging,
-  60_000,
+  macPackagingTimeout,
 );
 
 test("the size guard rejects duplicated large files even outside node_modules", () => {
