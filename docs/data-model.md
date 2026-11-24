@@ -2,6 +2,9 @@
 
 Status (2026-11-24): migracja `0213_thread_worktree_switch` wiąże zmianę cwd i worktree z aktywną turą
 i zapisuje jej źródłowy katalog na czas ochrony checkoutu i kontroli checkpointów.
+Przy wykonywaniu oczekującej migracji funkcja przywraca poprzednią wartość
+znacznika po zmianie worktree. Rola migracyjna może utworzyć funkcję ze zwykłymi
+uprawnieniami do schematu, bez osobnego grantu dla parametru PostgreSQL.
 
 Status (2026-11-24): migracja `0211_project_secrets` dodaje
 `project_secrets` z szyfrogramem identyfikowanym przez projekt i nazwę.

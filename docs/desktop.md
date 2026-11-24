@@ -17,8 +17,8 @@ Pickery Typography wczytują listę zainstalowanych fontów przy otwarciu.
 Desktop sprawdza, czy macOS pozwala na powiadomienia, zanim poprosi o zgodę.
 W paczkach na macOS okno About wskazuje IT SOL Sp. z o.o. jako właściciela praw autorskich.
 
-Status: opis zaimplementowanego runtime i pakowania (2026-11-23). CI po pushu sprawdza
-runtime i instalator Windows. Release buduje paczki dystrybucyjne i sprawdza ich podpisy.
+Status: opis zaimplementowanego runtime i pakowania (2026-11-24). Release buduje paczki
+dystrybucyjne, sprawdza ich podpisy i testuje wydawany instalator Windows.
 Ekran startu, okna, zasobnik i instalatory używają osobnych ikon dla Stable, Beta,
 Nightly i lokalnego Dev. Ekran startu pokazuje pełną wersję uruchomionego pakietu
 Desktop przed połączeniem z gatewayem. Ikona w nagłówku sidebara ma bok 32 px przy domyślnej
@@ -764,9 +764,9 @@ Pakowanie wydań na macOS wymaga aktywnego Xcode 26 lub nowszego, aby skompilowa
 | --- | --- | --- | --- | --- |
 | Linux x64 | `ubuntu-24.04` | `linux-x64` | AppImage, deb | build + run AppImage |
 | Linux arm64 | `ubuntu-24.04-arm` lub natywny self-hosted ARM64 | `linux-arm64` | AppImage, deb | niewykonana |
-| macOS arm64 | `macos-26` (pakowanie), `macos-15` (build runtime wydania i smoke w Push CI) | `darwin-arm64` | dmg, zip | niewykonana |
-| macOS x64 | `macos-26-intel` (pakowanie), `macos-15-intel` (build runtime wydania i smoke w Push CI) | `darwin-x64` | dmg, zip | testy natywne w CI |
-| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | CI po pushu instaluje NSIS i sprawdza sidecary |
+| macOS arm64 | `macos-26` (pakowanie), `macos-15` (build runtime wydania) | `darwin-arm64` | dmg, zip | testy natywne w CI |
+| macOS x64 | `macos-26-intel` (pakowanie), `macos-15-intel` (build runtime wydania) | `darwin-x64` | dmg, zip | testy natywne w CI |
+| Windows x64 | `windows-2025` | `windows-x64` | NSIS `.exe` + `.blockmap`, feed kanału; Azure Trusted Signing | Release uruchamia NSIS i sprawdza sidecary |
 
 Linux x64, macOS arm64/x64 i Windows x64 są pełnymi celami każdego kanału: nightly,
 beta i stable. Linux arm64 pozostaje eksperymentalny (`continue-on-error`): beta
@@ -782,7 +782,8 @@ Nie publikuje tagów ani wydań; artefakt Actions przechowuje przez 3 dni.
 
 Po potwierdzeniu wyniku Push CI job `desktop-build` w Release buduje runtime dla wskazanego
 SHA. Job `desktop` pakuje go akcją `.github/actions/package-desktop` z wersją i kanałem wydania,
-a następnie sprawdza wymagane podpisy. Z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików
+a następnie sprawdza wymagane podpisy. Na Windows ten sam job sprawdza instalację, aktualizację
+i deinstalację przed przekazaniem paczki do publikacji. Z `CANOPY_VERSION` i `CANOPY_CHANNEL` nazwy plików
 to `Canopy-<wersja>-<linux|darwin|windows>-<x64|arm64>.<ext>`. macOS dostaje też `zip`.
 Gotowe pliki trafiają do `apps/desktop/release/<kanał>`. Przed budową sprawdź `process.platform/process.arch`;
 host musi odpowiadać wierszowi tabeli. Brak Windows arm64 jest celowy.

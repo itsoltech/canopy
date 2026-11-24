@@ -217,25 +217,22 @@ export class ScriptedWorker {
     });
   }
 
-  emit(
-    threadId: string,
-    turnId: string,
-    body: MessageInitShape<typeof ThreadEventSchema>["body"],
-    rawJson = "{}",
-  ): void {
+  emit(threadId: string, turnId: string, body: MessageInitShape<typeof ThreadEventSchema>["body"], rawJson = "{}") {
     const journalSeq = (this.#seq.get(threadId) ?? 0n) + 1n;
     this.#seq.set(threadId, journalSeq);
-    this.link.send({
-      case: "threadEvent",
-      value: create(ThreadEventSchema, {
-        threadId,
-        turnId,
-        journalSeq,
-        eventId: Bun.randomUUIDv7(),
-        ...(body && { body }),
-        rawJson,
-      }),
+
+    const event = create(ThreadEventSchema, {
+      threadId,
+      turnId,
+      journalSeq,
+      eventId: Bun.randomUUIDv7(),
+      ...(body && { body }),
+      rawJson,
     });
+
+    this.link.send({ case: "threadEvent", value: event });
+
+    return event;
   }
 
   /** What the provider does when the model calls an agent bus tool. */
@@ -279,7 +276,7 @@ export class ScriptedWorker {
   }
 
   /** Ends a held turn like the provider would. */
-  finish(threadId: string, turnId: string, text = "done"): void {
+  finish(threadId: string, turnId: string, text = "done") {
     this.#running.delete(threadId);
     this.emit(threadId, turnId, {
       case: "itemCompleted",
@@ -291,7 +288,8 @@ export class ScriptedWorker {
         },
       },
     });
-    this.emit(threadId, turnId, {
+
+    return this.emit(threadId, turnId, {
       case: "turnFinished",
       value: { outcome: TurnOutcome.COMPLETED, providerTurnRef: `ct-${turnId.slice(-4)}` },
     });

@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): w web i desktop zakładki Threads i Bots pokazują liczbę elementów, które
+właśnie pracują. Natywny mobile jeszcze jej nie pokazuje.
+
 Status (2026-11-24): w web i desktop oznaczenie wyniku w sidebarze znika po
 potwierdzeniu odczytu widocznego końca rozmowy.
 
@@ -229,6 +232,24 @@ ma te same trzy wartości; aktualizacja zachowuje dotychczasowy wybór projektu.
 Natywne nagłówki i karty mają minimum 48 dp dla dotyku. W lokalnym wariancie worktree
 wiersz mieści tytuł, status oraz oznaczenia po prawej bez dodatkowej pustej linii.
 Szczegóły: [mobile.md](mobile.md).
+
+## Praca w zakładkach Threads i Bots
+
+W web i desktop przełącznik **Threads | Bots** nad listą pokazuje przy etykiecie spinner
+i liczbę elementów, które w tej chwili pracują. Oznaczenie jest widoczne na obu zakładkach,
+także na otwartej, i znika, gdy nic nie pracuje. Threads liczy drzewa wątków, w których
+trwa lub startuje tura wątku głównego albo bocznego (także subagenta); drzewo liczy się raz,
+tak jak ma jeden wiersz na liście. Nie liczą się: oczekiwanie na użytkownika lub agenta
+nadrzędnego, same zadania w tle, nieprzeczytane wyniki oraz wątki uśpione, zarchiwizowane
+i usunięte. Filtry listy nie zmieniają liczby. Bots liczy niezarchiwizowane boty z trwającym
+wykonaniem (`Bot.executing`); oczekująca zgoda wstrzymuje je tak samo jak w wierszu bota.
+
+Spinner i liczba stoją przed etykietą, w kolorze pracy z wierszy wątków. Dotychczasowe
+oznaczenia nieaktywnej zakładki zostają za etykietą: liczba nieprzeczytanych wiadomości
+botów, bursztynowa kropka „wymaga Ciebie” i zielona kropka niezobaczonego wyniku. Żadne
+oznaczenie nie przesuwa etykiety. W sidebarze węższym niż 17rem zostaje sam spinner;
+liczba pozostaje w podpowiedzi i w tekście dla czytnika ekranu („Threads, 2 working”).
+Oznaczenie pojawia się i znika animacją pop, z samą zmianą krycia przy ograniczonym ruchu.
 
 ## Usypianie
 

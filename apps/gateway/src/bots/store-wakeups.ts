@@ -11,7 +11,7 @@ import { deliverThreadQuestions, deliverySources } from "./thread-questions.ts";
 import { turnReport } from "../store/turn-report.ts";
 import { canReportBotTurn } from "./report-origin.ts";
 import { botThreadNoticeTitle, threadNotice } from "./thread-notice.ts";
-import { noUnscopedInteractionInput, watchCompletion, watchNeedsCheck } from "./watch-completion.ts";
+import { hasThreadReport, noUnscopedInteractionInput, watchCompletion, watchNeedsCheck } from "./watch-completion.ts";
 
 /** Watches of threads and steers, wakeups and reminders. */
 export function botWakeups(sql: SqlClient.SqlClient, core: BotCore) {
@@ -147,8 +147,14 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
           for (const watch of finished) {
             const text = results.get(watch.call_id);
             const source = watchSources.get(watch.call_id);
+            const origin = originOf(source);
 
-            if (text !== undefined && (source?.origin_enabled ?? true) && (yield* core.originEnabled(source))) {
+            if (
+              text !== undefined &&
+              (source?.origin_enabled ?? true) &&
+              (yield* core.originEnabled(source)) &&
+              !(yield* hasThreadReport(sql, watch.bot_id, watch.target_turn_id, origin))
+            ) {
               const title = botThreadNoticeTitle(watch.title);
               const { message, failure } = turnReport(watch.status, watch.error, text, 80_000);
 
@@ -166,7 +172,7 @@ export function botDeliveries(sql: SqlClient.SqlClient, core: BotCore) {
                   displayText: watch.incomplete
                     ? `“${title}” has a partial result`
                     : threadNotice(title, watch.status, "", failure),
-                  ...originOf(source),
+                  ...origin,
                 },
               );
             }

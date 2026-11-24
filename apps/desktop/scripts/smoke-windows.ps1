@@ -1,4 +1,7 @@
-param([Parameter(Mandatory)][string]$ReleaseDirectory)
+param(
+  [Parameter(Mandatory)][string]$ReleaseDirectory,
+  [switch]$SkipSourceTests
+)
 
 $ErrorActionPreference = 'Stop'
 $release = (Resolve-Path $ReleaseDirectory).Path
@@ -81,13 +84,17 @@ try {
     if ($actual -ne $env:CANOPY_VERSION) { throw "$app version mismatch: $actual (expected $env:CANOPY_VERSION)" }
     Write-Output "Installed $app sidecar: $actual"
   }
-  $env:CANOPY_DESKTOP_RUNTIME = $runtime
-  try {
-    Invoke-SmokeProcess $bun 'test ./apps/desktop/test/sidebar-icon.integration.test.ts' 60000
-  } finally {
-    Remove-Item Env:CANOPY_DESKTOP_RUNTIME
+  if ($SkipSourceTests) {
+    Write-Output 'Skipped source-dependent tests because the checkout differs from the packaged revision'
+  } else {
+    $env:CANOPY_DESKTOP_RUNTIME = $runtime
+    try {
+      Invoke-SmokeProcess $bun 'test ./apps/desktop/test/sidebar-icon.integration.test.ts' 60000
+    } finally {
+      Remove-Item Env:CANOPY_DESKTOP_RUNTIME
+    }
+    Invoke-SmokeProcess $bun 'test ./apps/desktop/test/process-recovery.test.ts ./apps/gateway/src/attachments/encoded-output-windows.test.ts ./apps/worker/src/images/export-local-temp.test.ts' 60000
   }
-  Invoke-SmokeProcess $bun 'test ./apps/desktop/test/process-recovery.test.ts ./apps/gateway/src/attachments/encoded-output-windows.test.ts ./apps/worker/src/images/export-local-temp.test.ts' 60000
 } catch {
   $failure = $_
 } finally {

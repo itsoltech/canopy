@@ -9,6 +9,20 @@ import removedBranchCleanup from "./0179_removed_branch_cleanup.sql" with { type
 import threadWorktreeSwitch from "./0213_thread_worktree_switch.sql" with { type: "text" };
 import { sqlFile } from "./run.ts";
 
+// PostgreSQL requires a parameter grant to attach a custom setting to CREATE FUNCTION.
+// When applying pending 0213, preserve the caller's marker explicitly instead. A failed
+// statement rolls back the transaction-local assignment along with the switch.
+const pendingThreadWorktreeSwitch = threadWorktreeSwitch
+  .replace(" SET canopy.switch_worktree_turn = ''", "")
+  .replace(
+    "  dest worktrees%ROWTYPE;",
+    "$&\n  previous_switch_turn text := current_setting('canopy.switch_worktree_turn', true);",
+  )
+  .replace(
+    "  END IF;\n  RETURN NEXT;\nEND $$;",
+    "    PERFORM set_config('canopy.switch_worktree_turn', previous_switch_turn, true);\n$&",
+  );
+
 export const worktreeMigrations = {
   "0066_worktrees": sqlFile(worktrees),
   "0067_worktree_lifecycle": sqlFile(worktreeLifecycle),
@@ -18,5 +32,5 @@ export const worktreeMigrations = {
   "0167_thread_worktree_preparation": sqlFile(threadWorktreePreparation),
   "0174_schedule_worktree_preparations": sqlFile(scheduleWorktreePreparations),
   "0179_removed_branch_cleanup": sqlFile(removedBranchCleanup),
-  "0213_thread_worktree_switch": sqlFile(threadWorktreeSwitch),
+  "0213_thread_worktree_switch": sqlFile(pendingThreadWorktreeSwitch),
 };

@@ -214,131 +214,28 @@ jobs:
           retention-days: 1
 
   native:
-    name: Native checks (${{ matrix.target }})
     needs: builds
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { target: darwin-arm64, runner: macos-26 }
-          - { target: darwin-x64, runner: macos-26-intel }
-          - { target: windows-x64, runner: windows-2025, suffix: .exe }
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - name: Decode the small Dev app icon representations with macOS
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          iconset="$RUNNER_TEMP/canopy-development.iconset"
-          iconutil -c iconset -o "$iconset" apps/web/static/channels/development/icon.icns
-          for size in 16 32; do
-            test -s "$iconset/icon_${size}x${size}.png"
-            test -s "$iconset/icon_${size}x${size}@2x.png"
-          done
-      - uses: ./.github/actions/setup-bun
-      - name: Resolve the installed Canopy bundle name and artwork with macOS
-        if: runner.os == 'macOS'
-        run: bun test ./apps/desktop/test/packaging.test.ts -t 'macOS packaging'
-      - name: OAuth address fallback on macOS
-        if: runner.os == 'macOS'
-        run: bun test ./tests/integration/connector-oauth-egress.test.ts
-      - name: Read verified directory entries on macOS
-        if: runner.os == 'macOS'
-        run: bun test ./tests/integration/thread-directory-race.test.ts
-      - name: Reject missing or replaced desktop sidebar icons on Windows
-        if: matrix.target == 'windows-x64'
-        run: bun test ./apps/desktop/test/packaging.test.ts -t 'packaging preserves the built sidebar icon'
-      - name: Windows CLI launcher argument round-trip
-        if: matrix.target == 'windows-x64'
-        run: bun test ./packages/process-governor/src/windows-command.test.ts
-      - name: Codex profile login and isolated bot turns on Windows
-        if: matrix.target == 'windows-x64'
-        run: bun test ./tests/integration/codex-bot-profile-login.test.ts
-      - name: Codex profile login with the released Windows CLI
-        if: matrix.target == 'windows-x64'
-        shell: pwsh
-        env:
-          CANOPY_LIVE_CODEX_PROFILE_AUTH: "1"
-          CANOPY_LIVE_CODEX_EXPECT_WINDOWS: "1"
-        run: |
-          $ProgressPreference = 'SilentlyContinue'
-          $checksums = [ordered]@{
-            '0.164.0' = 'urWPhwh9YavuoAPIkmVYKBTtd5OtGVL4Ki0Fb28dhK/Mz6Pt4LSy+gbRrZFz5+RXrw9ubvXuXDCcd8beYcWhDg=='
-            '0.172.0' = '48pULjlTwpBZ/TfbOnpnmloHaTQAYELbaiKHEX7qmrtLFIcnPigaNN3omyetPdAuvrRXrmNFRlKfvQme19ZmRA=='
-          }
-          $failed = $false
-          foreach ($version in $checksums.Keys) {
-            $directory = Join-Path $env:RUNNER_TEMP "codex-profile-auth-$version"
-            New-Item -ItemType Directory -Path $directory | Out-Null
-            $archive = Join-Path $directory 'codex.tgz'
-            $url = "https://registry.npmjs.org/@openai/codex/-/codex-${version}-win32-x64.tgz"
-            Invoke-WebRequest -Uri $url -OutFile $archive
-            $sha512 = (Get-FileHash -LiteralPath $archive -Algorithm SHA512).Hash
-            $integrity = [Convert]::ToBase64String([Convert]::FromHexString($sha512))
-            if ($integrity -cne $checksums[$version]) { throw "Unexpected Codex $version archive checksum" }
-            tar -xzf $archive -C $directory
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            $env:CANOPY_LIVE_CODEX_BIN = Join-Path $directory 'package/vendor/x86_64-pc-windows-msvc/bin/codex.exe'
-            $env:CANOPY_LIVE_CODEX_EXPECT_VERSION = $version
-            Write-Host "Testing Codex $version"
-            bun test ./apps/worker/src/bots/codex-profile-auth.live.test.ts
-            if ($LASTEXITCODE -ne 0) { $failed = $true }
-          }
-          if ($failed) { exit 1 }
-      - name: Codex device login recovery
-        run: bun test ./apps/worker/src/providers/codex/home.test.ts ./apps/worker/src/bots/codex-login.test.ts
-      - name: Default Codex CLI home after upgrade
-        run: bun test ./apps/worker/src/config/user-configuration.test.ts -t "built-in Codex device login"
-      - name: Windows worktree checkout and cleanup
-        if: matrix.target == 'windows-x64'
-        run: bun test ./apps/worker/src/git/failed-worktree-cleanup.test.ts ./tests/integration/worktree-creation-failure.test.ts
-      - uses: actions/download-artifact@v5
-        if: github.event_name == 'pull_request'
-        with:
-          name: native-binaries
-      - name: Open, stat, read and export an image through the pinned native calls
-        if: github.event_name == 'pull_request'
-        shell: bash
-        env:
-          CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
-        run: |
-          binary="./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}"
-          chmod +x "$binary"
-          "$binary" --version
-          "$binary" self-check
-      # A reduced environment once prevented the embedded web from listening on Windows.
-      - name: Embedded web answers with the build version
-        if: github.event_name == 'pull_request' && matrix.target == 'windows-x64'
-        shell: bash
-        env:
-          CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
-          CANOPY_WEB_PORT: "39231"
-        run: |
-          binary="./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}"
-          chmod +x "$binary"
-          expected="$("$binary" --version | tr -d '\r')"
-          CANOPY_UI_SERVICE_TOKEN="ci-$RANDOM-$RANDOM-0123456789abcdef0123456789" "$binary" web &
-          web=$!
-          health=""
-          for _ in $(seq 1 120); do
-            health="$(curl -fsS "http://127.0.0.1:$CANOPY_WEB_PORT/api/health" || true)"
-            [ -n "$health" ] && break
-            sleep 0.5
-          done
-          echo "$health"
-          kill "$web" || true
-          grep -q "\"version\":\"$expected\"" <<<"$health"
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/native-checks.yml
+    with:
+      check-binaries: true
+
+  push-native:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/native-checks.yml
+
+  binary-smoke:
+    needs: builds
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/binary-smoke.yml
 
   artifact-smoke:
-    needs: builds
     if: github.event_name == 'push'
     uses: ./.github/workflows/artifact-smoke.yml
 
   check:
     name: Typecheck, tests, builds
-    needs: [changes, static, clients, tests, builds, native, artifact-smoke]
+    needs: [changes, static, clients, tests, builds, native, push-native, binary-smoke, artifact-smoke]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -350,18 +247,14 @@ jobs:
           TESTS: ${{ needs.tests.result }}
           BUILDS: ${{ needs.builds.result }}
           NATIVE: ${{ needs.native.result }}
-          SMOKE: ${{ needs.artifact-smoke.result }}
+          PUSH_NATIVE: ${{ needs.push-native.result }}
+          BINARY_SMOKE: ${{ needs.binary-smoke.result }}
+          ARTIFACT_SMOKE: ${{ needs.artifact-smoke.result }}
           CLIENTS: ${{ needs.clients.result }}
           SCOPE: ${{ needs.changes.outputs.scope }}
         run: |
           test "$CHANGES" = success
           test "$STATIC" = success
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            test "$SCOPE" = full
-            test "$SMOKE" = success
-          else
-            test "$SMOKE" = skipped
-          fi
           case "$SCOPE" in
             full) expected_full=success; expected_clients=skipped ;;
             clients) expected_full=skipped; expected_clients=success ;;
@@ -371,7 +264,18 @@ jobs:
           test "$CLIENTS" = "$expected_clients"
           test "$TESTS" = "$expected_full"
           test "$BUILDS" = "$expected_full"
-          test "$NATIVE" = "$expected_full"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test "$SCOPE" = full
+            test "$NATIVE" = skipped
+            test "$PUSH_NATIVE" = success
+            test "$BINARY_SMOKE" = success
+            test "$ARTIFACT_SMOKE" = success
+          else
+            test "$NATIVE" = "$expected_full"
+            test "$PUSH_NATIVE" = skipped
+            test "$BINARY_SMOKE" = skipped
+            test "$ARTIFACT_SMOKE" = skipped
+          fi
       - uses: actions/checkout@v5
         if: needs.changes.outputs.scope == 'full'
       - uses: ./.github/actions/setup-bun
