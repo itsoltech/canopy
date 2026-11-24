@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): w prywatnym czacie długie przytrzymanie zapisanej odpowiedzi bota
+otwiera arkusz z reakcjami emoji. Dotknięcie reakcji w arkuszu dodaje ją lub usuwa.
+Własną reakcję można też usunąć pod wiadomością. Pod wiadomościami użytkownika
+telefon pokazuje reakcje bota.
+
 Status (2026-11-24): iOS pokazuje licznik na ikonie przy włączonych powiadomieniach
 systemowych i odświeża go z push w nowym buildzie. Android korzysta z oznaczeń
 launchera dla dostarczonych alertów. [Licznik na ikonie](notifications.md#licznik-na-ikonie)

@@ -208,4 +208,5 @@ export const expectedSchemaMigrations = [
   "211_project_secrets",
   "212_project_image",
   "213_thread_worktree_switch",
+  "214_bot_message_reactions",
 ];

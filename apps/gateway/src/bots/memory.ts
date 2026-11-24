@@ -10,6 +10,10 @@ import { ownerBotInput } from "./owner-turn.ts";
 import type { BotTurn, ModelMessage, ToolSpec } from "./types.ts";
 import type { ToolContext } from "./tools/shared.ts";
 
+export interface BotMemoryAccess extends MemoryAccess {
+  readonly ownerInput: boolean;
+}
+
 /** Only gateway-created queue records describe the source and destination of a turn. */
 export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn: BotTurn) {
   return Effect.gen(function* () {
@@ -44,7 +48,8 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
 
     if (!row) return yield* Effect.fail(new Invalid("Bot turn unavailable"));
 
-    const access: MemoryAccess = {
+    const access: BotMemoryAccess = {
+      ownerInput: row.owner_input,
       ownerId,
       scopes: [],
       canWrite: false,

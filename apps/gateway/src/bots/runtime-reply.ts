@@ -13,12 +13,15 @@ export async function botModelContext(runtime: BotsRuntime, options: BotRuntimeO
 
   const access = await runtime.run((s) => s.memoryAccess(options.userId, turn));
   const tools = await currentBotTools(options, config, turn, access);
-  const isolatedInput = !access.scopes.length;
+  const isolatedInput = !access.scopes.length && !turn.reaction_input;
   const memory = await memoryContext(options.runtime, options.userId, access.scopes, botMemoryQuery(access, turn));
   const guidance = botMemoryGuidance(access, turn);
 
   const saved = isolatedInput ? isolatedBotCheckpoint(turn.checkpoint) : turn.checkpoint;
-  const messages = [...(saved.length ? saved : await runtime.run((s) => s.history(turn, isolatedInput)))];
+
+  const messages = [
+    ...(saved.length ? saved : await runtime.run((s) => s.history(turn, isolatedInput, access.ownerInput))),
+  ];
 
   return { config, tools, isolatedInput, memory, guidance, messages };
 }

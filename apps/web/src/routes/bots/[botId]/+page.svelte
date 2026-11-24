@@ -63,6 +63,7 @@
     return { ...current, approvals: current.approvals.filter((a) => !a.threadId || a.status !== "pending") };
   });
 
+  const reactionError = "Could not save the reaction. Try again.";
   let connection = $state("");
   const expiredNotice = $derived(connection === "This request expired. No answer was sent.");
   let sending = $state(false);
@@ -394,6 +395,22 @@
     }
   }
 
+  async function setReaction(messageId: string, emoji: string, active: boolean) {
+    if (!canAct) return;
+    const view = lifetime;
+
+    try {
+      await requestJson("PUT", `/api/bots/${view.botId}/messages/${encodeURIComponent(messageId)}/reactions`, {
+        emoji,
+        active,
+      });
+
+      if (view.active && connection === reactionError) connection = "";
+    } catch {
+      if (view.active) connection = reactionError;
+    }
+  }
+
   async function interrupt() {
     if (stopping) return;
     stopping = true;
@@ -452,6 +469,7 @@
         composerDisabledReason={home.reason || (!history.live ? "Syncing…" : undefined)}
         loading={!history.snapshot}
         syncing={!history.live}
+        onreact={canAct ? setReaction : undefined}
         onanswer={canAct ? answer : undefined}
         onapprove={canAct ? approve : undefined}
         onpolicy={canAct ? setPolicy : undefined}

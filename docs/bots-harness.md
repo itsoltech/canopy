@@ -4,6 +4,7 @@ Status (2026-11-24): natywne boty Codexa pobierają bieżący login wybranej ins
 przez lokalne RPC app-servera i używają go w pamięci procesu tury. Worker usuwa
 rozpoznane pozostałości po dowiązaniach z katalogów botów, zachowując ich sesje.
 Na Windowsie boty Codexa z długimi ścieżkami używają krótszego katalogu SQLite.
+W prywatnej rozmowie bot może zareagować na wiadomość właściciela przez `react_to_message`.
 
 Status (2026-11-22): Claude, Codex i Grok otrzymują aktualną pamięć bota lub rozmowy również po wznowieniu
 sesji. Tury przekazujące wiadomości między botami mają oddzielne katalogi sesji i ograniczoną historię.
@@ -122,6 +123,16 @@ aktualizacji workera, usuwając ten mylący kontekst z cache harnessu.
 Sekrety połączeń i dane logowania nigdy nie są częścią promptu.
 
 ## Sesja i kontekst
+
+Podczas tury rozpoczętej wiadomością właściciela gateway podaje harnessowi
+identyfikator wiadomości przed jej treścią, także przy dostarczeniu przez steer.
+Odbudowana historia zawiera ten sam identyfikator w polu `message_id` przy
+wiadomości właściciela. Narzędzie `react_to_message` przyjmuje ten identyfikator,
+emoji i opcjonalny stan `active` (domyślnie `true`, przy usuwaniu `false`).
+Bot może w ten sposób krótko potwierdzić odbiór. Zakończenie tury po reakcji
+z pustą odpowiedzią pozostawia w rozmowie samą reakcję. Podczas odbudowy sesji
+pole `bot_reactions` przy wiadomości właściciela zachowuje aktualne reakcje
+bota, także gdy były jego jedyną odpowiedzią.
 
 `RunBotTurn.conversation_id` (17) wybiera katalog izolowanej sesji przez
 capability `bot_conversations_v1`. Dla Slacka zawiera UUID rozmowy, a dla

@@ -12,6 +12,7 @@ import {
   type ParticipantView,
 } from "@canopy/domain/bot-chat";
 import { ApprovalCard } from "./ApprovalCard";
+import type { SetMessageReaction } from "./ChatMessageActions";
 import { ChatBubble } from "./ChatBubble";
 import { ChatDateLine, ChatErrorLine, ChatEventLine, ExchangeLine } from "./ChatRows";
 
@@ -71,12 +72,14 @@ export function ChatRowView({
   readOnly = false,
   onAnswer,
   onReply,
+  onSetReaction,
 }: {
   row: ChatRow;
   approvals: readonly bots.BotApproval[];
   readOnly?: boolean;
   onAnswer?: (request: bots.AnswerBotApprovalRequest) => Promise<bots.AnswerBotApprovalResponse>;
   onReply?: ((message: ChatMessageView) => void) | undefined;
+  onSetReaction?: SetMessageReaction | undefined;
 }) {
   switch (row.kind) {
     case "date":
@@ -128,6 +131,7 @@ export function ChatRowView({
             last={row.last}
             showName={row.showName}
             gutter={false}
+            onSetReaction={readOnly ? undefined : onSetReaction}
             onReply={readOnly ? undefined : onReply}
           />
         </View>

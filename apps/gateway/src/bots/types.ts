@@ -28,6 +28,8 @@ export interface ModelMessage {
   text: string;
   attachments?: readonly import("../store/attachments.ts").StoredAttachment[];
   messageId?: string;
+  ownerMessage?: boolean;
+  botReactions?: readonly string[];
   createdAt?: string;
   calls?: ToolCall[];
   callId?: string;
@@ -86,6 +88,7 @@ export interface BotRow {
 }
 
 export interface BotTurn {
+  reaction_input?: boolean;
   client_request_id: string;
   /** Null for the private owner conversation; external history is scoped to this UUID. */
   conversation_id?: string | null;

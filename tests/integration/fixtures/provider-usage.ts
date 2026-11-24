@@ -2,6 +2,12 @@ import type { JsonObject } from "@canopy/domain";
 
 export const usageReset = 2_000_000_000;
 
+export function usageProbe(text: string): string {
+  const current = text.split("\n\nCurrent input:\n").at(-1) ?? text;
+
+  return current.match(/^(?:Owner message ID: [\da-f-]+\n\n)?(LIMIT:[^\n]+)/)?.[1] ?? "";
+}
+
 export function codexLimits(percent: number): JsonObject {
   return {
     limitId: "codex",
@@ -22,9 +28,9 @@ export async function claudeLimits(
   sessionId: string,
   send: (value: JsonObject) => void,
 ): Promise<boolean> {
-  text = (text.split("\n\nCurrent input:\n").at(-1) ?? text).split("\n")[0] ?? text;
+  text = usageProbe(text);
 
-  if (!text.startsWith("LIMIT:")) return false;
+  if (!text) return false;
   const gate = process.env["USAGE_GATE_URL"];
 
   if (gate) {

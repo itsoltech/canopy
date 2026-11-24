@@ -18,6 +18,7 @@ import { botConfiguration, uuid } from "./store-views.ts";
 import type { BotAccess } from "./store-access.ts";
 import type { botConfig } from "./store-config.ts";
 import { chatSteerTarget } from "./store-chat-steer.ts";
+import { ownerMessagePrompt } from "./mentions.ts";
 
 type BotTurnKey = Pick<BotTurn, "id">;
 
@@ -171,13 +172,18 @@ function botEnqueue(
           yield* sql`UPDATE bot_composer_drafts SET payload=${toBinary(bots.BotComposerDraftSchema, create(bots.BotComposerDraftSchema))}, revision=revision+1
             WHERE bot_id=${botId}::uuid AND owner_user_id=${user}::uuid AND revision=${options.draftRevision}`;
 
+        const messageId = uuid();
+
         if (!options.routineId)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, mentions, quotes, attachments)
-      VALUES (${uuid()}::uuid, ${botId}::uuid, ${turnId}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb, ${JSON.stringify(images.map(storedBotImage))}::jsonb)
+      VALUES (${messageId}::uuid, ${botId}::uuid, ${turnId}::uuid, 'input', ${options.sender ?? "user"}, ${botId}, ${options.event ? "event" : "message"}, ${options.displayText ?? input}, ${options.exchangeId ?? null}::uuid, ${JSON.stringify(checked.map((m) => toJson(MentionSchema, m)))}::jsonb, ${JSON.stringify(quotes)}::jsonb, ${JSON.stringify(images.map(storedBotImage))}::jsonb)
       ON CONFLICT(turn_id, message_key) DO NOTHING`;
         yield* changed(botId);
 
-        return { id: turnId, ...(target && { steer: { ...target, botId, inputId: turnId, text: input } }) };
+        return {
+          id: turnId,
+          ...(target && { steer: { ...target, botId, inputId: turnId, text: ownerMessagePrompt(messageId, input) } }),
+        };
       }),
     );
 }
@@ -202,7 +208,7 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
         yield* fenced(turn);
         const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid FOR UPDATE`)[0]!;
 
-        if (text && !turn.routine_id && !turn.handoff_configuration)
+        if (text.trim() && !turn.reaction_input && !turn.routine_id && !turn.handoff_configuration)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, error_code, error_source)
       VALUES (${uuid()}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, 'answer', ${turn.bot_id}, ${turn.conversation_id ? "channel" : (turn.reply_to_bot_id ?? turn.remote_recipient_ref ?? "user")}, ${status === "completed" ? "message" : "event"}, ${text}, ${turn.exchange_id}::uuid, ${errorCode}, ${errorSource})
       ON CONFLICT(turn_id, message_key) DO NOTHING`;

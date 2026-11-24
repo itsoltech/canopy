@@ -105,7 +105,7 @@
     onretry?: (() => void) | undefined;
     onchangemodel?: (() => void) | undefined;
     onchangeworker?: (() => void) | undefined;
-    onreact?: ((message: ChatMessageView) => void) | undefined;
+    onreact?: ((messageId: string, emoji: string, active: boolean) => void) | undefined;
     onclose?: (() => void) | undefined;
     onattach?: (() => void) | undefined;
     actions?: Snippet;

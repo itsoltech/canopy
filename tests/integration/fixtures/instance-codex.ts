@@ -11,7 +11,7 @@ import { decodeJsonObject, jsonObject } from "../../../apps/worker/src/providers
 import { HttpMcp, httpTools } from "./instance-mcp.ts";
 import { Schema } from "effect";
 import { turnError } from "../../../apps/worker/src/providers/codex/fixtures/provider-errors.ts";
-import { codexLimits } from "./provider-usage.ts";
+import { codexLimits, usageProbe } from "./provider-usage.ts";
 import { instanceCodexLogin } from "./instance-codex-login.ts";
 
 let usagePercent = 20;
@@ -99,9 +99,9 @@ async function turn(
   send({ id, result: { turn: { id: turnId, status: "inProgress", items: [], error: null } } });
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress", items: [], error: null } });
 
-  const limitText = (text.split("\n\nCurrent input:\n").at(-1) ?? text).split("\n")[0] ?? text;
+  const limitText = usageProbe(text);
 
-  if (limitText.startsWith("LIMIT:")) {
+  if (limitText) {
     usagePercent = limitText === "LIMIT:reached" ? 100 : 92;
 
     if (limitText === "LIMIT:read") usagePercent = 75;
@@ -196,11 +196,13 @@ async function turn(
     }
 
     const answer = await botTool(text, botServers.get(threadId), instructions.get(threadId));
-    notify("item/completed", {
-      threadId,
-      turnId,
-      item: { id: `answer-${turnId}`, type: "agentMessage", text: answer },
-    });
+
+    if (!text.split("\n\nCurrent input:\n").at(-1)?.includes("FIXTURE_SILENT_AFTER_TOOL"))
+      notify("item/completed", {
+        threadId,
+        turnId,
+        item: { id: `answer-${turnId}`, type: "agentMessage", text: answer },
+      });
   } else if (text.includes("TOOL:switch_worktree") || text.includes("REPORT_THREAD_CWD")) {
     const workspace = workspaces.get(threadId);
 
@@ -376,7 +378,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     const text = params.input.map((part: { text?: string }) => part.text ?? "").join("\n");
     send({ id, result: { turnId: params.expectedTurnId } });
 
-    if (text === "FIXTURE_UNCONFIRMED_BOT_STEER") continue;
+    if (text.endsWith("FIXTURE_UNCONFIRMED_BOT_STEER")) continue;
     notify("item/completed", {
       threadId: params.threadId,
       turnId: params.expectedTurnId,

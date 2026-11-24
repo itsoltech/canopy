@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { PickerSheet } from "../../ui/Picker";
 import { useCopyText } from "./useCopyText";
 
@@ -10,6 +11,7 @@ export function TextActions({
   onDismiss,
   onEdit,
   onSelectText,
+  header,
 }: {
   text: string;
   visible: boolean;
@@ -19,6 +21,7 @@ export function TextActions({
   onDismiss?: (() => void) | undefined;
   onEdit?: (() => void) | undefined;
   onSelectText?: (() => void) | undefined;
+  header?: ReactNode;
 }) {
   const { copy } = useCopyText(text);
 
@@ -28,6 +31,7 @@ export function TextActions({
       visible={visible}
       onClose={onClose}
       onDismiss={onDismiss}
+      header={header}
       sections={[
         {
           options: [

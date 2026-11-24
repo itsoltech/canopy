@@ -6,6 +6,8 @@ import type { StoredQuote } from "../store/quotes.ts";
 /** Validated at enqueue; keep the original text/ranges in storage and add identity only for the model. */
 export const storedMentions = (value: JsonValue[]): Mention[] => value.map((m) => fromJson(MentionSchema, m));
 
+export const ownerMessagePrompt = (id: string, text: string) => `Owner message ID: ${id}\n\n${text}`;
+
 export function modelInput(text: string, mentions: readonly Mention[], quotes: readonly StoredQuote[]): string {
   const composed = composeQuotes(text, mentions, quotes);
   const quoted = joinNotes(composed.note, composed.message);

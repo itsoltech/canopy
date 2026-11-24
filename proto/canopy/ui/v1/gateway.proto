@@ -223,6 +223,7 @@ service GatewayService {
   rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
   rpc GetBot(GetBotRequest) returns (GetBotResponse);
   rpc SendBotMessage(SendBotMessageRequest) returns (SendBotMessageResponse);
+  rpc SetBotMessageReaction(SetBotMessageReactionRequest) returns (google.protobuf.Empty);
   rpc GetBotDraft(GetBotRequest) returns (BotComposerDraft);
   rpc SaveBotDraft(SaveBotDraftRequest) returns (BotComposerDraft);
   rpc WatchBotConversation(WatchBotConversationRequest) returns (stream BotConversation);

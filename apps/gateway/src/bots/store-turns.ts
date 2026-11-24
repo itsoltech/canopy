@@ -60,7 +60,7 @@ function turnStatus(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, text
       // Background tool and approval activity is projected from the current call, without its arguments.
       const line = turn.routine_id || turn.conversation_id ? background : text;
 
-      if (!turn.handoff_configuration && line !== undefined)
+      if (!turn.reaction_input && !turn.handoff_configuration && line !== undefined)
         yield* sql`UPDATE bots SET status_line = ${line}, revision = revision + 1 WHERE id = ${turn.bot_id}::uuid AND status_line <> ${line}`;
     }),
   );
@@ -111,7 +111,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           yield* routineActivity(sql, turn, "started");
           // A remote side effect may already have happened. Never repeat it after a crash.
           yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;
-          yield* sql`UPDATE bots SET status_line = ${turn.routine_id || turn.handoff_configuration || turn.conversation_id ? "" : "Typing…"}, revision = revision + 1 WHERE id = ${id}::uuid`;
+          yield* sql`UPDATE bots SET status_line = ${turn.reaction_input || turn.routine_id || turn.handoff_configuration || turn.conversation_id ? "" : "Typing…"}, revision = revision + 1 WHERE id = ${id}::uuid`;
 
           return turn;
         }),
@@ -200,7 +200,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
             id: string;
             status: string;
           }>`SELECT id, status FROM bot_turns WHERE bot_id = ${id}::uuid AND handoff_configuration IS NULL AND conversation_id IS NULL
-            AND routine_id IS NULL AND NOT (status = 'completed' AND steer_target_id IS NOT NULL) ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
+            AND routine_id IS NULL AND NOT reaction_input AND NOT (status = 'completed' AND steer_target_id IS NOT NULL) ORDER BY created_at DESC, id DESC LIMIT 1`)[0];
 
           if (last?.status !== "failed")
             return yield* Effect.fail(new Invalid("only a failed last reply can be retried"));

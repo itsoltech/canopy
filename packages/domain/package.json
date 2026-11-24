@@ -167,6 +167,7 @@
     "./import-look": "./src/import-look.ts",
     "./format": "./src/format.ts",
     "./bot-chat": "./src/bot-chat/index.ts",
+    "./bot-reactions": "./src/bot-reactions.ts",
     "./bot-draft": "./src/bot-draft.ts",
     "./questions": "./src/questions.ts",
     "./first-line": "./src/first-line.ts",
