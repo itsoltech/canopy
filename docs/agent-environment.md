@@ -12,6 +12,8 @@ pliki z błędną składnią YAML.
 Aktualizacja (2026-11-23): status wiersza biblioteki uwzględnia raporty
 dotyczące danego skilla, pluginu lub harnessu instrukcji.
 Aktualizacja (2026-11-24): w web/desktop każda biblioteka ma własną zakładkę i podsumowanie.
+Aktualizacja (2026-11-24): natywne ustawienia mają zakładki Instructions, Skills,
+Plugins i Computers, kompaktowe wiersze, menu akcji i tryb zaznaczania skilli.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -36,6 +38,14 @@ oparty o kitowy `Dialog`: na telefonie pełnoekranowy, na większym ekranie moda
 Nagłówek pokazuje postęp, a stała stopka udostępnia Back/Next i końcowe potwierdzenie.
 Puste biblioteki mają przycisk pierwszego dodania; formularze nie pojawiają się
 w treści strony. Puste katalogi nie tworzą disclosures.
+
+W aplikacji iOS i Android każda zakładka ma własne przewijanie. Wiersz biblioteki
+pokazuje nazwę, metadane i stan synchronizacji, a menu zawiera szczegóły przypisań
+oraz akcje takie jak **Check upstream** lub usunięcie. Dotknięcie wiersza
+otwiera edytor albo przegląd pluginu. **Select** pokazuje pola zaznaczenia w
+wierszach skilli i akcje dla wybranych pozycji. Menu biblioteki skilli
+udostępnia instalację wszystkich nieprzypisanych skilli. Podgląd i stan workera
+są w zakładce **Computers**.
 
 Instrukcje przechodzą przez zapis fragmentów, przypisanie i istniejący podgląd
 wyniku dla komputera. Skill zaczyna się od wyboru źródła: folder/ZIP, repozytorium Git,

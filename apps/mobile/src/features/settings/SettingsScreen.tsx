@@ -71,6 +71,25 @@ export default function SettingsScreen() {
 
   if (section === "open-source-licenses") return <LicenseList />;
 
+  const notices = (
+    <>
+      {device.error ? <Notice error>{device.error}</Notice> : null}
+      {settings.error && section !== "appearance" ? (
+        <View style={{ gap: 8 }}>
+          <Notice error>{settings.error}</Notice>
+          <Button title="Retry settings" onPress={() => void settings.reload()} />
+        </View>
+      ) : null}
+    </>
+  );
+
+  if (section === "agent-environment")
+    return (
+      <SettingsDensity.Provider value={true}>
+        <AgentEnvironmentSettings position={position} notices={notices} />
+      </SettingsDensity.Provider>
+    );
+
   return (
     <SettingsDensity.Provider value={true}>
       <SettingsScroll
@@ -81,13 +100,7 @@ export default function SettingsScreen() {
         style={{ flex: 1, minWidth: 0 }}
         contentContainerStyle={{ maxWidth: 1024, gap: 20 }}
       >
-        {device.error ? <Notice error>{device.error}</Notice> : null}
-        {settings.error && section !== "appearance" ? (
-          <View style={{ gap: 8 }}>
-            <Notice error>{settings.error}</Notice>
-            <Button title="Retry settings" onPress={() => void settings.reload()} />
-          </View>
-        ) : null}
+        {notices}
         <SkeletonScope
           loading={!settings.user && !settings.error && ["general", "threads", "text-generation"].includes(section)}
         >
@@ -120,7 +133,6 @@ export default function SettingsScreen() {
           {section === "connectors" && <ConnectorSettings />}
           {section === "github" && <GitHubSettings />}
           {section === "providers" && <ProviderSettings />}
-          {section === "agent-environment" && <AgentEnvironmentSettings />}
           {section === "import" && <ImportSettings />}
           {section === "projects" && <ProjectSettings />}
           {section === "schedules" && <ScheduleSettings />}

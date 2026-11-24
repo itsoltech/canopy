@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): Agent environment ma cztery zakładki i kompaktowe wiersze biblioteki.
+Każda zakładka zachowuje pozycję przewinięcia podczas korzystania z ustawień.
+
 Status (2026-11-24): Create bot zaczyna się od nazwy i modelu, pokazuje wielowierszowe
 instrukcje oraz zachowuje przycisk utworzenia pod przewijaną treścią.
 Opcje workera, wygląd i uprawnienia są w rozwijanych sekcjach.
@@ -2452,7 +2455,11 @@ trasy z historii. Back Androida w skanerze wraca najpierw do wypełnionego formu
 Settings używa rejestru sekcji web, z General, Keybindings, Diffs, Agent environment,
 Proxies, Network access i Linked computers na obsługującym je gatewayu.
 Od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje
-bezpośrednio przez owner-scoped GatewayService. Formularze obejmują projekty/workspace'y,
+bezpośrednio przez owner-scoped GatewayService. Agent environment ma zakładki **Instructions**,
+**Skills**, **Plugins** i **Computers** widoczne podczas przewijania. Dotknięcie wiersza
+otwiera edycję lub przegląd. Menu wiersza pokazuje szczegóły przypisań i dodatkowe
+czynności. **Select** w zakładce **Skills** włącza zaznaczanie skilli do wspólnej
+instalacji lub usunięcia. Formularze obejmują projekty/workspace'y,
 harmonogramy, polityki worktree, instrukcje/skille/pluginy, instancje dostawców, proxy,
 konektory, workery, urządzenia i połączone komputery. Zapis używa wersji/revizji gatewaya;
 po konflikcie odświeża dane i zachowuje szkic do poprawienia. Sekrety połączeń pozostają

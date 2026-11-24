@@ -66,6 +66,7 @@ export function EnvironmentPreview({
     <SettingsGroup title="Live preview" description={draft ? "Unsaved draft" : "Saved library"}>
       <SettingChoice
         title="Agent file"
+        compact
         value={harness}
         onChange={setHarness}
         options={[
@@ -75,6 +76,7 @@ export function EnvironmentPreview({
       />
       <SettingChoice
         title="Destination"
+        compact
         value={destination}
         onChange={setDestination}
         options={[
