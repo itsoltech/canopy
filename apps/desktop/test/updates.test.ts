@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { load } from "js-yaml";
+import { MacUpdater } from "electron-updater/out/MacUpdater.js";
+import { parseUpdateInfo, resolveFiles } from "electron-updater/out/providers/Provider.js";
 import { tempDir } from "@canopy/testing";
 import { newestRelease, releaseNotes, type DesktopRelease } from "../src/update-releases.ts";
 import { mergeDesktopUpdates } from "../scripts/merge-update-metadata.ts";
@@ -76,15 +77,42 @@ test("mac update metadata preserves both runner architectures and rejects mismat
   const output = join(directory, "assets");
   await mergeDesktopUpdates(source, output, "beta", "0.3.0-beta.1");
   expect(existsSync(join(output, "package-sizes-darwin-arm64.json"))).toBe(false);
-  const feed = load(readFileSync(join(output, "beta-mac.yml"), "utf8")) as { files: { url: string }[] };
-  expect(feed.files.map((file) => file.url).sort()).toEqual([
-    "Canopy-0.3.0-beta.1-darwin-arm64.zip",
-    "Canopy-0.3.0-beta.1-darwin-x64.zip",
-  ]);
+  const metadata = join(output, "beta-mac.yml");
+  const url = new URL("https://github.com/itsoltech/canopy/releases/download/v0.3.0-beta.1/beta-mac.yml");
+  const feed = parseUpdateInfo(readFileSync(metadata, "utf8"), "beta-mac.yml", url);
+  const files = resolveFiles(feed, url);
+
+  class MacFeed extends MacUpdater {
+    static filesForArch = this.filterFilesForArch;
+  }
+
+  for (const arch of ["x64", "arm64"]) {
+    const matches = MacFeed.filesForArch(files, arch === "arm64");
+    const name = `Canopy-0.3.0-beta.1-darwin-${arch}.zip`;
+    const sha512 = createHash("sha512").update(`fixture ${arch}`).digest("base64");
+    expect(matches).toEqual([{ url: new URL(name, url), info: { url: name, sha512 } }]);
+  }
+
   expect(existsSync(join(output, "nightly-mac.yml"))).toBe(false);
   await expect(
     mergeDesktopUpdates(source, join(directory, "wrong-channel"), "nightly", "0.3.0-beta.1"),
   ).rejects.toThrow("Unexpected");
+  const intel = join(source, "desktop-darwin-x64");
+  const zip = "Canopy-0.3.0-beta.1-darwin-x64.zip";
+  const intelFeed = join(intel, "beta-mac.yml");
+  const metadataWithZip = readFileSync(intelFeed, "utf8");
+  unlinkSync(intelFeed);
+  await expect(mergeDesktopUpdates(source, join(directory, "missing-feed"), "beta", "0.3.0-beta.1")).rejects.toThrow(
+    `Missing ZIP in beta-mac.yml: ${zip}`,
+  );
+  const dmg = zip.replace(".zip", ".dmg");
+  writeFileSync(join(intel, dmg), readFileSync(join(intel, zip)));
+  writeFileSync(intelFeed, metadataWithZip.replaceAll(zip, dmg));
+  await expect(mergeDesktopUpdates(source, join(directory, "dmg-only"), "beta", "0.3.0-beta.1")).rejects.toThrow(
+    `Missing ZIP in beta-mac.yml: ${zip}`,
+  );
+
+  writeFileSync(intelFeed, metadataWithZip);
   const arm = join(source, "desktop-darwin-arm64", "Canopy-0.3.0-beta.1-darwin-arm64.zip");
   writeFileSync(arm, "corrupt download");
   await expect(mergeDesktopUpdates(source, join(directory, "corrupt"), "beta", "0.3.0-beta.1")).rejects.toThrow(

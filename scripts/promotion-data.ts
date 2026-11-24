@@ -238,7 +238,9 @@ export function describeFailedRelease(repo: string, run: ReleaseAttempt, adapter
   return [`See ${attempt}.`, ...required, ...optional].join(" ");
 }
 
-function successfulSmoke(jobs: JsonObject[]): boolean {
+// Historical Release runs contained these four smoke jobs. New releases, including Intel,
+// require the exact revision's full Push CI in the Verified CI job.
+function successfulLegacySmoke(jobs: JsonObject[]): boolean {
   return ["linux-x64", "linux-arm64", "darwin-arm64", "windows-x64"].every((target) =>
     jobs.some((job) => string(job["name"]).startsWith(`smoke (${target},`) && job["conclusion"] === "success"),
   );
@@ -260,7 +262,7 @@ function recoveryPublished(repo: string, run: JsonObject, adapters: PromotionAda
   // A reserved tag/artifact alone is not publication. A no-release rerun can be green with skipped jobs.
   return (
     ci?.["conclusion"] === "success" &&
-    (ci["name"] === verifiedCi || successfulSmoke(jobs)) &&
+    (ci["name"] === verifiedCi || successfulLegacySmoke(jobs)) &&
     ["release", "publish-desktop"].every((name) =>
       jobs.some((job) => job["name"] === name && job["conclusion"] === "success"),
     )
@@ -398,7 +400,7 @@ export async function loadPromotion(
           latest["conclusion"] === "success" &&
           (latest["event"] === "workflow_dispatch"
             ? !!release && recoveryPublished(repo, latest, adapters)
-            : !!release || successfulSmoke(releaseJobs(repo, latest, adapters)))),
+            : !!release || successfulLegacySmoke(releaseJobs(repo, latest, adapters)))),
     });
 
     if (release) commit.release = release;

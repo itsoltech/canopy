@@ -38,8 +38,8 @@
   } = $props();
 
   let method = $state("script");
-  let os = $state("linux");
-  let arch = $state("x64");
+  let os = $state<"linux" | "darwin">("linux");
+  const architectures = $state({ linux: "x64", darwin: "arm64" });
   let dockerMode = $state("run");
   let origin = $state("");
   let metadata = $state<{ version: string; downloadUrl: string; fallback: boolean }>();
@@ -50,7 +50,7 @@
     origin = window.location.origin;
   });
 
-  const targetArch = $derived(os === "darwin" ? "arm64" : arch);
+  const targetArch = $derived(architectures[os]);
   const asset = $derived(`canopy-worker-${os}-${targetArch}`);
 
   const tag = $derived(
@@ -150,17 +150,22 @@
               { value: "darwin", label: "macOS" },
             ]}
           />
-          {#if os === "linux"}<SegmentedChoice
-              label="Architecture"
-              bind:value={arch}
-              options={[
-                { value: "x64", label: "x64" },
-                { value: "arm64", label: "arm64" },
-              ]}
-            />{/if}
+          <SegmentedChoice
+            label="Architecture"
+            bind:value={architectures[os]}
+            options={os === "darwin"
+              ? [
+                  { value: "arm64", label: "Apple silicon" },
+                  { value: "x64", label: "Intel" },
+                ]
+              : [
+                  { value: "x64", label: "x64" },
+                  { value: "arm64", label: "arm64" },
+                ]}
+          />
         </div>
         {#if os === "darwin"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-            macOS requires Apple Silicon (arm64) and a logged-in user session for the LaunchAgent.
+            Sign in to macOS before starting the worker service.
           </p>{/if}
         {#if metadataError}<Alert tone="warning"
             >{metadataError}{#snippet actions()}<Button size="sm" onclick={() => retry++}>Retry release lookup</Button

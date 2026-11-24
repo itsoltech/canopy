@@ -1,5 +1,7 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-24): instalator i parowanie przez SSH obsługują workery na macOS z procesorem Intel.
+
 Aktualizacja (2026-11-24): w web/desktop wiersz workera otwiera jego ustawienia z podziałem na zakładki.
 
 Aktualizacja (2026-11-23) włącza **Use CLI home** domyślnie dla wbudowanej instancji `codex/native` z logowaniem urządzenia na Windowsie, macOS i Linuksie.
@@ -122,7 +124,7 @@ wybranego workera do tej sekcji.
 2. Wybierz **Install script**, **Docker**, **Manual** albo **Over SSH**.
    Domyślny skrypt pobiera zweryfikowaną binarkę dokładnej wersji gatewaya, rejestruje
    worker i uruchamia usługę użytkownika. Nie wymaga Bun, Git ani źródeł Canopy.
-   Obsługuje Linux x64/arm64 oraz macOS arm64. Dla buildów bez wydania kreator pokazuje
+   Obsługuje Linux x64/arm64 oraz macOS x64/arm64. Dla buildów bez wydania kreator pokazuje
    jawny fallback do wydania GitHub z kanału gatewaya; zgodność może wymagać aktualizacji gatewaya.
 3. Wybierz **Check connection**. Kreator pokazuje status z istniejącego overview stream,
    wykryte wersje CLI oraz czas ważności tokenu. **Generate new token** odwołuje poprzedni

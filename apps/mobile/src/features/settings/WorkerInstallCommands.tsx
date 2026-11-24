@@ -61,7 +61,8 @@ export function WorkerInstallCommands({
           options={[
             { value: "linux/x64", label: "Linux x64" },
             { value: "linux/arm64", label: "Linux arm64" },
-            { value: "darwin/arm64", label: "macOS Apple Silicon" },
+            { value: "darwin/arm64", label: "macOS Apple silicon" },
+            { value: "darwin/x64", label: "macOS Intel" },
           ]}
         />
       )}

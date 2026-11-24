@@ -20,6 +20,7 @@ jobs:
           - { target: linux-x64, runner: ubuntu-24.04 }
           - { target: linux-arm64, runner: ubuntu-24.04-arm }
           - { target: darwin-arm64, runner: macos-15 }
+          - { target: darwin-x64, runner: macos-15-intel }
           - { target: windows-x64, runner: windows-2025, suffix: .exe }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
@@ -214,6 +215,7 @@ jobs:
         include:
           - { target: linux-x64, runner: ubuntu-24.04, resources: linux-unpacked/resources }
           - { target: darwin-arm64, runner: macos-26, resources: mac-arm64/canopy.app/Contents/Resources }
+          - { target: darwin-x64, runner: macos-26-intel, resources: mac/canopy.app/Contents/Resources }
           - { target: windows-x64, runner: windows-2025 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -277,6 +279,7 @@ jobs:
           - { target: linux-x64, runner: ubuntu-24.04 }
           # actool needs macOS 26 for the release icons. Test the packaged runtime on macOS 15.
           - { target: darwin-arm64, runner: macos-15 }
+          - { target: darwin-x64, runner: macos-15-intel }
           - { target: windows-x64, runner: windows-2025 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30

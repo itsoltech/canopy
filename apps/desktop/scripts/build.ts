@@ -34,7 +34,7 @@ function isJsonObject(value: JsonValue | undefined): value is JsonObject {
 const root = resolve(import.meta.dir, "../../..");
 const desktop = join(root, "apps/desktop");
 const target = process.env["CANOPY_TARGET"] ?? `${process.platform}-${process.arch}`;
-const supported = ["linux-x64", "linux-arm64", "darwin-arm64", "win32-x64"];
+const supported = ["linux-x64", "linux-arm64", "darwin-arm64", "darwin-x64", "win32-x64"];
 
 if (!supported.includes(target)) throw new Error(`Unsupported desktop target: ${target}`);
 

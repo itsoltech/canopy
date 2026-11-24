@@ -78,8 +78,8 @@ for (const application of applications) {
   );
 
   for (const binary of machOFiles(application))
-    if (machOArchitectures(binary).join() !== "arm64")
-      throw new Error(`macOS app contains a non-arm64 Mach-O: ${binary}`);
+    if (machOArchitectures(binary).join() !== process.arch)
+      throw new Error(`macOS app contains a non-${process.arch} Mach-O: ${binary}`);
   execFileSync("codesign", ["--verify", "--deep", "--strict", "--verbose=2", application], { stdio: "inherit" });
   verifyJit(application);
   const binaries = machOFiles(join(application, "Contents/Resources/runtime"));

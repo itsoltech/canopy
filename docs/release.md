@@ -1,7 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
-Nightly, beta i stable wymagają jego sukcesu przed buildem, tagowaniem, podpisywaniem i publikacją.
+Desktop, gateway i worker mają osobne cele wydania dla macOS Intel i Apple Silicon.
+Nightly, beta i stable wymagają sukcesu Push CI przed buildem, tagowaniem, podpisywaniem i publikacją.
 Buildy publikują wykazy licencji zależności. Automat sprawdza promocje co godzinę.
 Po okresie obserwacji publicznej bety raport promocji do stable wskazuje nieudany Release dla jej SHA i zadania, które zawiodły.
 Web, Desktop i mobile używają ikony danego wydania. Lokalny Dev ma własny niebieski wariant.
@@ -10,7 +11,7 @@ pod drzewem widać także gradient na całą szerokość nagłówka.
 Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
 wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
-Pakowanie macOS i test natywny CI kompilują ikony na `macos-26`.
+Pakowanie macOS i test natywny CI kompilują ikony na `macos-26` lub `macos-26-intel`, zgodnie z architekturą aplikacji.
 GitHub Pages udostępnia film demonstracyjny Canopy w formatach 16:9 i 4:5 oraz kadry startowe obu wersji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
 Pakowanie Desktop i generowanie fingerprintu Expo używają poprawionego `minimatch`.
@@ -219,8 +220,9 @@ Resolver dopuszcza ten sam commit lub jego potomka. Niższy SemVer jest możliwy
 przejściu z Nightly do Beta, gdy beta zawiera kod uruchomionego buildu. Manifest nadal oznacza instalatory
 `app: desktop`; feedy/blockmapy są w checksumach. ZIP i blockmapy macOS pozostają
 wymagane; niepodpisane/ad-hoc macOS nie emituje feedu.
-macOS: tylko Apple Silicon (arm64);
-wersji Intel (darwin-x64) nie budujemy — ani desktopu, ani binarek gatewaya/workera.
+Na macOS każda architektura ma własny DMG, ZIP oraz binaria gatewaya i workera.
+Dla Maca z Intelem wybierz `darwin-x64`, a dla Apple Silicon `darwin-arm64`.
+Dostępność w danej wersji określa lista plików jej GitHub Release.
 
 ### Ikony kanałów
 
@@ -318,7 +320,7 @@ z zakresem wybranym według zmienionych plików. W pełnym przebiegu działają 
 
 Push CI uruchamia też `artifact-smoke.yml` dla tego samego SHA.
 
-- **Binaria.** Na linux-x64, linux-arm64, darwin-arm64 i windows-x64 smoke sprawdza `--version`
+- **Binaria.** Na linux-x64, linux-arm64, darwin-arm64, darwin-x64 i windows-x64 smoke sprawdza `--version`
   gatewaya i workera, eksport obrazu w `canopy-worker self-check` i wersję zwracaną przez
   `/api/health` wbudowanego web. System przydziela wolny port na `127.0.0.1`.
   Na linux-x64 test uruchamia również cały gateway z supervisorem i PostgreSQL.
@@ -371,7 +373,7 @@ Nowy push do PR anuluje jego poprzedni przebieg, łącznie z shardami. Przebiegi
 po pushu na chronioną gałąź są niezależne. Bun, cache pakietów i zamrożoną instalację
 zapewnia wspólna akcja `.github/actions/setup-bun`.
 
-W pełnym CI PR-a job `builds` kompiluje też workera na darwin-arm64 i windows-x64, a `native` uruchamia
+W pełnym CI PR-a job `builds` kompiluje też workera na darwin-arm64, darwin-x64 i windows-x64, a `native` uruchamia
 `canopy-worker self-check` na macOS i Windows. Eksport obrazów woła natywne API każdego
 systemu przez `bun:ffi` (otwarcie, metadane, odczyt, ścieżka, zamknięcie), więc tylko binarka
 na danym systemie to sprawdza; testy na Linuksie tego nie wykryją.
@@ -709,12 +711,13 @@ zielonym Release; nie pobiera instalatorów ani feedów desktopu z GitHuba. Opcj
 desktopu pominięto: nowy przepływ usuwa stan „publiczny release bez feedu”, a zmiana trwałego
 harmonogramu sprawdzeń wymagałaby osobnej polityki.
 
-**Cele desktopu.** linux-x64, darwin-arm64 i windows-x64 są pełnymi, wymaganymi celami
+**Cele desktopu.** linux-x64, darwin-arm64, darwin-x64 i windows-x64 są pełnymi, wymaganymi celami
 nightly, beta i stable. Tylko linux-arm64 pozostaje eksperymentalny (`continue-on-error`):
 buduje go beta i stable, a nightly tylko przy ręcznym dispatchu z `desktop_all_targets: true`
 (dispatch wymaga `expected_sha` z historii gałęzi i wydaje tylko, gdy są niewydane commity).
-Dla darwin-arm64 pakowanie działa na `macos-26`, gdzie `actool` ma systemowe frameworki
-potrzebne do kompilacji ikon. Release buduje runtime dla macOS na `macos-15`.
+Workflow buduje runtime na `macos-15` (Apple Silicon) i `macos-15-intel` (Intel).
+Pakuje aplikacje odpowiednio na `macos-26` i `macos-26-intel`, gdzie `actool` ma frameworki potrzebne do kompilacji ikon.
+Przy wznawianiu wydania lista wymaganych architektur macOS pochodzi z konfiguracji Desktop w wydawanej rewizji.
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
 pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
@@ -757,7 +760,7 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
   przy tym samym numerze porównuje próbę: późniejsze ponowienie starszego pushu nie zastępuje recovery.
 - **Notaryzacja macOS zawiodła** (timeout Apple, odrzucenie, wygasła umowa/klucz): release pozostaje
   draftem, wszystkie updatery i aliasy obrazów zostają na poprzedniej wersji.
-  Sprawdź log `desktop (darwin-arm64)` (status zgłoszenia `notarytool`,
+  Sprawdź log zadania `desktop` dla odpowiedniej architektury (status zgłoszenia `notarytool`,
   ważność sekretów i umów Apple), napraw przyczynę i użyj **Re-run failed jobs** — ponowi pakowanie macOS z zachowanego runtime
   i powtórzy `publish-desktop`, który dopisze assety mac, przeliczy feedy, sumy i manifest,
   zweryfikuje cały zestaw i opublikuje draft.
@@ -880,7 +883,7 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 
 ### Pierwszy przebieg CI na macOS
 
-1. Na runnerze Apple Silicon sprawdź liczbę runtime Mach-O w logu,
+1. Na runnerach Intel i Apple Silicon sprawdź liczbę runtime Mach-O w logu,
    użycie Developer ID Application, powodzenie notaryzacji/staplingu oraz krok
    `Verify macOS signatures and notarization`. Ich błąd blokuje publikację całego release,
    przesunięcie aliasów obrazów i promocję; binaria pozostają na drafcie.
@@ -891,8 +894,7 @@ dialogu na każdej wersji macOS. Szczegółowa tabela i lokalne obejście:
 3. Potwierdź jedną `Canopy.app`, `app.canopy.desktop`, wspólne userData i `canopy://`.
    Przełącz stable → beta → nightly i sprawdź wersję/kanał buildu po restarcie.
    Stare Canopy Beta/Nightly, w tym 0.2.0-nightly.2, zastąp ręcznie; zachowaj ich dane.
-4. W release sprawdź wymagane aliasy `*-mac.yml`: każdy musi wymieniać ZIP arm64
-   (po dodaniu x64 także ZIP tej architektury).
+4. Sprawdź, czy każdy wymagany feed `*-mac.yml` wymienia oba ZIP-y, arm64 i x64.
    Feedy i blockmapy są uploadowane przed końcowym `manifest.json`; prerelease muszą
    pozostać oznaczone jako prerelease. Stary klient bez updatera wymaga instalacji ręcznej.
 5. Sprawdź pobieranie, postęp, „Restart to update”, czysty shutdown i zachowanie danych.
@@ -906,17 +908,17 @@ nie da się potwierdzić na Linuxie; walidacja konfiguracji buildera tego nie za
 
 Po zmianie układu runtime i pobieraniu PostgreSQL sprawdź dodatkowo:
 
-1. `package-sizes-darwin-arm64.json`, brak `app.asar.unpacked` i node_modules w asar,
-   jeden Bun, brak PG/CLI w app, same arm64 Mach-O. Framework Electron zostaje.
+1. Sprawdź raport `package-sizes-darwin-<arch>.json` obu paczek, brak `app.asar.unpacked` i node_modules w asar,
+   jeden Bun, brak PG/CLI w app i zgodność architektury Mach-O z paczką. Framework Electron zostaje.
    W CI po pushu test spakowanego runtime pobiera prawdziwy pakiet PG z lokalnego rejestru
    HTTP. Pakiet jest weryfikowany, odchudzany, podpisywany
    ad-hoc i używany do rzeczywistego enrollment/startu/stopu i recovery bazy.
-2. Na czystym Apple Silicon **bez Xcode/CLT** pobierz notarized dmg/zip w przeglądarce
+2. Na czystych Macach Intel i Apple Silicon **bez Xcode/CLT** pobierz notarized dmg/zip w przeglądarce
    z quarantine i uruchom normalnie z Findera. Pierwszy local ma pokazać postęp,
    pobrać przypięty npm PG i uruchomić usługi bez obchodzenia Gatekeepera. Nie używaj
    `xattr -d`, wyłączania zabezpieczeń ani ręcznych podpisów. Zapisz ewentualny błąd
    polityki; test pod Bun w terminalu CI nie rozstrzyga śledzenia pochodzenia plików.
-3. W cache PG potwierdź względne symlinki ICU zamiast trzech kopii, jeden slice arm64,
+3. W cache PG potwierdź względne symlinki ICU zamiast trzech kopii, jeden slice zgodny z CPU,
    `codesign --verify --strict` wszystkich Mach-O oraz `postgres --version`.
    Zmierz osobno rozmiar app, instalatora i cache PG; oszacowania z Linuxa nie są
    pomiarem macOS. Wyłącz sieć: ponowny lokalny start ma działać z cache.
@@ -1183,7 +1185,7 @@ do pushu, nie do usuwania). Bez tego job zgłasza `GHCR canopy-…: no access to
   i połącz je z repozytorium (etykieta `org.opencontainers.image.source` robi to automatycznie).
   W *Manage Actions access* nadaj repozytorium rolę **Admin** (retencja nightly usuwa wersje,
   [Retencja nightly](#retencja-nightly)).
-  Runnery `ubuntu-24.04-arm`, `macos-15`, `macos-26` i `windows-2025` muszą być dostępne.
+  Runnery `ubuntu-24.04-arm`, `macos-15`, `macos-15-intel`, `macos-26`, `macos-26-intel` i `windows-2025` muszą być dostępne.
 - Pages: w *Settings → Pages* ustaw źródło **GitHub Actions** (workflow `pages.yml`).
 - GitHub „immutable releases” pozostaw wyłączone ze względu na retencję nightly, która usuwa
   stare wydania i zachowuje tagi. Upload kończy się przed publikacją; ponowienia nie zmieniają

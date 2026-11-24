@@ -12,8 +12,10 @@ if (!existsSync(stamp) || JSON.parse(readFileSync(stamp, "utf8")).channel !== id
   await import("./build-shell.ts");
 }
 
-if (!["linux-x64", "linux-arm64", "darwin-arm64", "win32-x64"].includes(`${process.platform}-${process.arch}`))
-  throw new Error("Unsupported packaging host");
+const host = `${process.platform}-${process.arch}`;
+
+if (!["linux-x64", "linux-arm64", "darwin-arm64", "darwin-x64", "win32-x64"].includes(host))
+  throw new Error(`Unsupported packaging host: ${host}`);
 
 const platform = process.platform === "linux" ? "--linux" : process.platform === "darwin" ? "--mac" : "--win";
 const extra = process.argv.slice(2);

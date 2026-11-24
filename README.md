@@ -57,7 +57,7 @@ Choose where you want your agents to work.
 
 ### Desktop app
 
-1. Download and run the installer for **macOS (Apple Silicon)**, **Linux x64**, or **Windows x64**. [Latest stable release](https://github.com/itsoltech/canopy/releases/latest) · [All releases](https://github.com/itsoltech/canopy/releases)
+1. Download and run the installer for **macOS**, **Linux x64**, or **Windows x64**. On macOS, choose `darwin-arm64.dmg` for Apple Silicon or `darwin-x64.dmg` for Intel. Older releases only include the Apple Silicon DMG. [Latest stable release](https://github.com/itsoltech/canopy/releases/latest) · [All releases](https://github.com/itsoltech/canopy/releases)
 2. Open Canopy. Choose **Local** to start a gateway and worker on this computer. Choose **Remote** and use a desktop invitation to pair with an existing gateway. [Desktop pairing](docs/desktop-remote-frontend.md#parowanie-i-bezpieczeństwo)
 3. Install your agent CLI separately on the machine that runs the agent. Sign in or configure a compatible model endpoint. Then add a project and start a thread. [Agent CLI setup](docs/provider-cli.md) · [Provider configuration](docs/worker-config.md#8-profile-dostawców)
 
