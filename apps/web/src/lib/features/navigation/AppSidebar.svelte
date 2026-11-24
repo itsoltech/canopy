@@ -7,7 +7,7 @@
   import { botList } from "#lib/features/bots/bot-list.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { isSettingsRoute } from "#lib/features/settings/settings-route.ts";
-  import { needsYou, unseenResult, workingTreeCount } from "#lib/features/threads/activity.ts";
+  import { needsYou, workingTreeCount } from "#lib/features/threads/activity.ts";
   import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
   import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
   import { sidebarIdentity } from "@canopy/ui/sidebar-art";
@@ -67,13 +67,11 @@
     return () => clearTimeout(timer);
   });
 
-  const threadsAttention = $derived.by(() => {
-    const threads = [...overview.threads.values()].filter(
-      (thread) => !isThreadSnoozed(thread, (id) => overview.threads.get(id)),
-    );
-
-    return threads.some(needsYou) ? "needs" : threads.some((t) => unseenResult(t) !== undefined) ? "unseen" : undefined;
-  });
+  const threadsAttention = $derived(
+    [...overview.threads.values()].some(
+      (thread) => needsYou(thread) && !isThreadSnoozed(thread, (id) => overview.threads.get(id)),
+    ),
+  );
 
   // Turns running right now, one per thread tree; snoozed trees stay quiet here as in the list.
   const threadsWorking = $derived(
@@ -92,9 +90,7 @@
   const botsWorking = $derived(liveBots.filter((bot) => botList.executing(bot.id)).length);
 
   const botsAttention = $derived(
-    liveBots.some((bot) => bot.pendingApproval && !overview.threadSnoozed(bot.pendingApproval.threadId))
-      ? "needs"
-      : undefined,
+    liveBots.some((bot) => bot.pendingApproval && !overview.threadSnoozed(bot.pendingApproval.threadId)),
   );
 
   const workerCount = $derived(overview.workers.length);
@@ -135,7 +131,7 @@
       {#if settings.enabledModules.length > 1 && (capabilities?.supports("/bots") ?? true)}<SectionSwitch
           sections={settings.enabledModules}
           active={section}
-          attention={{ threads: threadsAttention, bots: botsAttention }}
+          needsAttention={{ threads: threadsAttention, bots: botsAttention }}
           counts={{ bots: botsUnread }}
           working={{ threads: threadsWorking, bots: botsWorking }}
           class="sidebar-foreground sidebar-gutter pb-2"
