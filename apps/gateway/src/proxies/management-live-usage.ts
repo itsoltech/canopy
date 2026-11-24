@@ -69,6 +69,7 @@ function usageWindows(usage: typeof Usage.Type, now: number): ProviderUsageWindo
         usedPercent: used,
         resetsAt: resetAt === undefined ? undefined : timestampFromDate(new Date(resetAt)),
         reached: used >= 100,
+        observedAt: timestampFromDate(new Date(now)),
       }),
     );
   }

@@ -4,8 +4,10 @@ import type { SettingsState } from "#lib/features/settings/settings-state.svelte
 import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
+import { sharedProxies } from "#lib/features/proxies/proxies.ts";
 import { botEvent, botNotice, botSeen, type BotSeen } from "./bot-notices.ts";
-import { connectNativeClicks, deliver } from "./deliver.ts";
+import { ClaudeResets } from "./claude-resets.ts";
+import { connectNativeClicks, deliver, deliverClaudeReset } from "./deliver.ts";
 import { trackViewing } from "./notice-claims.ts";
 import { connectNotificationSound } from "./notification-sound.ts";
 import { notificationEvent, threadNotice } from "./thread-notices.ts";
@@ -43,8 +45,26 @@ export function watchNotifications(
   });
 
   let known: ReadonlyMap<string, BotSeen> | undefined;
+  let claudeResets = new ClaudeResets();
+  let resyncs = overview.resyncs;
+  const proxies = sharedProxies();
+
+  const claudeEnabled = () =>
+    overview.connection === "live" && devicePreferences.values.claudeLimitResetNotifications === "on";
 
   const offList = $effect.root(() => {
+    $effect(() => {
+      if (!claudeEnabled() || resyncs !== overview.resyncs) {
+        claudeResets = new ClaudeResets();
+        resyncs = overview.resyncs;
+      }
+
+      if (!claudeEnabled()) return;
+
+      for (const { key, label } of claudeResets.observe(overview.workers, proxies.data?.proxies ?? []))
+        void untrack(() => deliverClaudeReset(key, label, claudeEnabled));
+    });
+
     $effect(() => {
       if (settings.loaded && settings.moduleEnabled("bots")) return untrack(() => botList.use());
     });

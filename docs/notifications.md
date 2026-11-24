@@ -1,4 +1,7 @@
-# Powiadomienia wątków i botów
+# Powiadomienia
+
+Aktualizacja (2026-11-24): web/desktop ma przełącznik powiadomień o odnowieniu
+wyczerpanego limitu Claude, z odczytów bezpośrednich i CLIProxyAPI.
 
 Aktualizacja (2026-11-24): aplikacja iOS i Android usuwa z systemu powiadomienia
 o przeczytanych wynikach wątków i zamkniętych prośbach.
@@ -22,8 +25,8 @@ rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz więk
 statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
-Web i desktop pokazują alerty systemowe o wątkach i botach, gdy otwarte jest okno
-Canopy. Na telefonie push działa także poza otwartą aplikacją.
+Web i desktop pokazują alerty systemowe o wątkach, botach i limitach Claude,
+gdy otwarte jest okno Canopy. Na telefonie push działa także poza otwartą aplikacją.
 Kod: `apps/web/src/lib/features/notifications`, `apps/desktop/src/notifications.ts`,
 `apps/gateway/src/store/thread-notice.ts`, `packages/domain/src/notice-preview.ts`.
 
@@ -88,6 +91,17 @@ z zapisanej rozmowy.
   wiadomości nie cofa znanego stanu.
 - Wiadomość bota już przeczytana na innym urządzeniu (`unread_count = 0`) nie
   pokazuje alertu. Okno, które ją wyświetla, nadal gra dźwięk.
+- **Claude** powiadamia po świeżym odczycie, który potwierdza odnowienie
+  wcześniej wyczerpanego okna. Canopy musi widzieć wyczerpanie przed zgłoszonym
+  terminem resetu. Po terminie oczekuje późniejszego okna z dostępnym limitem
+  albo jawnego zera bez daty dla pustego okna. Start i ponowne połączenie
+  ustalają stan bazowy. Odczyty historyczne, sam upływ terminu i brak okna
+  nie wywołują alertu. Potwierdzenie przyjęte w ciągu 10 min od terminu wyświetla
+  `Claude usage limit reset` i nazwę okna. Kliknięcie systemowego alertu lub
+  `Open provider settings` w toaście otwiera Providers.
+  Bezpośrednie logowanie otrzymuje dane przy kolejnej obserwacji SDK,
+  CLIProxyAPI korzysta również z istniejących okresowych odczytów.
+  [Źródła odczytów](provider-accounts.md#limity-planu-i-dodatkowe-użycie)
 
 ## Toasty w aplikacji
 
@@ -141,6 +155,10 @@ Web Audio okna.
 Każde zdarzenie ma klucz wspólny dla kart, okien i komputerów, z identyfikatorem bez
 kwalifikatora komputera (`~node`): `thread:<id>:<zdarzenie>:<last_seq>:<pending>`,
 `bot:<id>:message:<seq>`, `bot:<id>:<approval|answer>:<id karty>`.
+Alert Claude używa klucza `claude:<okno>:<poprzedni reset>`, wspólnego dla
+odczytów bezpośrednich i z proxy. Równoczesny reset tego samego typu okna daje
+jeden alert. Toast i alert systemowy rezerwują klucze osobno, żeby karta w tle
+mogła wysłać alert systemowy, gdy karta z fokusem pokazuje toast.
 
 - Pierwsza karta bierze Web Lock `canopy:notice:<klucz>` z `ifAvailable` i trzyma
   go 15 s. To pokrywa niezsynchronizowane odpytywanie botów w innych kartach. Blokady
@@ -161,21 +179,23 @@ z nich. To osobne urządzenia; na jednym komputerze zdarzenie pokazuje się raz.
 Renderer wywołuje `canopyDesktop.showNotification({ key, title, body, path, sound })`
 (IPC `canopy:notification`) wyłącznie z autoryzowanej ramki aplikacji. Main sprawdza
 schemat: klucz, tytuł do 200 i treść do 600 znaków. Przyjmuje tylko ścieżkę
-`/threads/<id>` albo `/bots/<id>`. Pokazuje natywny `Notification` z nazwą aplikacji
+`/threads/<id>`, `/bots/<id>` lub `/settings/providers`. Pokazuje natywny `Notification` z nazwą aplikacji
 (`app.setName`), na Linuksie z ikoną aplikacji, a na macOS z ikoną paczki. Kliknięcie
 przywraca i fokusuje okno nadawcy, potem wysyła ścieżkę (`canopy:notification-click`),
 a renderer nawiguje. Uprawnienie `notifications` w `window-permissions.ts` zostaje
 rezerwą dla Notification API strony.
 
 Na macOS proces main odczytuje zgodę i prosi o nią przez `UNUserNotificationCenter`
-z paczki bieżącego kanału. Alerty o wątkach, botach i aktualizacjach wymagają zgody,
+z paczki bieżącego kanału. Alerty o wątkach, botach, limitach Claude i aktualizacjach wymagają zgody,
 więc zdarzenie w tle nie wywołuje okna systemowego.
 
 ## Ustawienia
 
 Settings → General → Notifications ([settings-map.md](settings-map.md)), osobno na
 urządzeniu (`localStorage`): **Thread notifications** i **Bot notifications** (Off,
-Notifications, Notifications with sound) oraz **In-app notifications**. Włączenie
+Notifications, Notifications with sound), **Claude usage limit resets** (domyślnie
+Off) oraz **In-app notifications**. Alerty Claude są ciche i respektują zgodę na
+powiadomienia systemowe oraz **In-app notifications** dla toastów. Włączenie
 alertów o wątkach lub botach wymaga zgody przeglądarki w webie albo systemu na macOS.
 Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy macOS nadal czeka na decyzję,
 wybór alertów wywołuje pytanie systemowe. Przy wcześniej zapisanym wyborze można

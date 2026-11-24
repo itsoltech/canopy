@@ -49,7 +49,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "cog-6-tooth",
     group: "General",
     keywords:
-      "modules first tab default order threads bots enable disable notifications sound sidebar grouping projects confirmations unpin archive delete display time zone format device thread list",
+      "modules first tab default order threads bots enable disable notifications claude usage limit reset sound sidebar grouping projects confirmations unpin archive delete display time zone format device thread list",
   },
   {
     href: "/settings/appearance",
