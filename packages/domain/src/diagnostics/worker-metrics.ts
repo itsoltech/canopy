@@ -1,6 +1,7 @@
 import type { MetricDefinition } from "./metrics.ts";
+import { HARNESSES } from "../harnesses.ts";
 
-export const HARNESS_KINDS = ["claude", "codex", "grok"] as const;
+export const HARNESS_KINDS = HARNESSES;
 export const GIT_FAMILIES = ["status", "refs", "fetch", "worktree", "other"] as const;
 
 export type HarnessKind = (typeof HARNESS_KINDS)[number];

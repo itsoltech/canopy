@@ -1,3 +1,5 @@
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, harnessName, supportsThreadPermission } from "@canopy/domain/harnesses";
 import { requireThreadModule } from "./thread-module-runtime.ts";
 import { coreCreateThread } from "./create-thread.ts";
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
@@ -31,12 +33,24 @@ export async function coreCheckProvider(
 
   if (!workspace) return; // the store reports the missing workspace
 
+  if (!supportsThreadPermission(request.provider, request.permissionMode))
+    throw new InvalidError(ANTIGRAVITY_PERMISSION_GUIDANCE);
+
+  const connection = hostContext.link.connections.get(workspace.workerId);
+
+  if (
+    request.provider === Provider.ANTIGRAVITY &&
+    connection?.isOpen &&
+    !connection.hello.capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY)
+  )
+    throw new InvalidError("Update this worker to run Antigravity threads.");
+
   if (!automated) coreCheckFullAccess(hostContext, workspace.workerId, request.permissionMode);
   const worker = (await coreWorkers(hostContext)).find((w) => w.id === workspace.workerId);
 
   if (!worker || worker.appliedVersion === 0n) return;
 
-  const name = request.provider === Provider.CLAUDE ? "Claude" : request.provider === Provider.GROK ? "Grok" : "Codex";
+  const name = harnessName(request.provider);
 
   const provider = worker.providers.find((p) => p.provider === request.provider);
 

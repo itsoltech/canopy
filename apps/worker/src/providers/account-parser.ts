@@ -27,7 +27,12 @@ const claudeStatus = z.object({
     .optional(),
 });
 
-const loginFiles = { claude: ".credentials.json", codex: "auth.json", grok: "auth.json" };
+const loginFiles = {
+  claude: ".credentials.json",
+  codex: "auth.json",
+  grok: "auth.json",
+  antigravity: "antigravity-oauth-token",
+};
 
 /** Changes when the CLI writes its login file (a new sign-in, a token refresh); metadata only, never the content. */
 export function loginRevision(harness: keyof typeof loginFiles, loginDir: string): string {
@@ -35,6 +40,8 @@ export function loginRevision(harness: keyof typeof loginFiles, loginDir: string
 
   try {
     const stat = statSync(join(loginDir, loginFiles[harness]), { bigint: true });
+
+    if (!stat.isFile()) return "";
 
     return createHash("sha256").update(`${stat.ino}:${stat.size}:${stat.mtimeNs}`).digest("hex").slice(0, 16);
   } catch {
@@ -49,6 +56,19 @@ export function accountResult(state: string, configDir: string, detail = ""): Pr
     detail,
     checkedAt: timestampNow(),
   });
+}
+
+/** agy can also use an OS keyring. Only the fallback file's metadata is observable without opening a session. */
+export function antigravityAccount(configDir: string, loginDir: string, apiKeyConfigured: boolean) {
+  const account = accountResult("unknown", configDir);
+
+  if (apiKeyConfigured) account.authMethod = "API key configured";
+  else if (loginRevision("antigravity", loginDir)) {
+    account.state = "stored";
+    account.authMethod = "Account";
+  }
+
+  return account;
 }
 
 export function parseClaudeAccount(text: string, configDir: string, secrets: readonly string[]): ProviderAccountStatus {

@@ -1,3 +1,4 @@
+import { HARNESS_NAMES } from "@canopy/domain/harnesses";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { callerMode } from "./agent-bus-queries.ts";
@@ -32,8 +33,10 @@ export function lockThreadWorktreeSource(source: WorktreeSwitchSource) {
         new Invalid("The turn has ended or its working directory changed. Switch from the next running turn."),
       );
 
-    if (thread.provider === "grok")
-      return yield* Effect.fail(new Invalid("Grok cannot resume a thread in a different working directory."));
+    if (thread.provider === "grok" || thread.provider === "antigravity")
+      return yield* Effect.fail(
+        new Invalid(`${HARNESS_NAMES[thread.provider]} cannot resume a thread in a different working directory.`),
+      );
 
     if (threadSandbox(thread)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
 

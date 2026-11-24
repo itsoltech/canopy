@@ -12,7 +12,7 @@ import { place } from "./identity.ts";
 import { incomingSecrets, mergeRecord, readItem } from "./merge.ts";
 import { maxClock, saveRecord, type ConfigRow } from "./persistence.ts";
 import { applyInstance, applyProxy, applyWaiting, NOT_SUPPORTED } from "./provider-apply.ts";
-import { PROVIDER_KINDS } from "./provider-values.ts";
+import { PROVIDER_KINDS, protectIncomingEnv } from "./provider-values.ts";
 import { cipherOf, encryptIncoming, pruneSecrets, recordCiphers, storeSecret } from "./secrets.ts";
 import { PROJECT_KINDS } from "./project-values.ts";
 import { applyProject, applyProjectConfiguration } from "./project-apply.ts";
@@ -63,7 +63,14 @@ export type Received = { row: ConfigRow; plain: Map<string, string> };
 /** Decoded batch; proxies come before the instances that point at them. */
 export function readBatch(items: readonly link.ConfigItem[]): Received[] {
   return items
-    .map((item) => ({ row: readItem(item), plain: incomingSecrets(item) }))
+    .map((item) => {
+      const row = readItem(item);
+      const plain = incomingSecrets(item);
+
+      if (row.kind === "instance") protectIncomingEnv(row.fields, plain);
+
+      return { row, plain };
+    })
     .sort((a, b) => rank(a.row.kind) - rank(b.row.kind));
 }
 

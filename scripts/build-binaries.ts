@@ -9,7 +9,7 @@
  * dependency, sharp, is embedded per target together with its libvips and extracted on first use to a cache
  * directory (CANOPY_NATIVE_DIR, else the user cache dir), keeping sharp's relative layout so its rpath still
  * finds libvips. Other targets' sharp packages come from the npm registry, checked against their integrity.
- * The worker spawns the agent CLIs (claude, codex, grok) from PATH; they are not part of the binary.
+ * The worker launches agent CLIs installed on its machine.
  *
  * `--web DIR` (a `scripts/build-web.ts` output of the same version) embeds the web into the gateway as one
  * zstd archive; the binary serves it with `canopy-gateway web` (apps/gateway/src/web, docs/deploy.md).

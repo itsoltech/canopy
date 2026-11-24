@@ -1,3 +1,4 @@
+import { supportsNativeGoals } from "@canopy/domain/harnesses";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { ConnectError } from "@connectrpc/connect";
@@ -15,8 +16,8 @@ const OBJECTIVE_LIMIT = 4000;
 
 export { isFinishedGoal };
 
-/** Goals belong to the harness: a gateway thread and Grok have none (docs/goals.md). */
-export const takesGoals = (thread: ui.Thread) => thread.runtime !== "gateway" && thread.provider !== Provider.GROK;
+/** Goals belong to the Claude and Codex harnesses (docs/goals.md). */
+export const takesGoals = (thread: ui.Thread) => thread.runtime !== "gateway" && supportsNativeGoals(thread.provider);
 
 const failure = (cause: unknown) => ConnectError.from(cause).rawMessage;
 

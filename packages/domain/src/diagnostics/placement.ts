@@ -1,4 +1,5 @@
-import { Provider, type ProfileModels, type ui } from "@canopy/contracts";
+import type { ProfileModels, ui } from "@canopy/contracts";
+import { harnessName } from "../harnesses.ts";
 
 /** The same existing local placement and provider-instance choices on every client. */
 export function investigationChoices(worker: ui.Worker | undefined, catalog: readonly ProfileModels[]) {
@@ -7,7 +8,7 @@ export function investigationChoices(worker: ui.Worker | undefined, catalog: rea
     .flatMap((instance) => {
       const profileId = instance.id === "native" ? "" : instance.id;
       const provider = instance.harness;
-      const name = provider === Provider.CLAUDE ? "Claude" : provider === Provider.CODEX ? "Codex" : "Grok";
+      const name = harnessName(provider);
 
       const models =
         catalog

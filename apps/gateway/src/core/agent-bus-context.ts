@@ -1,8 +1,9 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import type { SqlClient } from "effect/sql";
 import { create, type JsonValue } from "@bufbuild/protobuf";
 import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } from "@canopy/contracts";
 import { type AgentBusArgs, type AgentBusCall, type SpawnInstance, type SpawnTarget } from "@canopy/domain";
-import { Match, Predicate, Schema, type Effect } from "effect";
+import { Predicate, Schema, type Effect } from "effect";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import {
   AgentBusStore,
@@ -111,11 +112,7 @@ export const STORES_ITS_CALL = new Set([
 /** What the calling thread runs on: a subagent's default. */
 export function callerTarget(thread: ThreadRow, turn?: TurnRow): SpawnTarget {
   return {
-    harness: Match.value(thread.provider).pipe(
-      Match.when("claude", () => "claude" as const),
-      Match.when("grok", () => "grok" as const),
-      Match.orElse(() => "codex" as const),
-    ),
+    harness: isHarness(thread.provider) ? thread.provider : "codex",
     instance: thread.provider_profile_id || "native",
     model: thread.settings.model ?? "",
     effort: thread.settings.effort ?? "",

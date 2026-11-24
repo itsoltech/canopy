@@ -1,5 +1,7 @@
 # Protokół gateway ↔ worker
 
+Aktualizacja (2026-11-24): capability `antigravity_acp_v1` obejmuje natywne wątki Antigravity i przypisania skilli workera.
+
 Status (2026-11-24): raport środowiska zawiera inwentaryzację lokalnych skilli i tokeny
 do archiwizacji pojedynczej kopii na urządzeniu. Pola i akcję opisuje
 [środowisko agentów](agent-environment.md#lokalne-kopie-skilli).
@@ -329,7 +331,9 @@ snapshot po sprawdzeniu właściciela, instancji i bieżącej wersji konfiguracj
 Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
 Źródła, częstotliwość odczytów i ograniczenia kredytów: [provider-accounts.md](provider-accounts.md#limity-planu-i-dodatkowe-użycie).
 
-Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/grok-acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
+Harness Antigravity używa addytywnego `PROVIDER_ANTIGRAVITY = 4`, pola `WorkerConfig.antigravity` i capability `antigravity_acp_v1`. Gateway przekazuje konfigurację, komendy wątków i przypisania skilli Antigravity workerom z tą capability. Starsze workery nadal dostają przypisania dla obsługiwanych harnessów. Transport ACP i obsługa sesji są wspólne z Grokiem. [Adapter Antigravity](antigravity-adapter.md)
+
+Harness Grok: `Provider.PROVIDER_GROK = 3`, `WorkerConfig.grok = 640`; używa istniejących komend, eventów, profili native/CLIProxyAPI, zgód i `AgentToolCall`. ACP pozostaje prywatnym protokołem worker ↔ CLI w `packages/acp`; nie rozszerza kontraktu przeglądarki o JSON-RPC. [Adapter Grok](grok-adapter.md).
 
 Status (2026-11-16): zmiana uprawnień bieżącej tury Claude, kanał, handshake, nietrwały interaktywny podgląd wątku i
 automatyczny mini podgląd po zatwierdzonych wywołaniach oraz przypisanie uploadu
@@ -1005,7 +1009,7 @@ zatrzymuje ich zapisane grupy procesów po sprawdzeniu tożsamości procesu (och
 ponownym użyciem PID) i zamyka otwarte tury. Nie ponawia komend automatycznie.
 Utrata łącza lub restart gatewaya korzysta ze zwykłego replay/ack i idempotencji outboxa.
 
-Harnessy Claude, Codex i Grok dostają identyczny tekst z `shellInputText`: oznaczenie wyniku
+Każdy harness wątku dostaje tekst z `shellInputText` obejmujący oznaczenie wyniku
 jawnej komendy właściciela i niezaufanego outputu, komendę i cwd zapisane jako ciągi JSON,
 status, kod wyjścia oraz oddzieloną treść stdout/stderr. Surowy prefiks `!` nie trafia do harnessu.
 
@@ -1019,8 +1023,8 @@ status, kod wyjścia oraz oddzieloną treść stdout/stderr. Surowy prefiks `!` 
 
 ## Szyna agentów
 
-Status (2026-11-22): `ThreadSpec.enable_memory` udostępnia narzędzia pamięci
-wątków Claude, Codex i Grok przez istniejące kanały MCP i `AgentToolCall`.
+Status (2026-11-24). `ThreadSpec.enable_memory` udostępnia narzędzia pamięci
+wątkom Claude, Codexa, Groka i Antigravity przez istniejące kanały MCP i `AgentToolCall`.
 `RunBotTurn.memory_context` przekazuje blok pamięci oddzielnie od wejścia
 użytkownika i klucza konfiguracji sesji. Dla workera z capability
 `memory_habits_v1` opcjonalny fragment `StartTurn.habit_context` dostarcza

@@ -337,6 +337,7 @@ export class DesktopRuntime {
           claude: Boolean(Bun.which("claude", { PATH: this.env["PATH"]! })),
           codex: Boolean(Bun.which("codex", { PATH: this.env["PATH"]! })),
           grok: Boolean(Bun.which("grok", { PATH: this.env["PATH"]! })),
+          agy: Boolean(Bun.which("agy", { PATH: this.env["PATH"]! })),
         },
         worker: this.workerStatusFile ? "connecting" : "offline",
       });

@@ -3,7 +3,7 @@ import { bots, type computerLink as link } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { Effect, Predicate, Schema } from "effect";
-import { harnessOf } from "../store/instance-config.ts";
+import { harnessOf, supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { botRowsJson, JsonRow, MAX_FILES, MoveRefused, threadRowJson, type BotRows, type Sql } from "./move-payload.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -327,6 +327,8 @@ export function validateMoveContent(prepare: link.MovePrepare) {
 
 function movedBotConfiguration(rows: BotRows) {
   const config = fromJson(bots.BotConfigurationSchema, rows.bot.configuration, { ignoreUnknownFields: true });
+
+  if (!supportsIsolatedRuns(config.provider)) throw new MoveRefused("This provider cannot run bots in isolation.");
 
   if (harnessOf(config.provider) !== rows.bot.provider || config.providerInstance !== rows.bot.provider_instance)
     throw new MoveRefused("The bot configuration does not match its provider instance.");

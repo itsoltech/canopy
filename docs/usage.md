@@ -1,5 +1,9 @@
 # Statystyki zużycia tokenów i kosztów
 
+Aktualizacja (2026-11-24): wątki Antigravity raportują tokeny z odpowiedzi ACP
+`session/prompt`, w tym oddzielnie tokeny cache i rozumowania, gdy CLI je zwraca.
+Statystyki zachowują nieznany koszt dla tego dostawcy. [Adapter Antigravity](antigravity-adapter.md)
+
 Status (2026-11-24): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki ekwiwalentu API OpenAI i xAI, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal

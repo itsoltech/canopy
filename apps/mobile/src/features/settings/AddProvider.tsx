@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Provider, type ui } from "@canopy/contracts";
+import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { Button, Notice } from "../../ui/components";
 import { providerName } from "../models/catalog";
 import { ProviderConfiguration, ProviderIdentity } from "./ProviderForm";
@@ -7,7 +7,10 @@ import { SettingOptions, SettingsActions, SettingsGroup } from "./SettingsGroup"
 import { ResourceState } from "./resource";
 import { useProviderForm } from "./useProviderForm";
 
-const agents = [Provider.CODEX, Provider.CLAUDE, Provider.GROK].map((value) => ({ value, label: providerName(value) }));
+const agents = [Provider.CODEX, Provider.CLAUDE, Provider.GROK, Provider.ANTIGRAVITY].map((value) => ({
+  value,
+  label: providerName(value),
+}));
 
 export function AddProvider({
   initialWorkerId,
@@ -46,7 +49,14 @@ export function AddProvider({
             onChange={(value) => {
               if (value === harness) return;
               setHarness(value);
-              draft.setRuntime({ ...draft.runtime, userConfiguration: undefined, ownLogin: false });
+              draft.setRuntime({
+                ...draft.runtime,
+                userConfiguration: undefined,
+                ownLogin: false,
+                ...(value === Provider.ANTIGRAVITY && { homePath: "", launchArgs: "" }),
+              });
+
+              if (value === Provider.ANTIGRAVITY) draft.setKind(ProviderProfileKind.NATIVE);
               draft.setProxy("");
               draft.settings.change(undefined);
             }}

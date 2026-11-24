@@ -1,3 +1,4 @@
+import { HARNESSES } from "@canopy/domain/harnesses";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { providerName, usageReport, type UsageView } from "@canopy/domain/usage-report";
@@ -19,7 +20,7 @@ const periods = [
 
 const providers = [
   { value: "", label: "All providers" },
-  ...["claude", "codex", "grok"].map((value) => ({ value, label: providerName(value) })),
+  ...HARNESSES.map((value) => ({ value, label: providerName(value) })),
 ];
 
 const views = [

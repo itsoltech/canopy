@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { supportsSessionFork } from "@canopy/domain/harnesses";
   import CenteredContent from "#lib/shared/ui/CenteredContent.svelte";
   import { enhance } from "$app/forms";
   import { goto } from "$app/navigation";
@@ -73,9 +74,11 @@
         ? permissionKey(saved.choices.permissionMode)
         : inheritedMode(permissionKey(main.permissionMode)),
       fullAuto,
+      main.provider,
     ),
   );
 
+  const canFork = $derived(supportsSessionFork(main.provider));
   let fork = $state(true);
   let busy = $state(false);
   const clientRequestId = $derived(saved.requestId);
@@ -166,7 +169,7 @@
       <input type="hidden" name="effort" value={sentEffort ?? ""} />
       <input type="hidden" name="serviceTier" value={sentServiceTier} />
       <input type="hidden" name="permissionMode" value={mode} />
-      <input type="hidden" name="fork" value={fork ? "on" : ""} />
+      <input type="hidden" name="fork" value={canFork && fork ? "on" : ""} />
       {#each draft.ids as id (id)}<input type="hidden" name="attachmentId" value={id} />{/each}
       {#if error}<Alert tone="error">{error}</Alert>{/if}
       <ComposerBox
@@ -214,21 +217,24 @@
           {/if}
         {/snippet}
         {#snippet meta()}
-          <label class="flex min-w-0 items-center gap-2">
-            <Switch
-              name="continueHistory"
-              label="Continue from the main thread's history"
-              description="The side thread starts from the main thread's last completed turn."
-              bind:checked={fork}
-            />
-            <span>Use main thread history</span>
-          </label>
+          {#if canFork}
+            <label class="flex min-w-0 items-center gap-2">
+              <Switch
+                name="continueHistory"
+                label="Continue from the main thread's history"
+                description="The side thread starts from the main thread's last completed turn."
+                bind:checked={fork}
+              />
+              <span>Use main thread history</span>
+            </label>
+          {/if}
           {#if !closed && worker && !worker.online}<HintIcon
               warning
               label="Computer offline"
               text="This computer is offline. The side thread starts when it reconnects."
             />{/if}
           <PermissionPicker
+            provider={main.provider}
             value={mode}
             {fullAuto}
             onselect={(next) => (saved.choices = { ...saved.choices, permissionMode: PermissionMode[next] })}

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { View } from "react-native";
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { Provider, type bots } from "@canopy/contracts";
 import { splitId, nodeRef } from "@canopy/domain/computers";
 import { useOverview } from "../../state/overview";
@@ -31,7 +32,7 @@ export function BotModelSettings({
   const worker = config.workerId ? homeWorkers.find((w) => w.id === config.workerId) : automaticWorker;
 
   const catalog = useModelCatalog(worker?.id);
-  const sections = modelSections(worker, catalog);
+  const sections = modelSections(worker, catalog).filter((section) => supportsIsolatedRuns(section.provider));
   const creating = !!renderFields;
 
   const choice = sections

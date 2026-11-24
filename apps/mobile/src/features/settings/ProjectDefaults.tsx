@@ -10,7 +10,7 @@ import { DefaultModels } from "./SettingsModels";
 import { AutoArchiveSettings } from "./AutoArchiveSettings";
 import { DefaultResets } from "./DefaultResets";
 import { SelectField } from "../../ui/Picker";
-import { PermissionPickerSheet, permissionLabel } from "../threads/permissions";
+import { availablePermission, PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 import { useWorkerOptions } from "../computers/worker-options";
 
 export type ProjectResource = ReturnType<typeof useSettingsResource<ui.GetSettingsResponse>>;
@@ -65,7 +65,12 @@ export function ProjectDefaults({ project, resource }: { project: ui.Project; re
                   ? { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: true }
                   : provider === "any"
                     ? { provider: Provider.UNSPECIFIED, providerProfileId: "", useLastAgent: false }
-                    : { provider, providerProfileId: "", useLastAgent: provider ? false : undefined },
+                    : {
+                        provider,
+                        providerProfileId: "",
+                        permissionMode: availablePermission(provider, value.permissionMode),
+                        useLastAgent: provider ? false : undefined,
+                      },
               )
             }
             options={[
@@ -75,6 +80,7 @@ export function ProjectDefaults({ project, resource }: { project: ui.Project; re
               { value: Provider.CLAUDE, label: "Claude" },
               { value: Provider.CODEX, label: "Codex" },
               { value: Provider.GROK, label: "Grok" },
+              { value: Provider.ANTIGRAVITY, label: "Antigravity" },
             ]}
           />
           {value.useLastAgent !== true && !!value.provider && (
@@ -98,6 +104,7 @@ export function ProjectDefaults({ project, resource }: { project: ui.Project; re
             }
           />
           <PermissionPickerSheet
+            provider={value.useLastAgent ? undefined : value.provider}
             visible={permission}
             onClose={() => setPermission(false)}
             value={value.permissionMode}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { equals } from "@bufbuild/protobuf";
-  import { SandboxProfileSchema, type ui } from "@canopy/contracts";
+  import { Provider, SandboxProfileSchema, type ui } from "@canopy/contracts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -46,7 +46,11 @@
   const settings = useSettings();
   const current = $derived(permissionKey(thread.permissionMode));
   const fullAuto = $derived(fullAutoAvailable(thread.provider, worker?.os));
-  const modes = $derived(permissionModes.filter((option) => isPermissionModeAvailable(option.value, fullAuto)));
+
+  const modes = $derived(
+    permissionModes.filter((option) => isPermissionModeAvailable(option.value, fullAuto, thread.provider)),
+  );
+
   const savedProfile = $derived(thread.sandboxProfile?.profile);
   const target = $derived({ worker, provider: thread.provider, profileId: thread.providerProfileId });
   const savedProblem = $derived(savedProfile && sandboxProfileProblem(target, savedProfile));
@@ -107,7 +111,7 @@
     }
   });
 
-  const mode = $derived(picked && isPermissionModeAvailable(picked, fullAuto) ? picked : current);
+  const mode = $derived(picked && isPermissionModeAvailable(picked, fullAuto, thread.provider) ? picked : current);
   const selectedMode = $derived(modes.find((option) => option.value === mode));
   const profileChoice = $derived(pickedProfile ?? savedChoice);
   const changesProfile = $derived(mode === "FULL_AUTO" ? profileChoice !== savedChoice : Boolean(savedProfile));
@@ -157,7 +161,7 @@
 
 <Dialog bind:open title="Permissions" dismissible={!busy} description="Choose permissions for new turns.">
   <form class="grid gap-4" onsubmit={save}>
-    {#if fullAuto === false && !savedProfile}
+    {#if thread.provider === Provider.CLAUDE && fullAuto === false && !savedProfile}
       <p class="text-base/6 text-muted sm:text-sm/5">
         {current === "FULL_AUTO" ? savedFullAutoDescription : nativeWindowsSandboxMode}
       </p>

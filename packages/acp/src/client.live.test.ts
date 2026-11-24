@@ -1,10 +1,13 @@
 import { test, expect } from "bun:test";
-import { GrokClient } from "./index.ts";
+import { AcpClient } from "./index.ts";
 
 test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
   "installed Grok ACP handshake and session capabilities",
   async () => {
-    const client = new GrokClient({ executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "grok" });
+    const client = new AcpClient({
+      executable: process.env["CANOPY_GROK_EXECUTABLE"] ?? "grok",
+      args: ["agent", "--no-leader", "stdio"],
+    });
 
     try {
       const info = await client.initialize();

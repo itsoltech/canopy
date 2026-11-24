@@ -7,6 +7,7 @@
     ".": "./src/tokens.ts",
     "./icons": "./src/icons.ts",
     "./file-icons": "./src/file-icons.ts",
+    "./providers": "./src/providers.ts",
     "./provider-icons": "./src/provider-icons.ts",
     "./streaming": "./src/streaming.ts",
     "./color": "./src/color.ts",

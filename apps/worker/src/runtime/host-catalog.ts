@@ -3,10 +3,12 @@ import { homedir } from "node:os";
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { Provider, ConfigAppliedSchema } from "@canopy/contracts";
+import { Match } from "effect";
+import { providerOf } from "@canopy/domain/harnesses";
 import { type DeviceHomes } from "../config/remote.ts";
 import { classifyInstanceCatalogs } from "../providers/model-metadata.ts";
 
-import { CommandError, usableBy, type ProfileModelsInit } from "./host-types.ts";
+import { acpHarness, CommandError, type ProfileModelsInit } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 
 export class HostCatalog {
@@ -19,6 +21,7 @@ export class HostCatalog {
       codex: this.ctx.state.deviceHomes.codex,
       grok: this.ctx.state.deviceHomes.grok ?? join(homedir(), ".grok"),
       ...(this.ctx.state.deviceHomes.grokAuthPath && { grokAuthPath: this.ctx.state.deviceHomes.grokAuthPath }),
+      ...(this.ctx.state.deviceHomes.antigravity && { antigravity: this.ctx.state.deviceHomes.antigravity }),
       env: process.env,
     };
   }
@@ -60,37 +63,35 @@ export class HostCatalog {
 
       if (!resolved || (profileId && resolved.id !== profileId)) continue;
 
-      if (
-        this.ctx.state.claude.has(resolved.id) &&
-        usableBy(resolved, "claude") &&
-        (!provider || provider === Provider.CLAUDE)
-      )
-        pairs.push({ provider: Provider.CLAUDE, profile: resolved.id });
+      for (const name of resolved.providers) {
+        const harness = providerOf(name);
 
-      if (this.ctx.state.codex.size > 0 && usableBy(resolved, "codex") && (!provider || provider === Provider.CODEX))
-        pairs.push({ provider: Provider.CODEX, profile: resolved.id });
+        if (provider && provider !== harness) continue;
 
-      if (
-        this.ctx.state.grok.has(resolved.id) &&
-        usableBy(resolved, "grok") &&
-        (!provider || provider === Provider.GROK)
-      )
-        pairs.push({ provider: Provider.GROK, profile: resolved.id });
+        const active = Match.value(name).pipe(
+          Match.when("codex", () => this.ctx.state.codex.size > 0),
+          Match.when("claude", () => this.ctx.state.claude.has(resolved.id)),
+          Match.orElse((acp) => this.ctx.state.acp.has(`${acp}/${resolved.id}`)),
+        );
+
+        if (active) pairs.push({ provider: harness, profile: resolved.id });
+      }
     }
 
     const lists = await Promise.all(
       pairs.map(async ({ provider: p, profile }): Promise<ProfileModelsInit> => {
         try {
-          const listed: { models: ProfileModelsInit["models"]; detail?: string } =
-            p === Provider.GROK
-              ? await this.ctx.ops.runGrok((threads) => threads.listModels(profile), profile)
-              : p === Provider.CLAUDE
-                ? await this.ctx.ops.runClaude((threads) => threads.listModels(profile), profile)
-                : await this.ctx.ops.runCodex(
-                    Provider.CODEX,
-                    (threads) => threads.listModels(profile),
-                    this.ctx.ops.codexGroupOf(profile),
-                  );
+          const acp = acpHarness(p);
+
+          const listed: { models: ProfileModelsInit["models"]; detail?: string } = acp
+            ? await this.ctx.ops.runAcp(`${acp}/${profile}`, (threads) => threads.listModels(profile))
+            : p === Provider.CLAUDE
+              ? await this.ctx.ops.runClaude((threads) => threads.listModels(profile), profile)
+              : await this.ctx.ops.runCodex(
+                  Provider.CODEX,
+                  (threads) => threads.listModels(profile),
+                  this.ctx.ops.codexGroupOf(profile),
+                );
 
           return {
             provider: p,

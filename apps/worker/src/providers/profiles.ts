@@ -1,19 +1,20 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import {
-  Provider,
+  ProviderConfigurationMode,
   ProviderProfileKind,
   type ProviderProfileSchema,
   type ProviderUserConfiguration,
   type ProxyCodexOptions,
 } from "@canopy/contracts";
 import { envListProblems } from "@canopy/domain";
+import { HARNESSES, providerOf, type Harness } from "@canopy/domain/harnesses";
 import type {
   ClaudeProviderSettings,
   CodexProviderSettings,
   GrokProviderSettings,
 } from "@canopy/domain/provider-settings";
-import { Match } from "effect";
 import { sandboxSupport } from "./sandbox-support.ts";
+import { userConfigurationProblem } from "./claude/configuration-homes.ts";
 
 /**
  * Provider profiles come from the remote worker configuration (WorkerConfig.profiles, docs/worker-config.md).
@@ -25,7 +26,7 @@ export type ProviderProfileConfig = NativeProfileConfig | CliProxyApiProfileConf
 interface ProfileConfigBase {
   readonly id: string;
   /** Defaults to both providers. */
-  readonly providers?: readonly ("claude" | "codex" | "grok")[];
+  readonly providers?: readonly Harness[];
   /** Shown in the UI; empty = id. */
   readonly displayName?: string;
   /** Environment of the profile's harness process (docs/worker-config.md); values may be secrets. */
@@ -85,7 +86,7 @@ export type Env = Readonly<Record<string, string | undefined>>;
 
 interface ResolvedBase {
   readonly id: string;
-  readonly providers: readonly ("claude" | "codex" | "grok")[];
+  readonly providers: readonly Harness[];
   /** The profile's own variables, applied over the worker's environment (validated, may hold secrets). */
   readonly env: Readonly<Record<string, string>>;
   readonly runtime: ProfileRuntimeConfig;
@@ -107,7 +108,6 @@ const PROFILE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 
 // Legacy profiles without an explicit provider list keep their original meaning.
 const BOTH = ["claude", "codex"] as const;
-const ALL = [...BOTH, "grok"] as const;
 
 export class ProfileError extends Error {
   override readonly name = "ProfileError";
@@ -145,21 +145,63 @@ export function hasOwnRuntime(runtime: ProfileRuntimeConfig): boolean {
   );
 }
 
-export const providersOf = (
-  config: Pick<ProviderProfileConfig, "providers">,
-): readonly ("claude" | "codex" | "grok")[] => (config.providers?.length ? config.providers : BOTH);
+export const providersOf = (config: Pick<ProviderProfileConfig, "providers">): readonly Harness[] =>
+  config.providers?.length ? config.providers : BOTH;
+
+/** Availability and home policy belong to an instance (one provider and profile id), even on older shared entries. */
+export function profilesByHarness(status: ProfileStatus): ProfileStatus[] {
+  const harnesses = providersOf(status.config);
+
+  if (harnesses.length < 2) return [status];
+
+  return harnesses.map((harness) => {
+    const config = { ...status.config, providers: [harness] };
+
+    // SHARED on older multi-provider entries selected the Claude user directory only.
+    if (harness === "codex" && config.runtime?.userConfiguration?.mode === ProviderConfigurationMode.SHARED) {
+      const problem = "Select Use CLI home on an instance configured specifically for Codex.";
+
+      return { config: { ...config, settingsProblem: problem }, problem };
+    }
+
+    return { ...status, config, ...(status.resolved && { resolved: { ...status.resolved, providers: [harness] } }) };
+  });
+}
+
+function antigravityProfileProblem(config: ProviderProfileConfig) {
+  if (config.kind !== "native") return "Antigravity requires a native instance.";
+
+  if (config.runtime?.ownLogin || config.runtime?.homePath)
+    return "Antigravity uses the device login or GEMINI_API_KEY. Clear the custom login settings.";
+
+  if (config.runtime?.launchArgs?.length) return "Custom launch arguments are unavailable for Antigravity.";
+
+  return userConfigurationProblem("antigravity", config.runtime);
+}
 
 /**
  * Validates configs. Invalid ids and endpoints throw (fatal); a missing key, a variable the worker controls or
  * a disabled profile mark only that profile unavailable.
  */
-export function resolveProfiles(configs: readonly ProviderProfileConfig[]): ProfileStatus[] {
+export function resolveProfiles(
+  configs: readonly ProviderProfileConfig[],
+  harnesses: readonly Harness[] = HARNESSES,
+): ProfileStatus[] {
   // The built-in native profile for every provider the configuration gives none (an instance per provider, or both).
-  const nativeFor = ALL.filter(
+  const nativeFor = harnesses.filter(
     (provider) => !configs.some((c) => c.id === NATIVE_PROFILE.id && providersOf(c).includes(provider)),
   );
 
-  const all = nativeFor.length === 0 ? configs : [{ ...NATIVE_PROFILE, providers: nativeFor }, ...configs];
+  // An explicit multi-harness endpoint may serve its other providers even though agy requires a native profile.
+  const all = configs.flatMap<ProviderProfileConfig>((config) => {
+    const providers = providersOf(config);
+
+    if (providers.length === 1 || !providers.includes("antigravity")) return [config];
+
+    return profilesByHarness({ config }).map((entry) => entry.config);
+  });
+
+  if (nativeFor.length) all.unshift({ ...NATIVE_PROFILE, providers: nativeFor });
   const seen = new Set<string>();
 
   return all.map((config): ProfileStatus => {
@@ -175,6 +217,12 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
     if (config.disabled) return { config, problem: "disabled" };
 
     if (config.settingsProblem) return { config, problem: config.settingsProblem };
+
+    if (providersOf(config).includes("antigravity")) {
+      const problem = antigravityProfileProblem(config);
+
+      if (problem) return { config, problem };
+    }
 
     let baseUrl: URL | undefined;
 
@@ -231,13 +279,7 @@ export function resolveProfiles(configs: readonly ProviderProfileConfig[]): Prof
 export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof ProviderProfileSchema> {
   const { config } = status;
 
-  const providers = providersOf(config).map((p) =>
-    Match.value(p).pipe(
-      Match.when("claude", () => Provider.CLAUDE),
-      Match.when("grok", () => Provider.GROK),
-      Match.orElse(() => Provider.CODEX),
-    ),
-  );
+  const providers = providersOf(config).map(providerOf);
 
   const [provider] = providers;
 
@@ -264,7 +306,7 @@ export function toProfileReport(status: ProfileStatus): MessageInitShape<typeof 
 export function selectProfile(
   statuses: readonly ProfileStatus[],
   profileId: string,
-  provider: "claude" | "codex" | "grok",
+  provider: Harness,
 ): ResolvedProfile {
   const id = profileId || NATIVE_PROFILE.id;
   const ofId = statuses.filter((s) => s.config.id === id);

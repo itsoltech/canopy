@@ -141,15 +141,21 @@ function OverrideFields({ instance, worker, overrides, inherited, busy, error, s
             />
           )}
         {path("CLI path", binaryPath, setBinary, inherited?.binaryPath)}
-        {path("CLI home path", homePath, setHome, inherited?.homePath)}
+        {instance.harness !== Provider.ANTIGRAVITY && path("CLI home path", homePath, setHome, inherited?.homePath)}
         {path(
-          instance.harness === Provider.CODEX ? "Private state directory" : "Shadow home path",
+          instance.harness === Provider.ANTIGRAVITY
+            ? "Managed skills home"
+            : instance.harness === Provider.CODEX
+              ? "Private state directory"
+              : "Shadow home path",
           shadowHomePath,
           setShadow,
           inherited?.shadowHomePath,
         )}
-        <SettingToggle title="Override launch arguments" value={argsSet} onChange={setArgsSet} />
-        {argsSet && (
+        {instance.harness !== Provider.ANTIGRAVITY && (
+          <SettingToggle title="Override launch arguments" value={argsSet} onChange={setArgsSet} />
+        )}
+        {instance.harness !== Provider.ANTIGRAVITY && argsSet && (
           <Field
             label="Launch arguments · one per line"
             value={launchArgs}

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { InitializeResult } from "@canopy/grok-acp";
+import type { InitializeResult } from "@canopy/acp";
 import { Option, Schema } from "effect";
 import { projectSecretGuard } from "../../runtime/project-secret-guard.ts";
 import { threadSecretOutputGuard } from "../../runtime/thread-secrets.ts";

@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampMs, timestampNow } from "@bufbuild/protobuf/wkt";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
+import type { Harness } from "./harnesses.ts";
 import { codexLoginProblem } from "./codex-login-problems.ts";
 
 export { codexLoginProblems } from "./codex-login-problems.ts";
@@ -29,17 +30,25 @@ export function accountEmail(value: string | null | undefined, secrets: readonly
 
 /** A copyable command for the worker's actual login home, including paths with shell metacharacters. */
 export function providerLoginCommand(
-  harness: "claude" | "codex" | "grok",
-  account: Pick<ProviderAccountStatus, "loginDir" | "loginExecutable"> &
-    Partial<Pick<ProviderAccountStatus, "loginSecureStorageDir">>,
+  harness: Harness,
+  account:
+    | (Pick<ProviderAccountStatus, "loginDir" | "loginExecutable"> &
+        Partial<Pick<ProviderAccountStatus, "loginSecureStorageDir">>)
+    | undefined,
   os: string,
 ): string {
-  if (!account.loginDir) return "";
   const windows = os === "win32";
 
   const quote = (value: string) =>
     windows ? `'${value.replaceAll("'", "''")}'` : `'${value.replaceAll("'", `'"'"'`)}'`;
 
+  if (harness === "antigravity") {
+    if (!account?.loginExecutable) return "agy acp --login";
+
+    return `${windows ? "& " : ""}${quote(account.loginExecutable)} acp --login`;
+  }
+
+  if (!account?.loginDir) return "";
   const variable = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", grok: "GROK_HOME" }[harness];
   const executable = quote(account.loginExecutable || harness);
   const args = harness === "claude" ? "auth login" : "login";

@@ -19,12 +19,13 @@ pobiera tylko metadane potrzebne do wyboru i pliki wybranych skilli, gdy serwer
 Git obsługuje filtrowanie obiektów.
 Aktualizacja (2026-11-24): zakładka **Computers** w web/desktop pokazuje status każdego skilla na wspólnej liście, wyróżnia konflikty
 i pozwala odłożyć wybraną kopię do archiwum na komputerze.
+Aktualizacja (2026-11-24): biblioteka skilli ma osobne cele dla CLI Antigravity na urządzeniu i dla izolowanych sesji Canopy.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
 do bazy gatewaya; użytkownik nie konfiguruje zmiennych środowiskowych ani plików
 usług. Etapy 1–4 obejmują instrukcje Claude/Codex, tagi, upload i synchronizację
-skilli Claude/Codex/Grok, źródła Git, skills.sh i publiczne witryny HTTPS oraz marketplace i pluginy
+skilli Claude/Codex/Grok/Antigravity, źródła Git, skills.sh i publiczne witryny HTTPS oraz marketplace i pluginy
 Claude/Codex z przypiętymi wersjami. Połączone komputery dzielą bibliotekę jak resztę
 konfiguracji konta ([wspólna konfiguracja](linked-computers.md#środowisko-agentów)).
 
@@ -374,6 +375,7 @@ Rzeczywiste cele (również każdy jawny shadow home / own-login instancji):
 | Claude | `<device CLAUDE_CONFIG_DIR>/skills/<name>` | `<actual isolated home>/canopy-environment/skills/<name>`; SDK ładuje ten lokalny plugin jawnie, nazwa `canopy-environment:<name>`, nadal `settingSources: ["project", "local"]` |
 | Codex | `~/.agents/skills/<name>`, niezależnie od `CODEX_HOME` | `<actual CODEX_HOME>/skills/<name>` |
 | Grok | `<device GROK_HOME>/skills/<name>` (domyślnie `~/.grok`) | `<actual durable home>/skills/<name>`; disposable process home ma link/junction do trwałego katalogu |
+| Antigravity | `~/.gemini/antigravity-cli/skills/<name>` | `<data_dir>/antigravity-home/skills/<name>` albo `<shadow home>/skills/<name>` przypisanej instancji |
 
 `CODEX_HOME` nie izoluje user skills w `~/.agents/skills`. Włączenie „Device CLI too”
 może udostępnić te skille także innym zgodnym harnessom urządzenia. Canopy nie

@@ -6,6 +6,7 @@ import {
   type AgentEnvironmentReport,
 } from "@canopy/contracts";
 import { ENVIRONMENT_CONTENT_BYTES, environmentDigest } from "@canopy/domain/agent-environment";
+import { isHarness } from "@canopy/domain/harnesses";
 import { InstructionLedger } from "./ledger.ts";
 import { instructionTargets, type EnvironmentHomes } from "./targets.ts";
 import { reconcileInstruction } from "./reconcile.ts";
@@ -69,7 +70,7 @@ export class WorkerAgentEnvironment {
           !skill.id ||
           !skill.version ||
           !skill.harnesses.length ||
-          skill.harnesses.some((h) => !["claude", "codex", "grok"].includes(h))
+          skill.harnesses.some((h) => !isHarness(h))
         )
           return;
         const validated = validateSkillFiles(skill.artifact.files);

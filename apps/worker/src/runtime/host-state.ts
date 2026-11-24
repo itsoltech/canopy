@@ -13,12 +13,13 @@ import {
 } from "@canopy/contracts";
 import { instanceShadowHome, type AppliedConfig } from "../config/remote.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
+import { defaultAntigravityHome } from "../config/homes.ts";
 import { deviceClaudeHome } from "../providers/claude/home.ts";
 import { claudeConfigurationHomes } from "../providers/claude/configuration-homes.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
 import { deviceCodexHome } from "../providers/codex/home.ts";
 import { CodexThreads } from "../providers/codex/threads.ts";
-import { GrokThreads } from "../providers/grok/threads.ts";
+import type { AcpThreads } from "../providers/acp/threads.ts";
 import { CliTools } from "../cli-tools/index.ts";
 import { AgentTools } from "../agent-tools/index.ts";
 import { WorktreeDiscovery } from "../git/discovery.ts";
@@ -82,7 +83,7 @@ export class HostState {
   /** Runtime snapshots per instance; configuration changes drain only the affected instance. */
   readonly codex = new Map<string, ProviderRuntimeHandle<CodexThreads>>();
   readonly claude = new Map<string, ProviderRuntimeHandle<ClaudeThreads>>();
-  readonly grok = new Map<string, { key: string; runtime: GrokThreads }>();
+  readonly acp = new Map<string, { key: string; runtime: AcpThreads }>();
   readonly threadInstances = new Map<string, string>();
   readonly runtimeUsers = new Map<string, number>();
   readonly staleRuntimes = new Set<string>();
@@ -111,6 +112,7 @@ export class HostState {
     readonly claudeSecureStorage?: string;
     readonly codex: string;
     readonly grok?: string;
+    readonly antigravity?: string;
     readonly grokAuthPath?: string;
     readonly agents?: string;
     /** The directory of Claude's `.claude.json` when it is not the Claude home (the default home: `~`). */
@@ -183,6 +185,7 @@ export class HostState {
       claude,
       claudeSecureStorage: process.env["CLAUDE_SECURESTORAGE_CONFIG_DIR"] ?? process.env["CLAUDE_CONFIG_DIR"] ?? "",
       codex: deviceCodexHome(process.env),
+      antigravity: defaultAntigravityHome(),
       grok: process.env["GROK_HOME"] || join(homedir(), ".grok"),
       ...(process.env["GROK_AUTH_PATH"] && { grokAuthPath: process.env["GROK_AUTH_PATH"] }),
       agents: join(homedir(), ".agents", "skills"),

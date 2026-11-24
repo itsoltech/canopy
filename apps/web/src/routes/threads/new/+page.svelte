@@ -208,7 +208,8 @@
   const sentEffort = $derived(effort ?? "");
 
   // Your pick stays with the new-thread draft (leave and come back); unset = the defaults (Settings → Threads).
-  const fullAuto = $derived(fullAutoAvailable(selected && Provider[selected.provider], worker?.os));
+  const selectedProvider = $derived(selected && Provider[selected.provider]);
+  const fullAuto = $derived(fullAutoAvailable(selectedProvider, worker?.os));
   const sandboxProfile = $derived(saved.choices.sandboxProfile);
   const sandboxProfileId = $derived(sandboxProfile?.id ?? "");
   const shellUnavailable = $derived(sandboxProfile ? sandboxShellUnavailable : undefined);
@@ -216,7 +217,11 @@
   const permissionMode = $derived(
     sandboxProfile
       ? "FULL_AUTO"
-      : availablePermissionMode(permissionKey(saved.choices.permissionMode ?? defaults.permissionMode), fullAuto),
+      : availablePermissionMode(
+          permissionKey(saved.choices.permissionMode ?? defaults.permissionMode),
+          fullAuto,
+          selectedProvider,
+        ),
   );
 
   const sandboxPicker = $derived(
@@ -479,6 +484,7 @@
               {/snippet}
               {#snippet permissionControl()}
                 <PermissionPicker
+                  provider={selectedProvider}
                   value={permissionMode}
                   {fullAuto}
                   disabled={busy || saved.locked}

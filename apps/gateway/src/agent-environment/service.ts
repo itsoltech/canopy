@@ -1,3 +1,5 @@
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import { harnessOf } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
   AgentEnvironmentDesiredSchema,
@@ -25,6 +27,16 @@ import type { SourceOptions } from "./source-discovery.ts";
 import { marketplaces, plugins } from "./plugin-database.ts";
 import { EnvironmentMarketplaces } from "./marketplaces.ts";
 import { EnvironmentPlugins, desiredPlugins } from "./plugins.ts";
+
+function compatibleSkills(skills: ui.LibrarySkill[], capabilities: readonly string[] | undefined) {
+  if (!capabilities || capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY)) return skills;
+
+  return skills.flatMap((skill) => {
+    const harnesses = skill.harnesses.filter((h) => h !== "antigravity");
+
+    return harnesses.length ? [{ ...skill, harnesses }] : [];
+  });
+}
 
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
@@ -102,7 +114,8 @@ export class AgentEnvironment {
       worker.skillsSupported = connection?.isOpen
         ? connection.hello.capabilities.includes("agent_skills_v1")
         : worker.skillsSupported;
-      worker.skillIds = snapshot.skills.filter((s) => skillApplies(s, worker)).map((s) => s.id);
+      const skillLibrary = compatibleSkills(snapshot.skills, connection?.hello.capabilities);
+      worker.skillIds = skillLibrary.filter((s) => skillApplies(s, worker)).map((s) => s.id);
       worker.pluginsSupported = connection?.isOpen
         ? connection.hello.capabilities.includes("agent_plugins_v1")
         : worker.pluginsSupported;
@@ -113,7 +126,7 @@ export class AgentEnvironment {
       try {
         worker.preview = compose(snapshot.documents, worker);
 
-        if (worker.skillsSupported) await this.skills.desired(snapshot.skills, worker);
+        if (worker.skillsSupported) await this.skills.desired(skillLibrary, worker);
 
         if (worker.pluginsSupported) desiredPlugins(snapshot.plugins, worker);
       } catch (error) {
@@ -232,12 +245,14 @@ export class AgentEnvironment {
       }),
     );
 
+    const skillLibrary = compatibleSkills(snapshot.skills, connection.hello.capabilities);
+
     return create(AgentEnvironmentDesiredSchema, {
       revision: snapshot.revision,
       instructions: worker.preview,
       resolutions: pending.resolutions,
       skills: connection.hello.capabilities.includes("agent_skills_v1")
-        ? await this.skills.desired(snapshot.skills, worker)
+        ? await this.skills.desired(skillLibrary, worker)
         : [],
       skillResolutions: connection.hello.capabilities.includes("agent_skills_v1") ? pending.skillResolutions : [],
       plugins: connection.hello.capabilities.includes("agent_plugins_v1")
@@ -255,7 +270,7 @@ export class AgentEnvironment {
       tags = tags.filter((tag) => !tag.startsWith("cli:"));
 
       for (const tool of tools.tools) {
-        const harness = ["", "claude", "codex", "grok"][tool.provider];
+        const harness = harnessOf(tool.provider);
 
         if (tool.path && tool.version && harness) tags.push(`cli:${harness}`);
       }

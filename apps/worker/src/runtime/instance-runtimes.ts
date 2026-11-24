@@ -2,7 +2,7 @@ import { Context } from "effect";
 import { CodexThreads } from "../providers/codex/threads.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
-import { codexProfileGroup, usableBy } from "./host-types.ts";
+import { codexProfileGroup } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 
 export interface WantedRuntime {
@@ -25,10 +25,11 @@ export function wantedRuntimes(ctx: HostContext): Map<string, WantedRuntime> {
 
     if (!profile) continue;
 
-    for (const harness of ["claude", "grok"] as const) {
+    for (const harness of profile.providers) {
+      if (harness === "codex") continue;
       const provider = config[harness];
 
-      if (!provider.enabled || !usableBy(profile, harness)) continue;
+      if (!provider.enabled) continue;
 
       const key = JSON.stringify({
         provider,
@@ -40,7 +41,9 @@ export function wantedRuntimes(ctx: HostContext): Map<string, WantedRuntime> {
       wanted.set(`${harness}/${profile.id}`, {
         key,
         start: () =>
-          harness === "claude" ? ctx.ops.startClaude(profile, key, config) : ctx.ops.startGrok(profile, key, config),
+          harness === "claude"
+            ? ctx.ops.startClaude(profile, key, config)
+            : ctx.ops.startAcp(harness, profile, key, config),
       });
     }
   }
@@ -52,7 +55,7 @@ export function runtimeKeys(ctx: HostContext): Map<string, string> {
   return new Map([
     ...[...ctx.state.codex].map(([id, handle]) => [`codex/${id}`, handle.key] as const),
     ...[...ctx.state.claude].map(([id, handle]) => [`claude/${id}`, handle.key] as const),
-    ...[...ctx.state.grok].map(([id, handle]) => [`grok/${id}`, handle.key] as const),
+    ...[...ctx.state.acp].map(([instance, handle]) => [instance, handle.key] as const),
   ]);
 }
 
@@ -95,8 +98,8 @@ export async function stopRuntime(ctx: HostContext, key: string): Promise<void> 
   if (harness === "codex") await ctx.ops.stopCodex(id);
   else if (harness === "claude") await ctx.ops.stopClaude(id);
   else {
-    const previous = ctx.state.grok.get(id);
-    ctx.state.grok.delete(id);
+    const previous = ctx.state.acp.get(key);
+    ctx.state.acp.delete(key);
     await previous?.runtime.close();
   }
 }

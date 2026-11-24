@@ -2,7 +2,7 @@ import { test, expect } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { GrokClient } from "@canopy/grok-acp";
+import { AcpClient } from "@canopy/acp";
 import { grokLaunch } from "./launch.ts";
 import { grokBus } from "./bus.ts";
 import { create } from "@bufbuild/protobuf";
@@ -16,7 +16,7 @@ test.skipIf(!live || !url || !key)(
   "Grok CLI through CLIProxyAPI: catalog, shell tool, answer and resume",
   async () => {
     const root = mkdtempSync(join(tmpdir(), "canopy-grok-live-"));
-    let client: GrokClient | undefined;
+    let client: AcpClient | undefined;
     let launch: ReturnType<typeof grokLaunch> | undefined;
     let platformCalls = 0;
 
@@ -69,7 +69,7 @@ test.skipIf(!live || !url || !key)(
         });
 
       launch = open();
-      client = new GrokClient({
+      client = new AcpClient({
         ...launch.options,
         callbacks: {
           requestPermission: async (r) => ({
@@ -117,7 +117,7 @@ test.skipIf(!live || !url || !key)(
       await client.dispose();
       launch.cleanup();
       launch = open();
-      client = new GrokClient(launch.options);
+      client = new AcpClient(launch.options);
       await client.initialize();
       expect((await client.loadSession(session.sessionId, root, [bus.server])).sessionId).toBe(session.sessionId);
       console.info("Grok proxy shell, platform MCP and restart/load: passed");
@@ -159,7 +159,7 @@ test.skipIf(
       effort: "low",
     });
 
-    const client = new GrokClient({
+    const client = new AcpClient({
       ...launch.options,
       callbacks: {
         requestPermission: async (r) => ({

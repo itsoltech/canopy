@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Provider } from "@canopy/contracts";
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
@@ -26,6 +27,7 @@
    */
   let {
     value,
+    provider,
     onselect,
     fullAuto,
     fullAccessDescription,
@@ -42,6 +44,7 @@
     class: className,
   }: {
     value: PermissionModeKey;
+    provider?: Provider | undefined;
     onselect: (mode: PermissionModeKey) => void;
     /** false hides Full auto for a selected worker without a sandbox. */
     fullAuto?: boolean | undefined;
@@ -61,19 +64,19 @@
     class?: ClassValue;
   } = $props();
 
-  const modes = $derived(permissionModes.filter((m) => isPermissionModeAvailable(m.value, fullAuto)));
+  const modes = $derived(permissionModes.filter((m) => isPermissionModeAvailable(m.value, fullAuto, provider)));
 
   const look = $derived(permissionLook(value));
   const tone = $derived(look.tone);
   const selected = $derived(permissionModes.find((mode) => mode.value === value));
-  const savedFullAuto = $derived(!isPermissionModeAvailable(value, fullAuto));
+  const savedFullAuto = $derived(provider === Provider.CLAUDE && value === "FULL_AUTO" && fullAuto === false);
   const sandboxSelected = $derived(value === "FULL_AUTO" || nextTurnMode === "FULL_AUTO");
 
   const modeName = (mode: PermissionModeKey) =>
     mode === "FULL_AUTO" ? `Sandbox - ${sandboxProfileName ?? defaultSandboxProfile.label}` : permissionLabel(mode);
 
   const sandboxModeNote = $derived(
-    fullAuto === false && !sandboxProfileName
+    provider === Provider.CLAUDE && fullAuto === false && !sandboxProfileName
       ? savedFullAuto
         ? savedFullAutoDescription
         : nativeWindowsSandboxMode
@@ -161,7 +164,7 @@
       </MenuCheckItem>
     {/each}
   {/if}
-  {#if value === "FULL_AUTO"}{@render sandboxProfiles?.()}{/if}
+  {#if value === "FULL_AUTO" && isPermissionModeAvailable(value, fullAuto, provider)}{@render sandboxProfiles?.()}{/if}
   {#if !fixed}
     <MenuItem keepOpen onselect={() => (details = !details)}
       >{details ? "Hide permission details" : "Show permission details"}</MenuItem

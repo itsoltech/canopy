@@ -1,5 +1,6 @@
+import { harnessName } from "../harnesses.ts";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
-import { Provider, type bots } from "@canopy/contracts";
+import type { bots } from "@canopy/contracts";
 import { entryAt, type ApprovalView, type BotView, type ChatEntry, type QuestionView } from "./model.ts";
 
 /** A bot's chat (bots.BotConversation) as chat entries and participants (model.ts), for every client. */
@@ -192,8 +193,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
           color: proposal.color,
           model: proposal.model,
           effort: proposal.effort,
-          provider:
-            proposal.provider === Provider.CLAUDE ? "Claude" : proposal.provider === Provider.GROK ? "Grok" : "Codex",
+          provider: harnessName(proposal.provider),
           instance: proposal.providerInstance,
           approvalPolicy: proposal.approvalPolicy,
           webAccess: proposal.webAccess !== false,

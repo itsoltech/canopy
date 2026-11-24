@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import type { ClassValue } from "svelte/elements";
-  import type { ui } from "@canopy/contracts";
+  import { Provider, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -50,7 +51,7 @@
   let failure = $state<string>();
   let deleting = $state(false);
   const on = $derived(worker ? instance.workers.find((w) => w.workerId === worker.id) : undefined);
-  const accountShown = $derived(!!on?.enabled && hasAccountStatus(on.account));
+  const accountShown = $derived(!!on?.enabled && hasAccountStatus(on.account, instance.harness));
   const nameOf = (workerId: string) => workers.find((w) => w.id === workerId)?.name ?? workerId.slice(-8);
   const onlineOf = (workerId: string) => workers.find((w) => w.id === workerId)?.online ?? false;
 
@@ -165,6 +166,10 @@
       <UsageMeters usage={on?.usage} />
       {#if appSignIn && on?.enabled}
         <LoginPanel {instance} {worker} {on} />
+      {:else if instance.harness === Provider.ANTIGRAVITY && on?.enabled && on.version && !on.authenticated && !accountShown}
+        <p class="text-sm/6 text-muted">
+          Run <code>{providerLoginCommand("antigravity", on.account, worker.os)}</code> on {worker.name} to sign in.
+        </p>
       {/if}
     {:else}
       <InsetList label="Status on each worker">
@@ -182,11 +187,11 @@
                 class="basis-full text-sm/5 text-zinc-500 dark:text-zinc-400"
               >
                 {kindLabel(w.kind)}
-                {#if !hasAccountStatus(w.account)}
+                {#if !hasAccountStatus(w.account, instance.harness)}
                   · {w.checkedAt ? `Checked ${formatRelative(w.checkedAt)}` : "Check time unknown"}
                 {/if}
               </p>{/if}
-            {#if w.enabled && hasAccountStatus(w.account)}<div class="min-w-0 basis-full">
+            {#if w.enabled && hasAccountStatus(w.account, instance.harness)}<div class="min-w-0 basis-full">
                 <AccountStatusRow
                   account={w.account}
                   workerId={w.workerId}

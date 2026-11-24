@@ -1,3 +1,4 @@
+import { harnessOf } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
@@ -212,14 +213,13 @@ export class CliTools {
     tool: CliTool,
     capable: boolean,
   ): ui.WorkerCliTool {
-    const key = keyOf(tool.provider);
     const latest = this.checks.get(worker.id, tool.provider);
-    const running = key ? (row.running.get(key) ?? 0) : 0;
+    const running = row.running.get(harnessOf(tool.provider) ?? "") ?? 0;
     const updateAvailable = Boolean(latest?.version && tool.version && newer(latest.version, tool.version));
     const installed = tool.method !== CliInstallMethod.NOT_INSTALLED;
 
     const action =
-      !tool.installable || managedBy(tool) || tool.method === CliInstallMethod.OTHER
+      !keyOf(tool.provider) || !tool.installable || managedBy(tool) || tool.method === CliInstallMethod.OTHER
         ? ""
         : !installed
           ? "install"
@@ -267,7 +267,7 @@ export class CliTools {
   async install(request: ui.InstallCliRequest): Promise<ui.InstallCliResponse> {
     const key = keyOf(request.provider);
 
-    if (!key) throw new ConnectError("choose Claude Code, Codex or Grok", Code.InvalidArgument);
+    if (!key) throw new ConnectError("Canopy cannot install or update this provider CLI.", Code.InvalidArgument);
 
     if (request.installId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(request.installId))
       throw new ConnectError("install_id must be a UUID", Code.InvalidArgument);

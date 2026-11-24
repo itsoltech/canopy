@@ -131,7 +131,7 @@
               {#each tools as item (item.tool?.provider)}
                 {#if item.tool}<div class="grid gap-3">
                     <CliToolRow workerId={worker.workerId} {item} disabled={busy} />
-                    {#if item.tool.provider !== Provider.GROK}<UpdateNotes
+                    {#if item.tool.provider === Provider.CLAUDE || item.tool.provider === Provider.CODEX}<UpdateNotes
                         current={item.tool.install?.previousVersion || item.tool.version}
                         target={item.tool.install?.targetVersion || item.latest?.version || ""}
                         channel="stable"

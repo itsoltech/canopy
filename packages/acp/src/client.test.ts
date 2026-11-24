@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { waitForProcessStopped } from "@canopy/testing";
-import { GrokClient, type PromptEvent } from "./index.ts";
+import { AcpClient, type PromptEvent } from "./index.ts";
 
 const args = [import.meta.dir + "/fixtures/agent.ts"];
 
@@ -13,7 +13,7 @@ const collect = async (events: AsyncIterable<PromptEvent>) => {
 };
 
 test("NDJSON framing, Unicode, consecutive turns, persisted session and process disposal", async () => {
-  const client = new GrokClient({ executable: process.execPath, args });
+  const client = new AcpClient({ executable: process.execPath, args });
   const pid = client.pid!;
 
   try {
@@ -34,7 +34,7 @@ test("NDJSON framing, Unicode, consecutive turns, persisted session and process 
 });
 
 test("bidirectional permissions complete the blocked prompt", async () => {
-  const client = new GrokClient({
+  const client = new AcpClient({
     executable: process.execPath,
     args,
     callbacks: {
@@ -53,8 +53,24 @@ test("bidirectional permissions complete the blocked prompt", async () => {
   }
 });
 
+test("restoring an existing session uses only an advertised method and retains its identity", async () => {
+  for (const capability of ["resume-only", "no-restore", "wrong-id"]) {
+    const client = new AcpClient({ executable: process.execPath, args: [...args, capability] });
+
+    try {
+      await client.initialize();
+      const restore = client.restoreSession("saved", import.meta.dir);
+
+      if (capability === "resume-only") expect((await restore).sessionId).toBe("saved");
+      else await expect(restore).rejects.toThrow(capability === "wrong-id" ? "different session ID" : "cannot reopen");
+    } finally {
+      await client.dispose();
+    }
+  }
+});
+
 test("cancel resolves a running turn and leaves the session usable", async () => {
-  const client = new GrokClient({ executable: process.execPath, args });
+  const client = new AcpClient({ executable: process.execPath, args });
 
   try {
     await client.initialize();
@@ -72,7 +88,7 @@ test("cancel resolves a running turn and leaves the session usable", async () =>
 });
 
 test("crashes reject pending prompts; stderr is redacted", async () => {
-  const client = new GrokClient({ executable: process.execPath, args, secrets: ["sensitive-test-token"] });
+  const client = new AcpClient({ executable: process.execPath, args, secrets: ["sensitive-test-token"] });
 
   try {
     await client.initialize();
@@ -84,7 +100,7 @@ test("crashes reject pending prompts; stderr is redacted", async () => {
 });
 
 test("timeout terminates a stuck process and rejects every outstanding request", async () => {
-  const client = new GrokClient({ executable: process.execPath, args, promptTimeoutMs: 30 });
+  const client = new AcpClient({ executable: process.execPath, args, promptTimeoutMs: 30 });
 
   try {
     await client.initialize();
@@ -97,7 +113,7 @@ test("timeout terminates a stuck process and rejects every outstanding request",
 test("an agent ignoring cancellation is terminated; waiting permission callbacks are aborted", async () => {
   let permissionSignal: AbortSignal | undefined;
 
-  const client = new GrokClient({
+  const client = new AcpClient({
     executable: process.execPath,
     args,
     cancelTimeoutMs: 30,

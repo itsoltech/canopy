@@ -25,7 +25,7 @@
       {Object.entries(status.clis)
         .filter(([, found]) => found)
         .map(([name]) => name)
-        .join(", ") || "Install Claude, Codex or Grok to run agents."}
+        .join(", ") || "Install an agent CLI on this computer."}
     </dd>
   </dl>
 </div>

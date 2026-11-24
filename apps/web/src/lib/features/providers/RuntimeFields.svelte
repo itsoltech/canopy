@@ -31,7 +31,8 @@
   } = $props();
 
   const codex = $derived(harness === Provider.CODEX);
-  const binary = $derived(harness === Provider.GROK ? "grok" : codex ? "codex" : "claude");
+  const antigravity = $derived(harness === Provider.ANTIGRAVITY);
+  const binary = $derived(antigravity ? "agy" : harness === Provider.GROK ? "grok" : codex ? "codex" : "claude");
 
   const hint = (value: string | undefined, fallback: string) =>
     inherited ? value || `Definition: ${fallback}` : fallback;
@@ -48,58 +49,68 @@
       class="font-mono"
     />
   </Field>
+  {#if !antigravity}
+    <Field
+      layout="row"
+      label={harness === Provider.GROK ? "GROK_HOME path" : codex ? "CODEX_HOME path" : "Login source"}
+      description={harness === Provider.CLAUDE
+        ? "Uses the Claude account signed in here, independently of user configuration."
+        : codex
+          ? "The worker detects the CLI home when no path is set."
+          : "The device's CLI home the login is linked from."}
+    >
+      <Input
+        name="{prefix}-home"
+        bind:value={homePath}
+        placeholder={hint(inherited?.homePath, `~/.${binary}`)}
+        autocomplete="off"
+        spellcheck="false"
+        class="font-mono"
+      />
+    </Field>
+  {/if}
   <Field
     layout="row"
-    label={harness === Provider.GROK ? "GROK_HOME path" : codex ? "CODEX_HOME path" : "Login source"}
-    description={harness === Provider.CLAUDE
-      ? "Uses the Claude account signed in here, independently of user configuration."
-      : codex
-        ? "The worker detects the CLI home when no path is set."
-        : "The device's CLI home the login is linked from."}
-  >
-    <Input
-      name="{prefix}-home"
-      bind:value={homePath}
-      placeholder={hint(inherited?.homePath, `~/.${binary}`)}
-      autocomplete="off"
-      spellcheck="false"
-      class="font-mono"
-    />
-  </Field>
-  <Field
-    layout="row"
-    label={harness === Provider.GROK ? "Shadow home path" : "Private state directory"}
-    description={harness === Provider.GROK
-      ? "Login home for an instance with its own login. ACP sessions live in the worker's data directory."
-      : harness === Provider.CLAUDE
-        ? "Stores private thread history and state when user configuration is isolated or local."
-        : "Stores Canopy’s private Codex state, including the thread index."}
+    label={antigravity
+      ? "Managed skills home"
+      : harness === Provider.GROK
+        ? "Shadow home path"
+        : "Private state directory"}
+    description={antigravity
+      ? "Canopy stores the skills assigned to this instance here."
+      : harness === Provider.GROK
+        ? "Login home for an instance with its own login. ACP sessions live in the worker's data directory."
+        : harness === Provider.CLAUDE
+          ? "Stores private thread history and state when user configuration is isolated or local."
+          : "Stores Canopy’s private Codex state, including the thread index."}
   >
     <Input
       name="{prefix}-shadow"
       bind:value={shadowHomePath}
-      placeholder={hint(inherited?.shadowHomePath, `<data dir>/${binary}-home`)}
+      placeholder={hint(inherited?.shadowHomePath, antigravity ? "Worker default" : `<data dir>/${binary}-home`)}
       autocomplete="off"
       spellcheck="false"
       class="font-mono"
     />
   </Field>
-  <Field
-    layout="row"
-    label="Launch arguments"
-    description={harness === Provider.GROK
-      ? "Agent flags before stdio, e.g. --reasoning-effort low."
-      : codex
-        ? 'After app-server, e.g. -c model_verbosity="low".'
-        : "Claude Code flags, e.g. --debug."}
-  >
-    <Input
-      name="{prefix}-args"
-      bind:value={launchArgs}
-      placeholder={hint(inherited?.launchArgs, "none")}
-      autocomplete="off"
-      spellcheck="false"
-      class="font-mono"
-    />
-  </Field>
+  {#if !antigravity}
+    <Field
+      layout="row"
+      label="Launch arguments"
+      description={harness === Provider.GROK
+        ? "Agent flags before stdio, e.g. --reasoning-effort low."
+        : codex
+          ? 'After app-server, e.g. -c model_verbosity="low".'
+          : "Claude Code flags, e.g. --debug."}
+    >
+      <Input
+        name="{prefix}-args"
+        bind:value={launchArgs}
+        placeholder={hint(inherited?.launchArgs, "none")}
+        autocomplete="off"
+        spellcheck="false"
+        class="font-mono"
+      />
+    </Field>
+  {/if}
 </div>

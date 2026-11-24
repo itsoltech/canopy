@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { supportsThreadPermission } from "@canopy/domain/harnesses";
   import { create } from "@bufbuild/protobuf";
   import { PermissionMode, Provider, ui } from "@canopy/contracts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
@@ -101,8 +102,12 @@
       value={agentValue}
       onchange={(key) => {
         // The profile belongs to the agent; models are kept per agent.
+        const provider = isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED;
         set({
-          provider: isProviderKey(key) ? Provider[key] : Provider.UNSPECIFIED,
+          provider,
+          permissionMode: supportsThreadPermission(provider, value.permissionMode)
+            ? value.permissionMode
+            : PermissionMode.ASK,
           providerProfileId: "",
           useLastAgent: key === "last" ? true : key === "" ? undefined : false,
         });
@@ -179,7 +184,9 @@
       class="w-56 sm:w-48"
       options={[
         ...(inherited ? [{ value: "", label: `Use my default (${permissionLabel(inherited.permissionMode)})` }] : []),
-        ...permissionModes,
+        ...permissionModes.filter(
+          (mode) => useLastAgent || supportsThreadPermission(value.provider, PermissionMode[mode.value]),
+        ),
       ]}
     />
   {/snippet}

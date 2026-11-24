@@ -1,8 +1,8 @@
 import { mkdirSync, realpathSync } from "node:fs";
 import { resolve, join, dirname, basename } from "node:path";
-import { Provider, type CompleteLogin, type LogoutProvider } from "@canopy/contracts";
+import type { Provider, CompleteLogin, LogoutProvider } from "@canopy/contracts";
+import { harnessOf, providerOf } from "@canopy/domain/harnesses";
 import { runProcess } from "@canopy/process-governor";
-import { Match } from "effect";
 import { instanceShadowHome } from "../config/remote.ts";
 import { providersOf } from "../providers/profiles.ts";
 import { startCliLogin, type CliLogin } from "../providers/cli-login.ts";
@@ -25,19 +25,18 @@ export class ProviderLogins {
   constructor(readonly ctx: HostContext) {}
 
   target(provider: Provider, id: string) {
+    const harness = harnessOf(provider);
+
+    if (harness === "antigravity")
+      throw new CommandError(
+        "UNSUPPORTED",
+        "Manage Antigravity sign-in in a terminal on the worker. Run agy acp --login to sign in or /logout inside agy to sign out.",
+        true,
+      );
     const config = this.ctx.state.config;
 
     if (!config || this.ctx.state.closing)
       throw new CommandError("WORKER_NOT_CONFIGURED", "The worker is not ready. Reconnect, then retry.", false);
-
-    const harness: "claude" | "codex" | "grok" | undefined =
-      provider === Provider.CLAUDE
-        ? "claude"
-        : provider === Provider.CODEX
-          ? "codex"
-          : provider === Provider.GROK
-            ? "grok"
-            : undefined;
 
     if (!harness) throw new CommandError("UNSUPPORTED", "Choose an agent CLI.", true);
 
@@ -281,14 +280,7 @@ export class ProviderLogins {
       let current: ReturnType<ProviderLogins["target"]>;
 
       try {
-        current = this.target(
-          Match.value(target.harness).pipe(
-            Match.when("claude", () => Provider.CLAUDE),
-            Match.when("codex", () => Provider.CODEX),
-            Match.orElse(() => Provider.GROK),
-          ),
-          profile.config.id,
-        );
+        current = this.target(providerOf(target.harness), profile.config.id);
       } catch {
         // A sibling that no longer resolves must not suppress the completed login report.
         continue;

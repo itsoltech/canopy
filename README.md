@@ -5,7 +5,7 @@
   </picture>
 </h1>
 <p align="center">
-  <strong>A self-hosted workspace for Claude Code, Codex, and Grok.</strong>
+  <strong>A self-hosted workspace for Claude Code, Codex, Grok, and Antigravity.</strong>
 </p>
 <p align="center">
   Run agents where your code lives. Connect Slack and Linear so bots can hand work to a coding agent and report back.

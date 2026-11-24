@@ -29,7 +29,7 @@ export function reconcileSkill(
   });
 
   try {
-    if (ledger.problem) throw new Error(ledger.problem);
+    if (target.problem || ledger.problem) throw new Error(target.problem || ledger.problem);
     recoverSkillSwap(target.path, target.targetId, ledger);
     const previous = ledger.entries.get(target.targetId);
     const owned = previous?.owned && previous.skillId === target.skillId;

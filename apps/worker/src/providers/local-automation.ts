@@ -7,7 +7,7 @@ import {
   type AgentToolResult,
   type ThreadSpec,
 } from "@canopy/contracts";
-import { createLocalAutomationMcp } from "../agent-tools-mcp/index.ts";
+import { createLocalAutomationMcp, type McpToolsListed } from "../agent-tools-mcp/index.ts";
 import { toolEnvironment } from "../agent-tools/paths.ts";
 import type { LocalAgentToolMcpServer } from "../agent-tools/index.ts";
 
@@ -27,13 +27,19 @@ const toolIds = new Map([
 ]);
 
 /** One authenticated bridge per harness session. The subprocess never inherits provider credentials. */
-export function automationMcp(options: AutomationMcpOptions, spec: ThreadSpec, turnId: () => string) {
+export function automationMcp(
+  options: AutomationMcpOptions,
+  spec: ThreadSpec,
+  turnId: () => string,
+  toolsListed?: McpToolsListed,
+) {
   const servers = options.localMcpServers?.(spec.localMcpTools, spec.threadId, spec.agentToolDefaults) ?? [];
 
   if (!servers.length) return undefined;
 
   return createLocalAutomationMcp({
     servers,
+    ...(toolsListed && { toolsListed }),
     env: toolEnvironment(process.env),
     authorize: async (name, toolName, argsJson, signal) => {
       const tool = toolIds.get(name);

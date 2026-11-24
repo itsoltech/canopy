@@ -80,6 +80,7 @@
     "./work-group-choices": "./src/work-group-choices.ts",
     "./mentions": "./src/mentions/index.ts",
     "./provider-accounts": "./src/provider-accounts.ts",
+    "./harnesses": "./src/harnesses.ts",
     "./provider-usage": "./src/provider-usage.ts",
     "./proxy-accounts": "./src/proxy-accounts.ts",
     "./proxy-capacity": "./src/proxy-capacity.ts",

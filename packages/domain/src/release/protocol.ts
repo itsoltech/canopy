@@ -1,6 +1,9 @@
 /** Increase only for a breaking WorkerLink contract; additive fields do not need a bump. */
 export const WORKER_LINK_PROTOCOL = 1;
 
+/** Native Antigravity ACP threads and skill destinations. */
+export const ANTIGRAVITY_ACP_CAPABILITY = "antigravity_acp_v1";
+
 /** Owner-requested, durable conversation replacement with a preserved source session. */
 export const THREAD_REWIND_CAPABILITY = "thread_rewind_v1";
 

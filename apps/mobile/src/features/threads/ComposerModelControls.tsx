@@ -91,6 +91,7 @@ export function ComposerPickers({
         onSelect={(next) => update({ serviceTier: next })}
       />
       <PermissionPickerSheet
+        provider={section?.provider}
         visible={allowPermission && picker === "permission"}
         onClose={close}
         value={permissionMode}

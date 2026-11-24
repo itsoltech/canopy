@@ -1,3 +1,4 @@
+import { providerLoginCommand } from "@canopy/domain/provider-accounts";
 import { StyleSheet, Text, View } from "react-native";
 import { Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { formatRelative } from "@canopy/domain/format";
@@ -25,12 +26,23 @@ function OnWorker({
   on: ui.InstanceOnWorker | undefined;
   now: number;
 }) {
-  const accountShown = !!on?.enabled && hasAccountStatus(on.account);
-  const appSignIn = instance.kind === ProviderProfileKind.NATIVE;
+  const accountShown = !!on?.enabled && hasAccountStatus(on.account, instance.harness);
+  const appSignIn = instance.kind === ProviderProfileKind.NATIVE && instance.harness !== Provider.ANTIGRAVITY;
 
   return (
     <View style={{ gap: 10 }}>
       <SettingsValue title={`On ${worker.name}`} value={statusOn(on, worker.online).label} />
+      {instance.harness === Provider.ANTIGRAVITY &&
+        on?.enabled &&
+        !!on.version &&
+        (on.account?.state === "expired" ||
+          on.account?.state === "signed_out" ||
+          (!on.authenticated && !on.account?.authMethod)) && (
+          <SettingsValue
+            title="Sign in on the worker"
+            value={providerLoginCommand("antigravity", on.account, worker.os)}
+          />
+        )}
       {on?.version ? <SettingsValue title="Version" value={on.version} /> : null}
       {on?.reported && on.account?.authMethod !== "Proxy" ? (
         <SettingsValue title="Connection" value={kindLabel(on.kind)} />
@@ -148,12 +160,12 @@ function AcrossWorkers({
             {w.reported && w.account?.authMethod !== "Proxy" ? (
               <Text style={[styles.workMeta, { color: c.muted }]}>
                 {kindLabel(w.kind)}
-                {hasAccountStatus(w.account)
+                {hasAccountStatus(w.account, instance.harness)
                   ? ""
                   : ` · ${w.checkedAt ? `Checked ${formatRelative(w.checkedAt, now)}` : "Check time unknown"}`}
               </Text>
             ) : null}
-            {w.enabled && hasAccountStatus(w.account) ? (
+            {w.enabled && hasAccountStatus(w.account, instance.harness) ? (
               <ProviderAccountRow
                 account={w.account}
                 workerId={w.workerId}

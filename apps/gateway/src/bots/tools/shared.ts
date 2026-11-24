@@ -1,5 +1,6 @@
+import { HARNESSES, providerOf } from "@canopy/domain/harnesses";
 import { fromJsonString, toJson, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
-import { PermissionMode, Provider } from "@canopy/contracts";
+import { PermissionMode, type Provider } from "@canopy/contracts";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import { Match, Option, Predicate, Schema } from "effect";
 import { Invalid } from "../../store/store.ts";
@@ -13,7 +14,7 @@ export type { ToolResult };
 export const str = { type: "string" };
 export const bool = { type: "boolean" };
 export const strings = { type: "array", items: str, maxItems: 200 };
-export const providerSchema = { type: "string", enum: ["claude", "codex", "grok"] };
+export const providerSchema = { type: "string", enum: [...HARNESSES] };
 export const permissionSchema = { type: "string", enum: ["ask", "read_only", "accept_edits", "full_auto"] };
 
 export const object = (properties: JsonObject, required: string[] = []) => ({
@@ -73,14 +74,11 @@ export function label(value: JsonValue | undefined, fallback: string): string {
 }
 
 export function provider(value: JsonValue | undefined): Provider {
-  return Match.value(value).pipe(
-    Match.when("claude", () => Provider.CLAUDE),
-    Match.when("codex", () => Provider.CODEX),
-    Match.when("grok", () => Provider.GROK),
-    Match.orElse(() => {
-      throw new Invalid("provider must be claude, codex or grok");
-    }),
-  );
+  const selected = Predicate.isString(value) && providerOf(value);
+
+  if (!selected) throw new Invalid("Choose a provider from list_provider_instances.");
+
+  return selected;
 }
 
 export function permission(value: JsonValue | undefined): PermissionMode {

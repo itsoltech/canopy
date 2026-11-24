@@ -79,8 +79,9 @@ export const applyGoalState = (sql: SqlClient.SqlClient, threadId: string, turnI
   Effect.gen(function* () {
     const thread = (yield* sql<{ provider: string }>`SELECT provider FROM threads WHERE id = ${threadId}::uuid`)[0];
 
-    if (!thread) return undefined;
-    const provider = thread.provider === "claude" ? "claude" : "codex";
+    const provider = thread?.provider;
+
+    if (provider !== "claude" && provider !== "codex") return undefined;
     const cleared = state.cleared || state.nativeStatus === "cleared";
 
     const open = (yield* sql<GoalRow>`
@@ -215,10 +216,10 @@ export class GoalStore extends Context.Service<
                 provider: string;
               }>`SELECT provider FROM threads WHERE id = ${current.thread_id}::uuid`)[0];
 
-              const target = goalStatusAfterFailure(
-                thread?.provider === "claude" ? "claude" : "codex",
-                current.native_status ?? "",
-              );
+              const target =
+                thread?.provider === "claude" || thread?.provider === "codex"
+                  ? goalStatusAfterFailure(thread.provider, current.native_status ?? "")
+                  : "blocked";
 
               const other = yield* sql`
                 SELECT 1 FROM goals WHERE thread_id = ${current.thread_id}::uuid AND id <> ${goalId}::uuid AND status NOT IN ('achieved', 'cancelled')`;

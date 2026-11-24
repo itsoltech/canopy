@@ -1,7 +1,8 @@
+import { providerLoginCommand } from "@canopy/domain/provider-accounts";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import Animated from "react-native-reanimated";
-import { ProviderProfileKind, ui, type Item } from "@canopy/contracts";
+import { Provider, ProviderProfileKind, ui, type Item } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { FeedAnchorCell, FeedAnchorProvider, useFeedAnchor } from "../../ui/feed-anchor";
 import { Notice } from "../../ui/components";
@@ -38,11 +39,18 @@ function useTimelineData(state: ThreadState) {
   const { threads, workers } = useOverview();
   const { snapshot, thread } = state;
 
-  const proxy =
-    workers
-      .find((w) => w.id === thread?.workerId)
-      ?.providerInstances.find((i) => i.harness === thread?.provider && i.id === (thread.providerProfileId || "native"))
-      ?.kind === ProviderProfileKind.CLIPROXYAPI;
+  const worker = workers.find((w) => w.id === thread?.workerId);
+
+  const instance = worker?.providerInstances.find(
+    (i) => i.harness === thread?.provider && i.id === (thread.providerProfileId || "native"),
+  );
+
+  const proxy = instance?.kind === ProviderProfileKind.CLIPROXYAPI;
+
+  const loginCommand =
+    thread?.provider === Provider.ANTIGRAVITY
+      ? providerLoginCommand("antigravity", instance?.account, worker?.os ?? "")
+      : "";
 
   const quoteAction = useRef(state.quotes.add);
   const quote = useCallback((value: ui.Quote) => quoteAction.current(value), []);
@@ -74,6 +82,7 @@ function useTimelineData(state: ThreadState) {
       editFrom:
         !away &&
         thread?.runtime === "worker" &&
+        thread.provider !== Provider.ANTIGRAVITY &&
         !thread.spawnedByAgent &&
         !thread.scheduleId &&
         !thread.archivedAt &&
@@ -101,13 +110,14 @@ function useTimelineData(state: ThreadState) {
       steers: snapshot?.steers ?? [],
       tasks,
       provider: thread?.provider,
+      loginCommand,
       proxy,
       foldChoices,
       groupChoices,
     };
 
     return { directory, context };
-  }, [snapshot, thread, threads, proxy, quote, editFrom, away, foldChoices, groupChoices, state.turns]);
+  }, [snapshot, thread, threads, proxy, loginCommand, quote, editFrom, away, foldChoices, groupChoices, state.turns]);
 }
 
 /** Native anchoring/follow-state changes may update the list wrapper without rendering unchanged turns. */

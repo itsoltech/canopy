@@ -127,8 +127,8 @@
         <WorkerSshInstall {name} {tags} bind:busy {onenrollment} {oninstalled} />
       {:else if method === "docker"}
         <p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-          Enroll once, then run with a persistent home volume. Agent CLIs are not included: extend the image with
-          Claude, Codex or Grok and sign in inside the container.
+          Enroll once, then run with a persistent home volume. Add your agent CLI to the image and sign in inside the
+          container.
         </p>
         <SegmentedChoice
           label="Docker instructions"

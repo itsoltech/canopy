@@ -5,6 +5,8 @@ import type { StorageCategory, StorageRoot, StorageSamplerOptions } from "./stor
 export const WORKER_MANAGED_ENTRIES = [
   "agent-environment",
   "agent-tools",
+  "antigravity",
+  "antigravity-home",
   "attachments",
   "bots",
   "claude-home",

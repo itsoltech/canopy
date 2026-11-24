@@ -133,7 +133,7 @@ export function ThreadActionsSheet({
 
 function actionSections(
   { thread, onSearch, onReorder, onSideThread, onGoal, goalOpen }: Omit<ThreadActionsSheetProps, "onClose" | "visible">,
-  { archived, pinned }: ReturnType<typeof useThreadActions>,
+  { archived, pinned, canGenerateTitle }: ReturnType<typeof useThreadActions>,
   canSnooze: boolean,
 ): PickerSection<SheetAction>[] {
   return [
@@ -170,12 +170,16 @@ function actionSections(
         ...(!thread.nodeId
           ? [{ value: "move" as const, label: "Move to a computer", icon: "arrows-right-left" as const }]
           : []),
-        {
-          value: "regenerate",
-          label: "Regenerate title",
-          icon: "arrow-path",
-          disabled: archived || thread.titleGenerating || thread.lastSeq === 0n,
-        },
+        ...(canGenerateTitle
+          ? [
+              {
+                value: "regenerate" as const,
+                label: "Regenerate title",
+                icon: "arrow-path" as const,
+                disabled: archived || thread.titleGenerating || thread.lastSeq === 0n,
+              },
+            ]
+          : []),
         {
           value: "read",
           label: thread.markedUnread || thread.unseenResult ? "Mark as read" : "Mark as unread",

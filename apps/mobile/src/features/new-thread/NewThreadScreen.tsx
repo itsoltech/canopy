@@ -188,6 +188,7 @@ function NewThreadPickers({ state, picker, close }: { state: State; picker: Pick
         onSelect={state.setServiceTier}
       />
       <PermissionPickerSheet
+        provider={state.selected?.provider}
         visible={picker === "permission"}
         onClose={close}
         value={permissionMode}

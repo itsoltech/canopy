@@ -38,7 +38,7 @@ export function parseThreadForm(form: FormData, action: string, target: { projec
   const requested = text(form, "provider");
   const provider = parent ? providerKeyOf(parent.provider) : isProviderKey(requested) ? requested : undefined;
 
-  if (!provider) return fail(400, { action, error: "Choose Claude, Codex or Grok" });
+  if (!provider) return fail(400, { action, error: "Choose an available agent." });
   const profileId = parent?.providerProfileId ?? text(form, "profileId");
   // Browser form encoding expands LF to CRLF. Inline ranges in JSON still index the editor's LF text.
   const message = String(form.get("message") ?? "").replaceAll("\r\n", "\n");

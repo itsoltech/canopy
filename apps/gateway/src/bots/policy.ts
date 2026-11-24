@@ -1,3 +1,4 @@
+import { HARNESSES } from "@canopy/domain/harnesses";
 import { botMemoryTools, type BotMemoryAccess } from "./memory.ts";
 import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
 import { botThreadConnectionEnabled } from "../store/module-access.ts";
@@ -260,7 +261,7 @@ const legacyTools: ToolSpec[] = [
     "list_models",
     "List available harness models and reasoning efforts; never guess model names. Defaults to your own worker, provider and instance. For another worker supply worker_id, provider and provider_instance. Native harness aliases are valid for bots.",
     {
-      provider: { type: "string", enum: ["claude", "codex", "grok"] },
+      provider: { type: "string", enum: [...HARNESSES] },
       provider_instance: str,
       worker_id: str,
     },
@@ -279,7 +280,7 @@ const legacyTools: ToolSpec[] = [
       workspace_mode: { type: "string", enum: ["default", "checkout", "new_worktree", "inherit_parent"] },
       base_ref: str,
       parent_thread_id: str,
-      provider: { type: "string", enum: ["claude", "codex", "grok"] },
+      provider: { type: "string", enum: [...HARNESSES] },
       provider_instance: str,
       model: str,
       effort: str,

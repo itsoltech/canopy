@@ -148,8 +148,8 @@ if [ "$service" = yes ]; then
 else
   printf '%s\n' "Service skipped. Start: $binary --config $config"
 fi
-for cli in claude codex grok; do
+for cli in claude codex grok agy; do
   if command -v "$cli" >/dev/null 2>&1; then printf '%s\n' "$cli: found ($(command -v "$cli"))"
   else printf '%s\n' "$cli: not installed; install the agent CLI separately"; fi
 done
-printf '%s\n' 'Sign in on this machine: claude auth login; codex login; grok (follow its sign-in prompt).' 'Check Settings → Workers for the live connection and provider setup.'
+printf '%s\n' 'Sign in on this machine: claude auth login; codex login; grok (follow its sign-in prompt); agy acp --login.' 'Check Settings → Workers for the live connection and provider setup.'

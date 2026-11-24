@@ -1,5 +1,6 @@
 import { realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { instructionDirectory } from "../agent-environment/files.ts";
 
 /** Resolve existing ancestors too, so aliases remain comparable before a home exists. */
 function canonicalHome(path: string): string {
@@ -35,7 +36,7 @@ export function providerHomeProblem(
 }
 
 /** Check overlap even when a protected path is configured for a different, unavailable instance. */
-export function codexHomeOverlapProblem(privateHome: string, protectedHomes: readonly string[]): string | undefined {
+function homeOverlapProblem(privateHome: string, protectedHomes: readonly string[], label: string): string | undefined {
   try {
     const target = canonicalHome(privateHome);
     const nested = (path: string) => path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
@@ -44,10 +45,28 @@ export function codexHomeOverlapProblem(privateHome: string, protectedHomes: rea
       const root = canonicalHome(source);
 
       if (nested(relative(target, root)) || nested(relative(root, target)))
-        return "Choose separate Codex CLI and private home directories outside each other.";
+        return `Choose separate ${label} CLI and private home directories outside each other.`;
     }
   } catch {
     return "Cannot inspect the provider home. Check its path and directory permissions.";
+  }
+
+  return undefined;
+}
+
+export const codexHomeOverlapProblem = (privateHome: string, protectedHomes: readonly string[]) =>
+  homeOverlapProblem(privateHome, protectedHomes, "Codex");
+
+export function antigravityHomeProblem(privateHome: string, deviceCliHome: string): string | undefined {
+  const overlap = homeOverlapProblem(privateHome, [deviceCliHome], "Antigravity");
+
+  if (overlap) return overlap;
+
+  try {
+    // Use the same check as managed skill writes. Existing aliases in any component must be rejected at validation too.
+    instructionDirectory(join(privateHome, "skills"), false);
+  } catch {
+    return "Choose an absolute Antigravity private home with readable directories and no symlinks.";
   }
 
   return undefined;

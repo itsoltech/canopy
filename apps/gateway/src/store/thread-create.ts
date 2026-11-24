@@ -1,3 +1,8 @@
+import {
+  ANTIGRAVITY_PERMISSION_GUIDANCE,
+  sessionForkProblem,
+  supportsThreadPermission,
+} from "@canopy/domain/harnesses";
 import { toJson } from "@bufbuild/protobuf";
 import { SandboxProfileBindingSchema, ui, type SandboxProfileBinding } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -6,7 +11,7 @@ import { Invalid, one } from "./errors.ts";
 import { isAbsolutePath, isWithinWorkspace, normalizePath, pathStyle, scratchCwd } from "./paths.ts";
 import { harnessOf } from "./instance-config.ts";
 import type { ThreadRow, TurnRow } from "./rows.ts";
-import { permissionModeName } from "./ui-mappers.ts";
+import { permissionModeName, permissionModeOf } from "./ui-mappers.ts";
 import type { ThreadStore } from "./threads-store.ts";
 import type { WorktreeStore } from "./worktrees.ts";
 import { automatedPermission } from "./automated-permissions.ts";
@@ -61,7 +66,9 @@ const forkPoint = (sql: SqlClient.SqlClient, ownerUserId: string, request: ui.Cr
 
     if (threadSandbox(point)) return yield* Effect.fail(new Invalid(SANDBOX_DERIVATION_UNAVAILABLE));
 
-    if (point.provider === "grok") return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
+    const forkProblem = sessionForkProblem(point.provider);
+
+    if (forkProblem) return yield* Effect.fail(new Invalid(forkProblem));
 
     if (!["completed", "failed", "interrupted"].includes(point.status)) {
       return yield* Effect.fail(
@@ -212,8 +219,9 @@ export function threadCreation(
           if (parent && parent.owner_user_id !== ownerUserId)
             return yield* Effect.fail(new Invalid("parent thread not found"));
 
-          if (parent?.provider === "grok" && request.fork)
-            return yield* Effect.fail(new Invalid("Grok ACP does not support session forks"));
+          const forkProblem = parent && request.fork && sessionForkProblem(parent.provider);
+
+          if (forkProblem) return yield* Effect.fail(new Invalid(forkProblem));
 
           if (parent?.archived_at) return yield* Effect.fail(new Invalid("parent thread is archived"));
 
@@ -297,6 +305,9 @@ export function threadCreation(
             );
 
           const access = yield* creationAccess(sql, ownerUserId, workspace.worker_id, request, automated);
+
+          if (!supportsThreadPermission(request.provider, permissionModeOf(access.permissionMode)))
+            return yield* Effect.fail(new Invalid(ANTIGRAVITY_PERMISSION_GUIDANCE));
 
           const audience = yield* creationAudience(sql, request.parentThreadId, forkSource, request, automated);
 

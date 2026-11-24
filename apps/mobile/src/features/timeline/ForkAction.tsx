@@ -1,6 +1,7 @@
+import { supportsSessionFork } from "@canopy/domain/harnesses";
 import { useRef, useState } from "react";
 import { Alert, type StyleProp, type ViewStyle } from "react-native";
-import { Provider, type ui } from "@canopy/contracts";
+import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { useLayout } from "../../state/layout";
 import { IconButton } from "../../ui/Button";
@@ -18,7 +19,7 @@ export function ForkAction({ turn, style }: { turn: ui.Turn; style?: StyleProp<V
   const available =
     !directory.readOnly &&
     thread?.runtime === "worker" &&
-    thread.provider !== Provider.GROK &&
+    supportsSessionFork(thread.provider) &&
     thread.status !== "creating" &&
     !turn.rewindId &&
     !!turn.startedAt &&

@@ -2,6 +2,7 @@
   import type { Provider } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
+  import { providerLabel } from "../labels.ts";
   import { providerKeyOf } from "../providers.ts";
 
   /**
@@ -16,7 +17,7 @@
   }: { provider: Provider; model: string; effort?: string; class?: ClassValue } = $props();
 
   const key = $derived(providerKeyOf(provider));
-  const name = $derived(key === "CLAUDE" ? "Claude" : key === "GROK" ? "Grok" : "Codex");
+  const name = $derived(providerLabel(provider));
   const label = $derived([model || `${name} default`, effort].filter(Boolean).join(" · "));
 </script>
 

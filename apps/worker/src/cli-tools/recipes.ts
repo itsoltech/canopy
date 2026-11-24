@@ -75,10 +75,38 @@ function nativeRecipe(cli: DiscoveredCli, version: string, posix: boolean): Reci
   return { managedBy: "you", detail: "No recipe for this platform yet." };
 }
 
+/** Google’s bootstrapper installs the current release only. Native copies have their own updater. */
+function antigravityInstructions(cli: DiscoveredCli, posix: boolean): RecipePlan {
+  if (cli.method === CliInstallMethod.NATIVE)
+    return { manualCommand: "agy update", detail: "Run agy update in a terminal on this computer." };
+
+  if (cli.path)
+    return {
+      detail: cli.resolvedPath
+        ? "Update this Antigravity CLI installation on the computer."
+        : "Check the configured CLI path.",
+    };
+
+  return {
+    manualCommand: posix
+      ? "curl -fsSL https://antigravity.google/cli/install.sh | bash"
+      : "irm https://antigravity.google/cli/install.ps1 | iex",
+    detail: posix
+      ? "Install Antigravity CLI in a terminal on this computer."
+      : "Install Antigravity CLI from PowerShell on this computer.",
+  };
+}
+
 export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeTools): RecipePlan {
   if (!validTarget(version)) throw new Error(`invalid version "${version}"`);
   const { spec } = cli;
   const posix = tools.platform !== "win32";
+
+  if (cli.method === CliInstallMethod.DOCKER)
+    return { managedBy: "the image", detail: "Pull a newer worker image or extend it with the CLI version you want." };
+
+  if (spec.name === "antigravity") return antigravityInstructions(cli, posix);
+
   const pkg = `${spec.npm}@${version}`;
 
   const npmOf = (prefix?: string) => {
@@ -94,11 +122,6 @@ export function planRecipe(cli: DiscoveredCli, version: string, tools: RecipeToo
     ]);
 
   switch (cli.method) {
-    case CliInstallMethod.DOCKER:
-      return {
-        managedBy: "the image",
-        detail: "Pull a newer worker image or extend it with the CLI version you want.",
-      };
     case CliInstallMethod.HOMEBREW:
       return {
         managedBy: "Homebrew",

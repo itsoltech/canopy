@@ -15,7 +15,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tempDirs, waitForProcessStopped } from "@canopy/testing";
 import { automationMcp } from "../local-automation.ts";
-import { closeGrokResources } from "./lifecycle.ts";
+import { closeAcpResources } from "../acp/cleanup.ts";
 import { GrokThreads } from "./threads.ts";
 import { grokLaunch } from "./launch.ts";
 import type { ResolvedProfile } from "../profiles.ts";
@@ -75,7 +75,7 @@ test("Grok cleanup waits for every resource and still reaches launch cleanup aft
   const closed: string[] = [];
 
   await expect(
-    closeGrokResources([
+    closeAcpResources([
       async () => {
         closed.push("client");
         throw new Error("client close failed");

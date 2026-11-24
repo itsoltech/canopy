@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { HARNESSES, HARNESS_NAMES, isHarness } from "@canopy/domain/harnesses";
   import type { ClassValue } from "svelte/elements";
   import type { ui } from "@canopy/contracts";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
@@ -7,7 +8,7 @@
   let {
     skill = $bindable(),
     workers,
-    harnesses = ["claude", "codex", "grok"],
+    harnesses = HARNESSES,
     plugin = false,
     class: className,
   }: {
@@ -24,7 +25,7 @@
     {#each harnesses as harness (harness)}
       <Checkbox
         name="skill-{harness}"
-        label={harness === "claude" ? "Claude" : harness === "codex" ? "Codex" : "Grok"}
+        label={isHarness(harness) ? HARNESS_NAMES[harness] : harness}
         bind:checked={
           () => skill.harnesses.includes(harness),
           (checked) =>

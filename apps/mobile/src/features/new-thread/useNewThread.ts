@@ -1,3 +1,4 @@
+import { availablePermission } from "../threads/permissions";
 import { useState } from "react";
 import { create as createMessage } from "@bufbuild/protobuf";
 import { router, useLocalSearchParams } from "expo-router";
@@ -80,7 +81,10 @@ export function useNewThread() {
         })
       : undefined;
 
-  const permissionMode = permission ?? (defaults.permissionMode || PermissionMode.ASK);
+  const permissionMode = availablePermission(
+    selected?.provider,
+    permission ?? (defaults.permissionMode || PermissionMode.ASK),
+  );
 
   const blocker = !project
     ? "Add a project in Settings → Projects to start a thread."

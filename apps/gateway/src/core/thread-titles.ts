@@ -10,6 +10,8 @@ export function titleModel(catalog: ProfileModels | undefined, fallback: string)
     if (catalog?.provider === Provider.GROK)
       return /\bmini\b/.test(name) ? 0 : /\b(fast|flash|lite)\b/.test(name) ? 1 : Infinity;
 
+    if (catalog?.provider !== Provider.CODEX) return Infinity;
+
     return /\bnano\b/.test(name)
       ? 0
       : /\b(mini|luna)\b/.test(name)

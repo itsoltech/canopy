@@ -6,7 +6,7 @@ import { create } from "@bufbuild/protobuf";
 import { tempDirs } from "@canopy/testing";
 import { EventAckSchema, ItemStatus, WelcomeSchema } from "@canopy/contracts";
 import { Effect, ManagedRuntime } from "effect";
-import type { SessionUpdate } from "@canopy/grok-acp";
+import type { SessionUpdate } from "@canopy/acp";
 import { PreviewStore, inlineImages } from "./index.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";
 import { Journal, type ThreadEventInit } from "../journal/index.ts";

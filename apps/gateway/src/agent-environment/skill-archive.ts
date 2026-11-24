@@ -1,3 +1,4 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import {
   EnvironmentResolutionSchema,
@@ -49,7 +50,7 @@ export function validSkillInventory(files: readonly EnvironmentSkillStatus[]): b
       file.localName === ".." ||
       file.path.includes("\0") ||
       file.targetId !== environmentDigest(`skill:${file.path}`) ||
-      !["claude", "codex", "grok"].includes(file.harness)
+      !isHarness(file.harness)
     )
       return false;
 

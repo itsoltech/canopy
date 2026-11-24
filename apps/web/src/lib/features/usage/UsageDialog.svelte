@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { HARNESSES, HARNESS_NAMES } from "@canopy/domain/harnesses";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -170,9 +171,7 @@
               bind:value={provider}
               options={[
                 { value: "", label: "All providers" },
-                { value: "claude", label: "Claude" },
-                { value: "codex", label: "Codex" },
-                { value: "grok", label: "Grok" },
+                ...HARNESSES.map((value) => ({ value, label: HARNESS_NAMES[value] })),
               ]}
             >
               {#snippet leading(option)}

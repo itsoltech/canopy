@@ -1,3 +1,5 @@
+import { availablePermission } from "./permissions";
+import { supportsSessionFork } from "@canopy/domain/harnesses";
 import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
@@ -60,6 +62,7 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
   const worker = useOverview().workers.find((worker) => worker.id === main.workerId);
   const settings = useComposerSettings(main, worker, message.persistent);
 
+  const canFork = supportsSessionFork(main.provider);
   const [fork, setFork] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -88,15 +91,17 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
           model: settings.override.model ?? main.model,
           effort: settings.effort,
           serviceTier: settings.serviceTier,
-          permissionMode:
+          permissionMode: availablePermission(
+            main.provider,
             draft?.choices.permissionMode ??
-            (main.permissionMode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : main.permissionMode),
+              (main.permissionMode === PermissionMode.FULL_ACCESS ? PermissionMode.FULL_AUTO : main.permissionMode),
+          ),
           initialMessage: outgoing.text,
           initialAttachmentIds: outgoing.attachmentIds,
           initialMentions: outgoing.mentions,
           initialQuotes: outgoing.quotes,
           parentThreadId: main.id,
-          fork,
+          fork: canFork && fork,
           clientRequestId: draft?.requestId,
         }),
       );
@@ -149,7 +154,7 @@ function SideThreadForm({ main, onClose }: { main: ui.Thread; onClose: () => voi
         </>
       )}
       <ComposerPickers state={settings} />
-      <Checkbox label="Use main thread history" description={hint} checked={fork} onChange={setFork} />
+      {canFork && <Checkbox label="Use main thread history" description={hint} checked={fork} onChange={setFork} />}
       {closed || error ? (
         <Text accessibilityRole="alert" style={[styles.meta, { color: closed ? c.muted : c.danger }]}>
           {closed ? "Reopen the main thread to start a side thread." : error}

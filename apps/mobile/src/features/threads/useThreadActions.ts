@@ -1,3 +1,4 @@
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
@@ -25,6 +26,8 @@ export function useThreadActions(thread: ui.Thread) {
   const [busy, setBusy] = useState(false);
   const pinned = appearance.user?.sidebar?.pinnedThreadIds.includes(thread.id) ?? false;
   const archived = Boolean(thread.archivedAt) || thread.status === "archived";
+  const generation = appearance.user?.textGeneration;
+  const canGenerateTitle = supportsIsolatedRuns(generation?.model ? generation.provider : thread.provider);
   const disabled = !client || !online || home.away || Boolean(thread.deletedAt) || !appearance.user;
 
   async function execute(action: Exclude<ThreadAction, "side" | "goal">, title?: string) {
@@ -134,7 +137,16 @@ export function useThreadActions(thread: ui.Thread) {
     void commit(action);
   }
 
-  return { busy, disabled, pinned, archived, run, commit, rename: (title: string) => execute("rename", title) };
+  return {
+    busy,
+    disabled,
+    pinned,
+    archived,
+    canGenerateTitle,
+    run,
+    commit,
+    rename: (title: string) => execute("rename", title),
+  };
 }
 
 export function useThreadSnooze(thread: ui.Thread, disabled: boolean) {

@@ -20,16 +20,24 @@ for await (const line of createInterface({ input: process.stdin })) {
         result: {
           protocolVersion: 1,
           agentInfo: { name: "fake-żółć", version: "1" },
-          agentCapabilities: { loadSession: true },
+          agentCapabilities: process.argv.includes("no-restore")
+            ? {}
+            : process.argv.includes("resume-only")
+              ? { sessionCapabilities: { resume: {} } }
+              : { loadSession: true },
         },
       }) + "\n",
     );
 
     process.stdout.write(frame.subarray(0, 99));
     process.stdout.write(frame.subarray(99));
-  } else if (m.method === "session/new" || m.method === "session/load")
-    send({ id: m.id, result: { sessionId: m.params.sessionId ?? "fake-session" } });
-  else if (m.method === "session/prompt") {
+  } else if (m.method === "session/new") send({ id: m.id, result: { sessionId: "fake-session" } });
+  else if (m.method === "session/load" || m.method === "session/resume") {
+    if (process.argv.includes("resume-only") && m.method !== "session/resume")
+      send({ id: m.id, error: { code: -32601, message: "Method unavailable" } });
+    else
+      send({ id: m.id, result: { sessionId: process.argv.includes("wrong-id") ? "different" : m.params.sessionId } });
+  } else if (m.method === "session/prompt") {
     promptId = m.id;
     const text = m.params.prompt[0].text;
 

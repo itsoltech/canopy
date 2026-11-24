@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { canGenerateTitle } from "#lib/features/threads/title-actions.ts";
+  import { supportsSessionFork } from "@canopy/domain/harnesses";
   import {
     threadCreationHandoff,
     finishCreationHandoff,
@@ -7,7 +9,7 @@
   import ThreadStartingScene from "#lib/features/threads/components/ThreadStartingScene.svelte";
   import { rememberThreadPlacement } from "#lib/features/threads/thread-placement.svelte.ts";
   import { applicationName } from "#lib/application-name.ts";
-  import { InteractionKind, ItemStatus, Provider, ui } from "@canopy/contracts";
+  import { InteractionKind, ItemStatus, ui } from "@canopy/contracts";
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -359,7 +361,7 @@
     !away &&
       !worktreeRemoved &&
       thread?.runtime === "worker" &&
-      thread.provider !== Provider.GROK &&
+      supportsSessionFork(thread.provider) &&
       thread.status !== "creating",
   );
 
@@ -467,6 +469,9 @@
           },
           get canFork() {
             return Boolean(forkPoint);
+          },
+          get canGenerateTitle() {
+            return !!thread && canGenerateTitle(thread, settings.textGeneration);
           },
           get canSchedule() {
             return canSchedule;

@@ -36,7 +36,7 @@ export function classifyFailure(message: string, code = ""): FailureCode {
     return "connection_changed";
 
   if (
-    /\b401\b|unauthenticated|not authenticated|not (?:signed|logged) in|no (?:Claude|Codex|Grok).*login|authentication|unauthorized|invalid.api.key|expired.*(?:token|login)|(?:token|login).*expired/i.test(
+    /\b401\b|unauthenticated|not authenticated|not (?:signed|logged) in|no (?:Claude|Codex|Grok|Antigravity).*login|authentication|unauthorized|invalid.api.key|expired.*(?:token|login)|(?:token|login).*expired/i.test(
       text,
     ) ||
     /\brefresh[_ ]token[_ ](?:was )?(?:already used|reused|invalidated|revoked)\b|\baccess token could not be refreshed\b.*\bsign in again\b/i.test(

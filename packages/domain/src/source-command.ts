@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { HARNESSES, isHarness } from "./harnesses.ts";
 import { checkSkillPath } from "./skill-path.ts";
 
 function sourceInvalid(message: string): never {
@@ -121,8 +122,8 @@ export function parseSourceCommand(command: string) {
     else sourceInvalid("Unsupported flag. Use --skill, --agent, --global, --copy, --yes or --full-depth.");
   }
 
-  if (harnesses.some((h) => !["claude-code", "claude", "codex", "grok", "*"].includes(h)))
-    sourceInvalid("Canopy supports Claude, Codex and Grok destinations.");
+  if (harnesses.some((h) => h !== "claude-code" && h !== "*" && !isHarness(h)))
+    sourceInvalid("Choose a supported agent for the skill.");
   const parsed = sourceReference(input);
 
   if (parsed.filter) names.push(parsed.filter);
@@ -134,7 +135,7 @@ export function parseSourceCommand(command: string) {
     deviceHome,
     harnesses:
       !harnesses.length || harnesses.includes("*")
-        ? ["claude", "codex", "grok"]
+        ? [...HARNESSES]
         : [...new Set(harnesses.map((h) => (h === "claude-code" ? "claude" : h)))],
     notices,
   };

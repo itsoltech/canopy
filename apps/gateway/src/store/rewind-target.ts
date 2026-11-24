@@ -15,7 +15,7 @@ export const rewindTarget = (sql: SqlClient.SqlClient, owner: string, threadId: 
     if (thread.runtime !== "worker" || thread.origin === "agent" || thread.remote_parent_ref || thread.schedule_id)
       return yield* Effect.fail(new Invalid("Edit from here is not available for automated threads."));
 
-    if (thread.provider === "grok")
+    if (thread.provider !== "codex" && thread.provider !== "claude")
       return yield* Effect.fail(new Invalid("Edit from here is not available for this agent."));
 
     if (!thread.provider_thread_id || !thread.worker_id)

@@ -1,3 +1,4 @@
+import { isHarness } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type computerLink as link, ui } from "@canopy/contracts";
@@ -29,7 +30,7 @@ export function validateUsagePage(node: string, after: bigint, response: link.Us
     if (
       !bucket.bucketStart ||
       !bucket.totals ||
-      !["claude", "codex", "grok"].includes(bucket.provider) ||
+      !isHarness(bucket.provider) ||
       bucket.model.length > 512 ||
       bucket.model.includes("\u0000") ||
       bucket.requestedServiceTier.length > 128 ||

@@ -16,7 +16,7 @@ import { applyWorkerConfig, type AppliedConfig, prepareSystemProbe } from "../co
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { Journal } from "../journal/index.ts";
 import { CliTools } from "../cli-tools/index.ts";
-import { systemCliProbe } from "../cli-tools/discovery.ts";
+import { CLIS, systemCliProbe } from "../cli-tools/discovery.ts";
 import { installKind } from "@canopy/updater";
 import { AttachmentError } from "../attachments/files.ts";
 import { WorkerAgentEnvironment } from "../agent-environment/index.ts";
@@ -113,15 +113,14 @@ export class WorkerHost {
     this.cli = this.#ctx.state.cli = new CliTools({
       dataDir: options.dataDir,
       probe: options.cliProbe ?? systemCliProbe(installKind() === "docker"),
-      configured: () => ({
-        ...(this.#ctx.state.received?.claude?.executablePath && {
-          claude: this.#ctx.state.received.claude.executablePath,
-        }),
-        ...(this.#ctx.state.received?.codex?.executablePath && {
-          codex: this.#ctx.state.received.codex.executablePath,
-        }),
-        ...(this.#ctx.state.received?.grok?.executablePath && { grok: this.#ctx.state.received.grok.executablePath }),
-      }),
+      configured: () =>
+        Object.fromEntries(
+          CLIS.flatMap(({ name }) => {
+            const path = state.received?.[name]?.executablePath;
+
+            return path ? [[name, path]] : [];
+          }),
+        ),
       send: (report) => this.#ctx.ops.send({ case: "cliTools", value: report }),
       progress: (progress) => this.#ctx.ops.send({ case: "cliInstallProgress", value: progress }),
       busy: (provider) => this.#busy(provider),
@@ -477,8 +476,8 @@ export class WorkerHost {
 
       for (const id of Array.from(this.#ctx.state.claude.keys())) await this.#ctx.ops.stopClaude(id);
 
-      for (const handle of this.#ctx.state.grok.values()) await handle.runtime.close();
-      this.#ctx.state.grok.clear();
+      for (const handle of this.#ctx.state.acp.values()) await handle.runtime.close();
+      this.#ctx.state.acp.clear();
       await Promise.allSettled(this.#commands.values());
     } finally {
       // Keep masking late provider output until its processes have stopped.

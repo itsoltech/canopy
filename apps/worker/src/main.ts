@@ -10,6 +10,7 @@ import { WorkerState } from "@canopy/contracts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import { workerCapabilities } from "./capabilities.ts";
 import { defaultConfigPath, defaultDataDir, loadLocalConfig } from "./config/local.ts";
+import { defaultAntigravityHome } from "./config/homes.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "./git/worktree-roots.ts";
 import { journalHello, openGatewayLink, resendPending, type GatewayLink } from "./gateway-link/index.ts";
 import { Journal } from "./journal/index.ts";
@@ -222,6 +223,7 @@ if (workerMetricsEnabled)
         Bun.env["CLAUDE_CONFIG_DIR"] || join(homedir(), ".claude"),
         Bun.env["CODEX_HOME"] || join(homedir(), ".codex"),
         Bun.env["GROK_HOME"] || join(homedir(), ".grok"),
+        defaultAntigravityHome(),
         join(homedir(), ".agents"),
       ],
       additionalRoots: [

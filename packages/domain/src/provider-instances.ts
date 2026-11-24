@@ -7,14 +7,14 @@ import {
 } from "@canopy/contracts";
 import type { Tone } from "./status-look.ts";
 import { codexLoginProblem } from "./codex-login-problems.ts";
+import { harnessName } from "./harnesses.ts";
+
+export { harnessName } from "./harnesses.ts";
 
 /**
  * How a provider instance reads in Settings → Providers on every client (web: InstanceRow/InstanceDetail, mobile:
  * ProviderSettings). Pure text and tones; no requests.
  */
-
-export const harnessName = (harness: Provider): string =>
-  harness === Provider.CLAUDE ? "Claude" : harness === Provider.GROK ? "Grok" : "Codex";
 
 /** Default for a native Codex instance using the device login. */
 export const defaultCodexHomeMode = (id: string): ProviderConfigurationMode =>
@@ -118,8 +118,15 @@ export function versionsOf(instance: ui.ProviderInstance, workerId: string | und
 }
 
 /** False when the harness has nothing to say about the account (Grok, a missing CLI): the row stays empty. */
-export const hasAccountStatus = (account: ProviderAccountStatus | undefined): account is ProviderAccountStatus =>
-  !!account && (account.state !== "unknown" || !!account.authMethod || !!account.detail);
+export const hasAccountStatus = (
+  account: ProviderAccountStatus | undefined,
+  harness?: Provider,
+): account is ProviderAccountStatus =>
+  !!account &&
+  (account.state !== "unknown" ||
+    !!account.authMethod ||
+    !!account.detail ||
+    (harness === Provider.ANTIGRAVITY && !!account.loginExecutable));
 
 const stateLabels = new Map([
   ["signed_in", "Signed in"],

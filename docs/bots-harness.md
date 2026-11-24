@@ -1,5 +1,7 @@
 # Boty przez oficjalne harnessy
 
+Aktualizacja (2026-11-24). Boty mogą delegować zadania do wątków Antigravity. Do wykonania własnej tury bota potrzebny jest harness z możliwością wyłączenia wszystkich lokalnych narzędzi. `agy` 1.5.16 zachowuje narzędzie `manage_task` przy pustej liście uprawnień agenta. [Adapter Antigravity](antigravity-adapter.md)
+
 Status (2026-11-24): natywne boty Codexa pobierają bieżący login wybranej instancji
 przez lokalne RPC app-servera i używają go w pamięci procesu tury. Worker usuwa
 rozpoznane pozostałości po dowiązaniach z katalogów botów, zachowując ich sesje.

@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import { PermissionMode, Provider } from "@canopy/contracts";
 import { statusLook, type StatusLook } from "@canopy/domain/status-look";
+import { providerOf } from "@canopy/domain/harnesses";
 import type { IconName } from "@canopy/ui/icons";
 import type { ReactNode } from "react";
 import { StatusDot } from "../../../../ui/Badge";
@@ -67,15 +68,6 @@ function StatusText({ look }: { look: StatusLook }) {
   );
 }
 
-const providerOf = (name: string) =>
-  name.startsWith("claude")
-    ? Provider.CLAUDE
-    : name.startsWith("codex")
-      ? Provider.CODEX
-      : name.startsWith("grok")
-        ? Provider.GROK
-        : undefined;
-
 const MODES = new Map<string, PermissionMode>([
   ["read_only", PermissionMode.READ_ONLY],
   ["ask", PermissionMode.ASK],
@@ -102,7 +94,7 @@ export function SubagentCard({
   const c = useColors();
   const thread = useTimelineDirectory().thread(threadId);
   const look = thread ? statusLook(thread.status) : undefined;
-  const provider = thread?.provider ?? providerOf(spawned.provider);
+  const provider = thread?.provider ?? providerOf(spawned.provider.split("/", 1)[0]);
 
   const permission = thread
     ? permissionLabel(thread.permissionMode)
@@ -121,7 +113,7 @@ export function SubagentCard({
       aside={look && <StatusText look={look} />}
     >
       <View style={[styles.row, { gap: 4 }]}>
-        {provider !== undefined && <ProviderIcon provider={provider} />}
+        {provider !== Provider.UNSPECIFIED && <ProviderIcon provider={provider} />}
         <Text numberOfLines={1} style={[styles.meta, { flexShrink: 1, color: c.muted }]}>
           {[thread?.model || spawned.model || "Default model", ...settings].join(" · ")}
         </Text>

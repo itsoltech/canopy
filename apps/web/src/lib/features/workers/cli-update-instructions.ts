@@ -1,5 +1,11 @@
 import { CliInstallMethod, Provider, type ui } from "@canopy/contracts";
 
+const packages = new Map([
+  [Provider.CLAUDE, "@anthropic-ai/claude-code"],
+  [Provider.CODEX, "@openai/codex"],
+  [Provider.GROK, "@xai-official/grok"],
+]);
+
 export function cliExternalInstructions(item: ui.WorkerCliTool): string {
   const tool = item.tool;
 
@@ -7,12 +13,9 @@ export function cliExternalInstructions(item: ui.WorkerCliTool): string {
 
   if (tool.manualCommand) return `Run ${tool.manualCommand} on this computer.`;
 
-  const pkg =
-    tool.provider === Provider.CLAUDE
-      ? "@anthropic-ai/claude-code"
-      : tool.provider === Provider.CODEX
-        ? "@openai/codex"
-        : "@xai-official/grok";
+  const pkg = packages.get(tool.provider);
+
+  if (!pkg) return tool.detail || "Update this agent CLI with its installer.";
 
   const commands: Partial<Record<CliInstallMethod, string>> = {
     [CliInstallMethod.NPM]: `npm install --global ${pkg}@latest`,

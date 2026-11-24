@@ -1,5 +1,5 @@
 import { BotStore } from "../store.ts";
-import { define, label, object, providerSchema, str } from "./shared.ts";
+import { define, label, object, str } from "./shared.ts";
 
 const parameters = object(
   {
@@ -7,7 +7,7 @@ const parameters = object(
     shape: str,
     color: str,
     instructions: str,
-    provider: providerSchema,
+    provider: { type: "string", enum: ["claude", "codex", "grok"] },
     provider_instance: str,
     model: str,
     effort: str,

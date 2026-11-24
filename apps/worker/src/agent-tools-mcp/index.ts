@@ -18,9 +18,12 @@ import {
 
 export type { LocalAutomationServer } from "./stdio.ts";
 
+export type McpToolsListed = (server: string, tools: readonly { name: string }[]) => void;
+
 export interface LocalAutomationMcpOptions {
   servers: readonly LocalAutomationServer[];
   env: Record<string, string>;
+  toolsListed?: McpToolsListed;
   /** Reject unless this tool is enabled and the thread has a current, permitted active turn. */
   authorize(name: string, toolName: string, argsJson: string, signal: AbortSignal): Promise<void>;
 }
@@ -80,7 +83,7 @@ export function createLocalAutomationMcp(options: LocalAutomationMcpOptions): Lo
       try {
         const rpc = await readRequest(request, deadline.signal);
 
-        return await handle(endpoint, options.authorize, rpc, deadline.signal);
+        return await handle(endpoint, options, rpc, deadline.signal);
       } catch {
         return new Response(null, { status: deadline.signal.aborted ? 408 : 400 });
       } finally {
@@ -110,7 +113,7 @@ export function createLocalAutomationMcp(options: LocalAutomationMcpOptions): Lo
 
 async function handle(
   endpoint: Endpoint,
-  authorize: LocalAutomationMcpOptions["authorize"],
+  options: LocalAutomationMcpOptions,
   rpc: Rpc,
   requestSignal: AbortSignal,
 ): Promise<Response> {
@@ -151,7 +154,13 @@ async function handle(
       });
     }
 
-    if (rpc.method === "tools/list") return reply(rpc.id, await endpoint.stdio.list(signal));
+    if (rpc.method === "tools/list") {
+      const catalog = await endpoint.stdio.list(signal);
+      options.toolsListed?.(endpoint.name, catalog.tools);
+
+      return reply(rpc.id, catalog);
+    }
+
     const params = ToolCall.safeParse(rpc.params);
 
     if (!params.success) return failure(rpc.id, -32602, "Invalid tool arguments");
@@ -165,7 +174,10 @@ async function handle(
     }
 
     try {
-      await abortable(authorize(endpoint.name, effective.name, JSON.stringify(effective.arguments), signal), signal);
+      await abortable(
+        options.authorize(endpoint.name, effective.name, JSON.stringify(effective.arguments), signal),
+        signal,
+      );
       signal.throwIfAborted();
     } catch {
       return failure(rpc.id, -32001, signal.aborted ? "Local automation request cancelled" : "Local automation denied");

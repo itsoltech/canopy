@@ -114,10 +114,7 @@ export function WorkerSettings() {
       ))}
       {data && !groups.length && (
         <SettingsGroup>
-          <SettingsRow
-            title="No workers yet"
-            description="Add a worker to run Claude, Codex or Grok on a computer you control."
-          />
+          <SettingsRow title="No workers yet" description="Add a worker to run agents on a computer you control." />
         </SettingsGroup>
       )}
       {!!pending.length && (

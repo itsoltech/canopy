@@ -6,7 +6,10 @@
 
   /** Who each provider instance is signed in as on this worker; nothing when no instance can tell. */
   let { worker, online }: { worker: ui.Worker; online: boolean } = $props();
-  const accounts = $derived(worker.providerInstances.filter((i) => i.enabled && hasAccountStatus(i.account)));
+
+  const accounts = $derived(
+    worker.providerInstances.filter((i) => i.enabled && hasAccountStatus(i.account, i.harness)),
+  );
 </script>
 
 {#if accounts.length}

@@ -1,3 +1,4 @@
+import { HARNESSES } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { requestJson } from "#lib/shared/http.ts";
@@ -12,7 +13,7 @@ export class SourceState {
   paths = $state<string[]>([]);
   assignment = $state(
     create(ui.LibrarySkillSchema, {
-      harnesses: ["claude", "codex", "grok"],
+      harnesses: [...HARNESSES],
       platformHome: true,
       selector: { everyone: true },
     }),

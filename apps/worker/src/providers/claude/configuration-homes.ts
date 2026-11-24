@@ -52,6 +52,16 @@ export function userConfigurationProblem(harness: string, runtime: ProfileRuntim
   )
     return "Choose an isolated, local, or shared user configuration.";
 
+  if (
+    harness === "antigravity" &&
+    (policy.mode !== ProviderConfigurationMode.ISOLATED ||
+      policy.sourcePath ||
+      policy.instructions ||
+      policy.skills ||
+      policy.hooks)
+  )
+    return "Antigravity requires isolated configuration. Clear the local CLI configuration options.";
+
   if (harness === "codex" && policy.mode === ProviderConfigurationMode.SHARED) {
     if (policy.sourcePath || policy.instructions || policy.skills || policy.hooks)
       return "Codex uses the CLI home path. Clear the Claude configuration options.";

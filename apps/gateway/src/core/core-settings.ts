@@ -1,3 +1,4 @@
+import { ANTIGRAVITY_PERMISSION_GUIDANCE, supportsThreadPermission } from "@canopy/domain/harnesses";
 import { cancelStaleGenerations } from "./generation-cancellation.ts";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, ui } from "@canopy/contracts";
@@ -24,6 +25,9 @@ export async function coreCheckThreadDefaults(
 ): Promise<void> {
   if (![defaults.permissionMode, defaults.subagentPermissionMode].every((mode) => mode in PermissionMode))
     throw new InvalidError("Unknown permissions. Choose a supported mode.");
+
+  if (!defaults.useLastAgent && !supportsThreadPermission(defaults.provider, defaults.permissionMode))
+    throw new InvalidError(ANTIGRAVITY_PERMISSION_GUIDANCE);
 
   if (projectId && defaults.subagentPermissionMode !== PermissionMode.UNSPECIFIED)
     throw new InvalidError("Set subagent permissions in Settings → Threads.");

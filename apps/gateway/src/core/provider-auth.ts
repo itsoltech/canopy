@@ -15,6 +15,9 @@ export async function providerAuthTarget(
 
   if (!isUuid(request.workerId) || !(await coreRun(core, (s) => s.ownsWorker(request.workerId, userId))))
     throw new InvalidError("worker not found");
+
+  if (request.harness === Provider.ANTIGRAVITY) throw new InvalidError("Sign in on the worker with agy acp --login.");
+
   const instance = await coreInstance(core, request.harness, request.id);
 
   if (!instance.workers.some((w) => w.workerId === request.workerId && w.enabled))

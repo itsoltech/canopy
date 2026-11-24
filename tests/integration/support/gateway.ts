@@ -133,6 +133,8 @@ export interface ScriptedWorkerOptions {
   readonly resumeJournal?: boolean;
   /** Report Claude as available (default: only Codex). */
   readonly claude?: boolean;
+  /** Report the agy executable as installed. */
+  readonly antigravity?: boolean;
   /** Its model catalog (default SCRIPTED_MODELS: Codex only). */
   readonly models?: MessageInitShape<typeof ProfileModelsSchema>[];
   /** More Hello fields (e.g. capabilities and running_turns of a restarted worker). */
@@ -375,8 +377,12 @@ export class ScriptedWorker {
         // Profiles as the real worker validates and reports them (no CLI probing: the device runs nothing).
         const applied = applyWorkerConfig(payload.value, {
           which: (command) =>
-            command === "codex" || (command === "claude" && this.options.claude) ? `/usr/bin/${command}` : null,
-          version: () => "0.164.0",
+            command === "codex" ||
+            (command === "claude" && this.options.claude) ||
+            (command === "agy" && this.options.antigravity)
+              ? `/usr/bin/${command}`
+              : null,
+          version: (executable) => (executable.endsWith("/agy") ? "1.5.16" : "0.164.0"),
           realDirectory: (path) => path,
         });
 
@@ -401,6 +407,7 @@ export class ScriptedWorker {
             version: payload.value.version,
             applied: true,
             providers: [
+              ...(applied.report.providers ?? []).filter((p) => p.provider === Provider.ANTIGRAVITY),
               { provider: Provider.CODEX, available: true, version: "0.164.0" },
               this.options.claude
                 ? { provider: Provider.CLAUDE, available: true, version: "2.1.316" }

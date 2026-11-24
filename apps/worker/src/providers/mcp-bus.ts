@@ -13,13 +13,13 @@ import {
   type AgentBusToolName,
   agentBusToolSpecs,
   agentBusToolsFor,
-  isPlatformServer,
   PLATFORM_SERVER,
   viewImageSpec,
   VIEW_IMAGE_TOOL,
 } from "@canopy/domain";
 import type { ViewImageResult } from "../images/index.ts";
-import type { McpServer } from "@canopy/grok-acp";
+import type { McpToolsListed } from "../agent-tools-mcp/index.ts";
+import type { McpServer } from "@canopy/acp";
 import { threadMemoryTools } from "./memory-tools.ts";
 import { toolCallId } from "./tool-call-id.ts";
 import { Schema } from "effect";
@@ -56,6 +56,7 @@ export interface PlatformMcpOptions {
   depth: number;
   agentBus?: false | readonly AgentBusToolName[];
   enableMemory?: boolean;
+  toolsListed?: McpToolsListed;
   connectorTools?: readonly ConnectorTool[];
   record?(event: ThreadEventInit): Promise<ThreadEvent | void>;
   viewImage?(path: string): Promise<ViewImageResult>;
@@ -114,7 +115,12 @@ export function platformMcp(options: PlatformMcpOptions): PlatformMcp {
 
       if (rpc.method === "ping") return reply({});
 
-      if (rpc.method === "tools/list") return reply({ tools: tools() });
+      if (rpc.method === "tools/list") {
+        const catalog = tools();
+        options.toolsListed?.(PLATFORM_SERVER, catalog);
+
+        return reply({ tools: catalog });
+      }
 
       if (rpc.method !== "tools/call" || !tools().some((t) => t.name === rpc.params?.name))
         return Response.json({ jsonrpc: "2.0", id: rpc.id, error: { code: -32601, message: "Unknown tool" } });
@@ -144,13 +150,6 @@ export function platformMcp(options: PlatformMcpOptions): PlatformMcp {
       void server.stop(true);
     },
   };
-}
-
-/** Grok's name of a platform tool, `canopy__list_threads` → `list_threads`. */
-export function platformToolName(name: string): string | undefined {
-  const match = /^(.+?)__(.+)$/.exec(name);
-
-  return match && isPlatformServer(match[1]) ? match[2] : undefined;
 }
 
 async function callTool(

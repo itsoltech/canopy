@@ -1,7 +1,9 @@
 import { dirname, join } from "node:path";
 import type { AgentEnvironmentDesired, EnvironmentSkill } from "@canopy/contracts";
+import { isHarness } from "@canopy/domain/harnesses";
 import { environmentDigest } from "@canopy/domain/agent-environment";
 import { instanceShadowHome } from "../config/remote.ts";
+import { antigravityHomeProblem } from "../providers/home-paths.ts";
 import { providersOf } from "../providers/profiles.ts";
 import type { EnvironmentHomes } from "./targets.ts";
 import type { SkillLedger } from "./skill-ledger.ts";
@@ -20,13 +22,14 @@ export const platformSkillRoot = (home: string, harness: string): string =>
   harness === "claude" ? join(home, "canopy-environment", "skills") : join(home, "skills");
 
 export function deviceSkillRoots(homes: EnvironmentHomes) {
-  const { claude, codex, grok, agents } = homes.deviceHomes;
+  const { claude, codex, grok, antigravity, agents } = homes.deviceHomes;
   const parent = dirname(codex);
 
   return {
     claude: join(claude, "skills"),
     codex: agents ?? join(parent, ".agents", "skills"),
     grok: join(grok ?? join(parent, ".grok"), "skills"),
+    antigravity: join(antigravity ?? join(parent, ".gemini", "antigravity-cli"), "skills"),
   };
 }
 
@@ -36,6 +39,7 @@ export function skillTargets(
   ledger: SkillLedger,
 ): SkillTarget[] {
   const targets = new Map<string, SkillTarget>();
+  const deviceRoots = deviceSkillRoots(homes);
 
   for (const skill of desired.skills) {
     if (!skill.artifact) throw new Error("Missing skill artifact.");
@@ -48,14 +52,15 @@ export function skillTargets(
 
       if (previous && previous.skillId !== skill.id)
         throw new Error("Two skills use the same destination. Review their assignments.");
+
+      if (harness === "antigravity" && scope === "platform" && previous?.scope === "device") return;
       targets.set(targetId, { targetId, skillId: skill.id, path, harness, scope, desired: skill });
     };
 
     for (const harness of skill.harnesses) {
-      if (harness !== "claude" && harness !== "codex" && harness !== "grok")
-        throw new Error("Unsupported skill harness.");
+      if (!isHarness(harness)) throw new Error("Unsupported skill harness.");
 
-      if (skill.deviceHome) add(deviceSkillRoots(homes)[harness], harness, "device");
+      if (skill.deviceHome) add(deviceRoots[harness], harness, "device");
 
       if (!skill.platformHome) continue;
       add(platformSkillRoot(join(homes.dataDir, `${harness}-home`), harness), harness, "platform");
@@ -74,5 +79,11 @@ export function skillTargets(
 
   if (targets.size > 512) throw new Error("This worker has more than 512 skill destinations.");
 
-  return [...targets.values()];
+  // A previously valid destination can now overlap the device home, even during removal.
+  return [...targets.values()].map((target) => {
+    if (target.harness !== "antigravity" || target.scope !== "platform") return target;
+    const problem = antigravityHomeProblem(dirname(dirname(target.path)), dirname(deviceRoots.antigravity));
+
+    return problem ? { ...target, problem } : target;
+  });
 }

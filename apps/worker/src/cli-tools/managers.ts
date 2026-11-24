@@ -12,7 +12,7 @@ import type { Env } from "./shell-env.ts";
 export interface ManagedSpec {
   readonly name: string;
   /** The npm package (also what Bun, Volta, pnpm, Yarn and mise's npm backend install). */
-  readonly npm: string;
+  readonly npm?: string;
 }
 
 export interface ClassifyContext {
@@ -123,6 +123,8 @@ function windowsNative(spec: ManagedSpec, path: string, resolved: string, ctx: C
   if (spec.name === "claude") return r === `${trim(ctx.home)?.toLowerCase()}/.local/bin/claude.exe`;
 
   const local = trim(ctx.env?.["LOCALAPPDATA"])?.toLowerCase();
+
+  if (spec.name === "antigravity") return Boolean(local) && r === `${local}/agy/bin/agy.exe`;
   const codexHome = trim(ctx.env?.["CODEX_HOME"] ?? `${ctx.home}/.codex`)?.toLowerCase();
   const releases = `${codexHome}/packages/standalone/releases/`;
 
@@ -159,7 +161,9 @@ export function classify(spec: ManagedSpec, path: string, resolvedPath: string, 
 
   if (spec.name === "grok" && (r.startsWith(`${h}/.grok/bin/`) || r.startsWith(`${h}/.grok/downloads/`)))
     return { method: CliInstallMethod.NATIVE };
-  const node = nodePackageManager(spec, r, ctx) ?? shim(spec, p, r, ctx);
+
+  if (spec.name === "antigravity" && r === `${h}/.local/bin/agy`) return { method: CliInstallMethod.NATIVE };
+  const node = spec.npm && (nodePackageManager(spec, r, ctx) ?? shim(spec, p, r, ctx));
 
   if (node) return node;
 

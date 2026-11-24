@@ -7,6 +7,7 @@ interaktywny i automatyczny mini podgląd automatyzacji w wątku oraz aplikacja 
 z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket Mode
 z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
 nasłuchiwania przez prywatną rozmowę z botem.
+Aktualizacja (2026-11-24): wątki Antigravity i Groka współdzielą klienta ACP na workerze.
 Aktualizacja (2026-11-24): wątki projektowe Codexa i Claude mogą zmieniać worktree przez szynę agentów.
 Aktualizacja (2026-11-22): dostęp wątków do konektorów wynika z grantów projektów.
 Aktualizacja (2026-11-23): wątki poza projektami korzystają z osobnego grantu No project.
@@ -35,7 +36,8 @@ Powiązane dokumenty:
 - [usage.md](usage.md) — agregaty tokenów, zgłoszonych kosztów i szacunków według stawek API, niezależne od retencji wątków i synchronizowane między połączonymi komputerami.
 - [automation-tools.md](automation-tools.md) — lokalne `agent-browser`, `agent-desktop` i `agent-device`: gotowość, granty, bridge MCP i podgląd
 - [codex-adapter.md](codex-adapter.md) — adapter Codex app-server: protokół, testy na żywo, izolacja `CODEX_HOME`
-- [grok-adapter.md](grok-adapter.md) — własny SDK ACP stdio Grok CLI, native/CLIProxyAPI i MCP narzędzi platformy
+- [grok-adapter.md](grok-adapter.md) — Grok CLI przez ACP, native/CLIProxyAPI i MCP narzędzi platformy
+- [antigravity-adapter.md](antigravity-adapter.md) — Antigravity CLI przez ACP, izolacja wątków i skille
 - [ui-api.md](ui-api.md) — API dla UI, SvelteKit jako BFF (HTTP/1.1 + SSE do przeglądarki, gRPC do gateway)
 - [diagnostics.md](diagnostics.md) — Settings → Diagnostics: wspólny widok wydajności komputerów, metryki RPC i łączy, zalecenia, tracing i zbieranie zredagowanych logów
 - [mobile.md](mobile.md) — Canopy iOS/Android, Connect przez przypięty TLS, parowanie i automatyczne trasy
@@ -59,7 +61,7 @@ Powiązane dokumenty:
 
 Platforma do zarządzania agentami AI dla wielu użytkowników:
 
-- uruchamianie agentów kodujących (Claude Agent SDK, Codex app-server, Grok CLI przez ACP) na wielu maszynach i w wielu katalogach, opcjonalnie przez CLIProxyAPI,
+- uruchamianie agentów kodujących (Claude Agent SDK, Codex app-server, Grok i Antigravity przez ACP) na wielu maszynach i w wielu katalogach, opcjonalnie przez CLIProxyAPI,
 - boty czatowe z ukrytymi, izolowanymi sesjami harnessów na workerach i trwałą kolejką w gatewayu,
 - agenci globalni (dla wszystkich) i prywatni (dla właściciela),
 - projekty z wątkami przypiętymi do dostawcy, workera i katalogu; wątki boczne w tym samym katalogu z opcjonalnym forkiem historii,
@@ -75,7 +77,7 @@ Platforma do zarządzania agentami AI dla wielu użytkowników:
 | **Gateway** | serwer centralny albo lokalny sidecar desktopu (Bun) | Jedyny punkt kontaktu klientów. Autoryzacja właściciela, API, persystencja, outbox komend do workerów, kolejka i narzędzia botów, proxy connectorów, szyna agent ↔ agent, GitHub. Nie wykonuje inferencji. |
 | **Worker** | edge device: Linux, Omarchy, macOS, Windows (Bun) | Uruchamia wątki w dozwolonych katalogach oraz ukryte sesje tur botów, przez oficjalne harnessy; wznawia i forkuje wątki. Wykonuje także przyznane narzędzia automatyzacji przez lokalny bridge MCP. Normalizuje zdarzenia i strumieniuje je do gateway. |
 | **PostgreSQL** | obok gateway | Użytkownicy, projekty, agenci, workery, wątki, tury, transkrypty, boty, outbox, audyt. |
-| **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI / xAI. Inferencję wykonują oficjalne CLI/SDK na workerze, również dla botów. |
+| **Dostawcy LLM** | zewnętrznie | Anthropic / OpenAI / xAI / Google. Inferencję wykonują oficjalne CLI/SDK na workerze, również dla botów. |
 
 BFF trzyma w pamięci model odczytu jednego właściciela i celu gatewaya, zasilany
 przez wspólny strumień gRPC. Frontend dostaje snapshoty i zmiany przez SSE, w tym
@@ -87,7 +89,7 @@ Tylko gateway łączy się z bazą. Worker nie ma dostępu do bazy i nie przyjmu
 
 Lokalne narzędzia automatyzacji są wykonywane wyłącznie przez worker. Gateway
 wykrywa gotowość, przechowuje grant per worker i właściciel oraz autoryzuje
-wywołania bieżącej tury; nie uruchamia binarek. Claude, Codex i Grok dostają
+wywołania bieżącej tury; nie uruchamia binarek. Wątki Claude, Codexa, Groka i Antigravity dostają
 prywatny workerowy bridge MCP na loopbackie. Osobny, nietrwały podgląd wątku
 przenosi obraz i bezpośrednie sterowanie użytkownika przez WorkerLink, gateway
 i BFF (SSE). Browser używa natywnego strumienia WebSocket `agent-browser` dla
@@ -167,10 +169,10 @@ flowchart LR
 
     subgraph Edge["Workery"]
         W["Worker"]
-        H["Claude Agent SDK · Codex app-server · Grok ACP<br/>wątki i ukryte sesje botów"]
+        H["Claude Agent SDK · Codex app-server · Grok i Antigravity przez ACP"]
     end
 
-    LLM["Anthropic / OpenAI / xAI<br/>albo CLIProxyAPI"]
+    LLM["Anthropic / OpenAI / xAI / Google<br/>albo CLIProxyAPI"]
 
     UI -- "HTTP: JSON / SSE" --> BFF
     BFF -- "gRPC HTTP/2" --> GW
@@ -277,7 +279,7 @@ gateway, z którym są sparowane ([linked-computers.md](linked-computers.md)).
 | Worker ↔ Gateway | gRPC, jeden strumień dwukierunkowy, HTTP/2 + TLS | **Worker** | Nowe zdalne workery używają Network access i pinu z enrollmentu. Istniejące zachowują port serwera; automatycznie przechodzą na osiągalny przypięty adres i zachowują fallback. Lokalny worker desktopu używa loopback. Szczegóły: [protocol.md](protocol.md). |
 | Worker → Gateway (aktualizacje) | osobny gRPC `canopy.update.v1.UpdateService`, ten sam port HTTP/2 | **Worker** | Zamrożony kontrakt działa także po odmowie WorkerLink. Werdykt, polecenia, postęp, mirror binarki; [updates.md](updates.md). |
 | Gateway → PostgreSQL | SQL po TLS | Gateway | Pula połączeń. Opcjonalnie `LISTEN/NOTIFY` przy wielu instancjach gateway. |
-| Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Login CLI (Claude Code / Codex / Grok) zostaje na urządzeniu. Klucz proxy lub endpointu API przychodzi z gateway w `WorkerConfig` i jest trzymany tylko w pamięci workera i env procesu harnessu ([proxies.md](proxies.md)). |
+| Worker → LLM | HTTPS (przez SDK/CLI) | Worker | Login CLI (Claude Code / Codex / Grok / Antigravity) zostaje na urządzeniu. Klucz proxy lub endpointu API przychodzi z gateway w `WorkerConfig` i jest trzymany tylko w pamięci workera i env procesu harnessu ([proxies.md](proxies.md)). |
 
 ### Dlaczego worker inicjuje połączenie
 
@@ -288,7 +290,7 @@ Edge device zwykle stoi za NAT-em, ma dynamiczne IP lub jest laptopem. Gateway n
 | Cecha | Wątek (projekt, wątek główny lub boczny) | Bot |
 |---|---|---|
 | Runtime | Worker na edge device | Ukryta sesja harnessu na workerze z ustawienia Runs on; kolejka tur, rozmowa i narzędzia w gatewayu |
-| Silnik | Claude Agent SDK, Codex app-server, Grok CLI przez ACP | Te same oficjalne harnessy; narzędzia platformy przez Canopy MCP |
+| Silnik | Claude Agent SDK, Codex app-server, Grok i Antigravity przez ACP | Claude, Codex lub Grok z narzędziami platformy przez Canopy MCP |
 | Pliki i shell | Tak, w `cwd` wątku (w dozwolonych katalogach workera) | Brak dostępu do projektów i plików użytkownika workera. Przełącznik Files ogranicza narzędzia plikowe do prywatnego scratch rozmowy (200 MiB) i daje `download_file` oraz wysyłanie plików jako załączników; Web access włącza natywne narzędzia sieciowe harnessu ([bots.md](bots.md#dostęp-do-sieci-i-izolowane-pliki)) |
 | Miejsce uruchomienia | wątek przypisany do workera i workspace’u, z możliwością zmiany worktree | Runs on + izolowany home i scratch per rozmowa; zmiana Runs on nie przenosi scratch |
 | Poświadczenia | Login CLI na workerze albo klucz proxy z `WorkerConfig` | Login instancji lub proxy obsługiwane przez harness; brak credentiali w kontekście bota |
@@ -458,11 +460,11 @@ sequenceDiagram
 
 ### 5.5 Agent ↔ agent: szyna agentów
 
-Natywni subagenci i harmonogramy Claude i Codexa są domyślnie wyłączeni. Zastępuje je **szyna agentów** platformy, dostępna dla obu dostawców: wątki boczne (`spawn_thread`, `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_agents`), odpowiadanie na pytania wątków bocznych (`list_interactions`, `answer_interaction`) i harmonogram (`schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule`). Dwa poziomy: wątek główny orkiestruje, wątki boczne wykonują pracę. Użytkownik może pisać w każdym wątku.
+Delegowanie i harmonogramy w wątkach udostępnia **szyna agentów** platformy: wątki boczne (`spawn_thread`, `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_agents`), odpowiadanie na pytania wątków bocznych (`list_interactions`, `answer_interaction`) i harmonogram (`schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule`). Dwa poziomy: wątek główny orkiestruje, wątki boczne wykonują pracę. Użytkownik może pisać w każdym wątku.
 
 - `spawn_thread` i `send_message` nie blokują; wynik przychodzi jako powiadomienie (steer do trwającej tury, inaczej nowa tura) albo przez ograniczone w czasie `wait_threads`. Wiadomość dziecka do pracującego rodzica domyślnie dołącza do jego tury; gdy rodzic czeka na dziecko, kończy oczekiwanie z treścią wiadomości. Odczytane wejścia oczekujące są wycofywane transakcyjnie.
 - Domena komunikacji to drzewo wątków; sterowanie tylko nad potomkami; limity liczby wątków, harmonogramów i przeskoków (`hops`) bez udziału człowieka.
-- Narzędzia trafiają do Claude jako serwer MCP w procesie workera, do Codexa jako `dynamicTools`; wykonuje je gateway.
+- Narzędzia trafiają do Claude jako serwer MCP w procesie workera, do Codexa jako `dynamicTools`, a do Groka i Antigravity przez serwer MCP sesji ACP. Wykonuje je gateway.
 
 Szczegóły, diagram przepływu i reguły: [agent-bus.md](agent-bus.md).
 
@@ -553,7 +555,7 @@ Monorepo na Bun workspaces. Każda aplikacja jest osobno wdrażalna, wspólny ko
 canopy/
 ├── apps/
 │   ├── gateway/          # gRPC/Connect, API, outbox, boty, connectory, GitHub, szyna agentów; wbudowany web
-│   ├── worker/           # klient WorkerLink, adaptery Claude / Codex / Grok, journal, pliki wątków
+│   ├── worker/           # klient WorkerLink, adaptery Claude / Codex / ACP, journal, pliki wątków
 │   ├── web/              # SvelteKit: SPA + BFF
 │   ├── desktop/          # Electron + kontroler Bun (tryb lokalny i zdalny)
 │   └── mobile/           # Expo, iOS/Android
@@ -563,7 +565,7 @@ canopy/
 │   ├── db/               # migracje SQL i dostęp przez @effect/sql-pg
 │   ├── domain/           # typy domenowe i reguły wspólne dla aplikacji
 │   ├── codex-protocol/   # typy app-server generowane z przypiętej wersji Codexa
-│   ├── grok-acp/         # klient ACP stdio Grok CLI
+│   ├── acp/              # wspólny klient ACP stdio dla Groka i Antigravity
 │   ├── updater/          # katalog wydań, weryfikacja i mirror binarek
 │   ├── logs/             # zapis, redakcja i eksport logów
 │   ├── process-governor/ # wspólne limity procesów potomnych

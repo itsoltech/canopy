@@ -1,15 +1,17 @@
 import { join, resolve } from "node:path";
 import { ProviderConfigurationMode } from "@canopy/contracts";
+import type { Harness } from "@canopy/domain/harnesses";
 import {
   claudeConfigurationHomes,
   claudeConfigurationHomeProblem,
   userConfigurationProblem,
 } from "../providers/claude/configuration-homes.ts";
-import { codexCliHomeProblem, providerHomeProblem } from "../providers/home-paths.ts";
+import { antigravityHomeProblem, codexCliHomeProblem, providerHomeProblem } from "../providers/home-paths.ts";
 import { directCodexHome } from "../providers/codex/home.ts";
+import { antigravitySessionRoot } from "../providers/antigravity/home.ts";
 import { loginRevision } from "../providers/account-parser.ts";
 import type { ProfileStatus } from "../providers/profiles.ts";
-import { instanceShadowHome } from "./homes.ts";
+import { defaultAntigravityHome, instanceShadowHome } from "./homes.ts";
 import type { DeviceHomes } from "./remote.ts";
 
 function unavailable(status: ProfileStatus, problem: string): ProfileStatus {
@@ -21,7 +23,7 @@ function unavailable(status: ProfileStatus, problem: string): ProfileStatus {
 /** A bad configuration directory disables only this instance; probing never changes filesystem state. */
 export function inspectProfilePaths(
   status: ProfileStatus,
-  harness: "claude" | "codex" | "grok",
+  harness: Harness,
   homes: DeviceHomes | undefined,
   linkDeviceLogin: boolean,
 ): ProfileStatus {
@@ -36,6 +38,20 @@ export function inspectProfilePaths(
     const privateHome = resolve(
       instanceShadowHome(homes.dataDir, harness, status.config.id, runtime) ?? join(homes.dataDir, `${harness}-home`),
     );
+
+    if (harness === "antigravity") {
+      const deviceHome = homes.antigravity ?? defaultAntigravityHome();
+      const problem = antigravityHomeProblem(runtime?.shadowHomePath || privateHome, deviceHome);
+
+      if (problem) return unavailable(status, problem);
+
+      return {
+        ...status,
+        privateHomePath: privateHome,
+        sessionHomePath: antigravitySessionRoot(homes.dataDir, status.config.id),
+        ...(linkDeviceLogin && { loginHomePath: deviceHome }),
+      };
+    }
 
     const loginSource = runtime?.homePath || homes[harness];
     const loginHomePath = runtime?.ownLogin || !linkDeviceLogin ? privateHome : resolve(loginSource);

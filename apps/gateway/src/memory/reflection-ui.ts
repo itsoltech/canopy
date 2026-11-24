@@ -1,3 +1,4 @@
+import { supportsIsolatedRuns } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Provider, ui } from "@canopy/contracts";
@@ -10,7 +11,7 @@ import { coreState } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { Invalid, NotFound } from "../store/errors.ts";
 import { INSTANCE_ID, NATIVE_ID } from "../store/instance-config.ts";
-import { harnessOf, SettingsConflict } from "../store/index.ts";
+import { SettingsConflict } from "../store/index.ts";
 import { uuid } from "./model.ts";
 import { cancelReflection } from "./reflection-generation.ts";
 import { reflectionProfiles } from "./reflection-profiles.ts";
@@ -98,7 +99,11 @@ function checkedSettings(input: ui.MemoryReflectionSettings | undefined): Settin
 
   if (enabled && !projectIds.length) throw new Invalid("Select at least one project.");
 
-  if (provider === Provider.UNSPECIFIED ? enabled || profileId || model || effort : !harnessOf(provider) || !profileId)
+  if (
+    provider === Provider.UNSPECIFIED
+      ? enabled || profileId || model || effort
+      : !supportsIsolatedRuns(provider) || !profileId
+  )
     throw new Invalid("Choose a reflection provider profile.");
 
   if (

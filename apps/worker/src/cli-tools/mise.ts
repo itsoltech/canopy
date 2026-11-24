@@ -9,6 +9,8 @@ export const MISE_GROK_NPM_TOOL = "npm:@xai-official/grok";
 /** Install directory names are normalized by mise; never upgrade its node runtime for an npm global CLI. */
 export function miseTool(cli: Pick<DiscoveredCli, "spec" | "owner">): string | undefined {
   const { spec, owner } = cli;
+
+  if (!spec.npm) return undefined;
   const npmKey = `npm-${spec.npm.replace(/^@/, "").replaceAll("/", "-")}`;
 
   if (owner === npmKey) return `npm:${spec.npm}`;

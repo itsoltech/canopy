@@ -1,4 +1,6 @@
 import { Provider, type ui } from "@canopy/contracts";
+import { providerLoginCommand } from "@canopy/domain/provider-accounts";
+import { accountStateLabel, hasAccountStatus } from "@canopy/domain/provider-instances";
 import { Text, View } from "react-native";
 import { Sensitive } from "../../ui/Sensitive";
 import { styles, useColors } from "../../ui/theme";
@@ -23,9 +25,7 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
 
   useForegroundInterval(() => setNow(Date.now()), 60_000);
 
-  const accounts = current.providerInstances.filter(
-    (i) => i.enabled && i.account && (i.account.state !== "unknown" || i.account.authMethod || i.account.detail),
-  );
+  const accounts = current.providerInstances.filter((i) => i.enabled && hasAccountStatus(i.account, i.harness));
 
   if (!accounts.length) return null;
 
@@ -40,19 +40,9 @@ export function WorkerProviderAccounts({ worker, readOnly }: { worker: ui.Worker
           const rejected = account.state === "expired";
           const expired = rejected || (!!account.expiresAt && Number(account.expiresAt.seconds) * 1000 <= now);
 
-          const state = rejected
-            ? "Sign-in expired"
-            : expired
-              ? "Expired"
-              : account.state === "signed_in"
-                ? "Signed in"
-                : account.state === "stored"
-                  ? "Login saved"
-                  : account.state === "signed_out"
-                    ? "Not signed in"
-                    : account.state === "error"
-                      ? "Check failed"
-                      : "";
+          const state =
+            accountStateLabel(account, now) ||
+            (i.harness === Provider.ANTIGRAVITY && !account.authMethod ? "Sign-in status unknown" : "");
 
           return (
             <View key={`${i.harness}/${i.id}`} style={{ gap: 12 }}>
@@ -111,14 +101,19 @@ function AccountActions({
   const account = instance.account;
 
   if (!account) return null;
-  const signIn = account.authMethod !== "Proxy" && (expired || account.state === "signed_out");
+
+  const signIn =
+    account.authMethod !== "Proxy" &&
+    (expired || account.state === "signed_out" || (instance.harness === Provider.ANTIGRAVITY && !account.authMethod));
 
   const command =
-    instance.harness === Provider.CLAUDE
-      ? "claude auth login"
-      : instance.harness === Provider.CODEX
-        ? "codex login"
-        : "grok login";
+    instance.harness === Provider.ANTIGRAVITY
+      ? providerLoginCommand("antigravity", account, worker.os)
+      : instance.harness === Provider.CLAUDE
+        ? "claude auth login"
+        : instance.harness === Provider.CODEX
+          ? "codex login"
+          : "grok login";
 
   return (
     <>

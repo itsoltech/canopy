@@ -17,7 +17,7 @@ export class RewindCommands {
     if (!spec) throw new CommandError("INVALID_COMMAND", "thread spec missing", true);
     this.ctx.ops.checkCwd(spec.cwd);
 
-    if (spec.provider === Provider.GROK)
+    if (spec.provider !== Provider.CLAUDE && spec.provider !== Provider.CODEX)
       throw new CommandError("REWIND_UNSUPPORTED", "Edit from here is not available for this agent.", true);
 
     if (request.restoreFiles && spec.provider !== Provider.CLAUDE)

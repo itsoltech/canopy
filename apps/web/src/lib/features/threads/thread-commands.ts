@@ -22,6 +22,7 @@ export interface ThreadCommandContext {
   readonly canBranch: boolean;
   readonly canFork: boolean;
   readonly canSchedule: boolean;
+  readonly canGenerateTitle: boolean;
   readonly closed: boolean;
   readonly goalsHere: boolean;
   readonly canGoal: boolean;
@@ -108,7 +109,7 @@ function threadActionCommands(current: ui.Thread, context: ThreadCommandContext)
       icon: "arrow-path",
       keywords: "thread title generate name",
       rank: -7,
-      when: () => !context.closed,
+      when: () => !context.closed && context.canGenerateTitle,
       run: () => requestTitleRegeneration(current.id),
     },
     {

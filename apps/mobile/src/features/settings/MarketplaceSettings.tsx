@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { pluginComponents } from "@canopy/domain/plugin-components";
+import { pluginComponents, pluginHarnesses } from "@canopy/domain/plugin-components";
 import { Button, Field, Notice, Sheet } from "../../ui/components";
 import { SettingToggle, SettingsGroupHeader } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
@@ -244,17 +244,14 @@ function MarketplaceImport({
   );
 }
 
-function PluginEditor({
-  market,
-  candidate,
-  snapshot,
-  onSaved,
-}: {
+interface PluginEditorProps {
   market: ui.EnvironmentMarketplace;
   candidate: ui.MarketplacePlugin;
   snapshot: ui.AgentEnvironmentSnapshot;
   onSaved: () => void;
-}) {
+}
+
+function PluginEditor({ market, candidate, snapshot, onSaved }: PluginEditorProps) {
   const previous = snapshot.plugins.find(
     (p) => p.marketplaceId === market.id && p.assignment?.artifact?.name === candidate.artifact?.name,
   );
@@ -345,6 +342,7 @@ function PluginEditor({
                 onChangeText={(name) => setAssignment(create(ui.LibrarySkillSchema, { ...assignment, name }))}
               />
               <EnvironmentDestinations
+                harnesses={pluginHarnesses(artifact?.files ?? [])}
                 value={assignment}
                 workers={snapshot.workers}
                 onChange={(v) => {

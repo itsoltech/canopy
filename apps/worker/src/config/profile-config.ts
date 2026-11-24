@@ -1,5 +1,5 @@
-import { Match } from "effect";
 import { Provider, ProviderProfileKind, type WorkerConfig } from "@canopy/contracts";
+import { harnessOf, type Harness } from "@canopy/domain/harnesses";
 import { parseProviderSettings, type GrokProviderSettings } from "@canopy/domain/provider-settings";
 import type { ProviderProfileConfig } from "../providers/profiles.ts";
 
@@ -70,18 +70,20 @@ export function profileConfig(
   issue: (path: string, message: string, fatal?: boolean) => void,
 ): ProviderProfileConfig | undefined {
   const { runtime: settings, problem: settingsProblem } = profileSettings(profile);
+  const providers: Harness[] = [];
+
+  for (const provider of profile.providers) {
+    const harness = harnessOf(provider);
+
+    if (harness) providers.push(harness);
+    else issue(`profiles[${index}].providers`, `unsupported provider for "${profile.id}"`);
+  }
+
+  if (profile.providers.length && !providers.length) return undefined;
 
   const common = {
     id: profile.id,
-    ...(profile.providers.length > 0 && {
-      providers: profile.providers.map((p) =>
-        Match.value(p).pipe(
-          Match.when(Provider.CLAUDE, () => "claude" as const),
-          Match.when(Provider.GROK, () => "grok" as const),
-          Match.orElse(() => "codex" as const),
-        ),
-      ),
-    }),
+    ...(providers.length && { providers }),
     ...(profile.displayName && { displayName: profile.displayName }),
     ...(profile.env.length > 0 && {
       env: profile.env.map((v) => ({ name: v.name, value: v.value, secret: v.secret })),

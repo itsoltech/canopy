@@ -1,4 +1,4 @@
-import type { ui } from "@canopy/contracts";
+import { Provider, type ui } from "@canopy/contracts";
 import { turnQuoteTime } from "#lib/features/quotes/inline.ts";
 import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 import { provideThreadDirectory } from "./thread-directory.ts";
@@ -67,6 +67,7 @@ export function providePageDirectory(
       return (
         !readOnly &&
         thread?.runtime === "worker" &&
+        thread.provider !== Provider.ANTIGRAVITY &&
         !thread.spawnedByAgent &&
         !thread.scheduleId &&
         thread.status !== "archived" &&

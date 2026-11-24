@@ -1,3 +1,4 @@
+import { HARNESSES } from "@canopy/domain/harnesses";
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { ui, type SkillFile } from "@canopy/contracts";
@@ -32,7 +33,7 @@ export function SkillEditor({
   const [draft, setDraft] = useState(() =>
     create(
       ui.LibrarySkillSchema,
-      skill ?? { platformHome: true, harnesses: ["claude", "codex", "grok"], selector: { everyone: true } },
+      skill ?? { platformHome: true, harnesses: [...HARNESSES], selector: { everyone: true } },
     ),
   );
 

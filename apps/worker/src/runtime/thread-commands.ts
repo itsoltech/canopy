@@ -7,7 +7,7 @@ import { Journal } from "../journal/index.ts";
 import { ClaudeThreads } from "../providers/claude/threads.ts";
 import type { SteerError } from "../providers/turn-input.ts";
 
-import { CommandError, type CommandOutput } from "./host-types.ts";
+import { acpHarness, CommandError, type CommandOutput } from "./host-types.ts";
 import type { HostContext } from "./host-context.ts";
 import { prepareShellInput } from "./shell-input.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
@@ -50,8 +50,12 @@ export class ThreadCommands {
       throw new CommandError("FORK_POINT_UNKNOWN", `turn ${fork.afterTurnId} has no fork point at the provider`, true);
     }
 
-    if (spec.provider === Provider.GROK)
-      await this.ctx.ops.runGrok((threads) => threads.create(spec, fork), spec.providerProfileId || "native");
+    const acp = acpHarness(spec.provider);
+
+    if (acp)
+      await this.ctx.ops.runAcp(`${acp}/${spec.providerProfileId || "native"}`, (threads) =>
+        threads.create(spec, fork),
+      );
     else if (spec.provider === Provider.CLAUDE)
       await this.ctx.ops.runClaude((threads) => threads.create(spec, fork), spec.providerProfileId || "native");
     else
@@ -179,17 +183,17 @@ export class ThreadCommands {
       return {};
 
     if (!canSubmit()) return {};
+    const acp = acpHarness(spec.provider);
     workerDiagnostics.turns.queue(
       spec.threadId,
       turnId,
-      spec.provider === Provider.CLAUDE ? "claude" : spec.provider === Provider.GROK ? "grok" : "codex",
+      acp ?? (spec.provider === Provider.CLAUDE ? "claude" : "codex"),
     );
 
     try {
-      if (spec.provider === Provider.GROK)
-        await this.ctx.ops.runGrok(
-          (threads) => threads.startTurn(spec, turnId, input, settings),
-          spec.providerProfileId || "native",
+      if (acp)
+        await this.ctx.ops.runAcp(`${acp}/${spec.providerProfileId || "native"}`, (threads) =>
+          threads.startTurn(spec, turnId, input, settings),
         );
       else if (spec.provider === Provider.CLAUDE)
         await this.ctx.ops.runClaude(
@@ -225,8 +229,8 @@ export class ThreadCommands {
 
     if (!rawInput || !inputId) throw new CommandError("INVALID_COMMAND", "input or input_id missing", true);
 
-    if ([...this.ctx.state.grok.values()].some((handle) => handle.runtime.running(threadId)))
-      throw new CommandError("STEER_REJECTED", "Grok ACP does not support mid-turn input; queue this message", true);
+    if ([...this.ctx.state.acp.values()].some((handle) => handle.runtime.running(threadId)))
+      throw new CommandError("STEER_REJECTED", "This agent accepts new input on the next turn", true);
 
     if (!this.ctx.state.running.has(`${threadId}/${turnId}`))
       throw new CommandError("STEER_NOT_RUNNING", "the turn is not running on this worker", true);
@@ -249,8 +253,8 @@ export class ThreadCommands {
         Effect.catchTag("SteerError", (error) => Effect.die(new CommandError(error.code, error.message, true))),
       );
 
-    if ([...this.ctx.state.grok.values()].some((handle) => handle.runtime.running(threadId))) {
-      throw new CommandError("STEER_REJECTED", "Grok ACP does not support mid-turn input; queue this message", true);
+    if ([...this.ctx.state.acp.values()].some((handle) => handle.runtime.running(threadId))) {
+      throw new CommandError("STEER_REJECTED", "This agent accepts new input on the next turn", true);
     } else if (claude) {
       await this.ctx.ops.runClaude(
         (threads) => steer(threads.steer(threadId, turnId, inputId, input, { serviceTier })),
@@ -299,10 +303,10 @@ export class ThreadCommands {
       Context.get(handle.context, ClaudeThreads).running(threadId),
     );
 
-    const grok = [...this.ctx.state.grok].find(([, handle]) => handle.runtime.running(threadId));
+    const acp = [...this.ctx.state.acp].find(([, handle]) => handle.runtime.running(threadId));
 
-    if (grok) {
-      await this.ctx.ops.runGrok((threads) => threads.interrupt(threadId, turnId), grok[0], true);
+    if (acp) {
+      await this.ctx.ops.runAcp(acp[0], (threads) => threads.interrupt(threadId, turnId), true);
     } else if (claude) {
       await this.ctx.ops.runClaude((threads) => threads.interrupt(threadId, turnId), claude[0], true);
     } else {

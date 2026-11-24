@@ -158,7 +158,10 @@ function threadSpec(row: ThreadRow) {
     projectSecretsConfigured: row.project_secrets_configured ?? false,
     enableAgentBus: row.runtime === "worker",
     enableWorktreeSwitch:
-      row.runtime === "worker" && row.project_kind === "project" && row.provider !== "grok" && !threadSandbox(row),
+      row.runtime === "worker" &&
+      row.project_kind === "project" &&
+      (row.provider === "codex" || row.provider === "claude") &&
+      !threadSandbox(row),
     hasDelegatingBot: hasDelegatingBot(row),
     providerThreadId: row.provider_thread_id ?? "",
     depth: row.remote_parent_ref ? 1 : row.depth,

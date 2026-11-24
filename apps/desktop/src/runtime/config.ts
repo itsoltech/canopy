@@ -41,7 +41,7 @@ export const initialStatus = (): DesktopStatus => ({
   mode: null,
   phase: "setup",
   worker: "offline",
-  clis: { claude: false, codex: false, grok: false },
+  clis: { claude: false, codex: false, grok: false, agy: false },
   allowNetwork: false,
   bindHost: "127.0.0.1",
 });

@@ -184,7 +184,7 @@ export function newDraft(harness: Provider, workerIds: string[]): InstanceDraft 
     idEdited: false,
     label: "",
     accentColor: "",
-    kind: ProviderProfileKind.CLIPROXYAPI,
+    kind: harness === Provider.ANTIGRAVITY ? ProviderProfileKind.NATIVE : ProviderProfileKind.CLIPROXYAPI,
     env: [],
     binaryPath: "",
     homePath: "",

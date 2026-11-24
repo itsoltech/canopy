@@ -1,3 +1,5 @@
+import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import { harnessOf } from "@canopy/domain/harnesses";
 import {
   Provider,
   ui,
@@ -241,7 +243,9 @@ export class ProviderAccounts {
     for (const entry of report.entries.slice(0, 256)) {
       if (
         !entry.account ||
-        ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(entry.provider) ||
+        !harnessOf(entry.provider) ||
+        (entry.provider === Provider.ANTIGRAVITY &&
+          !connection.hello.capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY)) ||
         !/^[a-z0-9][a-z0-9_-]{0,62}$/.test(entry.profileId) ||
         (provider && entry.provider !== provider) ||
         (id && entry.profileId !== id)

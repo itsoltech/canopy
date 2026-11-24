@@ -1,5 +1,8 @@
 # Status kont dostawców
 
+Aktualizacja (2026-11-24): natywna instancja Antigravity korzysta z logowania
+`agy acp --login` na urządzeniu lub klucza Gemini. [Adapter Antigravity](antigravity-adapter.md)
+
 Aktualizacja (2026-11-24): natywny bot Codexa pobiera login wybranej instancji z
 osobnego lokalnego RPC. Raport konta nadal zawiera wyłącznie metadane.
 
@@ -34,6 +37,7 @@ każdego modelu ani dostępności endpointu.
 | Claude | `claude auth status --json` | `loggedIn`, metoda, email, nazwa organizacji, subskrypcja, opcjonalny termin wygaśnięcia. Nieznane pola są odrzucane. |
 | Codex | `codex login status` | Status w stderr i kod wyjścia; rozpoznawane ChatGPT/API key/managed credentials. Raport może pobrać email i plan z działającego app-servera tej samej instancji przez `account/read {refreshToken:false}`. |
 | Grok Build 1.0.70 | obecność pliku wskazanego przez `GROK_AUTH_PATH` (bez czytania treści) | Brak read-only auth status/whoami. „Login saved” potwierdza zapisany login, nie jego ważność; dopiero tura może go odrzucić. Brak pliku oznacza „Not signed in”. Klucz w env ma osobny opis „API key configured”. |
+| Antigravity | obecność lokalnego pliku loginu lub skonfigurowanego `GEMINI_API_KEY` | Worker raportuje zapisany login lub skonfigurowanie klucza. Przy loginie wyłącznie w systemowym magazynie stan w raporcie pozostaje nieznany. CLI sprawdza poświadczenia przy otwarciu sesji. |
 | Proxy | konfiguracja instancji | „Proxy: nazwa”, bez uruchamiania auth status i bez tożsamości konta upstream. Nie jest to test poprawności klucza ani połączenia. |
 
 Polecenia i schematy sprawdzono w pomocy zainstalowanych CLI oraz oficjalnym

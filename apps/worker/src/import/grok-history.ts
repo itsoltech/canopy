@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { ItemStatus, type ImportedTurn } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
-import type { SessionUpdate, ToolCall } from "@canopy/grok-acp";
+import type { SessionUpdate, ToolCall } from "@canopy/acp";
 import { Option, Schema } from "effect";
 import type { ThreadEventInit } from "../journal/index.ts";
 import { GrokEventMapper } from "../providers/grok/mapping.ts";

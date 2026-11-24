@@ -49,7 +49,7 @@ export function ProviderLoginActions({
     setLogin(undefined);
   }, [login, current?.loginId, current?.loginOutcome]);
 
-  if (kind !== ProviderProfileKind.NATIVE) return null;
+  if (kind !== ProviderProfileKind.NATIVE || harness === Provider.ANTIGRAVITY) return null;
   const request = { workerId, harness, id };
   const name = worker?.name ?? "this computer";
 

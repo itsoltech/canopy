@@ -23,6 +23,7 @@ import { eventually } from "./support/gateway.ts";
 const root = tempDir("canopy-cli-discovery-");
 const codex = CLIS.find((c) => c.name === "codex")!;
 const grok = CLIS.find((c) => c.name === "grok")!;
+const antigravity = CLIS.find((c) => c.name === "antigravity")!;
 let homes = 0;
 
 const file = (path: string, body: string) => {
@@ -111,6 +112,36 @@ describe("native Windows CLI updates", () => {
 });
 
 describe("agent CLIs from any package manager", () => {
+  test("finds agy in its native location, respects a configured executable, and offers manual installation", async () => {
+    const { home, probe } = device();
+    const native = join(home, ".local", "bin", "agy");
+    const custom = join(home, "custom", "agent");
+    // The unrelated Antigravity IDE launcher must never be chosen for ACP.
+    file(join(home, ".local", "bin", "antigravity"), "#!/bin/sh\nexit 1\n");
+    const missing = await discoverCli(antigravity, undefined, probe());
+    expect(missing).toMatchObject({ path: "", method: CliInstallMethod.NOT_INSTALLED });
+    expect(planRecipe(missing, "latest", probe())).toMatchObject({
+      manualCommand: "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+    });
+    expect(planRecipe(missing, "latest", { ...probe(), platform: "win32" }).manualCommand).toBe(
+      "irm https://antigravity.google/cli/install.ps1 | iex",
+    );
+
+    file(
+      native,
+      '#!/bin/sh\n[ "$1" = "--version" ] && [ "$AGY_CLI_DISABLE_AUTO_UPDATE" = "true" ] && echo "agy 1.5.16"\n',
+    );
+    file(custom, '#!/bin/sh\n[ "$1" = "--version" ] && echo "agy 1.5.17"\n');
+    const found = await discoverCli(antigravity, undefined, probe());
+    expect(found).toMatchObject({ path: native, version: "1.5.16", method: CliInstallMethod.NATIVE });
+    expect(planRecipe(found, "1.5.18", probe()).recipe).toBeUndefined();
+    const wire = create(WorkerConfigSchema, { antigravity: { enabled: true, executablePath: custom } });
+    const applied = applyWorkerConfig(wire, await prepareSystemProbe(wire, probe()));
+
+    if (!applied.applied) throw new Error("expected applied");
+    expect(applied.config.antigravity).toMatchObject({ enabled: true, executable: custom, version: "1.5.17" });
+  });
+
   test("bun: found in ~/.bun/bin when PATH lacks it, updated with bun add -g", async () => {
     const { home, probe } = device();
     file(join(home, ".bun/install/global/node_modules/@openai/codex/bin/codex.js"), fakeCli("0.166.0"));

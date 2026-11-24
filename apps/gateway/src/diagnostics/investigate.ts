@@ -1,5 +1,6 @@
+import { harnessOf } from "@canopy/domain/harnesses";
 import { create } from "@bufbuild/protobuf";
-import { PermissionMode, Provider, ui } from "@canopy/contracts";
+import { PermissionMode, ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { isEntityId, splitId } from "@canopy/domain/computers";
 import type { GatewayCore } from "../core/core.ts";
@@ -21,7 +22,7 @@ export async function investigate(
 
   if (
     ![projectId, workspaceId, workerId, clientRequestId].every((id) => isEntityId(id) && !splitId(id).node) ||
-    ![Provider.CLAUDE, Provider.CODEX, Provider.GROK].includes(request.provider) ||
+    !harnessOf(request.provider) ||
     request.model.length > 256 ||
     request.providerProfileId.length > 128
   )

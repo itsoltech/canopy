@@ -1,8 +1,8 @@
 # Informacje o materiałach zewnętrznych
 
-## LobeHub Icons — znak xAI/Grok
+## LobeHub Icons
 
-Ścieżka SVG `GROK` w `apps/web/src/lib/features/models/ProviderIcon.svelte` pochodzi z [LobeHub Icons, `packages/static-svg/icons/xai.svg`](https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/xai.svg). [Licencja źródłowa](https://github.com/lobehub/lobe-icons/blob/master/LICENSE):
+Ikony Groka i Antigravity w `packages/ui/src/provider-icons.ts` pochodzą z biblioteki LobeHub Icons na licencji MIT. [xai.svg](https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/xai.svg) · [antigravity.svg](https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/antigravity.svg) · [Licencja](https://github.com/lobehub/lobe-icons/blob/master/LICENSE)
 
 ```text
 MIT License

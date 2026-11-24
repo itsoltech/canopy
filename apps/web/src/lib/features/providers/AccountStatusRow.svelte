@@ -8,6 +8,7 @@
   import { Provider, type ProviderAccountStatus } from "@canopy/contracts";
   import { accountStateLabel, hasAccountStatus } from "@canopy/domain/provider-instances";
   import { ACCOUNT_ACTION_LABELS, accountAction, providerLoginCommand } from "@canopy/domain/provider-accounts";
+  import { harnessOf } from "@canopy/domain/harnesses";
   import Sensitive from "#lib/shared/ui/Sensitive.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -51,20 +52,16 @@
   const warn = $derived(expired || account?.state === "signed_out" || account?.state === "error");
   const actionLabel = $derived(ACCOUNT_ACTION_LABELS[accountAction(account, now)]);
 
-  const statusLabel = $derived(accountStateLabel(account, now));
+  const statusLabel = $derived(
+    accountStateLabel(account, now) ||
+      (harness === Provider.ANTIGRAVITY && !account?.authMethod ? "Sign-in status unknown" : ""),
+  );
 
   // The separator belongs to the item after it, so a wrapped line never ends with a lone dot.
   const sep = "before:mr-1.5 before:text-zinc-400 before:content-['·'_/_''] dark:before:text-zinc-500";
 
-  const login = $derived(
-    account
-      ? providerLoginCommand(
-          harness === Provider.CLAUDE ? "claude" : harness === Provider.CODEX ? "codex" : "grok",
-          account,
-          os,
-        )
-      : "",
-  );
+  const harnessId = $derived(harnessOf(harness));
+  const login = $derived(harnessId ? providerLoginCommand(harnessId, account, os) : "");
 
   onMount(() => {
     const timer = setInterval(() => (now = Date.now()), 60_000);
@@ -100,7 +97,7 @@
   }
 </script>
 
-{#if account && hasAccountStatus(account)}
+{#if account && hasAccountStatus(account, harness)}
   <div class="grid min-w-0 gap-0.5">
     <div
       class="flex min-w-0 flex-wrap items-center gap-x-1.5 text-base/6 text-zinc-600 sm:text-sm/6 dark:text-zinc-400"
@@ -139,7 +136,7 @@
           onclick={refresh}
         />
       {/if}
-      {#if !proxy && !signInHere && account.state !== "unknown"}
+      {#if !proxy && !signInHere && (account.state !== "unknown" || (harness === Provider.ANTIGRAVITY && !account.authMethod))}
         <Popover
           bind:open={help}
           label={actionLabel}

@@ -2,12 +2,16 @@ import { clone } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { ItemSchema, ItemStatus, type Item } from "@canopy/contracts";
 import { Cause, Effect, Exit, Predicate } from "effect";
+import { isHarness } from "@canopy/domain/harnesses";
 import { classifyFailure } from "@canopy/domain";
 import { Journal } from "../journal/index.ts";
+import type { AcpThreads } from "../providers/acp/threads.ts";
+import type { AcpThreadOptions } from "../providers/acp/thread-types.ts";
+import { AntigravityThreads } from "../providers/antigravity/threads.ts";
 import { GrokThreads } from "../providers/grok/threads.ts";
 import { providersOf, type ResolvedProfile } from "../providers/profiles.ts";
 import type { AppliedConfig } from "../config/remote.ts";
-import { CommandError } from "./host-types.ts";
+import { CommandError, type AcpHarness } from "./host-types.ts";
 import {
   instanceKey,
   matchingProfile,
@@ -20,47 +24,50 @@ import type { HostContext } from "./host-context.ts";
 
 export class ProviderRuntimes {
   constructor(readonly ctx: HostContext) {}
-  async runGrok<A>(use: (threads: GrokThreads) => Promise<A>, id = "native", current = false): Promise<A> {
-    return this.useRuntime(`grok/${id}`, current, async () => {
-      const handle = this.ctx.state.grok.get(id);
+  async runAcp<A>(instance: string, use: (threads: AcpThreads) => Promise<A>, current = false): Promise<A> {
+    return this.useRuntime(instance, current, async () => {
+      const handle = this.ctx.state.acp.get(instance);
 
-      if (!handle) throw new CommandError("PROVIDER_UNAVAILABLE", "Grok instance unavailable", true);
+      if (!handle) throw new CommandError("PROVIDER_UNAVAILABLE", "Provider instance unavailable", true);
 
       return use(handle.runtime);
     });
   }
 
-  async startGrok(
-    profile: ResolvedProfile,
-    key: string,
-    config: AppliedConfig | undefined = this.ctx.state.config,
-  ): Promise<void> {
-    if (!config?.grok.executable) return;
-    this.ctx.state.grok.set(profile.id, {
-      key,
-      runtime: new GrokThreads({
-        dataDir: this.ctx.state.options.dataDir,
-        pricing: this.ctx.state.xaiPricing,
-        executable: config.grok.executable,
-        linkDeviceLogin: config.grok.linkDeviceLogin,
-        idleUnloadMs: config.limits.idleUnloadSeconds * 1000,
-        profile: (id) => matchingProfile(profile, id),
-        record: async (threadId, init) => {
-          const event = await this.ctx.state.options.runtime.runPromise(
-            Journal.use((journal) => this.ctx.state.previews.record(init, (event) => journal.append(threadId, event))),
-          );
+  async startAcp(harness: AcpHarness, profile: ResolvedProfile, key: string, config: AppliedConfig): Promise<void> {
+    const provider = config[harness];
+    const executable = profile.runtime.executablePath || provider.executable;
 
-          this.ctx.ops.publish(event);
+    if (!executable) return;
+    const { state, ops } = this.ctx;
 
-          return event;
-        },
-        interact: (request, signal) => this.ctx.ops.interact(request, signal),
-        callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
-        viewImage: (threadId, cwd, path) => this.ctx.ops.viewImage(threadId, cwd, path),
-        localMcpServers: (tools, threadId, defaults) =>
-          this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),
-      }),
-    });
+    const options: AcpThreadOptions = {
+      dataDir: state.options.dataDir,
+      executable,
+      linkDeviceLogin: provider.linkDeviceLogin,
+      idleUnloadMs: config.limits.idleUnloadSeconds * 1000,
+      profile: (id) => matchingProfile(profile, id),
+      record: async (threadId, init) => {
+        const event = await state.options.runtime.runPromise(
+          Journal.use((journal) => state.previews.record(init, (entry) => journal.append(threadId, entry))),
+        );
+
+        ops.publish(event);
+
+        return event;
+      },
+      interact: (request, signal) => ops.interact(request, signal),
+      callTool: (call, signal) => ops.callTool(call, signal),
+      viewImage: (threadId, cwd, path) => ops.viewImage(threadId, cwd, path),
+      localMcpServers: (tools, threadId, defaults) => state.agentTools.localMcpServers(tools, threadId, defaults),
+    };
+
+    const start = {
+      grok: () => new GrokThreads({ ...options, pricing: state.xaiPricing }),
+      antigravity: () => new AntigravityThreads({ ...options, deviceHome: state.deviceHomes.antigravity }),
+    } satisfies Record<AcpHarness, () => AcpThreads>;
+
+    state.acp.set(`${harness}/${profile.id}`, { key, runtime: start[harness]() });
   }
 
   async runIn<A, E>(effect: Effect.Effect<A, E, Journal>): Promise<A> {
@@ -126,9 +133,7 @@ export class ProviderRuntimes {
             providersOf(profile).some((provider) => instanceKey(provider, profile.id) === key),
           );
 
-          const problem =
-            instance?.problem ??
-            (harness === "codex" || harness === "claude" || harness === "grok" ? config?.[harness].problem : undefined);
+          const problem = instance?.problem ?? (harness && isHarness(harness) ? config?.[harness].problem : undefined);
 
           throw new CommandError("PROVIDER_UNAVAILABLE", problem ?? "provider instance unavailable", true);
         }

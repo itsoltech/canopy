@@ -6,7 +6,7 @@ Short rules for agents working in this repository. Details live in `docs/` (most
 
 - **Canopy**: an AI agent platform. Bun + TypeScript monorepo.
   - `apps/gateway`: gRPC gateway and the only Postgres client: owner-scoped API, worker command outbox, bot queue and tools, connector proxy, GitHub, agent bus. Server builds also serve the web app in-process. It never calls model APIs.
-  - `apps/worker`: runs Claude Agent SDK, Codex app-server and the Grok CLI over ACP, for threads and for hidden bot sessions.
+  - `apps/worker`: runs Claude Agent SDK, Codex app-server, and the Grok and Antigravity CLIs over ACP. Hidden bot sessions use Claude, Codex or Grok.
   - `apps/web`: SvelteKit BFF + SPA, embedded in the server gateway or the desktop controller.
   - `apps/desktop`: Electron + a Bun controller. Local mode supervises PostgreSQL, a gateway and a worker; remote mode runs only the local BFF against a paired gateway.
   - `apps/mobile`: Expo app over Connect with a pinned TLS certificate.

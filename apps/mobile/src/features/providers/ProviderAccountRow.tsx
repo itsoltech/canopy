@@ -36,9 +36,13 @@ export function ProviderAccountRow({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState("");
 
-  if (!hasAccountStatus(account)) return null;
+  if (!hasAccountStatus(account, harness)) return null;
   const expiry = account.expiresAt ? timestampDate(account.expiresAt) : undefined;
-  const status = accountStateLabel(account, now);
+
+  const status =
+    accountStateLabel(account, now) ||
+    (harness === Provider.ANTIGRAVITY && !account.authMethod ? "Sign-in status unknown" : "");
+
   const expired = account.state === "expired" || (!!expiry && expiry.getTime() <= now);
   const soon = !!expiry && !expired && expiry.getTime() - now < WEEK;
   const warn = expired || account.state === "signed_out" || account.state === "error";

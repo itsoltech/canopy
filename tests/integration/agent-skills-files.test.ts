@@ -64,6 +64,44 @@ function fixture() {
 }
 
 describe("skill filesystem transactions and harness destinations", () => {
+  test("a platform-only Antigravity assignment cannot write into an overlapping device CLI home", () => {
+    const dataDir = scratch("canopy-skills-antigravity-");
+    const deviceHome = join(dataDir, "antigravity-home");
+    let report: AgentEnvironmentReport | undefined;
+
+    const env = new WorkerAgentEnvironment({
+      homes: () => ({
+        dataDir,
+        config: undefined,
+        deviceHomes: { codex: join(dataDir, "codex"), claude: join(dataDir, "claude"), antigravity: deviceHome },
+      }),
+      send: (next) => {
+        report = next;
+      },
+    });
+
+    try {
+      env.apply(
+        create(AgentEnvironmentDesiredSchema, {
+          revision: 1n,
+          skills: [
+            {
+              id: "review",
+              version: 1n,
+              harnesses: ["antigravity"],
+              platformHome: true,
+              artifact: validateSkillFiles(skillFiles()),
+            },
+          ],
+        }),
+      );
+      expect(report?.skills).toContainEqual(expect.objectContaining({ harness: "antigravity", status: "error" }));
+      expect(existsSync(join(deviceHome, "skills", "code-review"))).toBe(false);
+    } finally {
+      env.stop();
+    }
+  });
+
   test("Claude loads only the managed skill root and rejects unapproved sibling plugin components and links", () => {
     const root = scratch("canopy-skills-plugin-");
     const plugin = join(root, "canopy-environment");

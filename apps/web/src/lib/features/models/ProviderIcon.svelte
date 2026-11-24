@@ -4,7 +4,7 @@
   import type { ProviderKey } from "#lib/features/threads/providers.ts";
 
   /**
-   * Claude/OpenAI marks: Simple Icons (CC0). Grok mark: LobeHub icons (MIT), icons/xai.svg.
+   * Claude/OpenAI marks: Simple Icons (CC0). Grok and Antigravity marks: LobeHub icons (MIT).
    * Decorative unless `label` is given. `size="sm"` is 14px, default 16px.
    */
   let {

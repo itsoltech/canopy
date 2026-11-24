@@ -12,10 +12,15 @@ import {
   type ThreadSecretDelivery,
 } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
-import { MIN_WORKER_LINK_PROTOCOL, WORKER_LINK_PROTOCOL, workerLinkCompatible } from "@canopy/domain/release/protocol";
+import {
+  ANTIGRAVITY_ACP_CAPABILITY,
+  MIN_WORKER_LINK_PROTOCOL,
+  WORKER_LINK_PROTOCOL,
+  workerLinkCompatible,
+} from "@canopy/domain/release/protocol";
 import { WorkerConnection } from "./connection.ts";
 import { gatewayMessage } from "./messages.ts";
-import { needsConfigurationNegotiation } from "./configuration-compatibility.ts";
+import { needsConfigurationDelivery } from "./configuration-compatibility.ts";
 import type { RpcObservation } from "../diagnostics/collector.ts";
 
 export interface WorkerLinkOptions {
@@ -70,6 +75,7 @@ export interface DrainOptions {
 export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
   const connections = new Map<string, WorkerConnection>();
   const sessions = new Set<Promise<void>>();
+  const antigravitySupport = new Map<string, boolean>();
   let credentialEpoch = 0;
   let shuttingDown = false;
   const helloTimeoutMs = options.helloTimeoutMs ?? 10_000;
@@ -108,9 +114,11 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     const connection = new WorkerConnection(workerId, hello, outbound, options.observeCommand);
     const config = await options.config?.(workerId);
 
-    if (config && (BigInt(config.version ?? 0) !== hello.configVersion || needsConfigurationNegotiation(config))) {
+    const supportsAntigravity = hello.capabilities.includes(ANTIGRAVITY_ACP_CAPABILITY);
+    const supportChanged = antigravitySupport.get(workerId) !== supportsAntigravity;
+
+    if (config && needsConfigurationDelivery(config, hello.configVersion, supportChanged))
       connection.sendConfig(config);
-    }
 
     // No await between this check and registration: a rotation/revoke cannot leave a stale handshake live.
     if (epoch !== credentialEpoch)
@@ -119,6 +127,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     if (shuttingDown) throw new ConnectError("gateway shutting down", Code.Unavailable);
     connections.get(workerId)?.close();
     connections.set(workerId, connection);
+    antigravitySupport.set(workerId, supportsAntigravity);
     void connection.closed.then(() => {
       if (connections.get(workerId) === connection) connections.delete(workerId);
     });
@@ -185,6 +194,7 @@ export function createWorkerLink(options: WorkerLinkOptions): WorkerLink {
     connections,
     disconnect: (workerId) => {
       credentialEpoch++;
+      antigravitySupport.delete(workerId);
       connections.get(workerId)?.close();
       connections.delete(workerId);
     },
