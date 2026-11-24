@@ -29,7 +29,7 @@
     className,
   ]}
 >
-  <ProjectMark name={project.name} kind={project.kind} color={project.color} />
+  <ProjectMark name={project.name} kind={project.kind} color={project.color} imageBase64={project.imageBase64} />
   <Checkbox
     name="project-{project.id}"
     label={project.name}

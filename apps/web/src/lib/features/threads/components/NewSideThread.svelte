@@ -113,6 +113,7 @@
           name={project?.name ?? "?"}
           kind={project?.kind}
           color={project?.color}
+          imageBase64={project?.imageBase64}
         />{/snippet}{project?.name ?? "Project"}</Crumb
     >
     <Crumb {href}>{main.title || "Untitled thread"}</Crumb>

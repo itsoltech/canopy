@@ -7,6 +7,8 @@ import { nodeRef } from "@canopy/domain/computers";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import sharp from "sharp";
+import { nextClock } from "../../apps/gateway/src/config-sync/clock.ts";
 import { configAllowed } from "../../apps/gateway/src/computers/runtime-config.ts";
 import { linkedMessage } from "../../apps/gateway/src/computers/remote.ts";
 import { projectTransaction } from "../../apps/gateway/src/config-sync/project-records.ts";
@@ -165,6 +167,38 @@ describe.skipIf(!dockerAvailable)("projects and worktree policy across separate 
 
     expect((await b.gateway.api.setProjectColor({ projectId: pb.project.id, color: "" })).project?.color).toBe("");
     await wait(async () => (await localColor(a, pa.project.id)) === "");
+  }, 45_000);
+
+  test("project image and removal sync while an older snapshot can still change the name", async () => {
+    const image = await sharp({ create: { width: 128, height: 128, channels: 4, background: "#557799a0" } })
+      .png()
+      .toBuffer();
+
+    const localImage = async (computer: ConfigComputer, id: string) =>
+      (await projects(computer)).find((row) => row.id === id)?.imageBase64;
+
+    const { project: saved } = await a.gateway.api.setProjectImage({ projectId: pa.project.id, image });
+    expect(saved?.imageBase64).toBeTruthy();
+    await wait(async () => (await localImage(b, pb.project.id)) === saved?.imageBase64);
+
+    const [older] = await b.store.query<ConfigRow>("SELECT * FROM config_items WHERE kind='project' AND local_id=$1", [
+      pb.project.id,
+    ]);
+
+    const name = older!.fields["name"]!;
+    older!.fields["name"] = { value: "Renamed by an older computer", hlc: nextClock(name.hlc, b.node), prev: name.hlc };
+    delete older!.fields["imageBase64"];
+    await a.links.config!.receive(
+      b.node,
+      create(computerLink.ConfigUpdateSchema, { items: [wireItem(older!)] }),
+      () => true,
+    );
+    await wait(async () => (await named(a, pa.project.id)) === "Renamed by an older computer");
+    expect(await localImage(a, pa.project.id)).toBe(saved?.imageBase64);
+
+    const { project: reset } = await b.gateway.api.setProjectImage({ projectId: pb.project.id });
+    expect(reset?.imageBase64).toBe("");
+    await wait(async () => (await localImage(a, pa.project.id)) === "");
   }, 45_000);
 
   test("an aliased project_id routes a new thread to B's own project", async () => {

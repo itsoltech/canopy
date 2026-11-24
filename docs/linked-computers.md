@@ -2237,9 +2237,9 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-24): konsolidacja wymaga migracji 0210 po obu stronach i zachowuje
+Status (2026-11-24): konsolidacja wymaga migracji 0212 po obu stronach i zachowuje
 powiązanie jednorazowej zgody bota z wątkiem docelowym w historii.
-Import zachowuje kolor projektu ze źródła lub celu zgodnie z decyzją przy konflikcie.
+Import zachowuje kolor i zdjęcie projektu ze źródła lub celu zgodnie z decyzją przy konflikcie.
 Zachowuje też zakres No project z zatwierdzonego konta konektora oraz
 wiązania profili Sandbox, listę profili właściciela
 i skróty polityk zapisane w historii poleceń.
@@ -2871,10 +2871,10 @@ usunięty, przywrócenie `ownLogin` nie odzyska jego zawartości: wymagane jest 
 
 ### Projekty jako tożsamość
 
-Status (2026-11-23): własny kolor i przywrócenie automatycznego koloru synchronizują
-się jako niezależne pole wspólnego rekordu projektu.
+Status (2026-11-24): kolor projektu, zdjęcie i ich reset synchronizują się jako
+niezależnie wersjonowane pola wspólnego rekordu.
 
-Projekt jest rekordem wspólnym: nazwa, kolor, rodzaj, archiwizacja, ustawienia projektu (bez workspace'u) i pole
+Projekt jest rekordem wspólnym: nazwa, kolor, zdjęcie, rodzaj, archiwizacja, ustawienia projektu (bez workspace'u) i pole
 `origin`. Workspace'y są rekordami workera i należą do jego domu. Partner bez workspace'u projektu
 widzi go z workspace'ami innych komputerów. Picker workera wybiera wtedy komputer.
 

@@ -11,6 +11,7 @@ type ProjectRow = {
   name: string;
   kind: string;
   color: string | null;
+  image_base64: string | null;
   archived_at: Date | null;
   updated_at: Date;
   origin: string;
@@ -51,7 +52,7 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
     ];
 
     const projects =
-      yield* sql<ProjectRow>`SELECT p.id::text,p.name,p.kind,p.color,p.archived_at,p.updated_at,p.config_deleted,
+      yield* sql<ProjectRow>`SELECT p.id::text,p.name,p.kind,p.color,p.image_base64,p.archived_at,p.updated_at,p.config_deleted,
       count(w.id)>0 AS has_workspace,
       CASE WHEN count(w.id)>0 AND bool_and(w.git_origin<>'') AND count(DISTINCT w.git_origin)=1
         THEN min(w.git_origin) ELSE '' END AS origin FROM projects p
@@ -89,9 +90,10 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
           kind: p.kind,
           archived: !!p.archived_at,
           origin,
-          // A reset carries an empty string with its own clock, including when consolidation
-          // imports an automatic color over a previously synced override.
+          // Resets carry an empty string with their own clock, including when consolidation
+          // imports a default appearance over a previously synced override.
           ...((p.color !== null || row.fields["color"]) && { color: p.color ?? "" }),
+          ...((p.image_base64 !== null || row.fields["imageBase64"]) && { imageBase64: p.image_base64 ?? "" }),
           [`originAmbiguous.${node}`]: ambiguous ? origin : null,
         },
         p.updated_at,

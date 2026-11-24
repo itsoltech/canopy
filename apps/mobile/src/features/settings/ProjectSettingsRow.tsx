@@ -55,7 +55,7 @@ export function ProjectSettingsRow({ project, onPress }: { project: ui.Project; 
       })}
     >
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ flexShrink: 0 }}>
-        <ProjectMark name={project.name} color={project.color} kind={project.kind} size={32} />
+        <ProjectMark project={project} size={32} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text numberOfLines={1} style={[type.chrome, { color: c.text, fontFamily: font.medium }]}>

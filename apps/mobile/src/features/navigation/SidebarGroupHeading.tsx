@@ -54,7 +54,7 @@ export function SidebarGroupHeading({
         style={({ pressed }) => [s.heading, { backgroundColor: pressed ? c.inset : "transparent" }]}
       >
         {entry.groupKind === "project" ? (
-          <ProjectMark name={entry.heading ?? "?"} color={project?.color ?? ""} kind={project?.kind} size={20} />
+          <ProjectMark project={project} name={entry.heading ?? "?"} size={20} />
         ) : (
           <Icon name="git-fork" size={14} color={c.muted} />
         )}

@@ -90,6 +90,7 @@
             name={project?.name ?? "?"}
             kind={project?.kind}
             color={project?.color}
+            imageBase64={project?.imageBase64}
             class="size-4"
           />{/snippet}
         <span class="truncate">{project?.name ?? "Unknown project"}</span>

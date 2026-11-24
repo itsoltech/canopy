@@ -206,4 +206,5 @@ export const expectedSchemaMigrations = [
   "209_memory_reflection_hourly",
   "210_bot_approval_restricted_thread",
   "211_project_secrets",
+  "212_project_image",
 ];

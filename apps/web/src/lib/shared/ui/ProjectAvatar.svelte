@@ -2,12 +2,13 @@
   import type { ClassValue } from "svelte/elements";
   import { projectMark, projectMarkColors } from "@canopy/ui/thread-row";
 
-  /** Two-letter project mark with an optional custom color. Decorative. */
+  /** Decorative project image or two-letter mark. */
   let {
     name,
     color = "",
+    imageBase64,
     class: className,
-  }: { name: string; color?: string | undefined; class?: ClassValue } = $props();
+  }: { name: string; color?: string | undefined; imageBase64?: string | undefined; class?: ClassValue } = $props();
 
   const mark = $derived(projectMark(name));
   const custom = $derived(projectMarkColors(color));
@@ -28,11 +29,17 @@
 <span
   data-project-mark
   class={[
-    "inline-grid size-4.5 shrink-0 place-items-center rounded-sm font-mono text-[0.5625rem]/none font-bold tracking-tight",
-    !custom && tones[mark.tone],
+    "inline-grid size-4.5 shrink-0 place-items-center overflow-hidden rounded-sm font-mono text-[0.5625rem]/none font-bold tracking-tight",
+    !imageBase64 && !custom && tones[mark.tone],
     className,
   ]}
-  style:background-color={custom?.fill}
+  style:background-color={imageBase64 ? undefined : custom?.fill}
   style:color={custom?.text}
-  aria-hidden="true">{mark.initials}</span
+  aria-hidden="true"
 >
+  {#if imageBase64}
+    <img src="data:image/png;base64,{imageBase64}" alt="" class="size-full object-cover" />
+  {:else}
+    {mark.initials}
+  {/if}
+</span>

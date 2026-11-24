@@ -14,6 +14,7 @@
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import ProjectColor from "#lib/features/projects/ProjectColor.svelte";
+  import ProjectImageSetting from "#lib/features/projects/ProjectImageSetting.svelte";
   import ProjectArchive from "#lib/features/projects/ProjectArchive.svelte";
   import ProjectSecrets from "#lib/features/projects/secrets/ProjectSecrets.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
@@ -54,6 +55,7 @@
   {#snippet leading()}<ProjectAvatar
       name={project?.name ?? "?"}
       color={project?.color}
+      imageBase64={project?.imageBase64}
       class="size-8 rounded-md text-xs/none"
     />{/snippet}
   {#snippet actions()}
@@ -124,6 +126,7 @@
   {/snippet}
   {#snippet details()}
     <SettingsGroup>
+      {#key project.id}<ProjectImageSetting {project} />{/key}
       {#key project.id}<ProjectColor {project} />{/key}
       <ProjectArchive {project} {threads} />
     </SettingsGroup>

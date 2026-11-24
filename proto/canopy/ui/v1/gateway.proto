@@ -251,6 +251,7 @@ service GatewayService {
   rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
   rpc RenameProject(RenameProjectRequest) returns (CreateProjectResponse);
   rpc SetProjectColor(SetProjectColorRequest) returns (CreateProjectResponse);
+  rpc SetProjectImage(SetProjectImageRequest) returns (CreateProjectResponse);
   rpc ArchiveProject(ArchiveProjectRequest) returns (ArchiveProjectResponse);
   rpc ListProjectSecrets(ListProjectSecretsRequest) returns (ListProjectSecretsResponse);
   rpc PutProjectSecret(PutProjectSecretRequest) returns (PutProjectSecretResponse);
@@ -715,6 +716,8 @@ message Project {
   string global_id = 801;
   // Normalized #rrggbb; empty uses the automatic color.
   string color = 5;
+  // A base64-encoded 128 by 128 PNG; empty uses the default project mark.
+  string image_base64 = 6;
 }
 
 message Workspace {
@@ -1321,6 +1324,11 @@ message RenameProjectRequest {
 message SetProjectColorRequest {
   string project_id = 1;
   string color = 2; // Empty or whitespace resets to automatic.
+}
+
+message SetProjectImageRequest {
+  string project_id = 1;
+  bytes image = 2; // Square crop up to 10 MiB. Empty removes the custom image.
 }
 
 message ArchiveProjectRequest {
