@@ -5,6 +5,12 @@
  * Values contain only validated inert path data; comments name the upstream glyph.
  */
 export const icons = {
+  // accessible
+  accessible: [
+    "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0",
+    "m10 16.5l2-3l2 3m-2-3v-2l3-1m-6 0l3 1",
+    "M11.5 7.5a.5.5 0 1 0 1 0a.5.5 0 1 0-1 0",
+  ],
   // text-wrap
   "text-wrap": ["M4 6h16M4 18h5m-5-6h13a3 3 0 0 1 0 6h-4m3-3l-3 3l3 3"],
   // space

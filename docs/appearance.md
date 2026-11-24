@@ -3,7 +3,8 @@
 Status (2026-11-23): web, desktop i mobile używają zróżnicowanej palety
 oznaczeń nowych i zapisanych projektów. Appearance jest lokalne dla profilu
 przeglądarki, instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
-Aktualizacja (2026-11-24): domyślny font interfejsu web i desktop ma etykietę Inter.
+Aktualizacja (2026-11-24): Desktop ma sekcję Accessibility z lokalnym wyborem obrysu fokusu.
+Domyślny font interfejsu web i desktop ma etykietę Inter.
 Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
 W web i desktopie Thread width obejmuje także widok PR i podgląd `Rendered` plików Markdown.
 
@@ -150,6 +151,25 @@ Inter jest domyślnym fontem interfejsu. Po otwarciu pickera Desktop oraz
 przeglądarki z udzieloną zgodą wczytują rodziny zainstalowane na urządzeniu.
 Przeglądarka, która potrzebuje zgody, wyświetla akcję **Show installed fonts**.
 Gdy odczyt listy jest niedostępny, nadal można wpisać nazwę rodziny i obejrzeć próbkę.
+
+## Dostępność w Desktopie
+
+**Settings → Accessibility → Focus indicators** określa, kiedy Canopy rysuje obrys
+aktywnej kontrolki. Domyślne **Keyboard only** pokazuje go podczas nawigacji
+klawiaturą. W szerokim oknie kliknięcie zębatki otwiera ustawienia z fokusem w wyszukiwarce,
+więc można od razu pisać bez obrysu wokół pola. **Always** pokazuje obrys również
+po kliknięciu, a **Off** go ukrywa. Przy systemowych wymuszonych kolorach
+obrys pozostaje widoczny w każdym trybie.
+
+W tej samej sekcji są **Contrast**, **Interface size**, **Diff colors** przy włączonym
+module Threads i **Animated mascots** przy włączonym module Bots. Korzystają z tych
+samych wartości co w Appearance i Diffs. Animacje maskotek respektują także systemową
+preferencję ograniczonego ruchu.
+
+Wybory zapisuje profil Electron w localStorage pod stałym adresem lokalnego interfejsu.
+Zmiana obowiązuje od razu, także w innych oknach tej instalacji. Oba tryby Desktop
+korzystają z tego zapisu również po restarcie i zmianie połączonego gatewaya.
+Każdy zmieniony wiersz umożliwia przywrócenie wartości domyślnej.
 
 ## Kontrola wyglądu
 

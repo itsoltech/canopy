@@ -10,6 +10,7 @@
 @source "../WorkspaceMarkdown.svelte";
 @source "../WorkspaceMarkdownImage.svelte";
 
+@custom-variant field-focus (&:focus);
 @custom-variant dark (&:where(.dark, .dark *));
 
 @utility focus-ring {

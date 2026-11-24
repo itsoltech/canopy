@@ -116,7 +116,7 @@
 <form class={["grid grid-cols-1 gap-2 p-1", className]} onsubmit={save}>
   <!-- The field's box is the wrapper's: the editor keeps its own outline-none (kit classes on it would lose). -->
   <div
-    class="rounded-lg bg-surface px-3 py-2 outline-1 -outline-offset-1 outline-divider has-focus:outline-2 has-focus:outline-accent sm:py-1.5"
+    class="rounded-lg bg-surface px-3 py-2 outline-1 -outline-offset-1 outline-divider has-field-focus:outline-2 has-field-focus:outline-accent sm:py-1.5"
     {@attach shake(error)}
   >
     <MentionEditor

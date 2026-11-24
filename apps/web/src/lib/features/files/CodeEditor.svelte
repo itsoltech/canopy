@@ -122,7 +122,7 @@
   <div
     bind:this={host}
     class={[
-      "h-32 min-w-0 overflow-hidden rounded-lg bg-surface px-2 font-mono text-base/6 outline-1 -outline-offset-1 outline-divider focus-within:outline-2 focus-within:outline-accent sm:text-sm/6",
+      "h-32 min-w-0 overflow-hidden rounded-lg bg-surface px-2 font-mono text-base/6 outline-1 -outline-offset-1 outline-divider has-field-focus:outline-2 has-field-focus:outline-accent sm:text-sm/6",
       fieldContext?.invalid && "outline-rose-500",
     ]}
   ></div>

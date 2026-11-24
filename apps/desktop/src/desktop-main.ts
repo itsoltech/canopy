@@ -128,7 +128,7 @@ function broadcast() {
     productName: identity.displayName,
     showMain,
     openSettings,
-    openAppSettings: () => openRoute("/settings"),
+    openAppSettings: (keyboard) => openRoute("/settings", keyboard),
     updates,
     quitGuard,
     quitKey,
@@ -178,8 +178,8 @@ function sendUsagePing() {
   if (!quitting && status.configuration) void usagePing.sendIfDue();
 }
 
-function openRoute(path: string) {
-  if (status.phase === "running" && !quitting) showAppRoute(appRoutes, path, showMain, () => window);
+function openRoute(path: string, keyboard?: boolean) {
+  if (status.phase === "running" && !quitting) showAppRoute(appRoutes, path, showMain, () => window, keyboard);
   else showMain();
 }
 

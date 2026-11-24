@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DiffColorsSetting from "#lib/features/settings/DiffColorsSetting.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import { devicePreferences as device, diffDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
   import DeviceChoiceRow from "#lib/features/settings/DeviceChoiceRow.svelte";
@@ -41,15 +42,7 @@
         { value: "collapsed", label: "Collapsed" },
       ]}
     />
-    <DeviceChoiceRow
-      preference="diffColors"
-      title="Diff colors"
-      description="Set the colors for additions and deletions."
-      options={[
-        { value: "red-green", label: "Red & green" },
-        { value: "blue-orange", label: "Blue & orange" },
-      ]}
-    />
+    <DiffColorsSetting />
   </SettingsGroup>
   <SettingsGroup title="Preview"
     ><div class="min-w-0 p-4"><Diff {diff} label="Diff settings preview" lang="typescript" /></div></SettingsGroup

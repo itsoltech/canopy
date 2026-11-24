@@ -1,0 +1,24 @@
+/* Native :focus-visible also matches pointer-focused text inputs. On desktop, input modality
+   and the device preference decide when controls and their :has()/group wrappers draw focus. */
+@custom-variant focus-visible (&:is(:focus-visible:where(:not([data-focus-rings] *)), :focus:where([data-focus-rings="visible"] *)));
+
+/* Fields that normally indicate every focus keep that behavior in the browser. */
+@custom-variant field-focus (&:focus:where(:not([data-focus-rings="hidden"] *)));
+
+@layer base {
+  :where([data-focus-rings="hidden"]) :focus {
+    outline: none;
+  }
+  :where([data-focus-rings="visible"]) :focus:not(:where(body, dialog)) {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Some controls draw their indicator with box-shadow, which forced colors removes. */
+@media (forced-colors: active) {
+  [data-focus-rings] :focus:not(:where(body, dialog)) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

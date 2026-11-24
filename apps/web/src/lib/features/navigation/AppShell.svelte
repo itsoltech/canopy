@@ -56,7 +56,6 @@
   } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import GatewayCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
-  import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { legacyDeviceView } from "@canopy/domain/device-view";
   import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
@@ -175,8 +174,6 @@
     initialGatewayUnavailable && !page.error && !capabilities.incompatible && capabilities.supports(page.url.pathname),
   );
 
-  onMount(() => devicePreferences.connect());
-
   $effect(() => {
     const scope = capabilities.clientPreferencesScope;
 
@@ -210,8 +207,6 @@
   });
 
   onMount(() => keybindings.connect());
-
-  $effect(() => applyDeviceAppearance(devicePreferences));
 
   onMount(() => watchNotifications(overview, settings, () => page.url.pathname));
 

@@ -16,11 +16,12 @@ export function showAppRoute(
   path: string,
   showMain: () => void,
   mainWindow: () => BrowserWindow | undefined,
+  keyboard?: boolean,
 ): void {
   showMain();
   const target = mainWindow();
 
-  if (target && !target.isDestroyed()) routes.open(target.webContents, path);
+  if (target && !target.isDestroyed()) routes.open(target.webContents, path, keyboard);
 }
 
 export function registerAppRouteIpc(

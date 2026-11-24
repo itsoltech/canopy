@@ -6,6 +6,7 @@
 @import "../lib/shared/ui/scroll.css";
 @import "../lib/features/settings/themes.css";
 @import "../lib/features/settings/device-appearance.css";
+@import "../lib/shared/ui/focus.css";
 @import "katex/dist/katex.min.css";
 
 /* Dark mode by class (set before first paint in app.html from the Appearance setting; default: system). */

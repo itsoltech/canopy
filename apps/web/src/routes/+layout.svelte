@@ -5,6 +5,9 @@
   import { startClientDiagnostics, navigationStarted } from "#lib/features/diagnostics/client.ts";
   import { isDesktopRoute, type DesktopWindowControl } from "@canopy/ui/desktop";
   import { onMount } from "svelte";
+  import { applyDesktopFocusIndicators } from "#lib/features/desktop/focus-indicators.svelte.ts";
+  import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
   import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
   import WindowControls from "#lib/features/desktop/WindowControls.svelte";
@@ -35,6 +38,12 @@
 
   onMount(() => appearanceState.connect());
 
+  onMount(() => devicePreferences.connect());
+
+  $effect(() => applyDeviceAppearance(devicePreferences));
+
+  const setKeyboardNavigation = applyDesktopFocusIndicators(() => devicePreferences.values.focusIndicators);
+
   $effect(() => {
     if (appearanceState.connected) applyAppearance(appearanceState.values);
   });
@@ -46,9 +55,10 @@
 
     if (!bridge?.onOpenRoute) return;
 
-    const unsubscribe = bridge.onOpenRoute((path) => {
+    const unsubscribe = bridge.onOpenRoute((path, keyboard) => {
       if (desktopStandalone || !isDesktopRoute(path)) return;
 
+      if (keyboard !== undefined) setKeyboardNavigation(keyboard);
       void goto(path === "/settings" ? lastSettings : path);
     });
 

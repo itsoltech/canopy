@@ -80,7 +80,7 @@
   data-actions-open={menuOpen || undefined}
   data-sidebar-archive-row={Boolean(handlers.onArchive) || undefined}
   class={[
-    "sidebar-action-row sidebar-row sidebar-row-padding group relative flex min-h-12 items-center gap-3 rounded-xl py-2 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-brand-500",
+    "sidebar-action-row sidebar-row sidebar-row-padding group relative flex min-h-12 items-center gap-3 rounded-xl py-2",
     current ? "bg-zinc-950/6 dark:bg-white/8" : "hover:bg-zinc-950/4 dark:hover:bg-white/4",
     home.reason && "opacity-60",
     className,
@@ -101,7 +101,7 @@
         {href}
         aria-current={current ? "page" : undefined}
         aria-describedby={working ? workingId : undefined}
-        class="min-w-0 flex-1 truncate text-base/5.5 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none sm:text-sm/5 dark:text-zinc-100"
+        class="min-w-0 flex-1 truncate text-base/5.5 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-brand-500 sm:text-sm/5 dark:text-zinc-100"
       >
         {title}
         {#if home.reason}<span class="sr-only left-0">Read-only. {home.reason}</span>{/if}
