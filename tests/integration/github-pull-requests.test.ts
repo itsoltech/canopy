@@ -188,11 +188,12 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
           }
         }
 
+        const expectedRevision = linked.revision + 1n;
         expect(updated?.newestPullRequest?.ref?.number).toBe(number);
-        expect(updated?.pullRequestRevision).toBe(linked.revision + 1n);
+        expect(updated?.pullRequestRevision).toBe(expectedRevision);
         const list = await gw.api.listThreadPullRequests({ threadId });
         expect(list.links.find((link) => link.summary?.ref?.number === number)?.summary?.state).toBe("merged");
-        expect(list.revision).toBe(updated?.pullRequestRevision);
+        expect(list.revision).toBe(expectedRevision);
         expect(fixture.calls - before).toBe(mode === "already cached" ? 0 : 1);
       } finally {
         abort.abort();
