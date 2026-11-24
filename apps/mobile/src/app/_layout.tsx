@@ -19,6 +19,7 @@ import { HabitReviewNotice } from "../features/settings/HabitReviewNotice";
 import { InAppAlerts } from "../features/navigation/InAppAlerts";
 import { PushProvider } from "../features/notifications/PushProvider";
 import { PushTaps } from "../features/notifications/PushTaps";
+import { DismissReadPushes } from "../features/notifications/DismissReadPushes";
 import { ConfirmHost } from "../ui/Confirm";
 import { OverlayLayer } from "../ui/overlay-stack";
 import { ToastHost } from "../ui/Toast";
@@ -78,6 +79,7 @@ function Navigation() {
         <Stack.Screen name="open-source-licenses/details" options={{ animation: reduced ? "none" : "default" }} />
       </Stack>
       <PushTaps />
+      <DismissReadPushes />
       <InAppAlerts />
       <HabitReviewNotice />
       <UpdateCenter />

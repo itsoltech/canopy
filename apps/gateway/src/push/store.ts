@@ -51,6 +51,27 @@ export const resolveMobilePush = (owner: string, device: string, id: string) =>
     return rows[0];
   });
 
+export const dismissibleMobilePush = (owner: string, device: string, ids: string[]) =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+
+    return yield* sql<{ id: string }>`
+      SELECT o.id FROM mobile_push_outbox o ${registered(sql)}
+      WHERE o.id = ANY(${ids}::uuid[]) AND o.owner_user_id = ${owner}::uuid AND o.device_id = ${device}::uuid
+        AND o.attempts > 0 AND o.created_at > now() - interval '1 day'
+        AND (
+          (o.event_kind = 'turn' AND EXISTS (
+            SELECT 1 FROM turns u JOIN thread_reads r ON r.thread_id = u.thread_id AND r.user_id = o.owner_user_id
+            WHERE u.id = o.event_id AND u.thread_id = o.destination_id AND NOT r.marked_unread
+              AND (u.last_seq <= r.seen_seq OR (u.last_seq IS NULL AND u.completed_at <= r.seen_at))
+          ))
+          OR (o.event_kind = 'interaction' AND EXISTS (
+            SELECT 1 FROM interaction_requests i WHERE i.id = o.event_id AND i.thread_id = o.destination_id
+              AND (i.status <> 'pending' OR i.expires_at <= now())
+          ))
+        )`;
+  });
+
 export const livePushJob = (sql: SqlClient.SqlClient, owner: string, job: PushJob) => sql`
   (SELECT o.destination_id, o.event_id, o.owner_user_id FROM mobile_push_outbox o ${registered(sql)}
     WHERE o.id = ${job.id}::uuid AND o.owner_user_id = ${owner}::uuid AND o.attempts = ${job.attempts}

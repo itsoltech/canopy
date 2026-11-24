@@ -1,5 +1,8 @@
 # Powiadomienia wątków i botów
 
+Aktualizacja (2026-11-24): aplikacja iOS i Android usuwa z systemu powiadomienia
+o przeczytanych wynikach wątków i zamkniętych prośbach.
+
 Aktualizacja (2026-11-24): nowe sugestie Habits mają powiadomienie w aplikacji
 i licznik oczekujących sugestii w ustawieniach. Gdy macOS blokuje powiadomienia,
 Canopy wskazuje, gdzie włączyć je w ustawieniach systemu.
@@ -191,6 +194,14 @@ Powiadomienie pokazuje tytuł wątku lub nazwę bota i krótką, oczyszczoną tr
 System decyduje o widoczności podglądu na ekranie blokady. Podczas pracy w Canopy
 pozostają alerty w aplikacji. Dotknięcie powiadomienia otwiera rozmowę przez
 sparowany gateway, jeśli telefon ma do niego trasę.
+
+Po powrocie do aplikacji i przy zmianach wątków na pierwszym planie telefon
+porównuje identyfikatory dostarczonych powiadomień ze stanem odczytu na gatewayu.
+Usuwa z ekranu blokady i centrum powiadomień wyniki już przeczytane, także na
+innym urządzeniu, oraz prośby o zgodę i pytania po rozstrzygnięciu lub wygaśnięciu.
+Nowsze nieprzeczytane wyniki i nadal otwarte prośby pozostają widoczne. Porównanie
+wymaga połączenia i obejmuje powiadomienia z ostatniej doby. Bez połączenia telefon
+sprawdza je po odzyskaniu trasy.
 
 Relay Canopy wydaje poświadczenie automatycznie po weryfikacji aplikacji przez
 Apple App Attest lub Google Play Integrity. Użytkownik włącza powiadomienia
