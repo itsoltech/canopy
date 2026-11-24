@@ -25,7 +25,7 @@ export function installReference(command: string) {
 }
 
 export async function discoverMarketplace(source: ui.SkillSource, authorization: string, options: SourceTransport) {
-  return readGitSource(source, authorization, options, async (commit, entries, blob) => {
+  return readGitSource(source, authorization, options, async (commit, entries, blobs) => {
     for (const entry of entries) checkSkillPath(entry.path);
 
     const marker = [".agents/plugins/marketplace.json", ".claude-plugin/marketplace.json"]
@@ -33,7 +33,7 @@ export async function discoverMarketplace(source: ui.SkillSource, authorization:
       .find(Boolean);
 
     if (!marker) sourceInvalid("No .claude-plugin/marketplace.json or .agents/plugins/marketplace.json found.");
-    const catalog = Schema.decodeUnknownSync(Catalog)(JSON.parse(Buffer.from(await blob(marker)).toString()));
+    const catalog = Schema.decodeUnknownSync(Catalog)(JSON.parse(Buffer.from(await blobs.read(marker)).toString()));
 
     if (
       !skillName(catalog.name) ||
@@ -66,10 +66,10 @@ export async function discoverMarketplace(source: ui.SkillSource, authorization:
       const files = [];
 
       for (const entry of entries.filter((e) => e.path.startsWith(`${root}/`))) {
-        total += entry.size;
+        total += blobs.size(entry);
 
         if (total > SKILL_TOTAL_BYTES) sourceInvalid("Marketplace plugin artifacts exceed 25 MiB.");
-        files.push(gitFile(entry, await blob(entry), root));
+        files.push(gitFile(entry, await blobs.read(entry), root));
       }
 
       try {

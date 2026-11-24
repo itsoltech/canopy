@@ -426,4 +426,49 @@ describe("gateway skill source resolution and maintenance", () => {
       await environment.sources.stop();
     }
   });
+
+  test("a command with --skill imports only the named skill from a repository over the full-preview limit", async () => {
+    repo.git("-C", repo.bare, "config", "uploadpack.allowFilter", "true");
+    repo.skill("skills/release", "app-release");
+    repo.skill("skills/other", "other");
+
+    for (let index = 0; index < 4; index++) {
+      const asset = new Uint8Array(13 * 1024 * 1024);
+      asset[0] = index;
+      repo.file(`skills/other/resources/asset-${index}.bin`, asset);
+    }
+
+    const commit = repo.commit();
+    const url = "https://github.com/fixture/collection";
+    expect(await failure(preview(url))).toContain("50 MiB");
+
+    const resolved = await preview(`npx skills add ${url} --skill app-release`);
+    expect(resolved.source?.commit).toBe(commit);
+    expect(resolved.skills.map((s) => [s.path, s.artifact?.name])).toEqual([["skills/release", "app-release"]]);
+    expect(resolved.skills[0]?.artifact?.files.some((file) => file.path === "scripts/check.sh")).toBe(true);
+    const before = await snapshot();
+
+    const add = (paths: string[]) =>
+      gateway.api.addSkillSource({
+        previewId: resolved.id,
+        paths,
+        assignment: librarySkill(),
+        expectedRevision: before.revision,
+      });
+
+    expect(await failure(add(["skills/release", "skills/other"]))).toContain("Select skills from an import preview");
+    const added = await add(["skills/release"]);
+    const imported = added.skills.filter((s) => !before.skills.some((previous) => previous.id === s.id));
+    expect(imported.map((s) => s.artifact?.name)).toEqual(["app-release"]);
+    const importedId = imported[0]!.id;
+    await eventually(snapshot, (state) =>
+      state.workers.some(
+        (worker) =>
+          worker.workerId === machine.workerId &&
+          worker.report?.revision === state.revision &&
+          worker.report.skills.some((skill) => skill.skillId === importedId && skill.status === "applied"),
+      ),
+    );
+    expect((await gateway.api.checkSkillSource({ id: importedId })).source?.commit).toBe(commit);
+  }, 30_000);
 });

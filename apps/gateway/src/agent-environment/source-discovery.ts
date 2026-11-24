@@ -2,7 +2,10 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import {
   checkSkillPath,
+  InvalidSkillDocumentError,
   InvalidSkillYamlError,
+  readSkillMetadata,
+  SKILL_FILE_COUNT,
   SKILL_TOTAL_BYTES,
   validateSkillFiles,
 } from "@canopy/domain/skill-artifact";
@@ -127,66 +130,112 @@ export async function discoverSource(
     if (preview) return preview;
   }
 
-  return readGitSource(parsed.source, authorization, options, async (commit, entries, blob) => {
-    const licenseFile = entries.find((e) => /^(LICENSE|LICENCE|COPYING)(\.(txt|md))?$/i.test(e.path));
+  const namedSelection = parsed.names.length > 0 && !parsed.names.includes("*");
 
-    const license =
-      licenseFile && licenseFile.size <= 64 * 1024
-        ? new TextDecoder().decode(await blob(licenseFile))
-        : "No repository license file found in this snapshot.";
+  return readGitSource(
+    parsed.source,
+    authorization,
+    options,
+    async (commit, entries, blobs) => {
+      const licenseFile = entries.find((e) => /^(LICENSE|LICENCE|COPYING)(\.(txt|md))?$/i.test(e.path));
+      const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+      const checkedRoots = new Set<string>();
+      const selected = new Map<string, { marker: GitEntry; content: Buffer }>();
+      const names = new Set<string>();
+      const invalidYaml: string[] = [];
+      let markerBytes = 0;
 
-    const roots = await discoveryRoots(entries, blob, parsed.source.path, parsed.fullDepth);
-    const skills: ui.ResolvedSourceSkill[] = [];
-    const invalidYaml: string[] = [];
-    let total = 0;
+      const readMarkers = async (fullDepth: boolean, extra: GitEntry[]) => {
+        const roots = await discoveryRoots(entries, blobs.read, parsed.source.path, fullDepth);
 
-    for (const root of roots) {
-      const files = [];
+        const markers = roots
+          .filter((root) => !checkedRoots.has(root))
+          .map((root) => ({ root, marker: byPath.get(root ? `${root}/SKILL.md` : "SKILL.md")! }));
 
-      for (const entry of entries.filter((e) => under(e.path, root))) {
-        checkSkillPath(entry.path);
-        total += entry.size;
+        await blobs.prepare([...markers.map(({ marker }) => marker), ...extra]);
 
-        if (total > SKILL_TOTAL_BYTES) sourceInvalid("Preview artifacts are limited to 25 MiB in total.");
-        files.push(gitFile(entry, await blob(entry), root));
+        for (const { root, marker } of markers) {
+          checkedRoots.add(root);
+          markerBytes += blobs.size(marker);
+
+          if (markerBytes > SKILL_TOTAL_BYTES)
+            sourceInvalid("Skill discovery exceeds 25 MiB of SKILL.md files. Select a skill folder.");
+          const content = await blobs.read(marker);
+          let name;
+
+          try {
+            name = readSkillMetadata(content).name;
+          } catch (cause) {
+            if (cause instanceof InvalidSkillYamlError) invalidYaml.push(marker.path);
+            else if (!namedSelection || !(cause instanceof InvalidSkillDocumentError)) throw cause;
+            continue;
+          }
+
+          if (namedSelection ? !parsed.names.includes(name) : !visibleSourceSkill(content, name, parsed.names))
+            continue;
+
+          if (names.has(name)) sourceInvalid("Multiple skills have the same name. Select a specific skill folder.");
+
+          if (selected.size >= 100)
+            sourceInvalid("A source preview supports at most 100 skills. Use --skill to select fewer.");
+          names.add(name);
+          selected.set(root, { marker, content });
+        }
+      };
+
+      const missingNames = () => parsed.names.some((name) => name !== "*" && !names.has(name));
+      await readMarkers(parsed.fullDepth, licenseFile ? [licenseFile] : []);
+
+      if (namedSelection && !parsed.fullDepth && missingNames()) await readMarkers(true, []);
+
+      const [firstInvalid] = invalidYaml;
+
+      const yamlNotice = firstInvalid
+        ? invalidYaml.length === 1
+          ? `Skipped “${firstInvalid}” because it contains invalid YAML. Fix the file in the repository, then retry.`
+          : `Skipped ${invalidYaml.length} skill files with invalid YAML, including “${firstInvalid}”. Fix the files in the repository, then retry.`
+        : "";
+
+      if (missingNames())
+        sourceInvalid("Could not find every requested skill. Check the --skill names and source path.");
+
+      if (!selected.size) sourceInvalid(yamlNotice || "No matching skills found. Check the path and --skill names.");
+
+      const skills: ui.ResolvedSourceSkill[] = [];
+      let total = 0;
+
+      for (const [root, { marker, content }] of selected) {
+        const skillEntries = entries.filter((entry) => under(entry.path, root));
+
+        if (skillEntries.length > SKILL_FILE_COUNT)
+          sourceInvalid("A selected skill exceeds 1000 files. Select a smaller skill folder.");
+
+        for (const entry of skillEntries) checkSkillPath(entry.path);
+        await blobs.prepare(skillEntries);
+        const files = [];
+
+        for (const entry of skillEntries) {
+          total += blobs.size(entry);
+
+          if (total > SKILL_TOTAL_BYTES)
+            sourceInvalid("The selected skills exceed 25 MiB. Use --skill to select fewer.");
+          files.push(gitFile(entry, entry === marker ? content : await blobs.read(entry), root));
+        }
+
+        skills.push(create(ui.ResolvedSourceSkillSchema, { path: root, artifact: validateSkillFiles(files) }));
       }
 
-      let artifact;
+      const license =
+        licenseFile && blobs.size(licenseFile) <= 64 * 1024
+          ? new TextDecoder().decode(await blobs.read(licenseFile))
+          : "No repository license file found in this snapshot.";
 
-      try {
-        artifact = validateSkillFiles(files);
-      } catch (cause) {
-        if (!(cause instanceof InvalidSkillYamlError)) throw cause;
-        invalidYaml.push(root ? `${root}/SKILL.md` : "SKILL.md");
-        continue;
-      }
+      const preview = sourcePreview(parsed, { ...parsed.source, commit }, skills, license);
 
-      const entry = files.find((f) => f.path === "SKILL.md")!;
+      if (yamlNotice) preview.notices.push(yamlNotice);
 
-      if (!visibleSourceSkill(entry.content, artifact.name, parsed.names)) continue;
-
-      if (skills.some((s) => s.artifact?.name === artifact.name))
-        sourceInvalid("Ambiguous duplicate skill names. Select an explicit repository path.");
-      skills.push(create(ui.ResolvedSourceSkillSchema, { path: root, artifact }));
-
-      if (skills.length > 100) sourceInvalid("A source preview supports at most 100 skills.");
-    }
-
-    const [firstInvalid] = invalidYaml;
-
-    const yamlNotice = firstInvalid
-      ? invalidYaml.length === 1
-        ? `Skipped “${firstInvalid}” because it contains invalid YAML. Fix the file in the repository, then retry.`
-        : `Skipped ${invalidYaml.length} skill files with invalid YAML, including “${firstInvalid}”. Fix the files in the repository, then retry.`
-      : "";
-
-    if (!skills.length || parsed.names.some((n) => n !== "*" && !skills.some((s) => s.artifact?.name === n)))
-      sourceInvalid(yamlNotice || "No matching skills found. Check the path and --skill names.");
-
-    const preview = sourcePreview(parsed, { ...parsed.source, commit }, skills, license);
-
-    if (yamlNotice) preview.notices.push(yamlNotice);
-
-    return preview;
-  });
+      return preview;
+    },
+    namedSelection || Boolean(parsed.source.path),
+  );
 }

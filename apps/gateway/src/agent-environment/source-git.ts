@@ -43,6 +43,7 @@ async function git(
   maxBytes = 2 * 1024 * 1024,
   authorizationUrl = "",
   signal?: AbortSignal,
+  input?: string,
 ) {
   return processGovernor.run(
     { kind: "git" },
@@ -66,8 +67,11 @@ async function git(
               GIT_CONFIG_VALUE_0: `Authorization: ${secret}`,
             }),
           },
-          stdio: ["ignore", "pipe", "pipe"],
+          stdio: ["pipe", "pipe", "pipe"],
         });
+
+        child.stdin.on("error", () => undefined); // The process exit reports a failed read.
+        child.stdin.end(input);
 
         const chunks: Buffer[] = [];
         let bytes = 0;
@@ -136,14 +140,107 @@ export interface GitEntry {
   path: string;
   oid: string;
   executable: boolean;
-  size: number;
+}
+
+type RunGit = (
+  argv: string[],
+  secret?: string,
+  maxBytes?: number,
+  authorizationUrl?: string,
+  input?: string,
+) => Promise<Buffer>;
+
+function gitTree(tree: Buffer, selective: boolean) {
+  const entries: GitEntry[] = [];
+  const sizes = new Map<string, number>();
+  let total = 0;
+
+  for (const record of tree.toString("utf8").split("\0")) {
+    if (!record) continue;
+    const match = record.match(/^(\d+) (\w+) ([a-f0-9]{40,64})(?: +(\d+|-))?\t([\s\S]+)$/);
+
+    if (!match || !["100644", "100755"].includes(match[1]!) || match[2] !== "blob")
+      sourceInvalid("Repositories containing symlinks, submodules or special entries are rejected.");
+    const oid = match[3]!;
+
+    if (entries.length >= 5000) sourceInvalid("The repository exceeds 5000 files. Use a smaller repository.");
+
+    if (!selective) {
+      const size = Number(match[4]);
+      total += size;
+
+      if (!Number.isSafeInteger(size) || size > 16 * SKILL_FILE_BYTES || total > 2 * SKILL_TOTAL_BYTES)
+        sourceInvalid(
+          "The repository exceeds 16 MiB per file or 50 MiB total. Use a smaller source or select a skill with --skill.",
+        );
+      sizes.set(oid, size);
+    }
+
+    entries.push({ path: match[5]!, oid, executable: match[1] === "100755" });
+  }
+
+  return { entries, sizes };
+}
+
+function gitBlobs(run: RunGit, sizes: Map<string, number>, fetch: (oids: string) => Promise<void>) {
+  const measure = async (input: string) =>
+    (await run(["cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"], "", undefined, "", input))
+      .toString()
+      .trim()
+      .split("\n");
+
+  const prepare = async (entries: readonly GitEntry[]) => {
+    const oids = [...new Set(entries.map((entry) => entry.oid))].filter((oid) => !sizes.has(oid));
+
+    if (!oids.length) return;
+    const input = `${oids.join("\n")}\n`;
+    let results = await measure(input);
+    const missing = results.flatMap((line) => (line.endsWith(" missing") ? [line.slice(0, -8)] : []));
+
+    if (missing.length) {
+      await fetch(`${missing.join("\n")}\n`);
+      results = await measure(input);
+    }
+
+    for (const line of results) {
+      const match = line.match(/^([a-f0-9]{40,64}) blob (\d+)$/);
+
+      if (!match) sourceInvalid("A file is missing from the requested source commit.");
+      sizes.set(match[1]!, Number(match[2]));
+    }
+  };
+
+  const size = (entry: GitEntry) => {
+    const value = sizes.get(entry.oid);
+
+    if (value === undefined) throw new Error("Source file has not been fetched.");
+
+    return value;
+  };
+
+  return {
+    prepare,
+    size,
+    async read(entry: GitEntry) {
+      if (!sizes.has(entry.oid)) await prepare([entry]);
+      const bytes = size(entry);
+
+      if (bytes > SKILL_FILE_BYTES) sourceInvalid("Skill files exceed the 1 MiB file limit.");
+      const data = await run(["cat-file", "blob", entry.oid], "", SKILL_FILE_BYTES + 1);
+
+      if (data.length !== bytes) throw new Error("Source file size changed.");
+
+      return data;
+    },
+  };
 }
 
 export async function readGitSource<A>(
   source: ui.SkillSource,
   authorization: string,
   transport: SourceTransport,
-  read: (commit: string, entries: GitEntry[], blob: (entry: GitEntry) => Promise<Uint8Array>) => Promise<A>,
+  read: (commit: string, entries: GitEntry[], blobs: ReturnType<typeof gitBlobs>) => Promise<A>,
+  selective = false,
 ): Promise<A> {
   transport.signal?.throwIfAborted();
   const url = new URL(source.url);
@@ -185,51 +282,47 @@ export async function readGitSource<A>(
 
   const directory = await mkdtemp(join(tmpdir(), "canopy-skill-source-"));
 
-  const run = (argv: string[], secret = "", maxBytes = 2 * 1024 * 1024, authorizationUrl = "") =>
-    git(directory, config, argv, secret, maxBytes, authorizationUrl, transport.signal);
+  const run: RunGit = (argv, secret, maxBytes, authorizationUrl, input) =>
+    git(directory, config, argv, secret, maxBytes, authorizationUrl, transport.signal, input);
+
+  const remote = fixture ?? source.url;
+
+  const fetch = async (argv: string[], input?: string) => {
+    await run(argv, authorization, undefined, remote, input);
+    await diskBytes(directory);
+  };
 
   try {
     await run(["init", "--bare", "."]);
     // Depth is required: Git rejects dumb HTTP before walking remote object alternates.
     // Bundle/packfile URI protocols above are disabled so every network request stays on this source.
-    await run(
-      ["fetch", "--no-tags", "--no-recurse-submodules", "--depth=1", "--", fixture ?? source.url, source.ref || "HEAD"],
-      authorization,
-      2 * 1024 * 1024,
-      fixture ?? source.url,
-    );
+    const fetchArgs = ["fetch", "--no-tags", "--no-recurse-submodules", "--no-auto-maintenance", "--depth=1"];
+
+    if (selective) {
+      await fetch([
+        "-c",
+        `remote.canopy-source.url=${remote}`,
+        ...fetchArgs,
+        "--filter=blob:none",
+        "--",
+        "canopy-source",
+        source.ref || "HEAD",
+      ]);
+      // Git records a promisor remote for filtered fetches. Remove it before any object reads.
+      await run(["config", "--local", "--remove-section", "remote.canopy-source"]);
+    } else await fetch([...fetchArgs, "--", remote, source.ref || "HEAD"]);
     const commit = (await run(["rev-parse", "--verify", "FETCH_HEAD^{commit}"])).toString().trim();
 
     if (!/^[a-f0-9]{40,64}$/.test(commit)) throw new Error("Invalid source commit.");
     // -z preserves hostile path bytes, unlike git's quoted display format. No checkout, submodules or filters run.
-    const tree = await run(["ls-tree", "-r", "-l", "-z", commit]);
-    const entries: GitEntry[] = [];
-    let total = 0;
+    const tree = await run(["ls-tree", "-r", "-z", ...(selective ? [] : ["-l"]), commit]);
+    const { entries, sizes } = gitTree(tree, selective);
 
-    for (const record of tree.toString("utf8").split("\0")) {
-      if (!record) continue;
-      const match = record.match(/^(\d+) (\w+) ([a-f0-9]+) +([\d-]+)\t([\s\S]+)$/);
+    const blobs = gitBlobs(run, sizes, (oids) =>
+      fetch([...fetchArgs, "--no-write-fetch-head", "--stdin", "--", remote], oids),
+    );
 
-      if (!match || !["100644", "100755"].includes(match[1]!) || match[2] !== "blob")
-        sourceInvalid("Repositories containing symlinks, submodules or special entries are rejected.");
-      const path = match[5]!;
-      const size = Number(match[4]);
-      total += size;
-
-      if (size > 16 * SKILL_FILE_BYTES || total > 2 * SKILL_TOTAL_BYTES || entries.length >= 5000)
-        sourceInvalid("Repository files exceed the source limits: 16 MiB per repository file, 50 MiB or 5000 files.");
-      entries.push({ path, oid: match[3]!, executable: match[1] === "100755", size });
-    }
-
-    return await read(commit, entries, async (entry) => {
-      // All selected objects arrived in the bounded initial fetch. No lazy fetch may inherit a credential.
-      if (entry.size > SKILL_FILE_BYTES) sourceInvalid("Skill files exceed the 1 MiB file limit.");
-      const data = await run(["cat-file", "blob", entry.oid], "", SKILL_FILE_BYTES + 1);
-
-      if (data.length !== entry.size) throw new Error("Source file size changed.");
-
-      return data;
-    });
+    return await read(commit, entries, blobs);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

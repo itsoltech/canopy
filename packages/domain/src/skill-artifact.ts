@@ -30,7 +30,9 @@ export function skillManifestDigest(files: readonly Pick<SkillFile, "path" | "ch
 const Metadata = Schema.Struct({ name: Schema.String, description: Schema.String });
 const SKILL_DESCRIPTION_LENGTH = 1024;
 
-export class InvalidSkillYamlError extends Error {}
+export class InvalidSkillDocumentError extends Error {}
+
+export class InvalidSkillYamlError extends InvalidSkillDocumentError {}
 
 export function validateArtifactFiles(input: readonly SkillFile[]) {
   if (!input.length || input.length > SKILL_FILE_COUNT) throw new Error("Upload between 1 and 1000 skill files.");
@@ -75,25 +77,36 @@ export function validateArtifactFiles(input: readonly SkillFile[]) {
   return files;
 }
 
-export function validateSkillFiles(input: readonly SkillFile[]) {
-  const files = validateArtifactFiles(input);
-  const entry = files.find((file) => file.path === "SKILL.md");
+export function readSkillMetadata(content: Uint8Array) {
+  if (!isUtf8(content)) throw new InvalidSkillDocumentError("The skill root must contain a UTF-8 SKILL.md.");
 
-  if (!entry || !isUtf8(entry.content)) throw new Error("The skill root must contain a UTF-8 SKILL.md.");
-
-  const frontmatter = Buffer.from(entry.content)
+  const frontmatter = Buffer.from(content)
     .toString("utf8")
     .match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
 
-  if (!frontmatter) throw new Error("SKILL.md must start with YAML name and description frontmatter.");
-  let metadata;
+  if (!frontmatter)
+    throw new InvalidSkillDocumentError("SKILL.md must start with YAML name and description frontmatter.");
+  let document: ReturnType<typeof Bun.YAML.parse>;
 
   try {
-    metadata = Schema.decodeUnknownSync(Metadata)(Bun.YAML.parse(frontmatter[1]!));
+    document = Bun.YAML.parse(frontmatter[1]!);
   } catch (cause) {
     if (!(cause instanceof SyntaxError)) throw cause;
     throw new InvalidSkillYamlError("SKILL.md contains invalid YAML. Fix the file, then retry.");
   }
+
+  if (!Schema.is(Metadata)(document))
+    throw new InvalidSkillDocumentError("SKILL.md must include a name and description.");
+
+  return document;
+}
+
+export function validateSkillFiles(input: readonly SkillFile[]) {
+  const files = validateArtifactFiles(input);
+  const entry = files.find((file) => file.path === "SKILL.md");
+
+  if (!entry) throw new Error("The skill root must contain a UTF-8 SKILL.md.");
+  const metadata = readSkillMetadata(entry.content);
 
   if (!skillName(metadata.name) || !metadata.description.trim())
     throw new Error("Use a lowercase hyphenated skill name (64 characters) and a nonempty description.");

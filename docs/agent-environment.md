@@ -14,6 +14,9 @@ dotyczące danego skilla, pluginu lub harnessu instrukcji.
 Aktualizacja (2026-11-24): w web/desktop każda biblioteka ma własną zakładkę i podsumowanie.
 Aktualizacja (2026-11-24): natywne ustawienia mają zakładki Instructions, Skills,
 Plugins i Computers, kompaktowe wiersze, menu akcji i tryb zaznaczania skilli.
+Aktualizacja (2026-11-24): import Git z `--skill` lub podaną ścieżką skilla
+pobiera tylko metadane potrzebne do wyboru i pliki wybranych skilli, gdy serwer
+Git obsługuje filtrowanie obiektów.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -490,8 +493,11 @@ owner-scoped preview. Addytywne UI RPC i BFF POST
    executable, shebang oraz pliki interpretowane; właściciel wybiera skille
    i zwykłe przypisania przed **Add and sync**. Cache: 30 minut, do 5 preview/owner.
    Podgląd z Git pomija skille z błędną składnią YAML i wskazuje pominięty
-   plik w komunikacie. Żądanie kończy się błędem, gdy nie ma poprawnych wyników
-   lub brakuje skilla wybranego przez `--skill`.
+   plik w komunikacie. `--skill` dopasowuje nazwy z nagłówków `SKILL.md`
+   i udostępnia do zatwierdzenia tylko wskazane skille. Jeśli w typowych
+   katalogach brakuje żądanej nazwy, gateway przeszukuje też głębsze katalogi
+   w obrębie źródła. Żądanie kończy się błędem, gdy nie ma poprawnych wyników
+   lub brakuje wskazanego skilla.
 2. `AddSkillSource(preview_id, paths, assignment, expected_revision)` potwierdza
    dokładne zamrożone artefakty, nawet gdy upstream już się przesunął. Atomowo
    tworzy wybrane definicje i wersję 1; source policy zaczyna z manual update.
@@ -524,11 +530,16 @@ zmienia zainstalowanego artefaktu. Definicje, wybrane SHA, błędy i kandydaci
 przeżywają restart; po wygaśnięciu preview potrzebny jest kolejny check.
 Rewizja oraz checksum blokują zapis na podstawie nieaktualnego przeglądu.
 
-Limity repo: 5000 plików, 16 MiB/plik, 50 MiB zadeklarowanych blobów. Limity
-wybranego preview: 100 skilli i łącznie 25 MiB, nadal 1 MiB/plik oraz walidacja
-artefaktu etapu 2. Całe drzewo odrzuca symlinki, gitlink/submoduły, specjalne
-wpisy. Przy imporcie skilli test przenośności ścieżek obejmuje pliki w odkrytych
-katalogach skilli. Przy imporcie marketplace obejmuje całe drzewo.
+Pełny podgląd repozytorium ma limity 16 MiB na plik i 50 MiB danych. Przy
+imporcie skilla po nazwie lub z podanej ścieżki gateway pobiera drzewo bez
+blobów, odczytuje pliki `SKILL.md` i pobiera brakujące obiekty wybranych
+skilli z tego samego commitu. Serwer bez obsługi filtrowania może zwrócić
+pełny pakiet. Dla każdego importu obowiązuje limit 5000 plików w drzewie
+i 64 MiB danych na dysku tymczasowym. Odczyt plików `SKILL.md` na potrzeby
+wyboru ma osobny limit 25 MiB. Podgląd obejmuje do 100 skilli, po 1000 plików
+i 1 MiB na plik, łącznie do 25 MiB. Całe drzewo odrzuca symlinki, gitlinki,
+submoduły i specjalne wpisy. Walidacja przenośności ścieżek obejmuje pliki
+wybranych skilli, a przy imporcie marketplace całe drzewo.
 Nie wykonuje się filtrów repo. Fetch jest shallow,
 stdout/stderr ograniczone, pojedynczy proces ma 60 s, całe resolution 120 s
 (także oczekiwanie na DNS można anulować). Shallow fetch wymaga smart HTTP;
