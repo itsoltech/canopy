@@ -1,5 +1,10 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): w sidebarze web i desktop inicjały oraz logotypy projektów
+mają ten sam rozmiar co na przycisku pickera projektów w kompozytorze.
+Wskaźnik aktywności głównego wątku również ma 16 px. Znak projektu i wskaźnik
+dzieli od nazwy projektu 6 px.
+
 Status (2026-11-24): w web i desktop zakładki Threads i Bots pokazują liczbę elementów, które
 właśnie pracują. Natywny mobile jeszcze jej nie pokazuje.
 

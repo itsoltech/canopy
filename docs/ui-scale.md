@@ -249,8 +249,10 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
 - Wiersze wątków i botów używają `sidebar-row`: tytuł 15 / 13 (linia 22 / 20),
   podpis i wiek 13 / 12,5 (linia 20 / 18), pionowy padding 8 px i odstęp linii 2 px.
   Wiersz główny ma 82 / 78 px, bot 60 px, boczny i archiwalny minimum 40 / 36 px
-  (48 px przy dotyku); szkielet archiwum ma tę samą wysokość. Znak projektu ma 20 px
-  z inicjałami 10 px, znak aktywności slot 20 px i ikonę 18 px (boczny 16 px), avatar bota 44 px.
+  (48 px przy dotyku); szkielet archiwum ma tę samą wysokość. Znak projektu ma 16 px
+  z inicjałami 8 px, jak na przycisku pickera projektów w kompozytorze. Jest wyśrodkowany
+  w slocie 20 px, który mieści też ikonę aktywności 16 px. W wierszu i nagłówku projektu
+  między krawędzią znaku a nazwą jest 6 px. Boczny slot aktywności ma 16 px, a avatar bota 44 px.
   Status wątku ma stały slot 96 px, czas bota 64 px, a licznik nieprzeczytanych 28 px;
   zmiany stanu nie przesuwają tekstu. Wartości pozostają w `rem`.
 - Sidebar web/desktop używa wspólnego guttera `--sidebar-gutter` (12 px): wyrównuje

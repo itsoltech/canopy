@@ -54,15 +54,25 @@
 
 .sidebar-row [data-project-mark],
 .sidebar-project-choice [data-project-mark],
-.sidebar-row-activity {
-  width: 1.25rem;
-  height: 1.25rem;
+.sidebar-group-heading [data-project-mark] {
+  width: var(--icon-standard);
+  height: var(--icon-standard);
   font-size: var(--type-sidebar-mark);
 }
 
+/* Marks outside the activity slot keep the same alignment with the row text and hierarchy guide. */
+:is(.sidebar-row, .sidebar-project-choice, .sidebar-group-heading) > [data-project-mark] {
+  margin-inline: 0.125rem;
+}
+
+.sidebar-row-activity {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .sidebar-row-activity svg {
-  width: 1.125rem;
-  height: 1.125rem;
+  width: var(--icon-standard);
+  height: var(--icon-standard);
 }
 
 .sidebar-row-activity-small {
@@ -178,12 +188,6 @@
   display: flex;
   align-items: center;
   pointer-events: none;
-}
-
-.sidebar-group-heading [data-project-mark] {
-  width: 1.25rem;
-  height: 1.25rem;
-  font-size: var(--type-sidebar-mark);
 }
 
 .sidebar-group-row {
