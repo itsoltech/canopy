@@ -89,18 +89,26 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
         now,
       ),
     );
-    await run((s) => s.dispatch(f.gw.userId, new Date(now.getTime() + 4000)));
-    await f.gw.core.bots.tick();
+    const readyAt = new Date(now.getTime() + 4000);
 
-    const rows = await f.query<{ id: string }>(
-      `SELECT t.id FROM bot_turns t JOIN bot_channel_conversations c ON c.id=t.conversation_id
+    // Dispatch can skip the bot while another transaction holds its row lock.
+    const rows = await eventually(
+      async () => {
+        await run((s) => s.dispatch(f.gw.userId, readyAt));
+
+        return f.query<{ id: string }>(
+          `SELECT t.id FROM bot_turns t JOIN bot_channel_conversations c ON c.id=t.conversation_id
        JOIN bot_channel_inputs i ON i.turn_id=t.id AND t.client_request_id='messenger:' || i.id::text
        JOIN bot_channel_messages m ON m.input_id=i.id AND m.conversation_id=c.id
        WHERE c.route_id=$1 AND c.thread_id=$2 AND m.message_id=$3`,
-      [route.id, threadId ?? stamp, `${stamp}:0`],
+          [route.id, threadId ?? stamp, `${stamp}:0`],
+        );
+      },
+      (rows) => rows.length > 0,
     );
 
     expect(rows).toHaveLength(1);
+    await f.gw.core.bots.tick();
 
     return rows[0]!.id;
   }

@@ -43,7 +43,7 @@ export interface ThreadStore {
     projectId: string,
     includeArchived?: boolean,
     sidebarOnly?: boolean,
-    memoryAudience?: string,
+    memoryAudiences?: readonly string[],
   ): Fx<ReadonlyArray<ThreadRow>>;
   listArchivedThreads(
     ownerUserId: string,
@@ -213,16 +213,17 @@ export function threadStore(sql: SqlClient.SqlClient): Omit<ThreadStore, "create
         return rows[0].changed;
       }),
 
-    listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false, memoryAudience = "") =>
+    listThreads: (ownerUserId, projectId, includeArchived = false, sidebarOnly = false, memoryAudiences = []) =>
       sql.unsafe<ThreadRow>(
         listThreadSelect(`WHERE t.owner_user_id = $1::uuid AND ($2::uuid IS NULL OR t.project_id = $2::uuid)
-              AND t.deleted_at IS NULL AND ($5::text = '' OR t.memory_audience = $5) AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
+              AND t.deleted_at IS NULL AND (cardinality($5::text[]) = 0 OR (t.moved_to IS NULL AND t.memory_audience = ANY($5)))
+              AND (CASE WHEN $4::boolean THEN ((t.archived_at IS NULL AND NOT EXISTS
                 (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id AND parent.archived_at IS NOT NULL)) OR
                 (t.kind = 'side' AND EXISTS (SELECT 1 FROM threads parent WHERE parent.id = t.parent_thread_id
                   AND parent.owner_user_id = t.owner_user_id AND parent.archived_at IS NULL AND parent.deleted_at IS NULL)))
                 ELSE ($3::boolean OR t.archived_at IS NULL) END)
               AND EXISTS (SELECT 1 FROM projects p WHERE p.id = t.project_id AND p.archived_at IS NULL) ORDER BY t.created_at`),
-        [ownerUserId, projectId || null, includeArchived, sidebarOnly, memoryAudience],
+        [ownerUserId, projectId || null, includeArchived, sidebarOnly, memoryAudiences],
       ),
 
     listArchivedThreads: (ownerUserId, request) => archivedThreads(sql, ownerUserId, request),

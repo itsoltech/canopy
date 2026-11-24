@@ -173,7 +173,7 @@ export interface CoreThreadsMethods {
     projectId: string,
     includeArchived?: boolean,
     sidebarOnly?: boolean,
-    memoryAudience?: string,
+    memoryAudiences?: readonly string[],
   ): Promise<ui.Thread[]>;
   listArchivedThreads(request: ui.ListArchivedThreadsRequest): Promise<ui.ListArchivedThreadsResponse>;
   getThread(threadId: string): Promise<ui.Thread>;
@@ -209,11 +209,11 @@ export const coreThreadsMethods: CoreThreadsMethods = {
     projectId: string,
     includeArchived = false,
     sidebarOnly = false,
-    memoryAudience = "",
+    memoryAudiences: readonly string[] = [],
   ): Promise<ui.Thread[]> {
     return (
       await coreRun(this, (s) =>
-        s.listThreads(this[coreState].options.userId, projectId, includeArchived, sidebarOnly, memoryAudience),
+        s.listThreads(this[coreState].options.userId, projectId, includeArchived, sidebarOnly, memoryAudiences),
       )
     ).map((row) => coreUiThread(this, row));
   },

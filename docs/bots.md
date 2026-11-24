@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-24): kolejna pobudka zaplanowana przez prywatną pobudkę tego samego
+bota zachowuje dostęp do delegacji z wcześniejszych pobudek w tym łańcuchu.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): [mobilny formularz Create bot](mobile.md) pokazuje nazwę,
 model i instrukcje przed rozwijanymi opcjami oraz umieszcza przycisk utworzenia
 pod przewijaną treścią. Dostępność w kanałach określa [promocja wydań](release.md).
@@ -1368,7 +1372,13 @@ Zakończenie wskazanej tury workera tworzy follow-up bota przez trwały watch; d
 także wtedy, gdy zakończenie nastąpiło podczas przerwy gateway.
 
 Jednorazowe przypomnienia własnego bota są w `bot_wakeups`: create/list/cancel,
-zwiększenie hops, atomowy zapis pobudki. Harmonogramy użytkownika, również cykliczne
+zwiększenie hops, atomowy zapis pobudki. Prywatna pobudka może odczytać listę,
+stan i historię wątków utworzonych przez wcześniejsze pobudki, które doprowadziły
+do jej zaplanowania, oraz wysłać do nich kolejną wiadomość.
+Gateway ustala to powiązanie z zapisanych wywołań `schedule_wakeup` i dostarczonych
+pobudek tego samego bota. Niezależne pobudki mają odrębne zakresy delegacji.
+`list_threads` zwraca `[]`, gdy bieżący zakres i filtry nie obejmują żadnego wątku.
+Harmonogramy użytkownika, również cykliczne
 i tworzące nowe wątki, obsługuje istniejący scheduler i UI API przez narzędzia bota;
 nie są emulowane przez timer procesu Bots. Tury tych harmonogramów zachowują semantykę
 harmonogramu użytkownika, a nie automatycznego łańcucha pobudek bota.
