@@ -2254,7 +2254,8 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-24): konsolidacja wymaga migracji 0213 po obu stronach. Jeśli
+Status (2026-11-24): konsolidacja wymaga migracji 0214 po obu stronach. Import zachowuje emoji
+przypisane do wiadomości bota oraz zapis powiadomień o reakcji w historii tur. Jeśli
 wątek zmienił worktree, import zachowuje katalog, w którym działała tura
 przełączająca worktree. Historia zachowuje też powiązanie jednorazowej zgody
 bota z wątkiem docelowym.

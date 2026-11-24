@@ -187,8 +187,10 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
       jsonb_build_object('thread_id',${thread}::text,'text','fixture'),'completed')`;
   await s`INSERT INTO bot_approvals(id,bot_id,turn_id,kind,prompt,status,answered_at,restricted_thread_id)
     VALUES(${botApproval},${bot},${botTurn},'approval','Send to the delegated thread','approved',now(),${thread})`;
-  await s`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text)
-    VALUES(${botMessage},${bot},${botTurn},'answer',${bot},'user','message','fixture')`;
+  await s`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,reactions)
+    VALUES(${botMessage},${bot},${botTurn},'answer',${bot},'user','message','fixture',ARRAY['❤️'])`;
+  await s`INSERT INTO bot_turns(id,bot_id,client_request_id,input,status,reaction_input)
+    VALUES(${uuid()},${bot},'reaction-fixture','Owner added a heart','completed',true)`;
   await s`UPDATE bots SET last_read_seq=(SELECT seq FROM bot_messages WHERE id=${botMessage}) WHERE id=${bot}`;
   await d`SELECT nextval('bot_messages_seq_seq')`;
 
@@ -377,9 +379,13 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
   expect(() => secret && decryptSecret(source.secretsKey, secret.ciphertext)).toThrow();
 
   const [message] =
-    await sql`SELECT last_read_seq,seq FROM bots b JOIN bot_messages m ON m.bot_id=b.id WHERE b.id=${f.bot}`;
+    await sql`SELECT last_read_seq,seq,reactions FROM bots b JOIN bot_messages m ON m.bot_id=b.id WHERE b.id=${f.bot}`;
 
   expect(message?.last_read_seq).toBe(message?.seq);
+  expect(message?.reactions).toEqual(["❤️"]);
+  expect(await sql`SELECT input FROM bot_turns WHERE bot_id=${f.bot} AND reaction_input`).toEqual([
+    { input: "Owner added a heart" },
+  ]);
   expect(await sql`SELECT status,restricted_thread_id FROM bot_approvals WHERE id=${f.botApproval}`).toEqual([
     { status: "approved", restricted_thread_id: f.thread },
   ]);

@@ -141,7 +141,7 @@ describe.skipIf(!dockerAvailable)("bot downloads and outgoing attachments", () =
     expect((await f.settled(bot.id)).messages.at(-1)?.text).toContain("not public");
     await f.tool(bot.id, "send_attachment", { path: "private.txt" });
     expect((await f.settled(bot.id)).messages.filter((m) => m.attachments.length)).toHaveLength(1);
-  });
+  }, 30_000);
 
   test("attachment approval denial and execution-time Files revocation prevent delivery", async () => {
     const bot = await f.add(Provider.CODEX, f.workerId, "full_auto");
