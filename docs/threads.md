@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-24): nowy wątek z pierwszą wiadomością zachowuje stan startu
+między przygotowaniem sesji a przekazaniem tury workerowi.
+
 Status (2026-11-24): web, desktop, iOS i Android rozdzielają sekcje Working i Snoozed liniami
 w nagłówkach i przygaszają uśpione wątki.
 
@@ -308,7 +311,9 @@ innego wątku. Po potwierdzeniu odczytu wiersz od razu pokazuje czas ostatniej a
 
 Opcjonalna sekcja „Working” w web/desktop i mobile grupuje nieprzypięte drzewa z pracującą
 lub startującą turą, pytaniem do rodzica-agenta albo samymi zadaniami w tle. Licznik obejmuje
-wiersze drzew w tej sekcji. Nieprzeczytany wynik wcześniejszej tury nie wyłącza wątku, który
+wiersze drzew w tej sekcji. Nowy wątek wysłany z pierwszą wiadomością pozostaje w Working
+także między gotowością sesji a startem pierwszej tury, również przy zwiniętej sekcji.
+Nieprzeczytany wynik wcześniejszej tury nie wyłącza wątku, który
 już pracuje ponownie. Wyniki subagentów pozostają wewnątrz wątku i nie zmieniają sekcji rodzica.
 Pytanie skierowane do użytkownika w dowolnym aktywnym dziecku nadal wyłącza całe drzewo
 z „Working”, podobnie jak nieprzeczytany wynik niepracującego wątku głównego lub bocznego

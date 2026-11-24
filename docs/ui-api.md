@@ -2468,6 +2468,7 @@ szczegóły i zweryfikowane możliwości harnessów: [threads.md](threads.md).
 ### Kolejka
 
 `Thread.turn_starting` (162) przenosi ten sam stan startu do overview i aktualizacji wątku. Pozwala pokazać „Starting” także przed zdarzeniem `running`, zamiast poprzedniego wyniku tury.
+Podczas tworzenia wątku z pierwszą wiadomością flaga obejmuje też czas od gotowości sesji do zapisania `StartTurn` w outboxie. W tym czasie wątek pozostaje w sekcji Working.
 
 `Turn.dispatched` (162) pochodzi z obecności komendy workera w stanie `pending`, `delivered` albo `completed` — z tego samego warunku, którym gateway chroni wystartowane tury przed zmianami kolejki. Tura `queued` z `dispatched = true` już startuje: jest na osi czasu, poza panelem i licznikami kolejki oraz bez jej akcji. `running` nadal potwierdza worker. Gateway zapisuje wiadomość do gotowego, bezczynnego wątku i jej `StartTurn` w jednej transakcji, więc pierwszy snapshot, zdarzenie i odpowiedź nie pokazują jej jako oczekującej. Przy starcie głowy istniejącej kolejki publikuje zmianę tury przed dostarczeniem komendy. Steer z `status = queued` pozostaje w kolejce do wystartowania jego tury. Web nie dodaje lokalnego wiersza tury przed odpowiedzią gatewaya.
 

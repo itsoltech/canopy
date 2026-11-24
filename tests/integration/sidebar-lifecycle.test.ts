@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { MentionKind, PermissionMode, Provider, TurnOutcome } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { isCalm } from "@canopy/domain/thread-activity";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -53,6 +54,55 @@ describe.skipIf(!dockerAvailable)("sidebar settings and thread lifecycle", () =>
   afterAll(async () => {
     await gw?.close();
   }, 30_000);
+
+  test("the first message keeps a new thread in Working between session readiness and turn start", async () => {
+    const controller = new AbortController();
+
+    const stream = gw.api
+      .watchOverview({ includeSnapshot: true }, { signal: controller.signal, timeoutMs: 8_000 })
+      [Symbol.asyncIterator]();
+
+    gw.worker.holdTurns = true;
+
+    try {
+      expect((await stream.next()).value?.change.case).toBe("mobileSnapshot");
+
+      const { thread } = await gw.api.createThread({
+        projectId,
+        workspaceId,
+        provider: Provider.CODEX,
+        initialMessage: "Start in Working",
+        clientRequestId: Bun.randomUUIDv7(),
+      });
+
+      const threadId = thread!.id;
+      const activity: boolean[] = [];
+
+      for (let frame = await stream.next(); !frame.done; frame = await stream.next()) {
+        const { change } = frame.value;
+
+        if (change.case !== "thread" || change.value.id !== threadId) continue;
+
+        if (change.value.status === "running") break;
+
+        if (change.value.status === "idle") activity.push(isCalm(change.value));
+      }
+
+      const [turn] = await turns(threadId);
+      gw.worker.finish(threadId, turn!.id);
+      await eventually(
+        () => gw.api.getThread({ threadId }),
+        ({ thread }) => thread?.unseenResult === "completed" && !thread.turnStarting,
+      );
+
+      expect(activity.length).toBeGreaterThan(0);
+      expect(activity).not.toContain(false);
+    } finally {
+      gw.worker.holdTurns = false;
+      controller.abort();
+      await stream.return?.();
+    }
+  }, 10_000);
 
   test("pins and project selection persist, respect version conflicts and keep other settings", async () => {
     const t = await createThread("Pinned");

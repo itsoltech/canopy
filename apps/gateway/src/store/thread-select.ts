@@ -33,7 +33,11 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
                  (SELECT row_to_json(c) FROM (${COMPOSER_CHOICE_SELECT}) c) AS last_user_turn_choices,
                  (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns}
                  requests.pending_interactions, requests.has_pending_requests,
-                 EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued' AND ${DISPATCHED}) AS turn_starting,
+                 -- Session readiness precedes dispatch of the message that created the thread.
+                 EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued'
+                   AND (${DISPATCHED} OR (t.status = 'idle' AND t.rewind_pending_id IS NULL AND u.rewind_id IS NULL
+                     AND u.ordinal = 1 AND u.trigger = 'user'
+                     AND u.client_request_id IS NOT DISTINCT FROM t.creation_request_id))) AS turn_starting,
                  greatest(t.created_at, (SELECT greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at))
                    FROM turns u WHERE u.thread_id = t.id
                    ORDER BY greatest(u.queued_at, coalesce(u.started_at, u.queued_at), coalesce(u.completed_at, u.queued_at)) DESC LIMIT 1)) AS last_activity_at,

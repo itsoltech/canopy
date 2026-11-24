@@ -1721,8 +1721,8 @@ export type Thread = Message<"canopy.ui.v1.Thread"> & {
   lastMessage: string;
 
   /**
-   * Tura queued ma już komendę w outboxie, ale worker jeszcze nie potwierdził running.
-   * Ten sam stan startu co Turn.dispatched, także w overview.
+   * Tura queued ma już komendę w outboxie albo jest pierwszą wiadomością wysłaną
+   * przy tworzeniu wątku i czeka na tę komendę po przygotowaniu sesji.
    *
    * @generated from field: bool turn_starting = 162;
    */
