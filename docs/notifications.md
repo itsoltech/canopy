@@ -1,5 +1,8 @@
 # Powiadomienia
 
+Aktualizacja (2026-11-24): krótkie potwierdzenia web/desktop dopasowują szerokość do treści
+i pokazują akcję obok komunikatu.
+
 Aktualizacja (2026-11-24): web/desktop ma przełącznik powiadomień o odnowieniu
 wyczerpanego limitu Claude, z odczytów bezpośrednich i CLIProxyAPI.
 
@@ -27,8 +30,7 @@ Web/desktop wysyła powiadomienia tylko z włączonych modułów. Na macOS wybó
 systemowych wywołuje natywne pytanie, gdy system nadal czeka na decyzję.
 Powiadomienia wątków obejmują
 tylko wątki główne i wątki boczne użytkownika. Toasty web/desktop są kartami w prawym dolnym
-rogu, z osobnym nagłówkiem zdarzenia, nazwą i akcją pod treścią oraz większą ikoną
-statusu, bez wyłączania przeciągania okna desktopu. Opis dotyczy kodu; dostępność
+rogu. Powiadomienia z opisem mają osobny nagłówek zdarzenia, nazwę i akcję pod treścią. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
 Web i desktop pokazują alerty systemowe o wątkach, botach i limitach Claude,
@@ -113,11 +115,14 @@ z zapisanej rozmowy.
 
 W webie i na desktopie `shared/ui/Toaster.svelte` pokazuje krótkie potwierdzenia i powiadomienia
 w prawym dolnym rogu okna, 16 px od krawędzi lub poza systemowym safe area.
-Na telefonie karta mieści się między bocznymi wcięciami; na desktopie ma 24 rem
-szerokości. Nagłówek zdarzenia i zamknięcie zajmują pierwszy wiersz, a opcjonalny
+Potwierdzenie bez opisu dopasowuje szerokość do treści. Ikona statusu (16 px), tekst,
+opcjonalna akcja tekstowa i zamknięcie mieszczą się w jednym wierszu przy krótkiej treści.
+Dłuższy tekst zawija się, a przy braku miejsca akcja z zamknięciem przechodzą pod tekst. Na telefonie karty mieszczą się między bocznymi wcięciami,
+a na desktopie mają maksymalnie 24 rem szerokości.
+
+W powiadomieniu z opisem nagłówek zdarzenia i zamknięcie zajmują pierwszy wiersz, a
 opis zawija się pod nim. Akcja ma własny wiersz pod treścią, wyrównany do prawej,
-więc nie zwęża tekstu. Krótkie potwierdzenia bez opisu zachowują pojedynczy wiersz.
-Karta ma padding 12 px w obu osiach przy domyślnej skali i ikony statusu 20 px.
+więc nie zwęża tekstu. Karta z opisem ma padding 12 px w obu osiach przy domyślnej skali i ikony statusu 20 px.
 Koniec tury pokazuje zielone kółko z haczykiem, błąd — czerwony wykrzyknik,
 a pozostałe zdarzenia — niebieską ikonę informacji. Nagłówek zawsze nazywa zdarzenie.
 Jasny i ciemny motyw mają własne tło, obrys i kolory ikon.
