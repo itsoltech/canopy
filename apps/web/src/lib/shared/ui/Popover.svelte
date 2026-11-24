@@ -61,6 +61,7 @@
     anchor: anchorElement,
     sheet = false,
     maxHeight,
+    scrollable = true,
     focusOnOpen = true,
     initialFocus,
     triggerKeydown,
@@ -85,6 +86,8 @@
     sheet?: boolean;
     /** Override the anchored panel's height cap; mobile sheets retain their viewport cap. */
     maxHeight?: string | undefined;
+    /** Allow the anchored panel to scroll. Otherwise its content should fit the available height. */
+    scrollable?: boolean;
     focusOnOpen?: boolean;
     /** Custom first focus (menus focus their first item); return false to fall back to the default. */
     initialFocus?: ((panel: HTMLElement) => boolean | void) | undefined;
@@ -183,7 +186,7 @@
 
     if (!open || !panel || narrow || !target) return;
 
-    return autoPosition(target, panel, { placement, offset, followMotion });
+    return autoPosition(target, panel, { placement, offset, followMotion, measureNaturalHeight: !scrollable });
   });
 
   // A sheet keeps its backdrop through the click so the tap cannot activate a control underneath.
@@ -298,7 +301,8 @@
     {onfocusout}
     onfocusin={() => (focusInside = true)}
     class={[
-      "density-overlay t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border-0 bg-surface p-0 text-ink shadow-lg ring-1 ring-divider outline-none dark:shadow-none",
+      "density-overlay t-dropdown fixed inset-auto top-(--float-y) left-(--float-x) m-0 max-h-[min(var(--float-available-height,32rem),32rem)] rounded-xl border-0 bg-surface p-0 text-ink shadow-lg ring-1 ring-divider outline-none dark:shadow-none",
+      scrollable || narrow ? "scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain" : "overflow-clip",
       "data-sheet:top-auto data-sheet:bottom-0 data-sheet:left-0 data-sheet:max-h-[min(85dvh,var(--window-safe-height))] data-sheet:w-full data-sheet:max-w-none data-sheet:rounded-b-none data-sheet:pb-[env(safe-area-inset-bottom)] data-sheet:backdrop:bg-zinc-950/40 dark:data-sheet:backdrop:bg-black/60",
       className,
     ]}
