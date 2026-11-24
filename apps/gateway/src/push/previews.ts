@@ -100,7 +100,7 @@ export const readPushPreview = (owner: string, job: PushJob) =>
     return yield* readSource[job.event_kind](sql, livePushJob(sql, owner, job));
   });
 
-export function encryptPushPreview(key: Buffer, receiptId: string, content: Preview): string {
+export function encryptPushPreview(key: Buffer, receiptId: string, content: Preview & { badge?: number }): string {
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
   cipher.setAAD(Buffer.from(`canopy-push-preview-v1:${receiptId}`));

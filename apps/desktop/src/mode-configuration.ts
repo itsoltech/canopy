@@ -7,6 +7,19 @@ import type { RemoteAppUpdate } from "./remote-app-update.ts";
 import type { Logs } from "./runtime/log.ts";
 import type { ControllerResult } from "./controller.ts";
 
+export class ConfigurationLock {
+  active = false;
+
+  acquire() {
+    if (this.active) throw new Error("Desktop configuration is already in progress");
+    this.active = true;
+
+    return () => {
+      this.active = false;
+    };
+  }
+}
+
 interface ModeOptions {
   status: DesktopStatus;
   directory: string;

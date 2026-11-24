@@ -151,6 +151,42 @@ async function finishPushThread(gateway: TestGateway, snoozed = false) {
   return threadId;
 }
 
+async function seedBotPushes(gateway: TestGateway) {
+  const query = gateway.core.linkedAgents.query.bind(gateway.core.linkedAgents);
+  const botId = crypto.randomUUID();
+  const turnId = crypto.randomUUID();
+  const approvalId = crypto.randomUUID();
+  await query(
+    `INSERT INTO bots (id, owner_user_id, client_request_id, configuration, provider, provider_instance)
+      VALUES ($1::uuid, $2::uuid, 'push-bot', '{"name":"Private bot"}', 'codex', 'native')`,
+    [botId, gateway.userId],
+  );
+  await query(
+    `INSERT INTO bot_turns (id, bot_id, client_request_id, input, status)
+      VALUES ($1::uuid, $2::uuid, 'push-turn', '', 'waiting')`,
+    [turnId, botId],
+  );
+
+  const [message] = await query<{ seq: string }>(
+    `INSERT INTO bot_messages (id, bot_id, turn_id, message_key, sender_id, recipient_id, text)
+      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'push-message', $1::uuid::text, 'user', 'Private message') RETURNING seq`,
+    [botId, turnId],
+  );
+
+  await query(
+    `INSERT INTO bot_tool_calls (id, turn_id, call_key, tool, arguments)
+      VALUES ($1::uuid, $2::uuid, 'push-question', '{}', '{}')`,
+    [approvalId, turnId],
+  );
+  await query(
+    `INSERT INTO bot_approvals (id, bot_id, turn_id, kind, prompt, expires_at)
+      VALUES ($1::uuid, $2::uuid, $3::uuid, 'question', 'Private question', now() + interval '1 day')`,
+    [approvalId, botId, turnId],
+  );
+
+  return { botId, approvalId, seq: BigInt(message!.seq) };
+}
+
 describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () => {
   let gw: TestGateway;
   let network: NetworkAccess;
@@ -164,10 +200,10 @@ describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () 
       transport,
     });
 
-  async function pair() {
+  async function pair(platform = "ios") {
     const { code } = await gw.api.createMobilePairing({});
 
-    return phone().pairing.exchangeMobilePairing({ code, name: "Test phone", platform: "ios" });
+    return phone().pairing.exchangeMobilePairing({ code, name: "Test phone", platform });
   }
 
   beforeAll(async () => {
@@ -245,6 +281,7 @@ describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () 
   });
 
   test("a restarted sender encrypts the preview and only the registered phone can resolve the receipt", async () => {
+    await finishPushThread(gw, true);
     const paired = await pair();
     const subscriber = phone(paired.deviceToken).api;
     const otherPhone = phone((await pair()).deviceToken).api;
@@ -264,11 +301,12 @@ describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () 
       expect(input.received).toHaveLength(1);
       const payload = input.received[0]!;
       expect(payload).toMatchObject({ token, platform: "ios" });
+      expect(payload).not.toHaveProperty("badge");
       expect(JSON.stringify(payload)).not.toContain("Private");
       expect(JSON.stringify(payload)).not.toContain(threadId);
       expect(JSON.stringify(payload)).not.toContain(registration.previewKey);
       expect(openPreview(payload, key)).toBe(
-        JSON.stringify({ title: "Private title", body: "Finished · Echo: Private reply" }),
+        JSON.stringify({ title: "Private title", body: "Finished · Echo: Private reply", badge: 1 }),
       );
       expect(() => openPreview(payload, key, crypto.randomUUID())).toThrow();
 
@@ -298,11 +336,59 @@ describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () 
       expect((await subscriber.listDismissibleMobilePush(receipts)).receiptIds).toEqual([receiptId]);
       expect((await otherPhone.listDismissibleMobilePush(receipts)).receiptIds).toEqual([]);
       expect(await connectCode(gw.api.listDismissibleMobilePush(receipts))).toBe(Code.Unauthenticated);
+      await gw.api.setThreadRead({ threadId, unread: true });
       await gw.api.revokeMobileDevice({ id: paired.device!.id });
       expect(await failure(subscriber.resolveMobilePush({ receiptId }))).toContain("revoked device token");
       expect(await connectCode(subscriber.listDismissibleMobilePush(receipts))).toBe(Code.Unauthenticated);
     } finally {
       await restarted.close();
+    }
+  }, 30_000);
+
+  test("iOS previews share the absolute badge and Android can dismiss read bot pushes", async () => {
+    await finishPushThread(gw);
+    const ios = phone((await pair()).deviceToken).api;
+    const android = phone((await pair("android")).deviceToken).api;
+    const previewKey = randomBytes(32);
+    const registration = { enabled: true, previewKey: previewKey.toString("base64url") };
+    const start = input.received.length;
+
+    try {
+      await ios.setMobilePushSubscription({ ...registration, expoToken: "ExpoPushToken[bot-ios]" });
+      await android.setMobilePushSubscription({ ...registration, expoToken: "ExpoPushToken[bot-android]" });
+      const { botId, approvalId, seq } = await seedBotPushes(gw);
+      await gw.core.mobilePush.dispatch();
+      const batch = input.received.slice(start);
+      expect(batch).toHaveLength(4);
+
+      const receipt = (platform: string, body: string, badge?: number) => {
+        const preview = JSON.stringify({ title: "Private bot", body, badge });
+
+        const push = batch.find(
+          (payload) => payload.platform === platform && openPreview(payload, previewKey) === preview,
+        );
+
+        expect(push).toBeDefined();
+
+        return push!.receiptId;
+      };
+
+      receipt("ios", "New message · Private message", 3);
+      receipt("ios", "Needs your answer · Private question", 3);
+      const message = receipt("android", "New message · Private message");
+      const approval = receipt("android", "Needs your answer · Private question");
+      const receipts = { receiptIds: [message, approval] };
+      expect((await android.listDismissibleMobilePush(receipts)).receiptIds).toEqual([]);
+      await gw.api.markBotRead({ botId, throughSeq: seq });
+      expect((await android.listDismissibleMobilePush(receipts)).receiptIds).toEqual([message]);
+
+      await gw.core.linkedAgents.query("UPDATE bot_approvals SET expires_at = now() WHERE id = $1::uuid", [approvalId]);
+      expect(new Set((await android.listDismissibleMobilePush(receipts)).receiptIds)).toEqual(
+        new Set([message, approval]),
+      );
+      expect((await ios.listDismissibleMobilePush(receipts)).receiptIds).toEqual([]);
+    } finally {
+      await Promise.all([ios.unpairMobileDevice({}), android.unpairMobileDevice({})]);
     }
   }, 30_000);
 

@@ -1,5 +1,9 @@
 # Canopy na iOS i Android
 
+Status (2026-11-24): iOS pokazuje licznik na ikonie przy włączonych powiadomieniach
+systemowych i odświeża go z push w nowym buildzie. Android korzysta z oznaczeń
+launchera dla dostarczonych alertów. [Licznik na ikonie](notifications.md#licznik-na-ikonie)
+
 Status (2026-11-24): systemowe powiadomienia o wynikach wątków znikają z iOS i Androida
 po zsynchronizowaniu odczytu. Zgody i pytania znikają po rozstrzygnięciu lub wygaśnięciu.
 

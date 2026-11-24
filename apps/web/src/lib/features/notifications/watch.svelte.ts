@@ -1,5 +1,6 @@
 import { untrack } from "svelte";
 import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
+import { botBadgeCount, maxNotificationBadge, threadBadgeCount } from "@canopy/domain/notification-badge";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
@@ -48,6 +49,7 @@ export function watchNotifications(
   let claudeResets = new ClaudeResets();
   let resyncs = overview.resyncs;
   const proxies = sharedProxies();
+  const setBadge = window.canopyDesktop?.setNotificationBadge;
 
   const claudeEnabled = () =>
     overview.connection === "live" && devicePreferences.values.claudeLimitResetNotifications === "on";
@@ -94,6 +96,17 @@ export function watchNotifications(
 
       known = new Map(list.map((bot) => [bot.id, botSeen(known?.get(bot.id), bot)]));
     });
+
+    if (setBadge) {
+      const threads = $derived(settings.moduleEnabled("threads") ? threadBadgeCount(overview.threads) : 0);
+      const bots = $derived(settings.moduleEnabled("bots") ? botBadgeCount(botList.list) : 0);
+      const count = $derived(Math.min(threads + bots, maxNotificationBadge));
+
+      $effect(() => {
+        if (!settings.loaded || !overview.resyncs || (settings.moduleEnabled("bots") && !botList.loaded)) return;
+        void setBadge(count).catch(() => {});
+      });
+    }
   });
 
   return () => {

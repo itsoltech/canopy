@@ -11,7 +11,7 @@ import type { ControllerArguments, ControllerResult } from "./controller.ts";
 import { ControllerConnection } from "./controller-connection.ts";
 import { initializeController } from "./controller-initialize.ts";
 import { savedRemoteClient } from "./client-vault.ts";
-import { closeModeChooser, openModeChooser, registerModeIpc } from "./mode-configuration.ts";
+import { closeModeChooser, ConfigurationLock, openModeChooser, registerModeIpc } from "./mode-configuration.ts";
 import { Logs } from "./runtime/log.ts";
 import { controllerEntry, runtimePaths } from "./runtime/launch.ts";
 import { desktopIdentity, desktopUserData } from "./identity.ts";
@@ -42,6 +42,7 @@ import { shutdownDesktop } from "./shutdown.ts";
 import { PreviewWindows } from "./preview-windows.ts";
 import { registerMigrationIpc } from "./migration-ipc.ts";
 import { DesktopUsagePing } from "./usage-ping.ts";
+import { NotificationBadge } from "./notification-badge.ts";
 
 const identity = desktopIdentity();
 
@@ -62,7 +63,6 @@ let setupOrigin = "";
 let status = initialStatus();
 let quitting = false;
 let stopped = false;
-let busy = false;
 let installingUpdate = false;
 let stopPower = () => {};
 let startupError = "";
@@ -83,8 +83,10 @@ const { iconPath, runtime } = desktopResourcePaths();
 const logs = new Logs(join(app.getPath("userData"), "logs"));
 const startupFailed = startupFailure(logs, () => quitting);
 const history = desktopHistory();
+const configurationLock = new ConfigurationLock();
 const quitSettings = new QuitSettings(app.getPath("userData"));
 const usagePing = new DesktopUsagePing(app.getPath("userData"));
+const notificationBadge = new NotificationBadge();
 const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
 const quitKey = quitKeyEvent(quitLog);
 
@@ -115,6 +117,7 @@ function authorize(event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) 
 
 function broadcast() {
   if (quitting) return;
+  notificationBadge.statusChanged(status);
   remoteUpdate?.changed();
 
   if (remoteUpdate && !remoteUpdate.active) void remoteUpdate.publish().catch(() => {});
@@ -261,6 +264,7 @@ app.on("before-quit", (event) => {
 
   if (requestWorkspaceQuit()) return;
   quitting = true;
+  notificationBadge.clear();
   webSession.revoke(appContents());
   previews.closeAll();
   stopPower();
@@ -329,15 +333,6 @@ function startController() {
   return paths;
 }
 
-function lockConfiguration() {
-  if (busy) throw new Error("Desktop configuration is already in progress");
-  busy = true;
-
-  return () => {
-    busy = false;
-  };
-}
-
 function registerIpc() {
   previews.register(
     authorize,
@@ -348,6 +343,7 @@ function registerIpc() {
   registerFontsIpc(authorize, () => status.webUrl);
   registerHistoryIpc(history, authorize, () => status.phase === "running" && !status.needsPairing);
   registerWindowPreferencesIpc(authorize, iconPath);
+  notificationBadge.register(authorize);
   registerWorkspaceClose(authorize);
   registerAppRouteIpc(appRoutes, authorize, () => window);
   ipcMain.handle("canopy:status", (event) => {
@@ -378,7 +374,7 @@ function registerIpc() {
     origin: setupOrigin,
     rpc,
     authorize,
-    avoidRestart: () => busy || installingUpdate || !!remoteUpdate?.active,
+    avoidRestart: () => configurationLock.active || installingUpdate || !!remoteUpdate?.active,
     onSwitch: async (client) => {
       previews.closeAll();
       await history.clear();
@@ -397,7 +393,7 @@ function registerIpc() {
   });
   registerModeIpc(
     (event) => authorize(event, true),
-    lockConfiguration,
+    () => configurationLock.acquire(),
     () => rpc("migration-status"),
     () => ({
       status,
@@ -410,6 +406,7 @@ function registerIpc() {
         await history.clear();
         startupError = "";
         await rpc("configure", { configuration: config, remoteClient: client });
+        notificationBadge.invalidate();
         sendUsagePing();
 
         if (status.phase === "running") await openApplication();
@@ -452,7 +449,7 @@ async function start() {
 
   if (quitting) return;
   // The local startup screen stays visible while restoring services or downloading PostgreSQL.
-  busy = true;
+  configurationLock.active = true;
 
   try {
     // Vault failures leave startup/settings available; configure can retry after keychain unlock.
@@ -470,7 +467,7 @@ async function start() {
 
     if (status.phase === "running") await openApplication();
   } finally {
-    busy = false;
+    configurationLock.active = false;
   }
 
   const link = pendingLink ?? process.argv.find((arg) => arg.startsWith(`${identity.scheme}://`));
