@@ -498,6 +498,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
       "list_messenger_channel_members",
       "list_messenger_users",
       "list_messenger_subscriptions",
+      "read_messenger_history",
       "answer_interaction",
       "set_thread_permission",
     ];

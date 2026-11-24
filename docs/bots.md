@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-24): w prywatnym czacie właściciel może zapytać bota o treść
+i wynik obsługi wiadomości z jego aktywnych subskrypcji Slack. Dostępność
+w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): przy pierwszym zwykłym wejściu do Bots po ponownym
 uruchomieniu web/desktop otwiera ostatnio wyświetloną rozmowę z botem, jeśli
 aktualna lista potwierdza jego dostępność. Profil klienta zapamiętuje
@@ -257,9 +261,20 @@ zapisuje w czacie informację o odpowiedzi. Jeśli sama tura zakończy się bł�
 wpis wskazuje rozmowę, której dotyczył. W czasie pracy wiersz pod rozmową pokazuje
 pisanie, używanie narzędzia lub oczekiwanie na decyzję.
 
+Na pytanie właściciela o ostatnią wiadomość lub błąd w Messages bot może użyć
+`read_messenger_history`. Bez identyfikatora tury dostaje metadane maksymalnie
+10 najnowszych tur własnych aktywnych subskrypcji, z opcjonalnym filtrem kanału
+lub wątku Slack. Widzi osobno stan tury, stan wysyłki odpowiedzi przez outbox
+oraz zapisany kod i źródło błędu. Po wybraniu tury może przeczytać fragmenty
+ostatnich ośmiu wpisów w kolejności rozmowy (do 4096 znaków na wpis), w tym
+wiadomości przyjęte w trakcie pracy oraz odpowiedź lub komunikat błędu.
+Wynik oznacza skrócone wpisy i pominięte starsze wpisy. Gateway sprawdza
+pochodzenie prywatnej wiadomości właściciela i aktualny dostęp do rozmowy.
+Odczyt działa także dla historii zapisanej przed dodaniem narzędzia.
+
 Historia modelu zewnętrznego obejmuje tylko dany UUID rozmowy. Prywatna rozmowa,
-handoff, lista botów, licznik nieprzeczytanych i podgląd generowania nie ujawniają
-surowej treści kanałów. Zewnętrzna tura korzysta ze zwykłych grantów connectorów
+handoff, lista botów, licznik nieprzeczytanych i podgląd generowania nie pobierają
+automatycznie surowej treści kanałów. Zewnętrzna tura korzysta ze zwykłych grantów connectorów
 oraz narzędzi pracy, w tym delegowania przez `start_thread`, a Web access i Files
 respektują konfigurację bota. Pliki pozostają w workspace danego UUID rozmowy.
 Subskrypcja wybiera źródło i trwałe instrukcje zachowania właściciela; nie tworzy

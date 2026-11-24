@@ -3,6 +3,8 @@ import { SqlClient } from "effect/sql";
 import { messengerAccounts } from "./store-accounts.ts";
 import { messengerRoutes } from "./store-routes.ts";
 import { messengerIngest } from "./store-ingest.ts";
+import type { BotTurn } from "../bots/types.ts";
+import { readMessengerHistory, type HistorySelection } from "./store-history.ts";
 import { messengerDispatch } from "./store-dispatch.ts";
 import { messengerOutbound } from "./store-outbound.ts";
 import { botSubscriptions } from "./store-bot-subscriptions.ts";
@@ -18,6 +20,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...publicAccounts,
     ...routes,
     ...botSubscriptions(sql, routes),
+    readHistory: (owner: string, turn: BotTurn, selection: HistorySelection) =>
+      readMessengerHistory(sql, owner, turn, selection),
     ingest: messengerIngest(sql, accounts),
     ...messengerDispatch(sql),
     ...messengerOutbound(sql, accounts),
