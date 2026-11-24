@@ -1,5 +1,5 @@
 import type { ui, EnvironmentFileStatus, EnvironmentSkillStatus } from "@canopy/contracts";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 import { EnvironmentPreview } from "./EnvironmentPreview";
 import { Button, Notice } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
@@ -19,6 +19,7 @@ export function EnvironmentComputer({
   onChanged: () => void;
 }) {
   const resource = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
+  const openSettingsSection = useOpenSettingsSection();
   const pending = worker.report?.revision !== worker.desiredRevision;
   const disabled = resource.busy || !worker.online || pending;
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import type { ui } from "@canopy/contracts";
 import { ConnectionStatus, type StreamState } from "./ConnectionStatus";
 import { StatusDot } from "../../ui/Badge";
@@ -13,6 +13,7 @@ import { habitSuggestionLabel, usePendingHabitReviews } from "../settings/memory
 import { SidebarUsage } from "./SidebarUsage";
 
 export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; stream: StreamState }) {
+  const openSettingsSection = useOpenSettingsSection();
   const c = useColors();
   const [compact, setCompact] = useState(true);
   const [connectionCompact, setConnectionCompact] = useState(true);
@@ -37,7 +38,7 @@ export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; strea
         <IconButton
           icon="cog-6-tooth"
           label={pendingHabits ? `Settings, ${habitSuggestionLabel(pendingHabits)} to review` : "Settings"}
-          onPress={() => router.push("/settings")}
+          onPress={() => openSettingsSection("general")}
         />
         {pendingHabits > 0 && (
           <View pointerEvents="none" style={{ position: "absolute", top: 5, right: 5 }}>

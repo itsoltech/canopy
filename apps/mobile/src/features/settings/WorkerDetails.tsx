@@ -1,7 +1,7 @@
 import { useAppearance } from "../../state/appearance";
 import { useState } from "react";
 import { ui } from "@canopy/contracts";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 import { Button, Notice } from "../../ui/components";
 import { SettingsRow, SettingsSection } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
@@ -29,6 +29,7 @@ export function WorkerDetails({
 }) {
   const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
   const { threadsEnabled } = useAppearance();
+  const openSettingsSection = useOpenSettingsSection();
   const tags = record ?? environment.workers.find((w) => w.workerId === worker.id);
 
   const readOnly =

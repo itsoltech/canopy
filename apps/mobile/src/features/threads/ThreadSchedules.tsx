@@ -3,7 +3,7 @@ import type { ui } from "@canopy/contracts";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors, useTypography } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { ThreadPanelSection } from "./ThreadPanelSection";
 
 export function ThreadSchedules({
@@ -21,6 +21,7 @@ export function ThreadSchedules({
 }) {
   const c = useColors();
   const type = useTypography();
+  const openSettingsSection = useOpenSettingsSection();
 
   return (
     <ThreadPanelSection title="Scheduled tasks" count={schedules.length || undefined}>

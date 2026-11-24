@@ -7,7 +7,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { ProjectWorktreeDefaults } from "./ProjectWorktreeDefaults";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 import { ResourceState, confirmAction } from "./resource";
 import { ProjectDefaults, type ProjectResource } from "./ProjectDefaults";
 import { ProjectColorSetting } from "./ProjectColorSetting";
@@ -29,6 +29,7 @@ export function ProjectDetailsSheet({
 }) {
   const { workers, computers } = useOverview();
   const details = useProjectDetails();
+  const openSettingsSection = useOpenSettingsSection();
   const [adding, setAdding] = useState(false);
   const [addingWorkspace, setAddingWorkspace] = useState(false);
 

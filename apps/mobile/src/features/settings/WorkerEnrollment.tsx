@@ -12,7 +12,7 @@ import { useForegroundInterval } from "../../ui/interval";
 import { copyText } from "../viewers/useCopyText";
 import { WorkerSsh } from "./WorkerSsh";
 import { WorkerInstallCommands } from "./WorkerInstallCommands";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 
 function useEnrollment(setup: ui.GetWorkerSetupResponse) {
   const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
@@ -100,6 +100,7 @@ function useEnrollment(setup: ui.GetWorkerSetupResponse) {
 type Enrollment = ReturnType<typeof useEnrollment>;
 
 export function WorkerEnrollment({ setup, onClose }: { setup: ui.GetWorkerSetupResponse; onClose: () => void }) {
+  const openSettingsSection = useOpenSettingsSection();
   const enrollment = useEnrollment(setup);
 
   const {

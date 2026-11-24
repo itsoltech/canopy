@@ -5,12 +5,13 @@ import { useSession } from "../../state/session";
 import { toast } from "../../ui/Toast";
 import { useDevicePreferences } from "./device-preferences";
 import { MEMORY_HABITS, useMemoryHabits } from "./memory-habits";
-import { openSettingsSection } from "./navigation";
+import { useOpenSettingsSection } from "./navigation";
 
 type Baseline = { ids?: Set<string>; changed: boolean };
 
 /** Each overview subscription starts with a quiet read of the currently reviewable suggestions. */
 export function HabitReviewNotice() {
+  const openSettingsSection = useOpenSettingsSection();
   const { active, online, queries } = useSession();
   const { connection } = useOverviewStream();
   const { loaded, values } = useDevicePreferences();

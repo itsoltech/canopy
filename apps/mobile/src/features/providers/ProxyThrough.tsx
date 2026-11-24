@@ -4,7 +4,7 @@ import type { ui } from "@canopy/contracts";
 import { proxyAccountsHint, proxyAccountsSummary } from "@canopy/domain/proxy-accounts";
 import { useSession } from "../../state/session";
 import { styles, useColors } from "../../ui/theme";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { useSettingsResource } from "../settings/resource";
 
 /**
@@ -12,6 +12,7 @@ import { useSettingsResource } from "../settings/resource";
  * A proxy's plan limits belong to its upstream accounts, so this replaces the plan meters; details are on the proxy.
  */
 export function ProxyThrough({ instance }: { instance: ui.ProviderInstance }) {
+  const openSettingsSection = useOpenSettingsSection();
   const c = useColors();
   const { client } = useSession();
   const proxies = useSettingsResource("ListProxies", (api) => api.listProxies({}));

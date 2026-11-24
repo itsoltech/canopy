@@ -10,7 +10,7 @@ import { styles, useColors } from "../../ui/theme";
 import { useMotion } from "../../ui/motion";
 import { StatusDot } from "../../ui/Badge";
 import { AppUpdateStatus } from "../settings/AppUpdateStatus";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { useUpdates } from "./state";
 import { bulkUpdatesAvailable, updatesRunning, type UpdateRequest } from "./model";
 import { UpdateRows } from "./UpdateRows";
@@ -60,6 +60,7 @@ export function UpdateCenterButton() {
 }
 
 export function UpdateCenter() {
+  const openSettingsSection = useOpenSettingsSection();
   const { snapshot, open, setOpen, pending, manage, optimistic, run, active } = useUpdates();
   const phone = usePhoneUpdates();
   const destination = useRef<"settings" | "notes" | undefined>(undefined);

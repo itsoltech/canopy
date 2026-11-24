@@ -6,13 +6,14 @@ import { placementPath } from "@canopy/domain/git-heads";
 import { PickerSheet } from "../../ui/Picker";
 import { useColors, useTypography } from "../../ui/theme";
 import { toast } from "../../ui/Toast";
-import { openSettingsSection } from "../settings/navigation";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { ThreadBranch } from "./ThreadBranch";
 import { useOverview } from "../../state/overview";
 import { ThreadPanelLine } from "./ThreadPanelLine";
 
 /** The working directory on one line: a worktree by its name, a directory with its leading part shortened. */
 function Location({ thread, home, onClose }: { thread: ui.Thread; home?: string; onClose: () => void }) {
+  const openSettingsSection = useOpenSettingsSection();
   const c = useColors();
   const type = useTypography();
   const [open, setOpen] = useState(false);
