@@ -99,6 +99,14 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
     await gw?.close();
   });
 
+  const claimOwnerTurn = async (botId: string, text: string) => {
+    await botStore((s) => s.enqueue(gw.userId, botId, text, Bun.randomUUIDv7()));
+    const turn = (await botStore((s) => s.claim(gw.userId)))!;
+    expect(turn).toMatchObject({ bot_id: botId, conversation_id: null });
+
+    return turn;
+  };
+
   const fixture = async () => {
     const bot = await gw.core.bots.create(
       create(bots.CreateBotRequestSchema, {
@@ -123,11 +131,7 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
       }),
     );
 
-    await botStore((s) =>
-      s.enqueue(gw.userId, bot.id, "Listen to product and remember my reaction instructions", Bun.randomUUIDv7()),
-    );
-    const turn = (await botStore((s) => s.claim(gw.userId)))!;
-    expect(turn.bot_id).toBe(bot.id);
+    const turn = await claimOwnerTurn(bot.id, "Listen to product and remember my reaction instructions");
 
     return { bot, account, turn };
   };
@@ -159,6 +163,158 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
   };
 
   const finish = (turn: BotTurn) => botStore((s) => s.finish(turn, "completed", ""));
+
+  async function historyFixture() {
+    const { bot, account, turn } = await fixture();
+    const args = { ...subscription(account.id), channel_ids: ["CPRODUCT", "COPS"], delivery: "reply", observe: false };
+    await call(turn, "save_messenger_subscription", args);
+    await finish(turn);
+    const now = new Date();
+    const lease = (await messenger((s) => s.claimAccount(gw.userId, account.id, "history-test", now)))!;
+
+    const dispatch = async (channelId: string, threadId: string, messageId: string, text: string) => {
+      const event = {
+        id: Bun.randomUUIDv7(),
+        accountId: account.id,
+        channelId,
+        threadId,
+        messageId,
+        authorId: "UOWNER",
+        text,
+        timestamp: messageId,
+        mention: true,
+        direct: false,
+      };
+
+      expect(await messenger((s) => s.ingest(gw.userId, event, lease, now))).toEqual(["buffered"]);
+
+      return messenger((s) => s.dispatch(gw.userId, new Date(now.getTime() + 3000)));
+    };
+
+    const start = async (channelId: string, threadId: string, text: string) => {
+      expect(await dispatch(channelId, threadId, threadId, text)).toEqual([]);
+      const active = (await botStore((s) => s.claim(gw.userId)))!;
+      expect(active).toMatchObject({ bot_id: bot.id, input: expect.stringContaining(text) });
+
+      return active;
+    };
+
+    return { bot, account, args, dispatch, start };
+  }
+
+  test("private owner history lists the latest ten Slack outcomes and opens one precise transcript", async () => {
+    const f = await historyFixture();
+    const first = await f.start("CPRODUCT", "100.1", "Check missing receipts");
+    const [steer] = await f.dispatch("CPRODUCT", "100.1", "100.2", "Include yesterday");
+    expect(steer?.turnId).toBe(first.id);
+    await messenger((s) => s.settleSteer(gw.userId, steer!.id, true, first.id));
+    await botStore((s) => s.finish(first, "completed", "Found the missing receipts"));
+    const failed = await f.start("COPS", "200.1", "Inspect sync failures");
+    await botStore((s) => s.finish(failed, "failed", "The provider session expired", "session_expired", "harness"));
+
+    const older = await query<{ id: string }>(
+      `WITH past AS (INSERT INTO bot_turns(id,bot_id,client_request_id,conversation_id,input,status,created_at)
+       SELECT gen_random_uuid(),$1::uuid,'past-' || n,$2::uuid,'Past request','completed',now() - n * interval '1 day'
+       FROM generate_series(1, 9) n RETURNING id,created_at) SELECT id FROM past ORDER BY created_at DESC`,
+      [f.bot.id, first.conversation_id!],
+    );
+
+    const owner = await claimOwnerTurn(f.bot.id, "What happened in Slack?");
+
+    try {
+      const summary = await call(owner, "read_messenger_history");
+
+      const turns = Schema.decodeUnknownSync(
+        Schema.Struct({ turns: Schema.Array(Schema.Struct({ turn_id: Schema.String })) }),
+      )(summary).turns;
+
+      expect(turns.map((t) => t.turn_id)).toEqual([failed.id, first.id, ...older.slice(0, 8).map((row) => row.id)]);
+      const encoded = JSON.stringify(summary);
+
+      for (const text of [
+        "messages",
+        "Check missing receipts",
+        "Include yesterday",
+        "Found the missing receipts",
+        "Inspect sync failures",
+        "The provider session expired",
+      ])
+        expect(encoded).not.toContain(text);
+      expect(await call(owner, "read_messenger_history", { channel_id: "COPS" })).toMatchObject({
+        turns: [
+          {
+            turn_id: failed.id,
+            account: f.account.name,
+            channel_id: "COPS",
+            thread_id: "200.1",
+            status: "failed",
+            delivery_status: null,
+            error_code: "session_expired",
+            error_source: "harness",
+            created_at: expect.any(String),
+          },
+        ],
+      });
+      expect(await call(owner, "read_messenger_history", { channel_id: "COPS", thread_ts: "100.1" })).toMatchObject({
+        turns: [],
+      });
+      expect(await call(owner, "read_messenger_history", { turn_id: first.id })).toMatchObject({
+        turns: [
+          {
+            turn_id: first.id,
+            status: "completed",
+            delivery_status: "pending",
+            messages: [
+              { sender_id: "channel", text: expect.stringContaining("Check missing receipts") },
+              { sender_id: "channel", text: expect.stringContaining("Include yesterday") },
+              { sender_id: f.bot.id, text: "Found the missing receipts" },
+            ],
+          },
+        ],
+      });
+      expect(await call(owner, "read_messenger_history", { turn_id: failed.id })).toMatchObject({
+        turns: [
+          {
+            turn_id: failed.id,
+            messages: [
+              { sender_id: "channel", text: expect.stringContaining("Inspect sync failures") },
+              { sender_id: f.bot.id, text: "The provider session expired" },
+            ],
+          },
+        ],
+      });
+    } finally {
+      await finish(owner);
+    }
+  });
+
+  test("private history excludes other bots and channels removed from the subscription", async () => {
+    const f = await historyFixture();
+    const external = await f.start("COPS", "300.1", "Private incident report");
+    await botStore((s) => s.finish(external, "completed", "Incident received"));
+    const other = await fixture();
+
+    try {
+      expect(await call(other.turn, "read_messenger_history")).toMatchObject({ turns: [] });
+      expect(await call(other.turn, "read_messenger_history", { turn_id: external.id })).toMatchObject({ turns: [] });
+    } finally {
+      await finish(other.turn);
+    }
+
+    const owner = await claimOwnerTurn(f.bot.id, "Which Slack turns can I see?");
+
+    try {
+      await expect(
+        call(owner, "read_messenger_history", { turn_id: external.id }, undefined, Bun.randomUUIDv7()),
+      ).rejects.toThrow("private message");
+      expect(await call(owner, "read_messenger_history")).toMatchObject({ turns: [{ turn_id: external.id }] });
+      await call(owner, "save_messenger_subscription", { ...f.args, channel_ids: ["CPRODUCT"] });
+      expect(await call(owner, "read_messenger_history")).toMatchObject({ turns: [] });
+      expect(await call(owner, "read_messenger_history", { turn_id: external.id })).toMatchObject({ turns: [] });
+    } finally {
+      await finish(owner);
+    }
+  });
 
   test("private setup persists instructions, survives reclaimed calls, replaces one own route and stops idempotently", async () => {
     const f = await fixture();
@@ -344,6 +500,7 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
       );
       const routines = await botStore((s) => s.routines(gw.userId, f.bot.id));
       await query("UPDATE bot_turns SET routine_id=$1 WHERE id=$2", [routines[0]!.id, f.turn.id]);
+      await expect(call(f.turn, "read_messenger_history")).rejects.toThrow("private message");
       await expect(call(f.turn, "save_messenger_subscription", args)).rejects.toThrow("private message");
       await expect(call(f.turn, "get_canopy_preference", { setting_id: "appearance.color_scheme" })).rejects.toThrow(
         "private owner message",
@@ -374,6 +531,7 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
       await query("UPDATE bot_turns SET conversation_id=$1 WHERE id=$2", [conversation.id, f.turn.id]);
 
       for (const name of [
+        "read_messenger_history",
         "list_messenger_accounts",
         "list_messenger_subscriptions",
         "list_messenger_channels",
