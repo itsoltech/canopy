@@ -48,7 +48,8 @@ export const CONNECTOR_TYPES = [
     url: "https://mcp.atlassian.com/v1/mcp",
     authKinds: ["oauth"],
     requirements: "Jira and Confluence through the Atlassian Rovo MCP server.",
-    documentationUrl: "https://support.atlassian.com/atlassian-rovo-mcp-server/",
+    documentationUrl:
+      "https://support.atlassian.com/atlassian-ai-gateway/docs/get-started-with-the-atlassian-remote-mcp-server/",
     authMethods: AUTH_METHODS.atlassian,
   },
   {

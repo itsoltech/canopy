@@ -1,7 +1,8 @@
 # Konektory Canopy
 
 Status (2026-11-24): w web/desktop **Tool accounts** zawiera konta MCP, a po włączeniu modułu Bots
-zakładka **Slack bots** udostępnia konta wiadomości.
+zakładka **Slack bots** udostępnia konta wiadomości. Okno **Connect Atlassian**
+prowadzi do instrukcji konfiguracji serwera MCP w Atlassian Support.
 
 Status (2026-11-23): sparowany telefon kończy OAuth kodem wklejonym ze strony powrotu.
 
@@ -403,7 +404,7 @@ Odebranie grantu albo odłączenie wiadomości blokuje nowe wysyłki.
 | GitHub | `https://api.githubcopilot.com/mcp/` | PAT Bearer lub OAuth, S256, refresh; protected resource metadata; AS nie ogłasza DCR | PAT albo zarejestrowana aplikacja GitHub z client ID/secret | [Oficjalny serwer](https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md), HTTP 401 z `resource_metadata`; [metadata AS](https://github.com/.well-known/oauth-authorization-server/login/oauth) odczytane, issuer `https://github.com/login/oauth`; bez live |
 | Notion | `https://mcp.notion.com/mcp` | OAuth 2.1, DCR, S256, refresh; także MCP token na Business/Enterprise | Zgoda konta; token MCP opcjonalnie | [Dokumentacja](https://developers.notion.com/guides/mcp/get-started-with-mcp), metadata AS odczytane; zwykły integration token nie jest tokenem MCP |
 | Linear | `https://mcp.linear.app/mcp` | OAuth 2.1, DCR, S256, refresh; API key/Bearer | Zgoda albo API key | [Dokumentacja](https://linear.app/docs/mcp), metadata AS odczytane; bez live |
-| Atlassian | `https://mcp.atlassian.com/v1/mcp` | OAuth, DCR, S256, refresh | Zgoda i dostęp do Jira/Confluence; ograniczenia administratora | [Dokumentacja](https://support.atlassian.com/atlassian-rovo-mcp-server/), metadata AS odczytane; endpoint i polityka tenantów wymagają live |
+| Atlassian | `https://mcp.atlassian.com/v1/mcp` | OAuth, DCR, S256, refresh | Zgoda i dostęp do Jira/Confluence; ograniczenia administratora | [Dokumentacja](https://support.atlassian.com/atlassian-ai-gateway/docs/get-started-with-the-atlassian-remote-mcp-server/), metadata AS odczytane; endpoint i polityka tenantów wymagają live |
 | Slack | `https://mcp.slack.com/mcp` | Confidential OAuth, S256, refresh; brak DCR w metadata | Aplikacja Slack z manifestu Canopy (wewnętrzna, we własnym workspace), client ID/secret | [Dokumentacja](https://docs.slack.dev/ai/slack-mcp-server/), metadata wskazują user OAuth `slack.com/oauth/v2_user/authorize` i `oauth.v2.user.access`; bez live |
 | Microsoft 365 / Outlook | Do ustalenia dla tenantu (Work IQ MCP / Tools registry) | Entra ID, wymagania tenantu; brak założenia o publicznym DCR | Endpoint, aplikacja Entra, zgody administratora | [Microsoft Learn](https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview); preset wymaga URL tenantu, alternatywnie Custom MCP; bez zgadywanego globalnego URL |
 | Google Workspace | Brak potwierdzonego ogólnego oficjalnego zdalnego MCP dla Gmail/Calendar | Zależnie od wybranego serwera | Własny zdalny MCP i jego OAuth app/token | Preset wymaga URL; nie utożsamiamy Google Cloud MCP z Workspace |
