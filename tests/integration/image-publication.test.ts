@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash, randomBytes } from "node:crypto";
 import { isMessage, toJsonString } from "@bufbuild/protobuf";
-import { ExportThreadImageSchema, ItemSchema, Provider, type AgentToolResult } from "@canopy/contracts";
+import { ExportThreadImageSchema, ItemSchema, ItemStatus, Provider, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { AttachmentStore, GatewayStore } from "@canopy/gateway/store";
 import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol";
@@ -9,6 +9,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import sharp from "sharp";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import { mp4 } from "./support/video-fixtures.ts";
 
 describe.skipIf(!dockerAvailable)("durable image publication over WorkerLink", () => {
   let gw: TestGateway;
@@ -104,6 +105,63 @@ describe.skipIf(!dockerAvailable)("durable image publication over WorkerLink", (
 
   const show = (source: { threadId: string; turnId: string }, callId = Bun.randomUUIDv7()) =>
     worker.callTool({ ...source, callId, tool: "show_images", args: { images } });
+
+  test("publishes a playable recording with a durable receipt and rejects images renamed as videos", async () => {
+    const source = await turn();
+    const path = "recordings/result.mp4";
+    const caption = "The finished interaction";
+    const callId = Bun.randomUUIDv7();
+    const publish = () => worker.callTool({ ...source, callId, tool: "show_video", args: { path, caption } });
+
+    files.set(path, mp4);
+    const reply = await publish();
+    expect(reply.isError).toBe(false);
+    const published = json(reply);
+    expect(published.delivered).toBe(true);
+    const id = published.attachment_ids[0]!;
+    files.delete(path);
+    expect(json(await publish())).toEqual(published);
+
+    const snapshot = await gw.runtime.runPromise(GatewayStore.use((s) => s.snapshot(source.threadId)));
+    const video = snapshot.items.find((row) => row.item?.itemId === published.item_id)?.item?.content;
+    expect(video).toMatchObject({
+      case: "publishedVideo",
+      value: { caption, attachment: { id, name: "result.mp4", kind: "video", durationMs: 2000, hasThumbnail: true } },
+    });
+    const range = await gw.api.getAttachment({ attachmentId: id, offset: 8n, limit: 16 });
+    expect(range.data).toEqual(new Uint8Array(mp4.subarray(8, 24)));
+    await expect(gw.runtime.runPromise(AttachmentStore.use((s) => s.owned(Bun.randomUUIDv7(), id)))).rejects.toThrow(
+      "not found",
+    );
+
+    worker.emit(source.threadId, source.turnId, {
+      case: "itemCompleted",
+      value: {
+        item: {
+          itemId: "forged-recording",
+          status: ItemStatus.COMPLETED,
+          content: { case: "publishedVideo", value: { attachment: { id }, caption: "Forged recording" } },
+        },
+      },
+    });
+    await eventually(
+      () => query("SELECT 1 FROM worker_event_quarantine WHERE thread_id=$1::uuid", [source.threadId]),
+      (rows) => rows.length === 1,
+    );
+    expect(await query("SELECT 1 FROM thread_items WHERE item_id='forged-recording'")).toHaveLength(0);
+
+    files.set(path, png);
+    const rejected = await worker.callTool({ ...source, tool: "show_video", args: { path } });
+    expect(rejected.isError).toBe(true);
+    expect(rejected.content).toContain("Choose an MP4, MOV or WebM video.");
+    expect(
+      await query("SELECT id FROM attachments WHERE thread_id=$1::uuid AND turn_id=$2::uuid", [
+        source.threadId,
+        source.turnId,
+      ]),
+    ).toHaveLength(1);
+    files.delete(path);
+  });
 
   test("copies normalized bytes, thumbnail and a small gateway manifest, then replays once after restart", async () => {
     const source = await turn();
@@ -270,14 +328,14 @@ describe.skipIf(!dockerAvailable)("durable image publication over WorkerLink", (
       SELECT gen_random_uuid(),$1::uuid,$2::uuid,$3::uuid,'fixture',gen_random_uuid(),now(),'committed',10,1 FROM generate_series(1,10)`,
       [source.threadId, source.turnId, gw.workerId],
     );
-    expect((await show(source)).content).toContain("image limit");
+    expect((await show(source)).content).toContain("attachment limit");
     await query("DELETE FROM thread_image_publications WHERE turn_id=$1::uuid", [source.turnId]);
     await query(
       `INSERT INTO thread_image_publications(call_id,thread_id,turn_id,worker_id,request_hash,lease_token,expires_at,state,image_count,size_bytes)
       SELECT gen_random_uuid(),$1::uuid,$2::uuid,$3::uuid,'fixture',gen_random_uuid(),now(),'committed',1,52428800 FROM generate_series(1,4)`,
       [source.threadId, source.turnId, gw.workerId],
     );
-    expect((await show(source)).content).toContain("image limit");
+    expect((await show(source)).content).toContain("attachment limit");
     const foreign = await turn();
     expect((await show({ threadId: source.threadId, turnId: foreign.turnId })).isError).toBe(true);
     worker.finish(source.threadId, source.turnId);

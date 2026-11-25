@@ -1,5 +1,5 @@
 import { useLayoutEffect, type ReactNode } from "react";
-import { Modal, StyleSheet, Text } from "react-native";
+import { Modal, StyleSheet, Text, type ModalProps } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
@@ -18,6 +18,7 @@ export function FullScreenViewer({
   onClose,
   closeLabel = "Close viewer",
   onRequestClose = onClose,
+  supportedOrientations,
   actions,
   fade,
   children,
@@ -26,6 +27,7 @@ export function FullScreenViewer({
   onClose: () => void;
   closeLabel?: string;
   onRequestClose?: () => void;
+  supportedOrientations?: ModalProps["supportedOrientations"];
   actions?: ReactNode;
   fade?: SharedValue<number>;
   children: ReactNode;
@@ -42,6 +44,7 @@ export function FullScreenViewer({
       animationType="none"
       presentationStyle={fade ? "overFullScreen" : "fullScreen"}
       onRequestClose={onRequestClose}
+      supportedOrientations={supportedOrientations}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>

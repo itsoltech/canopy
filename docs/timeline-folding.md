@@ -9,6 +9,9 @@ w nagłówkach pracy. Po ukończonej turze wiadomości o postępie pozostają w 
 pracy, także gdy dostawca kończy turę pustą odpowiedzią. Dostępność w wydaniach
 zależy od kanału.
 
+Aktualizacja (2026-11-25): nowe karty visuals w web/desktop/mobile pojawiają się
+po zakończeniu swojej tury, tak samo jak galerie zdjęć i nagrania.
+
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
 przy przyjęciu wiadomości, przed wysłaniem `StartTurn`. Echo `user_message` od
 dostawcy zastępuje placeholder w tym samym miejscu, tuż po początku tury, nawet
@@ -48,7 +51,7 @@ grup i poleceń nie powielają podglądu w `title`. Wiersz narzędzia może poka
 w podpowiedzi krótką, jednoliniową ścieżkę lub adres URL, gdy uzupełnia skróconą
 etykietę.
 
-Poza foldem widać tylko ostatnią wiadomość agenta tury (albo segmentu, niżej), w stałym wierszu `answer:<turnId>`, i to dopiero wtedy, gdy wiadomo, że jest końcowa. Regułę liczy wspólne `answerIndex` (`packages/domain/src/work-fold.ts`) dla webu i mobile:
+Ostatnia wiadomość agenta tury (albo segmentu, niżej) trafia poza fold w stałym wierszu `answer:<turnId>`, gdy wiadomo, że jest końcowa. Galerie zdjęć, nagrania i nowe karty visuals pojawiają się pod odpowiedzią po zakończeniu tury. Regułę wyboru wiadomości liczy wspólne `answerIndex` (`packages/domain/src/work-fold.ts`) dla webu i mobile:
 
 | Dostawca | Sygnał | Kiedy odpowiedź wychodzi z foldu |
 | --- | --- | --- |

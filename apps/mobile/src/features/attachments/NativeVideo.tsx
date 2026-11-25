@@ -1,49 +1,70 @@
 import { useCallback, useEffect, useState } from "react";
-import { AppState, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
 import { Button } from "../../ui/Button";
 import { styles, useColors } from "../../ui/theme";
-import { useImage } from "./useImage";
 import { VideoPoster } from "./VideoPoster";
+import { VideoSurface } from "./VideoSurface";
 import { openVideoStream } from "./video-stream";
 
-export function NativeVideo({ file }: { file: ui.Attachment }) {
+export function NativeVideo({
+  file,
+  expanded,
+  onExpandedChange,
+}: {
+  file: ui.Attachment;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}) {
   const { client } = useSession();
   const c = useColors();
+  const { height } = useWindowDimensions();
+  const frame = expanded ? layout.expanded : [layout.frame, { maxHeight: Math.max(164, height - 216) }];
   const [uri, setUri] = useState("");
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
-  const failed = useCallback(() => setError(true), []);
+
+  const failed = useCallback(() => {
+    setError(true);
+    onExpandedChange(false);
+  }, [onExpandedChange]);
 
   useEffect(() => {
     const controller = new AbortController();
     setUri("");
     setError(false);
 
+    const streamFailed = () => {
+      if (!controller.signal.aborted) failed();
+    };
+
     if (client)
-      void openVideoStream(client.api, file.id, controller.signal, () => setError(true))
+      void openVideoStream(client.api, file.id, controller.signal, streamFailed)
         .then((stream) => {
           if (!controller.signal.aborted) setUri(stream.uri);
         })
-        .catch(() => {
-          if (!controller.signal.aborted) setError(true);
-        });
+        .catch(streamFailed);
 
     return () => controller.abort();
-  }, [client, file.id, retry]);
+  }, [client, failed, file.id, retry]);
 
   return (
-    <View style={{ gap: 12 }}>
-      {uri && !error ? (
-        <VideoSurface uri={uri} file={file} onError={failed} />
-      ) : (
-        <View style={{ height: 180 }}>
-          <VideoPoster file={file} />
-        </View>
-      )}
+    <View style={[layout.container, expanded && layout.expanded]}>
+      <View style={frame}>
+        {uri && !error ? (
+          <VideoSurface
+            key={uri}
+            uri={uri}
+            file={file}
+            expanded={expanded}
+            onExpandedChange={onExpandedChange}
+            onError={failed}
+          />
+        ) : (
+          <VideoPoster file={file} showPlay={false} />
+        )}
+      </View>
       {error ? (
         <>
           <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
@@ -58,67 +79,8 @@ export function NativeVideo({ file }: { file: ui.Attachment }) {
   );
 }
 
-function VideoSurface({ uri, file, onError }: { uri: string; file: ui.Attachment; onError: () => void }) {
-  const [started, setStarted] = useState(false);
-
-  const player = useVideoPlayer({ uri, contentType: "progressive", useCaching: false }, (value) => {
-    value.muted = true;
-    value.loop = false;
-    value.staysActiveInBackground = false;
-    value.showNowPlayingNotification = false;
-    value.bufferOptions = { preferredForwardBufferDuration: 5 };
-  });
-
-  const poster = useImage({ kind: "attachment", file }, true, file.hasThumbnail);
-
-  useFocusEffect(useCallback(() => () => player.pause(), [player]));
-  useEffect(() => {
-    const state = AppState.addEventListener("change", (value) => {
-      if (value !== "active") player.pause();
-    });
-
-    const status = player.addListener("statusChange", (event) => {
-      if (event.status === "error") onError();
-    });
-
-    const playing = player.addListener("playingChange", (event) => {
-      if (event.isPlaying) setStarted(true);
-    });
-
-    return () => {
-      state.remove();
-      status.remove();
-      playing.remove();
-      player.pause();
-    };
-  }, [player, onError]);
-
-  return (
-    <View style={{ gap: 8 }}>
-      <View style={{ height: 220, borderRadius: 8, overflow: "hidden" }}>
-        <VideoView
-          player={player}
-          nativeControls
-          fullscreenOptions={{ enable: true }}
-          allowsPictureInPicture={false}
-          contentFit="contain"
-          style={{ flex: 1 }}
-        />
-        {!started && poster.uri ? (
-          <View pointerEvents="none" style={{ position: "absolute", inset: 0 }}>
-            <VideoPoster file={file} />
-          </View>
-        ) : null}
-      </View>
-      {!started ? (
-        <Button
-          title="Play video"
-          onPress={() => {
-            setStarted(true);
-            player.play();
-          }}
-        />
-      ) : null}
-    </View>
-  );
-}
+const layout = StyleSheet.create({
+  container: { gap: 12 },
+  expanded: { flex: 1 },
+  frame: { aspectRatio: 16 / 9, minHeight: 164, borderRadius: 8, overflow: "hidden" },
+});

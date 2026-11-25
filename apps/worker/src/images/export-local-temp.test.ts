@@ -86,7 +86,7 @@ test("Temp exports require a worker-selected pinned root and an explicit active-
     await expect(exports.execute(request(sharedImage), scope)).rejects.toThrow(outside);
     await expect(exports.execute(request(tempImage), { ...scope, running: false })).rejects.toThrow("ended");
     await expect(exports.execute({ ...request(tempImage), maxBytes: 1n }, scope)).rejects.toThrow(
-      "remaining image limit",
+      "remaining attachment limit",
     );
 
     for (const path of [

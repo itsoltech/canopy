@@ -8,15 +8,20 @@ import { AgentToolResultSchema, type AgentToolCall, type AgentToolResult, type W
 export function gatewayToolRefusal(call: AgentToolCall, welcome: Welcome | undefined): AgentToolResult | undefined {
   if (!welcome) return undefined;
 
+  const video = call.toolName === "show_video" && !call.connectorAccountId && !call.botId;
+
   const unavailable =
     (call.toolName === "render_visual" && !welcome.threadVisualsV1) ||
-    (call.toolName === "render_html" && !welcome.threadHtmlV1);
+    (call.toolName === "render_html" && !welcome.threadHtmlV1) ||
+    (video && !welcome.threadVideoRepliesV1);
 
   if (!unavailable) return undefined;
 
   return create(AgentToolResultSchema, {
     callId: call.callId,
     isError: true,
-    content: "Update Canopy on the gateway computer to show visuals.",
+    content: video
+      ? "Update Canopy on the gateway computer to show videos."
+      : "Update Canopy on the gateway computer to show visuals.",
   });
 }

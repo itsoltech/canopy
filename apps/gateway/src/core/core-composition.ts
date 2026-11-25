@@ -29,7 +29,7 @@ import { deliverBotSteer } from "./bot-steer.ts";
 import { publishThreadVisual } from "./visual-publication.ts";
 import { answerBotThreadApproval } from "./bot-thread-approval.ts";
 import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
-import { publishThreadImages } from "./image-publication.ts";
+import { publishThreadMedia } from "./image-publication.ts";
 import { importImageReply } from "./image-markdown.ts";
 import { releaseFound } from "../updates/found.ts";
 import { switchAgentWorktree } from "../worktrees/switch-agent-worktree.ts";
@@ -98,7 +98,7 @@ export function createCoreBus(core: GatewayCore): AgentBus {
       return result;
     },
     requestSecret: (source, args, connection) => core.secrets.request(source, args, connection),
-    showImages: (source, caller, args) => publishThreadImages(core, source, caller, args),
+    publishMedia: (source, caller, request) => publishThreadMedia(core, source, caller, request),
     importImageReply: (source, caller, itemId) => importImageReply(core, source, caller, itemId),
     renderVisual: (source, caller, args) => publishThreadVisual(core, source, caller, args),
     interrupt: (threadId) => core.interrupt(threadId),

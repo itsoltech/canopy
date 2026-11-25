@@ -27,8 +27,8 @@ import {
 import { projectSecretRequest } from "./project-secret-tool.ts";
 import { redactToolOutput } from "../providers/secret-tool-output.ts";
 
-function isImagePublication(call: AgentToolCall): boolean {
-  return call.toolName === "show_images" && !call.connectorAccountId && !call.botId;
+function isMediaPublication(call: AgentToolCall): boolean {
+  return (call.toolName === "show_images" || call.toolName === "show_video") && !call.connectorAccountId && !call.botId;
 }
 
 const switchedWorkspace = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ cwd: Schema.String })));
@@ -219,7 +219,7 @@ export class HostEvents {
         create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Thread closed" }),
       );
     const { link, toolCalls, secrets } = this.ctx.state;
-    const imagePublication = isImagePublication(call);
+    const mediaPublication = isMediaPublication(call);
     const projectSecret = isProjectSecretCall(call);
 
     if (projectSecret) {
@@ -243,7 +243,7 @@ export class HostEvents {
         }),
       );
 
-    if (imagePublication && !link)
+    if (mediaPublication && !link)
       return Promise.resolve(
         create(AgentToolResultSchema, {
           callId: call.callId,
@@ -300,13 +300,13 @@ export class HostEvents {
 
       toolCalls.set(call.callId, { call, resolve: finish });
 
-      if ((imagePublication || projectSecret) && link) {
-        // Unlike replayable waits, image transfer is bound to the gateway connection that started it.
+      if ((mediaPublication || projectSecret) && link) {
+        // Media transfer is bound to the gateway connection that started it.
         try {
           link.send({ case: "agentToolCall", value: call });
         } catch {
           if (projectSecret) secrets.fenceProjectTurns();
-          this.toolResult(projectSecret ? projectSecretFailure(call.callId) : disconnectedImageResult(call.callId));
+          this.toolResult(projectSecret ? projectSecretFailure(call.callId) : disconnectedMediaResult(call));
         }
       } else this.ctx.ops.send({ case: "agentToolCall", value: call });
     });
@@ -318,7 +318,7 @@ export class HostEvents {
     this.ctx.state.secrets.fenceProjectTurns();
 
     for (const { call } of this.ctx.state.toolCalls.values())
-      if (isImagePublication(call)) this.toolResult(disconnectedImageResult(call.callId));
+      if (isMediaPublication(call)) this.toolResult(disconnectedMediaResult(call));
 
     return true;
   }
@@ -353,11 +353,12 @@ export class HostEvents {
   }
 }
 
-function disconnectedImageResult(callId: string): AgentToolResult {
+function disconnectedMediaResult(call: AgentToolCall): AgentToolResult {
+  const media = call.toolName === "show_video" ? "the video was" : "the images were";
+
   return create(AgentToolResultSchema, {
-    callId,
+    callId: call.callId,
     isError: true,
-    content:
-      "Lost the connection to the gateway. Canopy could not confirm that the images were published. Check the thread before trying again.",
+    content: `Lost the connection to the gateway. Canopy could not confirm that ${media} published. Check the thread before trying again.`,
   });
 }

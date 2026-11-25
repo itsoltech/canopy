@@ -28,7 +28,8 @@ export interface ImageRoot {
   open(parts: readonly string[]): ImageFile;
 }
 
-export const rootChanged = () => imageRefusal("The image directory changed. Restore it before showing images.");
+export const rootChanged = () =>
+  imageRefusal("The source directory changed. Restore it before publishing attachments.");
 
 export function pathParts(path: string): string[] {
   return relative(parse(path).root, path).split(sep).filter(Boolean);

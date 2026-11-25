@@ -14,6 +14,7 @@ import "canopy/worker/v1/agent_tools.proto";
 import "canopy/worker/v1/cli_import.proto";
 import "canopy/worker/v1/workspace_copy.proto";
 import "canopy/ui/v1/diagnostics.proto";
+import "canopy/ui/v1/attachments.proto";
 
 // Jednorazowa rejestracja nowego workera tokenem z UI.
 service WorkerEnrollmentService {
@@ -277,6 +278,7 @@ message Welcome {
   bool thread_html_v1 = 8;
   // The gateway can authorize exact local scopes after permanent purge.
   bool thread_storage_cleanup_v1 = 9;
+  bool thread_video_replies_v1 = 10;
 }
 
 message ThreadLifecycle {
@@ -930,7 +932,7 @@ message CommandResult {
 
 message ProbeAgentTools {}
 
-// A single immutable export, scoped to the source turn. The worker independently
+// A single immutable media export, scoped to the source turn. The worker independently
 // verifies the requested thread roots and the active turn.
 message ExportThreadImage {
   string thread_id = 1;
@@ -942,7 +944,7 @@ message ExportThreadImage {
   string operation = 6;
   uint64 offset = 7;
   uint64 max_bytes = 8;
-  // Desktop show_images only. The local Windows worker selects its own per-user Temp root.
+  // Desktop media publication only. The local Windows worker selects its own per-user Temp root.
   bool allow_local_temp = 9;
 }
 
@@ -1442,9 +1444,16 @@ message Item {
     ImageGallery image_gallery = 25;
     // Gateway-owned interactive visual manifest (docs/agent-visuals.md). The spec is read with GetVisual.
     Visual visual = 26;
+    // Gateway-owned recording attached to the agent's reply.
+    PublishedVideo published_video = 27;
     // Typ dostawcy bez dedykowanego mapowania. Dane są pełne, UI pokazuje widok ogólny.
     ProviderItem provider_item = 30;
   }
+}
+
+message PublishedVideo {
+  canopy.ui.v1.Attachment attachment = 1;
+  string caption = 2;
 }
 
 message ImageGallery {

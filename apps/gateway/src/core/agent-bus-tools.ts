@@ -44,7 +44,8 @@ export async function busExecute(
     case "switch_worktree":
       return hostContext[busState].host.switchWorktree(source, caller, call.args, hops);
     case "show_images":
-      return hostContext[busState].host.showImages(source, caller, call.args);
+    case "show_video":
+      return hostContext[busState].host.publishMedia(source, caller, call);
     case "import_image_reply":
       return hostContext[busState].host.importImageReply(source, caller, call.args.item_id);
     case "render_visual":

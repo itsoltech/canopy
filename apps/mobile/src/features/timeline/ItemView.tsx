@@ -21,6 +21,7 @@ import { WebSearchView } from "./items/WebSearchView";
 import { UserMessageView } from "./UserMessageView";
 import { QuoteItem } from "../quotes/QuoteAction";
 import { ImageGallery } from "../attachments/ImageGallery";
+import { PublishedVideoView } from "../attachments/PublishedVideoView";
 import { VisualView } from "../visuals/VisualView";
 
 export { itemNodes, type ItemNode } from "./item-nodes";
@@ -98,6 +99,9 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       break;
     case "imageGallery":
       view = <ImageGallery gallery={content.value} />;
+      break;
+    case "publishedVideo":
+      view = <PublishedVideoView video={content.value} />;
       break;
     case "visual":
       view = <VisualView visual={content.value} />;

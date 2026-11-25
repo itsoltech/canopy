@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import type { Item, Provider, ui } from "@canopy/contracts";
-import { foldId, workFoldOpen, type WorkFoldChoice, type WorkFoldState } from "@canopy/domain/work-fold";
+import {
+  foldId,
+  isPublishedReply,
+  turnProgress,
+  workFoldOpen,
+  type WorkFoldChoice,
+  type WorkFoldState,
+} from "@canopy/domain/work-fold";
 import type { WorkGroupChoices } from "@canopy/domain/work-group-choices";
 import type { NoticeState } from "@canopy/domain/turn-notices";
 import { ShellMessage } from "../../ui/ShellMessage";
@@ -35,15 +42,11 @@ export interface TurnContext {
 }
 
 /** Published results and billing notices remain outside collapsed work. */
-const visibleResult = (row: BodyRow) =>
-  (row.kind === "item" && (row.node.item.content.case === "imageGallery" || row.node.item.content.case === "visual")) ||
-  (row.kind === "notice" && row.notice.notice?.code === "extra_usage");
+const isReplyRow = (row: BodyRow) =>
+  row.kind === "item" ? isPublishedReply(row.node.item.content) : row.notice.notice?.code === "extra_usage";
 
-/** Gallery files are already saved, but their reply waits until the turn ends. */
 const replyResults = (body: readonly BodyRow[], ended: boolean) =>
-  body.filter(
-    (row) => visibleResult(row) && (ended || row.kind !== "item" || row.node.item.content.case !== "imageGallery"),
-  );
+  body.filter((row) => isReplyRow(row) && (ended || row.kind === "notice"));
 
 const answerEnd = (body: readonly BodyRow[], at: number | undefined) => {
   const row = at === undefined ? undefined : body[at];
@@ -56,7 +59,7 @@ function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], contex
   const saved = context.foldChoices.get(turn.id);
 
   if (saved || !target) return saved ?? new Map<number, WorkFoldChoice>();
-  const body = turnBody(turn, entries, context.notices).filter((row) => !visibleResult(row));
+  const body = turnBody(turn, entries, context.notices).filter((row) => !isReplyRow(row));
   const choices = new Map<number, WorkFoldChoice>();
 
   segmentsOf(turn, body, () => false).forEach((segment, index) => {
@@ -105,8 +108,8 @@ export function TimelineTurn({
 
   const allBody = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
 
-  const body = allBody.filter((row) => !visibleResult(row));
-  const ended = ["completed", "interrupted", "failed", "cancelled"].includes(turn.status);
+  const body = allBody.filter((row) => !isReplyRow(row));
+  const ended = turnProgress(turn.status) !== "live";
   const plan = segmentsOf(turn, body, () => false);
 
   const state = (index: number): WorkFoldState => {

@@ -195,6 +195,7 @@ const WORK_LABELS = new Map([
   ["list_project_secrets", "Listing project secrets"],
   ["import_image_reply", "Importing an image"],
   ["show_images", "Sharing images"],
+  ["show_video", "Sharing a video"],
   ["render_html", "Preparing a visual"],
   ["render_visual", "Preparing a visual"],
   ["memory_search", "Searching memory notes"],

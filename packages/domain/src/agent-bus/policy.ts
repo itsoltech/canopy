@@ -150,6 +150,7 @@ export function authorizeBusCall(
 
       return call.args.continuation ? hopsDecision(facts, limits, false) : allow;
     case "show_images":
+    case "show_video":
     case "import_image_reply":
     case "render_visual":
     case "render_html":

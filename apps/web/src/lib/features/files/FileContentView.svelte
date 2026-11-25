@@ -44,7 +44,7 @@
   {@const path = file.path || file.relativePath || target.path}
   {@const src = workspaceVideoUrl(target.threadId, path, target.itemId)}
   {#key `${src}:${file.modifiedMs}:${file.size}:${file.sha256}`}
-    <VideoPlayer {src} label={fileName(path)} embedded />
+    <VideoPlayer {src} label={fileName(path)} placement="workspace" />
   {/key}
 {:else if file.truncated && file.binary}
   <p class="p-4 text-sm text-muted">This file exceeds the 2 MB preview limit. Open it on the thread’s computer.</p>

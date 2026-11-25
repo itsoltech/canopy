@@ -15,6 +15,7 @@ export function VideoSummary({ file, onClose }: { file: ui.Attachment; onClose: 
   const c = useColors();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState(false);
 
   async function save() {
     if (!client || busy) return;
@@ -37,6 +38,8 @@ export function VideoSummary({ file, onClose }: { file: ui.Attachment; onClose: 
     <FullScreenViewer
       title={file.name}
       onClose={onClose}
+      onRequestClose={expanded ? () => setExpanded(false) : onClose}
+      supportedOrientations={["portrait", "landscape"]}
       actions={
         <Button
           title={Platform.OS === "android" ? "Save video" : "Share video"}
@@ -47,13 +50,15 @@ export function VideoSummary({ file, onClose }: { file: ui.Attachment; onClose: 
         />
       }
     >
-      <View style={{ padding: 16, gap: 12 }}>
-        <NativeVideo file={file} />
-        <Text style={[styles.caption, { color: c.muted }]}>
-          {[formatSize(file.sizeBytes), formatVideoDuration(file.durationMs)].filter(Boolean).join(" · ")}
-        </Text>
+      <View style={expanded ? { flex: 1 } : { padding: 16, gap: 12 }}>
+        <NativeVideo file={file} expanded={expanded} onExpandedChange={setExpanded} />
+        {expanded ? null : (
+          <Text style={[styles.caption, { color: c.muted }]}>
+            {[formatSize(file.sizeBytes), formatVideoDuration(file.durationMs)].filter(Boolean).join(" · ")}
+          </Text>
+        )}
         {error ? (
-          <Text accessibilityRole="alert" style={[styles.body, { color: c.danger }]}>
+          <Text accessibilityRole="alert" style={[styles.body, { color: c.danger, padding: expanded ? 16 : 0 }]}>
             {error}
           </Text>
         ) : null}

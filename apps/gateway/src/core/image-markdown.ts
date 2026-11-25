@@ -4,11 +4,11 @@ import { localMarkdownImages, type LocalMarkdownImage } from "@canopy/domain/mar
 import { IMAGE_REPLY_LIMITS } from "@canopy/domain/image-replies";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
-import { readImageMessage, imageTextHash, imageMessageItem, writeImageItem } from "../store/image-message.ts";
+import { readImageMessage, imageTextHash, imageMessageItem, writeMediaItem } from "../store/image-message.ts";
 import { lockImageSource, type ImagePublication } from "../store/image-publications.ts";
 import { Invalid, type CallSource, type ThreadRow } from "../store/index.ts";
 import { coreState } from "./core-context.ts";
-import { publishThreadImages } from "./image-publication.ts";
+import { publishThreadMedia } from "./image-publication.ts";
 import type { GatewayCore } from "./core.ts";
 
 /** A recovering ingest lane may yield the stream before its completion is durable. */
@@ -47,15 +47,11 @@ export async function importImageReply(core: GatewayCore, source: CallSource, ca
     if (manifest.references.length > IMAGE_REPLY_LIMITS.batchCount)
       throw new Invalid("Show up to 10 images in one message. Use show_images for selected screenshots.");
 
-    return await publishThreadImages(
-      core,
-      source,
-      caller,
-      {
-        images: manifest.references.map((ref) => ({ path: ref.path, alt: ref.alt })),
-      },
-      manifest,
-    );
+    return await publishThreadMedia(core, source, caller, {
+      tool: "show_images",
+      args: { images: manifest.references.map((ref) => ({ path: ref.path, alt: ref.alt })) },
+      markdown: manifest,
+    });
   } catch (cause) {
     const input: ImagePublication = {
       source,
@@ -75,7 +71,7 @@ export async function importImageReply(core: GatewayCore, source: CallSource, ca
               yield* lockImageSource(sql, input);
               const updated = yield* imageMessageItem(sql, source, manifest, [], error);
 
-              return yield* writeImageItem(sql, source, updated);
+              return yield* writeMediaItem(sql, source, updated);
             }),
           ),
         ),
