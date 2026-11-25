@@ -43,6 +43,7 @@ import { PreviewWindows } from "./preview-windows.ts";
 import { registerMigrationIpc } from "./migration-ipc.ts";
 import { DesktopUsagePing } from "./usage-ping.ts";
 import { NotificationBadge } from "./notification-badge.ts";
+import { ActivityNotch } from "./activity-notch.ts";
 
 const identity = desktopIdentity();
 
@@ -82,6 +83,7 @@ const configurationLock = new ConfigurationLock();
 const quitSettings = new QuitSettings(app.getPath("userData"));
 const usagePing = new DesktopUsagePing(app.getPath("userData"));
 const notificationBadge = new NotificationBadge();
+const activityNotch = new ActivityNotch(openRoute);
 const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
 const quitKey = quitKeyEvent(quitLog);
 
@@ -113,6 +115,7 @@ function authorize(event: IpcMainInvokeEvent | IpcMainEvent, setupOnly = false) 
 function broadcast() {
   if (quitting) return;
   notificationBadge.statusChanged(status);
+  activityNotch.statusChanged(status);
   remoteUpdate?.changed();
 
   if (remoteUpdate && !remoteUpdate.active) void remoteUpdate.publish().catch(() => {});
@@ -167,7 +170,10 @@ function createWindow(main = false) {
     webUrl: () => status.webUrl,
   });
 
-  if (main) target.on("focus", sendUsagePing);
+  if (main) {
+    target.on("focus", sendUsagePing);
+    activityNotch.track(target);
+  }
 
   return target;
 }
@@ -260,6 +266,7 @@ app.on("before-quit", (event) => {
   if (requestWorkspaceQuit()) return;
   quitting = true;
   notificationBadge.clear();
+  activityNotch.clear();
   webSession.revoke(appContents());
   previews.closeAll();
   stopPower();
@@ -339,17 +346,9 @@ function registerIpc() {
   registerHistoryIpc(history, authorize, () => status.phase === "running" && !status.needsPairing);
   registerWindowPreferencesIpc(authorize, iconPath);
   notificationBadge.register(authorize);
+  activityNotch.register(authorize);
   registerWorkspaceClose(authorize);
   registerAppRouteIpc(appRoutes, authorize, () => window);
-  ipcMain.handle("canopy:status", (event) => {
-    authorize(event);
-
-    return status;
-  });
-  ipcMain.handle("canopy:settings", (event) => {
-    authorize(event);
-    openSettings();
-  });
   registerQuitIpc({
     guard: quitGuard,
     settings: quitSettings,
@@ -371,6 +370,7 @@ function registerIpc() {
     authorize,
     avoidRestart: () => configurationLock.active || updates.installing || !!remoteUpdate?.active,
     onSwitch: async (client) => {
+      activityNotch.invalidate();
       previews.closeAll();
       await history.clear();
       startupError = "";
@@ -387,7 +387,7 @@ function registerIpc() {
     if (pendingLink) enrollment(pendingLink);
   });
   registerModeIpc(
-    (event) => authorize(event, true),
+    authorize,
     () => configurationLock.acquire(),
     () => rpc("migration-status"),
     () => ({
@@ -395,6 +395,7 @@ function registerIpc() {
       directory: app.getPath("userData"),
       remoteUpdate,
       logs,
+      openSettings,
       closeSettings: () => closeModeChooser(settingsWindow, window),
       apply: async (config, client) => {
         previews.closeAll();
@@ -402,6 +403,7 @@ function registerIpc() {
         startupError = "";
         await rpc("configure", { configuration: config, remoteClient: client });
         notificationBadge.invalidate();
+        activityNotch.invalidate();
         sendUsagePing();
 
         if (status.phase === "running") await openApplication();

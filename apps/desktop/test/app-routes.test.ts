@@ -3,8 +3,14 @@ import { isDesktopRoute } from "@canopy/ui/desktop";
 import { AppRoutes } from "../src/app-routes.ts";
 import { settingsMenu } from "../src/settings-menu.ts";
 
-test("desktop route IPC accepts Settings paths and rejects external or unrelated navigation", () => {
-  for (const path of ["/settings", "/settings/connectors", "/settings/projects/project-id"])
+test("desktop route IPC accepts Settings and conversation paths and rejects unrelated navigation", () => {
+  for (const path of [
+    "/settings",
+    "/settings/connectors",
+    "/settings/projects/project-id",
+    "/threads/thread-id~home-id",
+    "/bots/bot-id",
+  ])
     expect(isDesktopRoute(path)).toBe(true);
 
   for (const path of [
@@ -24,6 +30,11 @@ test("desktop route IPC accepts Settings paths and rejects external or unrelated
     "/settings?next=/desktop",
     "/settings#other",
     "/settings\n",
+    "/threads",
+    "/bots/bot-id/other",
+    "/threads/thread-id\n",
+    "/threads/%2e%2e",
+    "/bots/bot-id?next=/desktop",
   ])
     expect(isDesktopRoute(path)).toBe(false);
 });

@@ -45,7 +45,15 @@ if (process.platform === "darwin") {
   }
 }
 
-for (const name of ["main", "desktop-main", "html-viewer-process", "preload", "html-preload", "html-compile-worker"]) {
+for (const name of [
+  "main",
+  "desktop-main",
+  "html-viewer-process",
+  "preload",
+  "html-preload",
+  "html-compile-worker",
+  "activity-notch-preload",
+]) {
   const result = await Bun.build({
     entrypoints: [resolve(root, `src/${name}.ts`)],
     metafile: !!licenseOutput,

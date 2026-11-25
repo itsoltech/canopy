@@ -19,6 +19,7 @@
   let permission = $state<NotificationPermission | "unavailable" | "unsupported">();
   let desktop = $state(false);
   let macOS = $state(false);
+  let activityNotch = $state(false);
   let pending = $state<{ key: Key; value: string }>();
   let attempted = $state<Key>();
   let permissionRead = 0;
@@ -103,6 +104,7 @@
   onMount(() => {
     desktop = Boolean(window.canopyDesktop?.showNotification);
     macOS = Boolean(window.canopyDesktop?.notificationPermission);
+    activityNotch = Boolean(window.canopyDesktop?.setActivityNotch);
     void refresh();
     window.addEventListener("focus", refresh);
 
@@ -207,4 +209,15 @@
       { value: "off", label: "Off" },
     ]}
   />
+  {#if activityNotch}
+    <DeviceChoiceRow
+      preference="activityNotch"
+      title="Activity notch"
+      description="Show thread and bot statuses at the top of your screen while Canopy is in the background."
+      options={[
+        { value: "on", label: "On" },
+        { value: "off", label: "Off" },
+      ]}
+    />
+  {/if}
 </SettingsGroup>

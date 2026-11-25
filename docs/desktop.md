@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-25): **Activity notch** to eksperymentalna, domyślnie wyłączona
+nakładka aktywności wątków i botów na macOS i Windows. [Obsługa i weryfikacja](#activity-notch)
+
 Status (2026-11-24): w trybie zdalnym **Settings → Workers** rozróżnia lokalnego
 workera i workery zarejestrowane na gatewayu. Zapisany adres gatewaya można
 sprawdzić i edytować również podczas awarii połączenia.
@@ -425,6 +428,37 @@ platformie desktop pasek tytułu 48 px, więc jego treść zaczyna się pod
 kontrolkami. Otwarty modal przykrywa kontrolki backdropem jak resztę okna; na
 Windows 11 nie ma menu Snap Layouts przy maximize (Win+Z działa). Zmiana schematu
 ustawia nativeTheme; System reaguje na preferencję systemu.
+
+### Activity notch
+
+**Settings → General → Notifications → Activity notch** włącza nakładkę w
+bieżącym profilu Desktop, w trybie lokalnym i zdalnym. Gdy główne okno działa
+w tle, Canopy pokazuje pigułkę u góry obszaru roboczego głównego ekranu.
+Kliknięcie pigułki rozwija do 24 pozycji. Kliknięcie wiersza przywraca główne
+okno i otwiera odpowiedni wątek lub rozmowę bota. Nakładka znika po
+przywróceniu fokusu, wyłączeniu ustawienia albo zamknięciu głównego okna.
+
+Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
+o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
+Okno pokazuje numerowane etykiety i stan. Dostaje wyłącznie identyfikatory
+i numery wierszy, typ i stan. Trasy rozmów zostają w procesie głównym. Przy utracie
+połączenia lub zmianie gatewaya Canopy czyści dostępne pozycje. Powiadomienia
+systemowe i ich preferencje działają niezależnie.
+
+Nakładka używa nieaktywującego panelu Electron na macOS i okna bez fokusu oraz
+pozycji na pasku zadań na Windows. Położenie wynika z obszaru roboczego ekranu.
+Test integracyjny Electron sprawdza okno, IPC, przejście po kliknięciu w
+rendererze i sprzątanie po zmianie połączenia lub zamknięciu okna. Pełną obsługę
+wejścia i zachowanie systemu trzeba sprawdzić w sesji graficznej na obu
+platformach:
+
+- Na macOS sprawdzić kliknięcie przy aktywnej innej aplikacji, Dock i menu
+  systemowe, ekran z wycięciem i ekran bez niego oraz Spaces i pełny ekran.
+- Na Windows sprawdzić kliknięcie przy aktywnej innej aplikacji, Alt+Tab,
+  pasek zadań, zamykanie ostatniego okna oraz skalowanie 100% i 150%.
+- Na obu platformach sprawdzić brak przejęcia fokusu przy zmianie stanu
+  i rozwinięciu listy, przejście do rozmowy po kliknięciu wiersza oraz
+  zmianę głównego ekranu i odłączenie monitora.
 
 ### Pozycja i rozmiar okna
 

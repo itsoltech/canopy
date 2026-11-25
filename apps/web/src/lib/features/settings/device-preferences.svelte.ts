@@ -14,6 +14,7 @@ export const deviceChoices = {
   botNotifications: ["off", "notifications", "sound"],
   claudeLimitResetNotifications: ["off", "on"],
   inAppNotifications: ["on", "off"],
+  activityNotch: ["off", "on"],
   showFinishedSubagents: ["off", "on"],
   subagentsExpanded: ["off", "on"],
   finishedSubagentsExpanded: ["off", "on"],
@@ -47,6 +48,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   botNotifications: "off",
   claudeLimitResetNotifications: "off",
   inAppNotifications: "on",
+  activityNotch: "off",
   showFinishedSubagents: "off",
   subagentsExpanded: "off",
   finishedSubagentsExpanded: "off",
@@ -194,6 +196,7 @@ export const generalDeviceKeys = [
   "botNotifications",
   "claudeLimitResetNotifications",
   "inAppNotifications",
+  "activityNotch",
   "timeFormat",
 ] as const;
 
