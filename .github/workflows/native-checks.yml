@@ -24,7 +24,8 @@ jobs:
           - { target: darwin-x64, runner: macos-26-intel }
           - { target: windows-x64, runner: windows-2025, suffix: .exe }
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 10
+    # Include time for the Bun cache to be saved after the native checks finish.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - name: Decode the small Dev app icon representations with macOS
