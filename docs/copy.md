@@ -101,6 +101,7 @@ appear only as the literal name used by an external tool).
 | gateway | Canopy's central service that the UI connects to | server, backend, hub |
 | push relay | the service that sends mobile push notifications from a gateway | proxy, tunnel |
 | worker | the Canopy process that runs agents on a computer | runner, agent host, node |
+| physical input | permission for Agent Desktop to move the pointer, change window focus and send keystrokes | headed mode, mouse mode |
 | computer | a physical machine running Canopy or a worker | machine, host, box, node |
 | device | a phone or tablet paired with Canopy | phone app, client |
 | Access ID | identifier of an individual grant in Settings → Devices when pairing details match | device ID, computer ID |

@@ -101,6 +101,7 @@ test("desktop keeps startup session and batch scope aligned without unsupported 
       "desktop_click",
       "desktop_batch",
       "desktop_session_end",
+      "desktop_mouse_click",
     ]);
 
     for (const tool of catalog.tools) {

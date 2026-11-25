@@ -2542,7 +2542,8 @@ konfigurowane dla tego telefonu w General z uwzględnieniem uprawnień systemowy
 i obsługi relaya przez gateway.
 Settings → Agent tools pokazuje gotowość narzędzi Browser, Desktop i Device,
 logi instalacji i dostęp poszczególnych workerów. Rozwinięta karta pozwala zapisać
-wartości początkowe nowych sesji. Zakres i zasady opisuje [Agent tools](automation-tools.md).
+wartości początkowe nowych sesji i jawnie zezwolić Agent Desktop na fizyczne sterowanie
+w kolejnych turach. Zakres i zasady opisuje [Agent tools](automation-tools.md).
 Settings → Memory pojawia się, gdy gateway obsługuje listę, zapis i usuwanie notatek.
 Lista ma podział na strony i filtr zakresu. Gdy gateway zwraca opcje filtrów, można
 również wyszukać tekst notatki albo wybrać konkretny projekt i workera.

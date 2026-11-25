@@ -64,7 +64,9 @@ export function bindDesktopCall(params: Call, session: string): Call {
   return params;
 }
 
-export function desktopCatalog(tools: Tool[], session: string): Tool[] {
+export function desktopCatalog(tools: Tool[], session: string, allowPhysicalInput?: boolean): Tool[] {
+  const mode = allowPhysicalInput ? " The owner enabled physical input for this Desktop session." : "";
+
   return tools.flatMap((tool) => {
     if (blockedTools.has(tool.name)) return [];
     const properties = { ...tool.inputSchema.properties };
@@ -84,7 +86,7 @@ export function desktopCatalog(tools: Tool[], session: string): Tool[] {
     return [
       {
         ...tool,
-        description: `${tool.description ?? ""}\n${SESSION_INSTRUCTIONS}${batchInstructions}`,
+        description: `${tool.description ?? ""}\n${SESSION_INSTRUCTIONS}${mode}${batchInstructions}`,
         inputSchema: { ...tool.inputSchema, properties },
       },
     ];

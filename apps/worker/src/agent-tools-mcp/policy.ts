@@ -32,7 +32,8 @@ export function automationCatalog(tools: Tool[], scope?: AutomationScope): Tool[
 
   if (scope.tool === AgentTool.BROWSER) return browserCatalog(catalog);
 
-  if (scope.tool === AgentTool.DESKTOP) return desktopCatalog(catalog, scope.session);
+  if (scope.tool === AgentTool.DESKTOP)
+    return desktopCatalog(catalog, scope.session, scope.defaults?.desktop?.allowPhysicalInput);
 
   if (scope.tool === AgentTool.DEVICE) return deviceMcpCatalog(catalog);
 

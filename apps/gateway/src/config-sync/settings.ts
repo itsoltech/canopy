@@ -66,6 +66,7 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
       "agentToolDefaults.browser.viewportHeight": null,
       "agentToolDefaults.browser.colorScheme": "",
       "agentToolDefaults.desktop.app": "",
+      "agentToolDefaults.desktop.allowPhysicalInput": false,
       "agentToolDefaults.device.platform": "",
       "agentToolDefaults.device.allowBoot": null,
       "agentToolDefaults.device.acquireTimeoutSeconds": null,

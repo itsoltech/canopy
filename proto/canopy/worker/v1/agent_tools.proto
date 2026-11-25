@@ -28,6 +28,8 @@ message BrowserSessionDefaults {
 
 message DesktopSessionDefaults {
   string app = 1;
+  // Owner opt-in for headed Agent Desktop MCP in subsequent turns.
+  bool allow_physical_input = 2;
 }
 
 message DeviceSessionDefaults {

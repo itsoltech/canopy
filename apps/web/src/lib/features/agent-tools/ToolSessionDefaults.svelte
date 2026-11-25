@@ -4,9 +4,8 @@
   import { AgentTool, AgentToolSessionDefaultsSchema } from "@canopy/contracts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
-  import Field from "#lib/shared/ui/Field.svelte";
-  import Input from "#lib/shared/ui/Input.svelte";
   import BrowserDefaultsFields from "./BrowserDefaultsFields.svelte";
+  import DesktopDefaultsFields from "./DesktopDefaultsFields.svelte";
   import DeviceDefaultsFields from "./DeviceDefaultsFields.svelte";
   import { sessionDefaults } from "@canopy/domain/agent-tool-settings";
 
@@ -27,8 +26,15 @@
     if (saving || error) return;
     untrack(() => {
       if (!equals(AgentToolSessionDefaultsSchema, baseline, next)) {
-        if (equals(AgentToolSessionDefaultsSchema, draft, baseline))
+        if (equals(AgentToolSessionDefaultsSchema, draft, baseline)) {
           draft = clone(AgentToolSessionDefaultsSchema, next);
+        } else if (draft.desktop && baseline.desktop && next.desktop) {
+          if (draft.desktop.app === baseline.desktop.app) draft.desktop.app = next.desktop.app;
+
+          if (draft.desktop.allowPhysicalInput === baseline.desktop.allowPhysicalInput)
+            draft.desktop.allowPhysicalInput = next.desktop.allowPhysicalInput;
+        }
+
         baseline = next;
       }
     });
@@ -41,6 +47,7 @@
   }
 
   async function save() {
+    if (!dirty || saving || !settings.loaded) return;
     const browser = draft.browser;
     const device = draft.device;
 
@@ -74,7 +81,7 @@
     result = "";
 
     try {
-      const confirmed = await settings.updateAgentToolDefaults(submitted);
+      const confirmed = await settings.updateAgentToolDefaults(submitted, baseline);
 
       if (confirmed) {
         baseline = submitted;
@@ -101,12 +108,7 @@
     {#if draft.browser}
       <BrowserDefaultsFields bind:value={draft.browser} />
     {:else if draft.desktop}
-      <Field
-        label="Default app"
-        description="Used when no app or window is selected. Screen size follows the app or display."
-      >
-        <Input bind:value={draft.desktop.app} maxlength={200} placeholder="Safari" />
-      </Field>
+      <DesktopDefaultsFields bind:value={draft.desktop} />
     {:else if draft.device}
       <DeviceDefaultsFields bind:value={draft.device} />
       <p class="text-sm/5 text-zinc-500 dark:text-zinc-400">Screen size follows the selected device.</p>

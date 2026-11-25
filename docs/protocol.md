@@ -234,8 +234,8 @@ pominięty i zachowuje start z lokalnej bazy.
 
 ## Domyślne ustawienia narzędzi agentów
 
-Status (2026-11-17): zaimplementowane w kodzie; dostępność nightly/beta/stable
-wynika z promocji wydań ([release.md](release.md)).
+Status (2026-11-25): ustawienia i wybór trybu fizycznego Desktop są zaimplementowane
+w kodzie; dostępność nightly/beta/stable wynika z promocji wydań ([release.md](release.md)).
 
 Addytywne `ThreadSpec.agent_tool_defaults` (522) i
 `StartAgentPreview.agent_tool_defaults` (5) przenoszą `AgentToolSessionDefaults`
@@ -244,7 +244,9 @@ Desktop i Device. Brak sekcji lub wartości oznacza dotychczasowe domyślne zach
 opcjonalne `allow_boot=false` zachowuje jawne wyłączenie. Starsze workery ignorują
 nowe pola, a `WORKER_LINK_PROTOCOL` pozostaje bez zmian. Worker zachowuje istniejącą
 sesję Browser, stosuje aplikację Desktop tylko jako brakujący cel i nie uruchamia
-urządzeń przy biernym Preview. Szczegóły: [automation-tools.md](automation-tools.md#domyślne-ustawienia-sesji).
+urządzeń przy biernym Preview. `DesktopSessionDefaults.allow_physical_input` (2)
+zezwala na uruchomienie Desktop MCP w trybie fizycznym od kolejnej tury.
+Szczegóły: [automation-tools.md](automation-tools.md#domyślne-ustawienia-sesji).
 
 ## Status zmian i pull wątku
 

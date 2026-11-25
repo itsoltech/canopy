@@ -1479,11 +1479,15 @@ Szczegóły ręcznego przygotowania OS/SDK i ograniczeń są w automation-tools.
 Sterowanie użytkownika pozostaje w Preview wątku.
 
 `UserSettings.agent_tool_defaults` i odpowiadające pole `UpdateUserSettingsRequest`
-przechowują Browser (viewport i preferencja kolorów), Desktop (aplikacja) oraz Device
+przechowują Browser (viewport i preferencja kolorów), Desktop (aplikacja i zgoda na
+fizyczne sterowanie w kolejnych turach) oraz Device
 (platforma, start emulatorów i czas oczekiwania). UI korzysta ze wspólnego
 `PUT /api/settings/user`, wersjonowania i synchronizacji overview; zapis jednej karty
 zachowuje pozostałe narzędzia. Formularz potwierdza sukces według stanu zapisanego
 przez gateway, a nie optymistycznego podglądu. Reset wymaga Save defaults.
+Ponowiony po konflikcie zapis domyślnej aplikacji Desktop zachowuje aktualną
+zgodę na fizyczne sterowanie. Włączenie zgody po konflikcie wymaga ponownego
+zapisu przez użytkownika.
 Zakres to wszystkie workery użytkownika; wartości i pierwszeństwo jawnych argumentów
 opisuje [automation-tools.md](automation-tools.md#domyślne-ustawienia-sesji).
 

@@ -85,7 +85,7 @@
 
 {#snippet defaults()}
   <p class="text-base/6 text-pretty text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
-    These defaults apply to new sessions on all workers. Agents can override them.
+    These settings apply across your workers.
   </p>
   {#each agentTools as { tool, name } (tool)}
     <SettingsCard><ToolSessionDefaults {tool} {name} /></SettingsCard>

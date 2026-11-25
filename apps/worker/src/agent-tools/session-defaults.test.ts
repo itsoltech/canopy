@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
-import { AgentTool, BrowserSessionDefaultsSchema, RunAgentToolSchema } from "@canopy/contracts";
+import {
+  AgentTool,
+  BrowserSessionDefaultsSchema,
+  DesktopSessionDefaultsSchema,
+  RunAgentToolSchema,
+} from "@canopy/contracts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { PreviewRuntime } from "../agent-preview/runtime.ts";
@@ -11,7 +16,7 @@ async function connect(bridge: LocalAutomationMcp) {
   const client = new Client({ name: "Canopy session defaults fixture", version: "1" });
   const endpoint = bridge.servers[0];
 
-  if (!endpoint) throw new Error("Missing browser endpoint");
+  if (!endpoint) throw new Error("Missing automation endpoint");
   await client.connect(
     new StreamableHTTPClientTransport(new URL(endpoint.url), {
       requestInit: { headers: endpoint.headers },
@@ -108,6 +113,56 @@ test("Preview waits passively and applies browser defaults before explicit navig
     f.resize();
     await runtime.command(["open", "https://example.test/again"]);
     expect(f.state()).toEqual({ launched: true, width: 800, height: 600 });
+  } finally {
+    await f.tools.close();
+  }
+});
+
+test("Desktop enables physical input only in an opted-in turn and still authorizes each click", async () => {
+  const f = await defaultsFixture();
+  const mouseClick = { name: "desktop_mouse_click", arguments: { xy: "10,20" } };
+  f.spec.localMcpTools = [AgentTool.DESKTOP];
+
+  try {
+    for (const desktop of [{ app: "Editor" }, { allowPhysicalInput: true }, { allowPhysicalInput: false }]) {
+      f.defaults.desktop = create(DesktopSessionDefaultsSchema, desktop);
+      const { allowPhysicalInput } = f.defaults.desktop;
+      const bridge = f.bridge();
+      let client: Client | undefined;
+
+      try {
+        client = await connect(bridge);
+        const { tools } = await client.listTools();
+        const modeText = tools.find((tool) => tool.name === mouseClick.name)?.description;
+        expect(modeText?.includes("The owner enabled physical input")).toBe(allowPhysicalInput);
+
+        const before = f.mcpCalls();
+        f.deny(true);
+        await expect(client.callTool(mouseClick)).rejects.toThrow("Local automation denied");
+        expect(f.mcpCalls()).toBe(before);
+        f.deny(false);
+        const result = await client.callTool(mouseClick);
+        expect(f.mcpCalls()).toBe(before + 1);
+
+        if (allowPhysicalInput) {
+          expect(result.isError).toBe(false);
+          expect(result.structuredContent).toMatchObject({
+            ok: true,
+            data: { steps: [{ mechanism: "physical_synthetic" }] },
+          });
+        } else {
+          expect(result.isError).toBe(true);
+          expect(result.structuredContent).toMatchObject({
+            ok: false,
+            command: "mouse-click",
+            error: { code: "POLICY_DENIED", disposition: { delivery: "not_delivered" } },
+          });
+        }
+      } finally {
+        await client?.close();
+        await bridge.close();
+      }
+    }
   } finally {
     await f.tools.close();
   }

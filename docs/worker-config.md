@@ -35,7 +35,8 @@ Aktualizacja (2026-11-17): zarządzanie narzędziami automatyzacji jest w osobne
 zakładce Settings → Agent tools, z grantami per worker, zbiorczym stanem mieszanym
 i automatycznym startem potrzebnej instalacji przy włączaniu dostępu.
 Wspólne ustawienia użytkownika określają początkowy viewport i wygląd Browsera,
-domyślną aplikację Desktop oraz platformę, start emulatorów i oczekiwanie Device.
+domyślną aplikację i zgodę na fizyczne sterowanie Desktop oraz platformę, start
+emulatorów i oczekiwanie Device.
 Polityka konfiguracji użytkownika Claude i oddzielny
 wybór katalogów logowania, konfiguracji, sesji oraz prywatnych plików platformy
 są zaimplementowane w kodzie, także z obsługą jawnie włączonych hooków

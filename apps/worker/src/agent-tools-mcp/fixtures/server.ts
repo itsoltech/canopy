@@ -6,6 +6,34 @@ import { MAX_BYTES, RpcRequest } from "../protocol.ts";
 const eventPath = process.argv[2]!;
 const name = process.env["CANOPY_MCP_FIXTURE"] ?? "fixture";
 
+const desktopMouseClick = {
+  name: "desktop_mouse_click",
+  description: "Click desktop coordinates",
+  inputSchema: { type: "object", properties: { xy: { type: "string" } }, required: ["xy"] },
+};
+
+function desktopMouseClickResult() {
+  const headed = process.argv.includes("--headed");
+
+  const envelope = {
+    version: "2.6",
+    command: "mouse-click",
+    ok: headed,
+    ...(headed
+      ? { data: { steps: [{ mechanism: "physical_synthetic", outcome: "succeeded" }] } }
+      : {
+          error: {
+            code: "POLICY_DENIED",
+            message: "mouse-click moves the cursor and is disabled in headless mode",
+            recovery: { strategy: "request_explicit_policy_then_retry_original" },
+            disposition: { delivery: "not_delivered" },
+          },
+        }),
+  };
+
+  return { isError: !headed, structuredContent: envelope, content: [{ type: "text", text: JSON.stringify(envelope) }] };
+}
+
 const record = (event: string, id: string | number = 0) =>
   appendFileSync(eventPath, `${JSON.stringify({ event, id, pid: process.pid })}\n`);
 
@@ -64,7 +92,7 @@ input.on("line", (line) => {
 
   if (rpc.method === "tools/list") {
     if (process.env["CANOPY_MCP_DESKTOP_POLICY"] === "1") {
-      send({ tools: desktopTools() });
+      send({ tools: [...desktopTools(), desktopMouseClick] });
 
       return;
     }
@@ -135,6 +163,12 @@ input.on("line", (line) => {
   const tool = rpc.params?.["name"];
 
   if (tool === "wait") return;
+
+  if (tool === desktopMouseClick.name) {
+    send(desktopMouseClickResult());
+
+    return;
+  }
 
   if (tool === "image") {
     send({
