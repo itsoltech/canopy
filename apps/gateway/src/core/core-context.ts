@@ -26,7 +26,7 @@ import { BotStore } from "../bots/store.ts";
 import { MessengerStore } from "../messengers/store.ts";
 import type { BotModel } from "../bots/types.ts";
 import { ActionContext } from "./action-context.ts";
-import { type GatewayUpdatesOptions } from "../updates/runtime.ts";
+import type { GatewayUpdatesOptions } from "../updates/options.ts";
 import { type CliLatestOptions } from "./cli-tools.ts";
 import type { GatewayRole } from "../role.ts";
 

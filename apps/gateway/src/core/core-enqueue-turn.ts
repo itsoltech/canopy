@@ -18,7 +18,7 @@ export async function coreEnqueueTurn(
     return await hostContext[coreState].actions.transaction(async () => {
       const turn = await coreRun(hostContext, (s) => s.enqueueTurn(input));
 
-      if (!hostContext.updates.draining) await corePumpQueued(hostContext, input.threadId);
+      await corePumpQueued(hostContext, input.threadId);
 
       const current = (await coreRun(hostContext, (s) => s.turnsOf(input.threadId, [turn.id])))[0]!;
       const update = toUiTurn(current);

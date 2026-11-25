@@ -4,14 +4,9 @@ import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 import type { JsonObject } from "@canopy/domain";
-import {
-  onSupervisorHandover,
-  readUpdateRecord,
-  rollbackBinary,
-  superviseBinary,
-  UPDATE_RESTART_EXIT_CODE,
-} from "@canopy/updater";
+import { readUpdateRecord, rollbackBinary, superviseBinary, UPDATE_RESTART_EXIT_CODE } from "@canopy/updater";
 import { GatewayUpdates } from "../../../apps/gateway/src/updates/runtime.ts";
+import { GatewayStartupHandover } from "../../../apps/gateway/src/updates/startup-handover.ts";
 import { EMBEDDED_WEB } from "../../../apps/gateway/src/web/embedded.ts";
 import { EmbeddedWebServer } from "../../../apps/gateway/src/web/server.ts";
 import { serveEmbeddedWeb } from "../../../apps/gateway/src/web/serve.ts";
@@ -85,17 +80,22 @@ if (Bun.argv[2] === "web") {
       saveCommand: async () => {},
       report: async () => {},
     },
-    idle: async () => true,
+    idle: async () => {
+      event("idle-checked");
+
+      return !process.env["CANOPY_TEST_BUSY_HANDOVER"];
+    },
     restart,
   });
-  onSupervisorHandover(
+  const record = await readUpdateRecord(binaryPath);
+
+  const handover = new GatewayStartupHandover(
+    record,
     () => updates!.handover(),
     (message) => event("log", { message }),
   );
 
   // As in gateway.ts: a candidate's web must be healthy before it confirms; otherwise the gateway runs on.
-  const record = await readUpdateRecord(binaryPath);
-
   await web.start(record?.state === "restarting" && record.version === CANOPY_VERSION).catch(async (cause: unknown) => {
     const reason = `The web app of ${CANOPY_VERSION} didn't start: ${cause instanceof Error ? cause.message : String(cause)}`;
     event("web-failed", { message: reason });
@@ -103,7 +103,9 @@ if (Bun.argv[2] === "web") {
     process.exit(UPDATE_RESTART_EXIT_CODE);
   });
 
-  await updates.start();
+  const exitCode = await updates.start(() => handover.wait());
+
+  if (exitCode !== undefined) await restart(exitCode);
   event("healthy");
   setInterval(() => {
     void readFile(join(directory, "restart"), "utf8").then(

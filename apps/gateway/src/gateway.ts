@@ -11,7 +11,6 @@ import { ensureDevUser, gatewayRuntime, migrateDatabase, networkPort, webOrigin 
 import {
   installKind,
   isStandalone,
-  onSupervisorHandover,
   readUpdateRecord,
   rollbackBinary,
   serviceSnippet,
@@ -42,6 +41,9 @@ import { coreState } from "./core/core-context.ts";
 import { RelocationRuntime, StartupFenced } from "./migration/relocation-fence-runtime.ts";
 import { configuredManagedRelayOrigin } from "./push/managed-relay.ts";
 import { pushRelayOptions } from "./push/relay.ts";
+import { GatewayStartupHandover } from "./updates/startup-handover.ts";
+import type { Interceptor } from "@connectrpc/connect";
+import { closeGatewayStep } from "./shutdown.ts";
 
 const env = Bun.env;
 
@@ -177,12 +179,6 @@ const core = new GatewayCore({
   },
 });
 
-if (installKind() === "binary")
-  onSupervisorHandover(
-    () => core.updates.handover(),
-    (message) => console.info(message),
-  );
-
 const computerStore = new ComputerStore(runtime, userId, secretsKey);
 const fixedPort = networkPort(env);
 const web = webOrigin(env) ?? (embeddedWeb && embeddedWebOrigin(env));
@@ -235,6 +231,23 @@ startupComplete = true;
 await pollRelocation();
 
 async function start(serviceToken: string): Promise<number | undefined> {
+  const binary = installKind() === "binary";
+  const record = binary ? await readUpdateRecord() : undefined;
+
+  const handover = binary
+    ? new GatewayStartupHandover(
+        record,
+        () => core.updates.handover(),
+        (message) => console.info(message),
+      )
+    : undefined;
+
+  const admission: Interceptor = (next) => {
+    const maintenance = relocation.interceptor(next);
+
+    return handover ? handover.intercept(maintenance) : maintenance;
+  };
+
   await settleInterruptedWorktreePreparations(core);
   await core.mobilePush.initialize(role === "server" ? () => pushRelayOptions(env) : undefined);
   await relocation.assertReady();
@@ -245,7 +258,7 @@ async function start(serviceToken: string): Promise<number | undefined> {
   await pollRelocation();
 
   if (stopping) return undefined;
-  unmountMobile = mountMobileNetwork(core, network, serviceToken, relocation.interceptor);
+  unmountMobile = mountMobileNetwork(core, network, serviceToken, admission);
 
   await startComputerLinks(core, computerStore, network, {
     transport: multicastTransport,
@@ -264,7 +277,7 @@ async function start(serviceToken: string): Promise<number | undefined> {
   const processApi = gatewayProcessApi(core, serviceToken, (version) => webClients.seen(version));
   server = await startGrpcServer({
     routes: processApi.routes,
-    interceptors: [relocation.interceptor, core.diagnostics.interceptor, processApi.auth],
+    interceptors: [admission, core.diagnostics.interceptor, processApi.auth],
     host: env["CANOPY_HOST"] ?? "0.0.0.0",
     port: Number(env["CANOPY_PORT"] ?? 7443),
     health: () => ({
@@ -276,7 +289,6 @@ async function start(serviceToken: string): Promise<number | undefined> {
   console.info(`gateway ${CANOPY_VERSION} listening on ${server.url}`);
 
   // A candidate's web must answer before updates.start confirms this version.
-  const record = installKind() === "binary" ? await readUpdateRecord() : undefined;
   const candidate = record?.state === "restarting" && record.version === CANOPY_VERSION;
 
   try {
@@ -290,9 +302,8 @@ async function start(serviceToken: string): Promise<number | undefined> {
   }
 
   if (stopping) return undefined;
-  await core.updates.start();
 
-  return undefined;
+  return core.updates.start(handover && (() => handover.wait()));
 }
 
 function startIntake() {
@@ -388,40 +399,42 @@ async function stopAndExit(code: number) {
 }
 
 function stop(presence = "shutting_down") {
+  if (stopping) return stopping;
   core.updates.beginShutdown();
+  console.info(`gateway shutdown started (${presence})`);
 
-  return (stopping ??= close(presence));
+  return (stopping = close(presence));
 }
 
 async function close(presence: string) {
   clearInterval(relocationTimer);
-  await startup.catch(() => {});
-  await polling;
+  await closeGatewayStep("startup", () => startup.catch(() => {}));
+  await closeGatewayStep("relocation check", () => polling);
 
   try {
-    await core.mobilePush.close();
-    await embeddedWeb?.stop();
-    await core.computers?.close(presence);
+    await closeGatewayStep("mobile push", () => core.mobilePush.close());
+    await closeGatewayStep("embedded web", () => embeddedWeb?.stop());
+    await closeGatewayStep("linked computers", () => core.computers?.close(presence));
     tailscale.close();
     core.updateCenter.stop();
     core.updates.close();
     core.desktopControl.close();
     core.appControl.close();
     core.secrets.stop();
-    await reflection.stop();
-    await core.scheduler.stop();
-    await maintenance.stop();
-    await core.stopSweep();
+    await closeGatewayStep("memory reflection", () => reflection.stop());
+    await closeGatewayStep("scheduler", () => core.scheduler.stop());
+    await closeGatewayStep("database maintenance", () => maintenance.stop());
+    await closeGatewayStep("background jobs", () => core.stopSweep());
     core.backgroundTasks.stop();
-    await core.messengers.stop();
-    await core.bots.stop();
-    await core.link.shutdown();
+    await closeGatewayStep("messengers", () => core.messengers.stop());
+    await closeGatewayStep("bots", () => core.bots.stop());
+    await closeGatewayStep("worker links", () => core.link.shutdown());
     unmountMobile?.();
-    await network.close();
-    await core.diagnostics.stop();
-    await server?.close();
+    await closeGatewayStep("network access", () => network.close());
+    await closeGatewayStep("diagnostics", () => core.diagnostics.stop());
+    await closeGatewayStep("gRPC listener", () => server?.close());
   } finally {
-    await runtime.dispose().finally(() => relocation.close());
+    await closeGatewayStep("database runtime", () => runtime.dispose().finally(() => relocation.close()));
   }
 }
 

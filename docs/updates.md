@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-24), w tym diagnostyki przerwanych aktualizacji
+Status: opis zaimplementowanego kodu (2026-11-25), w tym kolejkowania tur od przyjęcia aktualizacji
+gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
 desktopu, kompaktowego powiadomienia po aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
 pobierania i ponownego łączenia workera,
 przekazania nadzoru workera
@@ -881,9 +882,12 @@ executable ani jego `.bak`, `.next` lub rekordu aktualizacji obok binarki.
 1. Administrator aktualizuje gateway w **Settings → Workers → Updates**.
    Gateway sprawdza kanał co 15 minut; akcje zarządzania wymagają roli `admin`.
    Kanał zapisuje się w istniejącym `user_settings.settings.updateChannel`.
-2. Gateway blokuje nowe tury, czeka na zakończenie tur workerów i botów, pobiera
-   release i weryfikuje go. Wybrany gateway jest wymieniany przed wysłaniem
-   workerom poleceń przejścia na tę wersję.
+2. Od przyjęcia aktualizacji gateway zapisuje nowe tury i polecenia rozpoczęcia
+   pracy w trwałych kolejkach. Czeka na bieżące tury workerów i botów, pobiera
+   wydanie i weryfikuje je. Kolejki ruszają po restarcie albo po niepowodzeniu
+   aktualizacji. Gateway wymienia własną binarkę przed wysłaniem workerom
+   poleceń przejścia na tę wersję. Etapy zamykania dłuższe niż 5 sekund podają
+   nazwę operacji i czas w logach gatewaya.
 3. Po restarcie worker otwiera Watch. Gateway zapisuje trwałe polecenie przejścia
    na **swoją uruchomioną wersję**; zastępuje polecenie do poprzedniej wersji.
    Offline worker odbierze je przy następnym połączeniu. Ręczne **Update worker**
@@ -940,14 +944,17 @@ poprzednią wersję. Potwierdzenie trafia też przez lokalne IPC do supervisora;
 raportowanie i usunięcie `.update.json` nie mogą zgubić tego sygnału.
 
 Jeżeli wersja potwierdzonego dziecka różni się od wersji supervisora, supervisor
-prosi je przez IPC o przekazanie nadzoru. Dziecko używa tej samej blokady aktualizacji
-i bariery przyjmowania pracy: worker czeka na tury, generacje i zadania w tle,
-gateway na tury workerów i botów. Nie wymusza przerwania pracy. Po opróżnieniu
-wykonuje zwykłe zamknięcie zasobów i wychodzi z wewnętrznym kodem **76**.
+prosi je przez IPC o przekazanie nadzoru. Pierwszy proces zaktualizowanego gatewaya
+otwiera listenery na potrzeby potwierdzenia zdrowia. Do rozstrzygnięcia przekazania
+odracza RPC klientów i workerów oraz start kolejek. Jeśli supervisor odpowie
+w ciągu sekundy, proces zamyka zasoby i wychodzi z wewnętrznym kodem **76**.
+Kolejki uruchamia dopiero proces pod właściwym supervisorem. Jeżeli żądanie nie
+nadejdzie w tym czasie, gateway zaczyna obsługę. Późniejsze żądanie korzysta ze
+zwykłej blokady aktualizacji i czeka na bieżące tury workerów i botów.
 Dopiero wtedy supervisor wykonuje `process.execve` na potwierdzonej binarce:
 zachowuje PID, argumenty i środowisko usługi oraz standardowe strumienie,
 a nowy supervisor uruchamia właściwy proces usługi. Zdrowe dziecko uruchamia się
-zatem drugi raz; żadne aktywne zadanie nie jest z tego powodu przerywane.
+zatem drugi raz.
 Kod 76 jest obsługiwany wewnętrznie, nie wymaga restartu przez menedżera usług.
 
 Pierwszy proces docelowej wersji workera potwierdza zgodność łącza po `Welcome`

@@ -18,9 +18,7 @@ import {
   SUPERVISOR_HANDOVER_EXIT_CODE,
   type InstallKind,
   type ReleaseManifest,
-  type ReleaseSourceOptions,
 } from "@canopy/updater";
-import type { UpdatePersistence } from "./persistence.ts";
 import { GatewayUpdateService } from "./service.ts";
 import { GatewayReleaseMirror, UpdateCache } from "./cache.ts";
 import { updateBusyState, versionAhead } from "./versions.ts";
@@ -28,36 +26,7 @@ import { ReleaseRateLimit } from "@canopy/domain/release/http";
 import { workerUpdateSnapshot } from "./worker-snapshot.ts";
 import { gatewayUpdateMayBeStaged, stageGatewayRelease } from "./stage.ts";
 import { prepareWorkerUpdate, workerCommandOnHello } from "./worker-command.ts";
-
-export interface GatewayUpdatesOptions {
-  persistence: Pick<
-    UpdatePersistence,
-    "admin" | "channel" | "setChannel" | "workers" | "hello" | "saveCommand" | "report"
-  >;
-  authenticate(credential: string): Promise<string | undefined>;
-  cacheDir?: string;
-  source?: ReleaseSourceOptions;
-  channel?: string;
-  version?: string;
-  kind?: InstallKind;
-  /** The desktop app's bundled gateway (desktop role): it and its own worker update with the app. */
-  bundled?: boolean;
-  binaryPath?: string;
-  restart?(exitCode?: number): Promise<void>;
-  departure?(state: "updating" | "restarting", target?: string): Promise<void>;
-  recovered?(state: string, reason: string, target?: string): Promise<void>;
-  idle?(): Promise<boolean>;
-  relocating?(): boolean;
-  drain?(value: boolean): void;
-  log?(message: string): void;
-  pollMs?: number;
-  /** The update center changed: state, a check, or a worker's update report. Clients read it again. */
-  changed?(): void;
-  /** This gateway found a newer release on its channel: other computers on it can check their own feeds. */
-  found?(release: { channel: string; version: string }): void;
-  /** A current problem of this gateway's installation shown next to its update state (the embedded web). */
-  notice?(): string;
-}
+import type { GatewayUpdatesOptions } from "./options.ts";
 
 export class GatewayUpdates {
   readonly service: GatewayUpdateService;
@@ -104,7 +73,7 @@ export class GatewayUpdates {
       changed: () => options.changed?.(),
     });
   }
-  async start(): Promise<void> {
+  async start(waitForHandover?: () => Promise<boolean>): Promise<number | undefined> {
     // A bundled gateway reports its build's channel; the app's own setting chooses the next release.
     const build = releaseChannel(this.version);
     const stored = this.options.bundled ? undefined : await this.options.persistence.channel();
@@ -119,6 +88,13 @@ export class GatewayUpdates {
     if (this.kind === "binary") {
       // main calls start only after the DB and listeners are ready. Do not converge workers before this checkpoint.
       await confirmStartup(this.options.binaryPath, this.version);
+
+      if (await waitForHandover?.()) {
+        this.options.log?.("supervisor handover: restarting before serving gateway work");
+
+        return SUPERVISOR_HANDOVER_EXIT_CODE;
+      }
+
       const record = await readUpdateRecord(this.options.binaryPath);
 
       if (record) {
@@ -137,7 +113,7 @@ export class GatewayUpdates {
     await this.#cache.startRetention(this.source.options);
     await this.options.recovered?.(this.#state, this.#reason);
 
-    if (this.#control !== "starting") return;
+    if (this.#control !== "starting") return undefined;
     this.#control = "ready";
 
     for (const [id, connection] of this.service.connections) {
@@ -148,6 +124,8 @@ export class GatewayUpdates {
 
     void this.check();
     this.#timer = setInterval(() => void this.check(), this.options.pollMs ?? 15 * 60_000);
+
+    return undefined;
   }
   beginShutdown(): void {
     if (this.#control === "shutting_down") return;
@@ -176,10 +154,7 @@ export class GatewayUpdates {
     try {
       await whenIdle({
         idle: () => this.options.idle?.() ?? true,
-        drain: (value) => {
-          this.#draining = value;
-          this.options.drain?.(value);
-        },
+        drain: (value) => this.#setDraining(value),
         signal: this.#stopping.signal,
         waiting: async () => {
           this.options.log?.("supervisor handover: waiting for active turns to finish");
@@ -199,6 +174,11 @@ export class GatewayUpdates {
   #setState(state: string): void {
     this.#state = state;
     this.options.changed?.();
+  }
+  #setDraining(value: boolean): void {
+    if (this.#draining === value) return;
+    this.#draining = value;
+    this.options.drain?.(value);
   }
   check(refresh = false): Promise<void> {
     if (!this.#checking) queueMicrotask(() => this.options.changed?.());
@@ -326,18 +306,20 @@ export class GatewayUpdates {
       if (manifest.protocol.update !== UPDATE_PROTOCOL)
         throw new ConnectError("Release does not support the frozen update protocol", Code.FailedPrecondition);
       this.#targetVersion = manifest.version;
-      this.#setState("waiting_idle");
       this.#reason = "Waiting for active turns to finish";
-      await this.options.departure?.("updating", manifest.version);
+      this.#setDraining(true);
+      this.#setState("waiting_idle");
+
+      try {
+        await this.options.departure?.("updating", manifest.version);
+      } catch (cause) {
+        this.#setDraining(false);
+        this.#gatewayUpdateFailed(cause);
+        throw cause;
+      }
+
       const release = this.#cache.retain(manifest.version);
-      void this.#updateGateway(manifest, request, release).catch((cause: unknown) => {
-        this.#targetVersion = "";
-        this.#setState("failed");
-        this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
-        void this.options.recovered?.("failed", this.#reason).catch(() => {
-          this.options.log?.("Could not save the gateway update outcome");
-        });
-      });
+      void this.#updateGateway(manifest, request, release).catch((cause: unknown) => this.#gatewayUpdateFailed(cause));
     } else if (request.action === "worker" || request.action === "all") {
       const workers = await this.options.persistence.workers();
       const selected = request.action === "all" ? workers : workers.filter((w) => w.id === request.workerId);
@@ -374,6 +356,15 @@ export class GatewayUpdates {
         Code.Unavailable,
       );
   }
+  #gatewayUpdateFailed(cause: unknown): void {
+    this.#targetVersion = "";
+    this.#reason = cause instanceof Error ? cause.message : "Gateway update failed";
+    this.#setState("failed");
+    void this.options.recovered?.("failed", this.#reason).catch(() => {
+      this.options.log?.("Could not save the gateway update outcome");
+    });
+  }
+
   async #updateGateway(
     manifest: ReleaseManifest,
     request: ui.ManageUpdatesRequest,
@@ -384,13 +375,12 @@ export class GatewayUpdates {
     try {
       await whenIdle({
         idle: () => this.options.idle?.() ?? true,
-        drain: (value) => {
-          this.#draining = value;
-          this.options.drain?.(value);
-        },
+        drain: (value) => this.#setDraining(value),
         force: request.force,
         signal: this.#stopping.signal,
-        waiting: async () => {},
+        waiting: async () => {
+          this.options.log?.("gateway update: waiting for active turns to finish");
+        },
         apply: async () => {
           if (this.options.relocating?.()) throw new Error("Gateway maintenance is in progress");
           this.#setState("downloading");
