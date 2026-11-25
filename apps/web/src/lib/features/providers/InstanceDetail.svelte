@@ -1,34 +1,30 @@
 <script lang="ts">
-  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
+  import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import type { ClassValue } from "svelte/elements";
-  import { Provider, type ui } from "@canopy/contracts";
+  import { ProviderProfileKind, type ui } from "@canopy/contracts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import InsetList from "#lib/shared/ui/InsetList.svelte";
-  import { formatRelative } from "#lib/shared/format.ts";
+  import Select from "#lib/shared/ui/Select.svelte";
   import DefinitionForm from "./DefinitionForm.svelte";
   import InstanceMark from "./InstanceMark.svelte";
   import InstanceModels from "./InstanceModels.svelte";
-  import { harnessName, instanceName, kindLabel, providerCall, statusOn } from "./instances.ts";
-  import LoginPanel from "./LoginPanel.svelte";
-  import { signsInFromApp } from "./device-login.svelte.ts";
+  import { harnessName, instanceName, kindLabel, providerCall, statusAcross, statusOn } from "./instances.ts";
+  import InstanceWorkerStatus from "./InstanceWorkerStatus.svelte";
   import OverrideForm from "./OverrideForm.svelte";
   import type { ProvidersState } from "./providers-state.svelte.ts";
   import SettingsSection from "./SettingsSection.svelte";
   import InstanceNotices from "./InstanceNotices.svelte";
   import StatusLine from "./StatusLine.svelte";
   import WorkersField from "./WorkersField.svelte";
-  import AccountStatusRow, { hasAccountStatus } from "./AccountStatusRow.svelte";
-  import UsageMeters from "./UsageMeters.svelte";
   import ProxyThrough from "./ProxyThrough.svelte";
   import type { WorkerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
   /**
    * The detail of one instance, for the scope chosen above the list: on one worker its status
-   * there, sign-in (Codex with its own login), and that worker's overrides; in "All workers" its status everywhere,
-   * where it runs, and the global definition. Models and deletion apply to every worker in either scope.
+   * there, sign-in, and that worker's overrides; in "All workers" its readiness, where it runs,
+   * and the global definition. The status picker inspects a worker without changing the editing scope.
    */
   let {
     instance,
@@ -50,12 +46,46 @@
 
   let failure = $state<string>();
   let deleting = $state(false);
-  const on = $derived(worker ? instance.workers.find((w) => w.workerId === worker.id) : undefined);
-  const accountShown = $derived(!!on?.enabled && hasAccountStatus(on.account, instance.harness));
-  const nameOf = (workerId: string) => workers.find((w) => w.id === workerId)?.name ?? workerId.slice(-8);
-  const onlineOf = (workerId: string) => workers.find((w) => w.id === workerId)?.online ?? false;
+  let inspectedId = $state("");
+  const pickerId = $props.id();
+  const proxies = sharedProxies();
+  const onByWorker = $derived(new Map(instance.workers.map((on) => [on.workerId, on])));
+  const on = $derived(worker ? onByWorker.get(worker.id) : undefined);
 
-  const appSignIn = $derived(signsInFromApp(instance.harness, instance.kind));
+  const statusWorker = $derived(
+    worker ?? (workers.length === 1 ? workers[0] : workers.find((w) => w.id === inspectedId)),
+  );
+
+  const statusOptions = $derived.by(() => [
+    { value: "", label: "Summary" },
+    ...records.options(workers).map((option) => ({
+      ...option,
+      description: statusOn(onByWorker.get(option.value), option.online ?? false).label,
+    })),
+  ]);
+
+  const enabledWorkers = $derived(instance.workers.filter((w) => w.enabled));
+
+  function proxyOn(on?: ui.InstanceOnWorker): string {
+    const overrides = on?.overrides;
+
+    // A worker can still have a saved endpoint override from before shared proxies.
+    return overrides?.proxyId || (overrides?.baseUrl === undefined ? instance.proxyId : "");
+  }
+
+  const proxyIds = $derived.by(() => {
+    if (instance.kind !== ProviderProfileKind.CLIPROXYAPI) return new Set<string>();
+
+    const ids = statusWorker
+      ? [proxyOn(onByWorker.get(statusWorker.id))]
+      : enabledWorkers.length
+        ? enabledWorkers.map(proxyOn)
+        : [instance.proxyId];
+
+    return new Set(ids.filter(Boolean));
+  });
+
+  const proxyConnections = $derived(proxies.data?.proxies.filter((proxy) => proxyIds.has(proxy.id)) ?? []);
 
   async function guarded(run: () => Promise<void>) {
     failure = undefined;
@@ -128,96 +158,55 @@
 
 {#snippet statusAndAccess()}
   <SettingsSection title="Status">
-    {#if instance.proxyId}<ProxyThrough {instance} />{/if}
-    {#if worker}
-      {@const status = statusOn(on, worker.online)}
-      <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-base/6 sm:text-sm/6">
-        <dt class="max-w-28 truncate text-zinc-500 sm:max-w-48 dark:text-zinc-400" title={worker.name}>
-          On {worker.name}
-        </dt>
-        <dd class="text-zinc-950 dark:text-white"><StatusLine {status} /></dd>
-        {#if on?.version}<dt class="text-zinc-500 dark:text-zinc-400">Version</dt>
-          <dd class="font-mono text-zinc-950 dark:text-white">{on.version}</dd>{/if}
-        {#if on?.reported && on.account?.authMethod !== "Proxy"}<dt class="text-zinc-500 dark:text-zinc-400">
-            Connection
-          </dt>
-          <dd class="text-zinc-950 dark:text-white">{kindLabel(on.kind)}</dd>{/if}
-        {#if on?.reported && !on.available && on.detail}<dt class="text-zinc-500 dark:text-zinc-400">Detail</dt>
-          <dd class="text-pretty text-zinc-950 dark:text-white">{on.detail}</dd>{/if}
-        {#if on?.checkedAt && !accountShown}<dt class="text-zinc-500 dark:text-zinc-400">Checked</dt>
-          <dd class="text-zinc-950 dark:text-white">
-            {formatRelative(on.checkedAt)}{on.synced ? "" : " · newer settings on their way"}
-          </dd>{:else if on?.reported && !on.synced}<dt class="text-zinc-500 dark:text-zinc-400">Settings</dt>
-          <dd class="text-zinc-950 dark:text-white">Newer settings on their way</dd>{/if}
-        {#if on && accountShown}<dt class="text-zinc-500 dark:text-zinc-400">Account</dt>
-          <dd class="-my-0.5 min-w-0">
-            <AccountStatusRow
-              account={on.account}
-              workerId={worker.id}
-              harness={instance.harness}
-              id={instance.id}
-              online={worker.online}
-              os={worker.os}
-              signInHere={appSignIn}
-              onupdated={() => providers.reload()}
-            />
-          </dd>{/if}
-      </dl>
-      <UsageMeters usage={on?.usage} />
-      {#if appSignIn && on?.enabled}
-        <LoginPanel {instance} {worker} {on} />
-      {:else if instance.harness === Provider.ANTIGRAVITY && on?.enabled && on.version && !on.authenticated && !accountShown}
-        <p class="text-sm/6 text-muted">
-          Run <code>{providerLoginCommand("antigravity", on.account, worker.os)}</code> on {worker.name} to sign in.
-        </p>
-      {/if}
-    {:else}
-      <InsetList label="Status on each worker">
-        {#each instance.workers as w (w.workerId)}
-          {@const status = statusOn(w, onlineOf(w.workerId))}
-          <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-            <span
-              class="min-w-0 flex-1 basis-full truncate text-base/6 text-zinc-950 sm:basis-auto sm:text-sm/6 dark:text-white"
-              >{nameOf(w.workerId)}</span
-            >
-            {#if w.version}<span class="shrink-0 font-mono text-sm/5 text-zinc-500 sm:text-xs/5">v{w.version}</span
-              >{/if}
-            <StatusLine {status} class="min-w-0 text-sm/5 text-zinc-600 sm:max-w-[70%] dark:text-zinc-400" />
-            {#if w.reported && w.account?.authMethod !== "Proxy"}<p
-                class="basis-full text-sm/5 text-zinc-500 dark:text-zinc-400"
-              >
-                {kindLabel(w.kind)}
-                {#if !hasAccountStatus(w.account, instance.harness)}
-                  · {w.checkedAt ? `Checked ${formatRelative(w.checkedAt)}` : "Check time unknown"}
-                {/if}
-              </p>{/if}
-            {#if w.enabled && hasAccountStatus(w.account, instance.harness)}<div class="min-w-0 basis-full">
-                <AccountStatusRow
-                  account={w.account}
-                  workerId={w.workerId}
-                  harness={instance.harness}
-                  id={instance.id}
-                  online={onlineOf(w.workerId)}
-                  os={workers.find((worker) => worker.id === w.workerId)?.os ?? ""}
-                  onupdated={() => providers.reload()}
-                />
-              </div>{/if}
-            <UsageMeters usage={w.usage} class="basis-full" />
-          </li>
-        {:else}
-          <li class="px-3 py-2.5 text-base/6 text-zinc-500 sm:text-sm/6">No workers yet.</li>
-        {/each}
-      </InsetList>
+    {#if !worker && workers.length > 1}
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <StatusLine status={statusAcross(instance)} class="text-base/6 sm:text-sm/6" />
+        <div class="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+          <label for={pickerId} class="text-base/6 text-muted sm:text-sm/6">Worker details</label>
+          <Select
+            id={pickerId}
+            aria-label="Worker details"
+            value={statusWorker?.id ?? ""}
+            options={statusOptions}
+            onchange={(id) => (inspectedId = id)}
+            class="w-48 max-w-full"
+          />
+        </div>
+      </div>
+    {:else if !statusWorker}
+      <p class="text-base/6 text-muted sm:text-sm/6">No workers yet.</p>
+    {:else if !worker}
+      <p class="text-base/6 font-medium wrap-anywhere sm:text-sm/6">{statusWorker.name}</p>
+    {/if}
+    {#if statusWorker}
+      {#key statusWorker.id}
+        <InstanceWorkerStatus
+          {instance}
+          worker={statusWorker}
+          on={onByWorker.get(statusWorker.id)}
+          onupdated={() => providers.reload()}
+        />
+      {/key}
+    {/if}
+    {#if !worker}
       <WorkersField
         {workers}
         {records}
         allWorkers={instance.allWorkers}
-        workerIds={instance.workers.filter((w) => w.enabled).map((w) => w.workerId)}
+        workerIds={enabledWorkers.map((w) => w.workerId)}
         saving={savingWorkers}
         onchange={(next) => void setWorkers(next)}
       />
     {/if}
   </SettingsSection>
+
+  {#if proxyConnections.length}
+    <SettingsSection title="Proxy connection">
+      {#each proxyConnections as proxy (proxy.id)}
+        <ProxyThrough {proxy} harness={instance.harness} />
+      {/each}
+    </SettingsSection>
+  {/if}
 {/snippet}
 
 {#snippet configuration()}

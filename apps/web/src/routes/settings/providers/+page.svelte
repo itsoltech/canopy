@@ -11,8 +11,6 @@
   import { ProvidersState } from "#lib/features/providers/providers-state.svelte.ts";
   import ScopeBar from "#lib/features/providers/ScopeBar.svelte";
   import ProviderUpdates from "#lib/features/providers/ProviderUpdates.svelte";
-  import ProxyLimits from "#lib/features/providers/ProxyLimits.svelte";
-  import { sharedProxies } from "#lib/features/proxies/proxies.ts";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -35,7 +33,6 @@
   const records = workerRecords(overview);
   const route = useSettingsRoute();
   const catalog = useModelCatalog();
-  const proxies = sharedProxies();
 
   // svelte-ignore state_referenced_locally (seeded once; the page keeps it current itself)
   const providers = new ProvidersState({
@@ -78,6 +75,15 @@
 
   const workers = $derived(records.workers);
   const instances = $derived(providers.instances.map((i) => records.instance(i)));
+
+  const instancesPerHarness = $derived.by(() => {
+    const counts = new Map<Provider, number>();
+
+    for (const { harness } of instances) counts.set(harness, (counts.get(harness) ?? 0) + 1);
+
+    return counts;
+  });
+
   const worker = $derived(workers.find((w) => w.id === scope));
   const missingWorker = $derived(Boolean(scope && !worker));
   const selected = $derived(instances.find((i) => instanceKeyOf(i) === selectedKey) ?? instances[0]);
@@ -198,7 +204,6 @@
       >{worker.name} is offline. Changes are saved and reach it when it connects.</Alert
     >{/if}
 
-  <ProxyLimits proxies={proxies.data?.proxies ?? []} class={[pane === "detail" && "max-md:hidden"]} />
   {#if missingWorker}
     <Alert>This worker is unavailable. Choose another worker or select All workers.</Alert>
   {:else}
@@ -211,6 +216,7 @@
                 {instance}
                 {worker}
                 selected={selected !== undefined && instanceKeyOf(selected) === instanceKeyOf(instance)}
+                showConnection={(instancesPerHarness.get(instance.harness) ?? 0) > 1}
                 busy={toggling === instanceKeyOf(instance)}
                 disabled={!!worker && !!records.readOnly(worker.id)}
                 onselect={() => select(instanceKeyOf(instance))}

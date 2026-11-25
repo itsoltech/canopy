@@ -3,11 +3,11 @@
   import type { ui } from "@canopy/contracts";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import InstanceMark from "./InstanceMark.svelte";
-  import { instanceName, statusAcross, statusOn, versionsOf } from "./instances.ts";
+  import { instanceName, kindLabel, statusAcross, statusOn, versionsOf } from "./instances.ts";
   import StatusLine from "./StatusLine.svelte";
 
   /**
-   * One instance in the list: mark, label, version and status line; on one worker a switch turns it on or off there,
+   * One instance in the list: mark, label and status line; on one worker a switch turns it on or off there,
    * in "All workers" the switch controls its worker assignment. The row selects the instance (the detail opens beside or, on
    * phones, instead of the list).
    */
@@ -15,6 +15,7 @@
     instance,
     worker,
     selected,
+    showConnection,
     busy = false,
     disabled = false,
     onselect,
@@ -25,6 +26,7 @@
     /** The scope's worker; undefined = all workers. */
     worker: ui.Worker | undefined;
     selected: boolean;
+    showConnection: boolean;
     busy?: boolean;
     disabled?: boolean;
     onselect: () => void;
@@ -32,6 +34,9 @@
     class?: ClassValue;
   } = $props();
 
+  const connectionId = $props.id();
+  const name = $derived(instanceName(instance));
+  const connection = $derived(kindLabel(instance.kind));
   const on = $derived(worker ? instance.workers.find((w) => w.workerId === worker.id) : undefined);
   const status = $derived(worker ? statusOn(on, worker.online) : statusAcross(instance));
   const version = $derived(versionsOf(instance, worker?.id));
@@ -49,22 +54,19 @@
 >
   <InstanceMark {instance} />
   <div class="min-w-0 flex-1">
-    <div class="flex min-w-0 items-baseline gap-2">
-      <button
-        type="button"
-        class="block w-full min-w-0 truncate text-left text-base/6 font-medium text-zinc-950 focus-ring after:absolute after:inset-0 sm:text-sm/6 dark:text-white"
-        aria-current={selected || undefined}
-        onclick={onselect}
-      >
-        {instanceName(instance)}
-      </button>
-      {#if version}<span
-          class="max-w-20 shrink-0 truncate font-mono text-xs/5 text-zinc-500 dark:text-zinc-400"
-          title={version}
-        >
-          {version}
-        </span>{/if}
-    </div>
+    <button
+      type="button"
+      class="block w-full min-w-0 truncate text-left text-base/6 font-medium text-zinc-950 focus-ring after:absolute after:inset-0 sm:text-sm/6 dark:text-white"
+      aria-current={selected || undefined}
+      aria-describedby={showConnection ? connectionId : undefined}
+      title={version ? `${name} · ${version}` : name}
+      onclick={onselect}
+    >
+      {name}
+    </button>
+    {#if showConnection}
+      <div id={connectionId} class="text-sm/5 text-muted">{connection}</div>
+    {/if}
     <div class="flex min-w-0 items-center gap-2">
       <StatusLine {status} class="min-w-0 flex-1 text-sm/5 text-zinc-500 dark:text-zinc-400" />
     </div>
@@ -72,7 +74,7 @@
   <div class="relative shrink-0">
     <Switch
       name="instance-{instance.id}-on"
-      label="{instanceName(instance)} on {worker?.name ?? 'all workers'}"
+      label="{name} on {worker?.name ?? 'all workers'}"
       checked={enabled}
       disabled={busy || disabled}
       onchange={ontoggle}
