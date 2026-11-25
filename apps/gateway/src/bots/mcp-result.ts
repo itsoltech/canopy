@@ -3,8 +3,8 @@ import type { JsonValue } from "@canopy/domain";
 import { isJsonArray, isJsonObject } from "./json.ts";
 
 const TEXT_BYTES = 100_000;
-const RESULT_BYTES = 1_000_000;
-const RESPONSE_BYTES = 8_000_000;
+const RESULT_BYTES = 10_000_000;
+const RESPONSE_BYTES = 20_000_000;
 
 const jsonBytes = (value: JsonValue) => Buffer.byteLength(JSON.stringify(value));
 
