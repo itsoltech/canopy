@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { join, resolve } from "node:path";
-import { PermissionMode, Provider, type ui } from "@canopy/contracts";
+import { PermissionMode, Provider, ProviderProfileKind, type ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
@@ -46,7 +46,7 @@ async function withWorker<T>(
       credential: registration.credential,
       hello: {
         workerId: registration.workerId,
-        capabilities: [ANTIGRAVITY_ACP_CAPABILITY],
+        capabilities: [ANTIGRAVITY_ACP_CAPABILITY, "provider_account_status"],
         ...(await runtime.runPromise(journalHello())),
       },
     });
@@ -93,14 +93,55 @@ const replies = (state: ui.ThreadSnapshot, turnId: string) =>
     owner === turnId && item?.content.case === "agentMessage" ? [item.content.value.text] : [],
   );
 
+async function signIn(gateway: TestGateway, workerId: string, accountStateFile: string) {
+  const account = async () =>
+    (await gateway.api.listProviderInstances({})).instances
+      .find((i) => i.harness === Provider.ANTIGRAVITY && i.id === "native")
+      ?.workers.find((w) => w.workerId === workerId)?.account;
+
+  const catalog = async () =>
+    (await gateway.api.listModels({ workerId })).workers
+      .find((w) => w.workerId === workerId)
+      ?.profiles.find((p) => p.provider === Provider.ANTIGRAVITY && p.profileId === "native");
+
+  const refresh = async () => {
+    const result = await gateway.api.refreshProviders({
+      workerId,
+      harness: Provider.ANTIGRAVITY,
+      id: "native",
+      accountOnly: true,
+    });
+
+    expect(result.skipped).toEqual([]);
+
+    return account();
+  };
+
+  expect(await eventually(account, (status) => status?.state === "signed_out")).toMatchObject({ state: "signed_out" });
+  expect(await eventually(catalog, (profile) => Boolean(profile?.detail))).toMatchObject({
+    models: [],
+    detail: "Authentication required",
+  });
+
+  await Bun.write(accountStateFile, "error");
+  expect(await refresh()).toMatchObject({ state: "error", detail: "Could not read account status from the CLI." });
+
+  await Bun.write(accountStateFile, "signed_in");
+  expect(await refresh()).toMatchObject({ state: "signed_in", authMethod: "Account", email: "", configDir: "" });
+
+  return eventually(catalog, (profile) => Boolean(profile?.models.length), 15_000);
+}
+
 test.skipIf(!dockerAvailable)(
-  "native Antigravity discovers account models, runs scoped MCP, forwards approval, resumes and interrupts over the worker link",
+  "native Antigravity recovers its catalog after device sign-in, runs scoped MCP, forwards approval, resumes and interrupts",
   async () => {
     const gateway = await startTestGateway();
 
     try {
       const dataDir = makeTemp("canopy-agy-worker-");
       const repo = makeTemp("canopy-agy-workspace-");
+      const accountStateFile = join(dataDir, "device-account-state");
+      await Bun.write(accountStateFile, "signed_out");
       const registration = await gateway.addWorker("Antigravity", [repo]);
       const { workerId } = registration;
       await gateway.runtime.runPromise(
@@ -115,18 +156,17 @@ test.skipIf(!dockerAvailable)(
           ),
         ),
       );
+      await gateway.api.saveProviderInstance({
+        harness: Provider.ANTIGRAVITY,
+        id: "native",
+        kind: ProviderProfileKind.NATIVE,
+        env: [{ name: "TEST_AGY_ACCOUNT_STATE", value: accountStateFile }],
+      });
       const model = "gemini-4-carbon";
       const answer = model + ", high, deny";
 
       const threadId = await withWorker(gateway, registration, dataDir, async () => {
-        const catalog = await eventually(
-          async () =>
-            (await gateway.api.listModels({ workerId })).workers
-              .find((w) => w.workerId === workerId)
-              ?.profiles.find((p) => p.provider === Provider.ANTIGRAVITY && p.profileId === "native")?.models,
-          (models) => !!models?.some((m) => m.id === model),
-          15_000,
-        );
+        const catalog = (await signIn(gateway, workerId, accountStateFile))?.models;
 
         expect(catalog?.find((m) => m.isDefault)).toMatchObject({
           id: "gemini-3.1-pro",

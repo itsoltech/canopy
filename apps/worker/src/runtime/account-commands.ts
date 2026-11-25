@@ -35,7 +35,7 @@ function environment(ctx: HostContext, config: AppliedConfig, resolved: Resolved
   let loginLinkProblem: string | undefined;
   let cliHome = false;
 
-  // agy has a fresh configuration directory per ACP process. Account reads only inspect device login metadata.
+  // agy prepares a disposable configuration directory when the account probe opens its ACP session.
   if (harness === "antigravity") return { configDir: "", env, loginLinkProblem, cliHome };
 
   if (harness === "claude") {
@@ -124,14 +124,23 @@ async function readEntry(
     }
 
     const { env, configDir, loginLinkProblem, cliHome } = environment(ctx, config, resolved, harness);
+    const executable = resolved.runtime.executablePath || config[harness].executable || "";
 
     const query: AccountQuery = {
       harness,
       id: resolved.id,
       configDir,
       env,
-      executable: resolved.runtime.executablePath || config[harness].executable || "",
-      ...(harness === "antigravity" && { loginDir: status.loginHomePath ?? "" }),
+      executable,
+      ...(harness === "antigravity" && {
+        antigravity: {
+          dataDir: ctx.state.options.dataDir,
+          deviceHome: ctx.state.deviceHomes.antigravity,
+          executable,
+          profile: resolved,
+          linkDeviceLogin: config.antigravity.linkDeviceLogin,
+        },
+      }),
       args: cliHome ? [] : (resolved.runtime.launchArgs ?? []),
       configVersion: config.version,
       secrets: [
@@ -286,6 +295,22 @@ export async function providerAccounts(ctx: HostContext, request: GetProviderAcc
       }),
     ),
   );
+
+  if (request.refresh && request.provider === Provider.ANTIGRAVITY && ctx.state.config === config) {
+    // A catalog read before terminal sign-in can have no models. Rebuild it after verifying that login.
+    const catalog = ctx.state.catalog;
+    const listed = catalog?.configVersion === config.version ? catalog.profiles : [];
+
+    const missingModels = entries.some(
+      ({ account, profileId }) =>
+        account?.state === "signed_in" &&
+        !listed.some(
+          (p) => p.provider === Provider.ANTIGRAVITY && p.profileId === profileId && !p.detail && p.models?.length,
+        ),
+    );
+
+    if (missingModels) void ctx.ops.publishCatalog(config.version);
+  }
 
   return create(ProviderAccountsReportSchema, { configVersion: config.version, entries });
 }

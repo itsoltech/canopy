@@ -1,8 +1,5 @@
 # Status kont dostawców
 
-Aktualizacja (2026-11-24): natywna instancja Antigravity korzysta z logowania
-`agy acp --login` na urządzeniu lub klucza Gemini. [Adapter Antigravity](antigravity-adapter.md)
-
 Aktualizacja (2026-11-24): natywny bot Codexa pobiera login wybranej instancji z
 osobnego lokalnego RPC. Raport konta nadal zawiera wyłącznie metadane.
 
@@ -14,7 +11,12 @@ Jeśli worker nie może dowiązać pliku loginu lub jego blokady w izolowanej
 instancji Codexa, Canopy pokazuje przyczynę przy koncie i w błędzie tury.
 Instancja ze zgłoszonym błędem udostępniania loginu ma status **Login unavailable**.
 
-Status (2026-11-25) obejmuje konta proxy ograniczone do wybranej instancji i wybór szczegółów workera w web/desktop, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
+Status (2026-11-25) obejmuje sprawdzanie logowania Antigravity zapisanego
+w systemowym magazynie poświadczeń, konta proxy ograniczone do wybranej
+instancji i wybór szczegółów workera w web/desktop, domyślne korzystanie
+z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie
+błędów dowiązań w trybie izolowanym.
+Dostępność w wydaniach opisuje [release.md](release.md).
 
 Aktualizacja (2026-11-24): w panelu **Provider usage** w web/desktop procenty mają spójny rozmiar tekstu.
 
@@ -42,13 +44,14 @@ każdego modelu ani dostępności endpointu.
 | Claude | `claude auth status --json` | `loggedIn`, metoda, email, nazwa organizacji, subskrypcja, opcjonalny termin wygaśnięcia. Nieznane pola są odrzucane. |
 | Codex | `codex login status` | Status w stderr i kod wyjścia; rozpoznawane ChatGPT/API key/managed credentials. Raport może pobrać email i plan z działającego app-servera tej samej instancji przez `account/read {refreshToken:false}`. |
 | Grok Build 1.0.70 | obecność pliku wskazanego przez `GROK_AUTH_PATH` (bez czytania treści) | Brak read-only auth status/whoami. „Login saved” potwierdza zapisany login, nie jego ważność; dopiero tura może go odrzucić. Brak pliku oznacza „Not signed in”. Klucz w env ma osobny opis „API key configured”. |
-| Antigravity | obecność lokalnego pliku loginu lub skonfigurowanego `GEMINI_API_KEY` | Worker raportuje zapisany login lub skonfigurowanie klucza. Przy loginie wyłącznie w systemowym magazynie stan w raporcie pozostaje nieznany. CLI sprawdza poświadczenia przy otwarciu sesji. |
+| Antigravity | `agy acp` i otwarcie krótkotrwałej sesji albo konfiguracja `GEMINI_API_KEY` | Worker pokazuje **Signed in** po otwarciu sesji, **Not signed in** po odpowiedzi ACP o wymaganym logowaniu albo **Check failed** przy innym błędzie. Dla klucza raportuje jego skonfigurowanie. |
 | Proxy | konfiguracja instancji | „Proxy: nazwa”, bez uruchamiania auth status i bez tożsamości konta upstream. Nie jest to test poprawności klucza ani połączenia. |
 
-Polecenia i schematy sprawdzono w pomocy zainstalowanych CLI oraz oficjalnym
+Polecenia i schematy Claude i Codex sprawdzono w pomocy zainstalowanych CLI,
 [kodzie Codex](https://github.com/openai/codex/blob/main/codex-rs/cli/src/login.rs)
-i przypiętym protokole app-server w repozytorium. Nie odpytano prawdziwych
-kont użytkownika w ramach badań. Wersje CLI mogą nie zwracać wszystkich
+i przypiętym protokole app-server w repozytorium. Odczyt Antigravity sprawdzono
+przez ACP z logowaniem urządzenia na macOS i bez konta na Linuksie.
+Wersje CLI mogą nie zwracać wszystkich
 opcjonalnych danych; brak emaila, planu lub daty nie jest błędem logowania.
 
 ## Uruchomienie, cache i transport
@@ -116,9 +119,15 @@ oraz logowania i wylogowania. Instancja z własnym loginem zawsze wybiera swój 
 Odczyt konta i tury instancji dostają ten sam wybór magazynu, bez kopiowania
 tokenów ani zmiany `HOME`. Dostęp do pęku kluczy nadal wymaga uprawnień sesji OS;
 wynik przez SSH nie potwierdza dostępu procesu uruchomionego w sesji graficznej.
-Zapytania przechodzą
+Polecenia statusu kont Claude i Codex przechodzą
 przez governor (probe ≤2), mają 8 s na proces, limit 64 KiB stdout+stderr
 i zabicie grupy procesów po timeout. Odpowiedź CLI nigdy nie trafia do logu.
+
+Sprawdzenie konta Antigravity używa tej samej izolacji i źródła loginu co
+tura. Otwiera sesję bez promptu w pustym katalogu, po czym kończy proces
+i usuwa katalogi próby. Po 8 s przerywa sprawdzenie. Wymuszone odświeżenie
+konta Antigravity z potwierdzonym loginem ponawia pobranie katalogu modeli,
+jeśli poprzedni odczyt nie dostarczył modeli.
 
 Cache w pamięci workera: 15 min, błędy 60 s, single-flight także dla
 jednoczesnych wymuszonych odświeżeń. Klucz obejmuje instancję, harness,

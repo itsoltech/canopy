@@ -125,14 +125,20 @@ describe("official CLI account adapters", () => {
     expect(await f.count()).toBe(5);
   });
 
-  test("Antigravity reports stored login metadata and keys without opening the CLI or asserting keyring state", async () => {
+  test("Antigravity reports a configured Gemini key without launching the CLI or disclosing the key", async () => {
     const { statuses, query, count } = await fixture("antigravity");
-    query.loginDir = query.configDir;
-    delete query.env["GEMINI_API_KEY"];
-    expect(await statuses.read(query)).toMatchObject({ state: "unknown", email: "" });
-    await writeFile(join(query.configDir, "antigravity-oauth-token"), "fixture-secret-value", { mode: 0o600 });
-    expect(await statuses.read(query, true)).toMatchObject({ state: "stored", authMethod: "Account" });
-    query.env["GEMINI_API_KEY"] = "fixture-secret-value";
+    query.antigravity = {
+      dataDir: query.configDir,
+      executable: query.executable,
+      linkDeviceLogin: false,
+      profile: {
+        kind: "native",
+        id: query.id,
+        providers: ["antigravity"],
+        runtime: {},
+        env: { GEMINI_API_KEY: "fixture-secret-value" },
+      },
+    };
     const key = await statuses.read(query, true);
     expect(key).toMatchObject({ state: "unknown", authMethod: "API key configured" });
     expect(toJsonString(ProviderAccountStatusSchema, key)).not.toContain("fixture-secret-value");
