@@ -3,8 +3,8 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, screen, session, type IpcMainEvent } from "electron";
-import type { ActivityNotchItem } from "@canopy/ui/desktop";
-import { ActivityNotch } from "../src/activity-notch.ts";
+import { activityNotchLogoSize, type ActivityNotchItem } from "@canopy/ui/desktop";
+import { ActivityNotch, type ActivityNotchRow } from "../src/activity-notch.ts";
 import { loadMacActivityNotchDisplay } from "../src/activity-notch-window.ts";
 import { isTrustedDesktopEvent } from "../src/desktop-window.ts";
 import { initialStatus, isString } from "../src/runtime/config.ts";
@@ -13,6 +13,17 @@ import type { ActivityNotchProbe } from "./activity-notch-probe.ts";
 const route = "/threads/synthetic-activity";
 const mac = process.platform === "darwin";
 const working = { path: route, state: "working", title: "Synthetic private title" } as const;
+const rgba = [38, 128, 198, 255];
+
+const logoMark = {
+  initials: "NB",
+  foreground: "#f1f2f3",
+  background: "#204060",
+  pixels: Buffer.alloc(activityNotchLogoSize ** 2 * 4, Buffer.from(rgba)).toString("base64"),
+};
+
+const unredactedMark = { ...logoMark, logoUrl: "https://fixture.invalid/logo", projectId: "synthetic-id" };
+const noMark = { initials: undefined, logo: undefined };
 const appPath = app.getAppPath();
 const rowsChannel = "activity-notch-fixture:received-rows";
 let stage = "starting Electron";
@@ -81,18 +92,109 @@ async function toggleOverlay(overlay: BrowserWindow) {
   return height;
 }
 
-function waitForRow(window: BrowserWindow, state: ActivityNotchItem["state"]) {
+interface RenderedActivityRow {
+  initials: string | undefined;
+  logo: { width: number; height: number; rgba: number[] } | undefined;
+}
+
+function waitForRows(window: BrowserWindow, expectedLabels: readonly string[]): Promise<RenderedActivityRow[]> {
   return window.webContents.executeJavaScript(`new Promise((resolve) => {
     const inspect = () => {
       const rows = Array.from(document.querySelectorAll('#activity-panel button'));
-      if (!rows.some((row) => row.querySelector('[data-state=${state}]'))) return;
+      const labels = rows.map((row) => row.getAttribute('aria-label'));
+      if (JSON.stringify(labels) !== JSON.stringify(${JSON.stringify(expectedLabels)})) return;
       observer.disconnect();
-      resolve(rows.map((row) => row.getAttribute('aria-label')));
+      resolve(rows.map((row) => {
+        const mark = row.querySelector('.project-mark:not([hidden])');
+        const canvas = mark?.querySelector('canvas');
+        if (!canvas) return { initials: mark?.textContent, logo: undefined };
+        return {
+          initials: undefined,
+          logo: {
+            width: canvas.width,
+            height: canvas.height,
+            rgba: Array.from(canvas.getContext('2d').getImageData(0, 0, 1, 1).data),
+          },
+        };
+      }));
     };
     const observer = new MutationObserver(inspect);
     observer.observe(document.getElementById('activity-panel'), { subtree: true, childList: true, attributes: true });
     inspect();
   })`);
+}
+
+async function publishRows(overlay: BrowserWindow, source: BrowserWindow, items: readonly ActivityNotchItem[]) {
+  const [update] = await Promise.all([receiveRows(), publish(source, items)]);
+  assert.equal(update.sender, overlay.webContents);
+
+  return update.rows;
+}
+
+async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, workingRow: ActivityNotchRow) {
+  stage = "rendering a project logo and preserving other statuses";
+  await toggleOverlay(overlay);
+
+  const invalidColor = {
+    path: "/threads/synthetic-malformed-mark",
+    state: "approval",
+    projectMark: { ...logoMark, foreground: "url(https://fixture.invalid/mark)" },
+  } as const;
+
+  const bot = { path: "/bots/synthetic-activity", state: "completed", projectMark: logoMark } as const;
+  const markedThread = { ...working, projectMark: unredactedMark };
+  const rows = await publishRows(overlay, source, [markedThread, invalidColor, bot]);
+  const [, approvalRow, botRow] = rows;
+  assert.ok(approvalRow && Number.isSafeInteger(approvalRow.id));
+  assert.ok(botRow && Number.isSafeInteger(botRow.id));
+
+  const otherRows: readonly ActivityNotchRow[] = [
+    { id: approvalRow.id, kind: "Thread", number: 2, state: "approval" },
+    { id: botRow.id, kind: "Bot", number: 1, state: "completed" },
+  ];
+
+  assert.deepEqual(rows, [{ ...workingRow, projectMark: logoMark }, ...otherRows]);
+  const otherLabels = ["Open Thread 2, Needs approval", "Open Bot 1, Completed"];
+  const logo = { width: activityNotchLogoSize, height: activityNotchLogoSize, rgba };
+  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, project NB, Working", ...otherLabels]), [
+    { initials: undefined, logo },
+    noMark,
+    noMark,
+  ]);
+
+  stage = "updating the project mark and falling back to initials";
+  const initialsMark = { initials: "DN", foreground: "#cceeff", background: "#112233" };
+  const invalidLogo = { ...initialsMark, pixels: `${logoMark.pixels.slice(0, -2)}--` };
+  const changed = await publishRows(overlay, source, [{ ...working, projectMark: invalidLogo }, invalidColor, bot]);
+  assert.deepEqual(changed, [{ ...workingRow, projectMark: initialsMark }, ...otherRows]);
+  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, project DN, Working", ...otherLabels]), [
+    { initials: "DN", logo: undefined },
+    noMark,
+    noMark,
+  ]);
+
+  stage = "removing the project mark without changing activity";
+  const cleared = await publishRows(overlay, source, [working, invalidColor, bot]);
+  assert.deepEqual(cleared, [workingRow, ...otherRows]);
+  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, Working", ...otherLabels]), [noMark, noMark, noMark]);
+  await toggleOverlay(overlay);
+}
+
+async function checkPreloadRedaction(overlay: BrowserWindow) {
+  stage = "checking the overlay preload redaction";
+  const row = { id: 170, kind: "Thread", number: 1, state: "answer" } as const;
+
+  const projected = overlay.webContents.executeJavaScript(`new Promise((resolve) => {
+    window.canopyActivityNotch.onRows((rows) => {
+      if (rows[0]?.id === ${row.id}) resolve(rows);
+    });
+  })`);
+
+  // Inject synthetic extra fields after main's projection to exercise the preload independently.
+  overlay.webContents.send("canopy:activity-notch-rows", [
+    { ...row, path: route, title: working.title, projectMark: unredactedMark },
+  ]);
+  assert.deepEqual(await projected, [{ ...row, projectMark: logoMark }]);
 }
 
 async function openOverlay(origin: string, source: BrowserWindow, settings: BrowserWindow) {
@@ -111,8 +213,9 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   assert.equal(first.contextIsolated, true);
   const row = first.rows[0];
   assert.ok(row && Number.isSafeInteger(row.id));
-  assert.deepEqual(first.rows, [{ id: row.id, kind: "Thread", number: 1, state: "working" }]);
-  assert.deepEqual(await waitForRow(overlay, "working"), ["Open Thread 1, Working"]);
+  const workingRow = { id: row.id, kind: "Thread", number: 1, state: "working" } as const;
+  assert.deepEqual(first.rows, [workingRow]);
+  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, Working"]), [noMark]);
 
   await settings.loadURL(`${origin}/settings`);
   await assert.rejects(publish(settings, []), /Untrusted activity notch request/);
@@ -122,10 +225,11 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   );
   assert.equal(overlay.isVisible(), true, "rejected updates leave the overlay visible");
 
-  const [updated] = await Promise.all([receiveRows(), publish(source, [{ ...working, state: "approval" }])]);
-  assert.equal(updated.sender, overlay.webContents);
-  assert.deepEqual(updated.rows, [{ id: row.id, kind: "Thread", number: 1, state: "approval" }]);
-  assert.deepEqual(await waitForRow(overlay, "approval"), ["Open Thread 1, Needs approval"]);
+  await checkProjectMarks(overlay, source, workingRow);
+  stage = "updating the activity status";
+  const updated = await publishRows(overlay, source, [{ ...working, state: "approval" }]);
+  assert.deepEqual(updated, [{ ...workingRow, state: "approval" }]);
+  await waitForRows(overlay, ["Open Thread 1, Needs approval"]);
 
   return overlay;
 }
@@ -240,9 +344,11 @@ async function smoke() {
       [source.id, settings.id].sort(),
     );
 
-    stage = "closing the main window";
+    stage = "opening the overlay for a fresh source";
     await source.loadURL(`${origin}/fresh`);
     const [beforeSourceClose] = await Promise.all([showOverlay(), publish(source, [working])]);
+    await checkPreloadRedaction(beforeSourceClose);
+    stage = "closing the main window";
     const closed = once(beforeSourceClose, "closed");
     source.close();
     await closed;

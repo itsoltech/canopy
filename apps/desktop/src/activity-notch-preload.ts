@@ -9,7 +9,14 @@ let heightListener: ((height: number) => void) | undefined;
 let collapseListener: (() => void) | undefined;
 
 ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNotchRow[]) => {
-  latestRows = rows.map(({ id, kind, number, state }) => ({ id, kind, number, state }));
+  latestRows = rows.map(({ id, kind, number, state, projectMark }) => {
+    const row = { id, kind, number, state };
+
+    if (!projectMark) return row;
+    const { initials, foreground, background, pixels } = projectMark;
+
+    return { ...row, projectMark: { initials, foreground, background, ...(pixels && { pixels }) } };
+  });
   rowsListener?.(latestRows);
 });
 

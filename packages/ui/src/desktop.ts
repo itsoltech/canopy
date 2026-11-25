@@ -15,10 +15,20 @@ export type {
 export { isDesktopActivityRoute, isDesktopRoute } from "./desktop-route.ts";
 
 export const maxActivityNotchItems = 24;
+export const activityNotchLogoSize = 36;
+
+export interface ActivityNotchProjectMark {
+  initials: string;
+  foreground: string;
+  background: string;
+  /** Base64-encoded RGBA pixels of the square project thumbnail. */
+  pixels?: string | undefined;
+}
 
 export interface ActivityNotchItem {
   path: string;
   state: "working" | "approval" | "answer" | "completed" | "failed";
+  projectMark?: ActivityNotchProjectMark | undefined;
 }
 
 export interface DesktopAppearance {
