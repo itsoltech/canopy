@@ -1,5 +1,9 @@
 # Canopy na iOS i Android
 
+Status (2026-11-25): na liście Bots akcja „Create bot” ma widoczną etykietę i ikonę
+plusa po prawej stronie wyszukiwarki, w tym samym miejscu co „New thread” w Threads.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): pasek boczny Threads używa skali typografii i znaków projektów z web/desktop.
 Nagłówki Working i Snoozed mają liczniki, linie oraz wspólne rozwijanie i zwijanie.
 Uśpione wątki mają przygaszone tytuły i znaki projektów. Przełącznik Threads/Bots pokazuje
@@ -2575,8 +2579,8 @@ Zmiana gatewaya/nazwy telefonu wymaga ponownego parowania. Boty mają
 listę, czat ze streamem, wysyłanie/stop, karty pytań/zgód z odpowiedziami oraz sheet
 szczegółów z włączaniem, pauzowaniem i usuwaniem rutyn oraz anulowaniem przypomnień. „Bot settings”
 pozwala edytować nazwę, instrukcje, wygląd, model, effort, worker i politykę zgód.
-Przycisk Create bot w nagłówku listy Bots otwiera formularz z podglądem awatara przy polu
-nazwy, jawnym wyborem modelu i opcjonalnymi instrukcjami. Worker, wysiłek i prędkość
+Przycisk Create bot obok wyszukiwarki listy Bots otwiera formularz z podglądem awatara
+przy polu nazwy, jawnym wyborem modelu i opcjonalnymi instrukcjami. Worker, wysiłek i prędkość
 są w sekcji Worker and model options. Zmiana workera wymaga ponownego wyboru modelu.
 Wygląd i uprawnienia mają własne sekcje.
 Pole koloru w zapisie szesnastkowym pojawia się po wybraniu Enter a custom color.

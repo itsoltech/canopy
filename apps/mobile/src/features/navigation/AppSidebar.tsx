@@ -163,7 +163,17 @@ function SidebarControls({
           style={{ flex: 1 }}
         />
         {section === "bots" ? (
-          <IconButton icon="pencil-square" label="Create bot" size={actionSize} onPress={() => setCreating(true)} />
+          <View style={{ maxWidth: "55%" }}>
+            <Button
+              title="Create bot"
+              icon="plus"
+              variant="ghost"
+              size={actionSize}
+              multiline
+              style={{ paddingVertical: 4 }}
+              onPress={() => setCreating(true)}
+            />
+          </View>
         ) : (
           <>
             <IconButton
