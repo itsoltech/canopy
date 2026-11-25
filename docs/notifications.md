@@ -1,5 +1,8 @@
 # Powiadomienia
 
+Aktualizacja (2026-11-25): licznik na pasku zadań Windows wyświetla niższe cyfry
+o wygładzonych krawędziach i zostawia więcej miejsca między znakami.
+
 Aktualizacja (2026-11-24): krótkie potwierdzenia web/desktop dopasowują szerokość do treści
 i pokazują akcję obok komunikatu.
 
@@ -195,7 +198,8 @@ uśpione wątki i tury zatrzymane przez użytkownika. Znika przy zerze.
 Desktop uwzględnia połączone komputery z bieżącego widoku. Odczyt wyniku lub wiadomości
 i rozstrzygnięcie prośby aktualizują licznik na podstawie stanu z gatewaya,
 gdy Canopy ma otwarte okno aplikacji. Licznik działa także przy wyłączonych banerach
-i dźwiękach. Pasek zadań Windows pokazuje `99+` dla wyższych wartości.
+i dźwiękach. Pasek zadań Windows wyświetla białe cyfry na czerwonej nakładce
+16 × 16 pikseli i pokazuje `99+` dla wartości powyżej 99.
 
 Na iOS licznik wymaga włączonych **System notifications** i zgody **Badges** w
 ustawieniach systemu. Obejmuje stan sparowanego gatewaya. Dostarczony push

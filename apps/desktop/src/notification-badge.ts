@@ -17,15 +17,26 @@ function isApplicationPage(url: string, origin: string | undefined) {
 
 const iconSize = 16;
 
+// Each hex digit is the coverage of one pixel, from red (0) to white (f).
 const digits = [
-  0b111_101_101_101_111, 0b010_110_010_010_111, 0b111_001_111_100_111, 0b111_001_111_001_111, 0b101_101_111_001_001,
-  0b111_100_111_001_111, 0b111_100_111_101_111, 0b111_001_010_010_010, 0b111_101_111_101_111, 0b111_101_111_001_111,
-];
+  ["07a70", "9fdf9", "da0ad", "e808e", "e808e", "da0ad", "9fdf9", "07a70"],
+  ["02a30", "5ef70", "6bf70", "02f70", "02f70", "02f70", "6fffa", "28884"],
+  ["18a81", "bfdfb", "960ae", "005fa", "06fc1", "7fb10", "efffc", "58885"],
+  ["18a81", "bfdfa", "541bd", "09ffa", "038dd", "740ae", "cfdf9", "28a70"],
+  ["00481", "01df4", "0bff4", "7fbf4", "efdfc", "9bcfa", "005f4", "00181"],
+  ["49996", "9fee9", "bd630", "cfff6", "763cd", "740ad", "cfdf9", "28a70"],
+  ["07a81", "7fdf8", "dc551", "efff7", "ec4bd", "ea0ae", "9fdf9", "07a81"],
+  ["68886", "ceffd", "006f7", "00dc0", "04f60", "07f20", "09e00", "04600"],
+  ["07a70", "8fdf8", "bd1db", "8fff8", "dd8dd", "e909e", "afdfa", "18a81"],
+  ["18a70", "9fdf9", "ea0ae", "db4ce", "7fffe", "155cd", "8fdf7", "18a70"],
+] as const;
 
-const plus = 0b000_010_111_010_000;
+const compactNine = ["2881", "beeb", "f67f", "e76f", "8fff", "139e", "aee9", "2881"] as const;
+
+// The plus has a blank first column for extra space after the second nine.
+const plus = ["0000", "0000", "0181", "06f6", "0fff", "06f6", "0181", "0000"] as const;
 
 function windowsBadge(count: number) {
-  const label = count > 99 ? "99+" : String(count);
   const bitmap = Buffer.alloc(iconSize * iconSize * 4);
   // Electron's Windows bitmap stores premultiplied BGRA pixels.
   const pixelOffset = (x: number, y: number) => (y * iconSize + x) * 4;
@@ -37,21 +48,31 @@ function windowsBadge(count: number) {
     for (let x = inset; x < iconSize - inset; x++) bitmap.writeUInt32LE(0xffc22c3c, pixelOffset(x, y));
   }
 
-  const scaleX = label.length === 1 ? 2 : 1;
-  const width = 4 * scaleX * label.length - scaleX;
-  const left = Math.floor((iconSize - width) / 2);
+  const glyphs =
+    count > 99
+      ? [compactNine, compactNine, plus]
+      : Array.from(String(count), (digit) => digits[Number(digit)] ?? digits[0]);
 
-  for (const [index, character] of [...label].entries()) {
-    const glyph = digits[Number(character)] ?? plus;
+  const gap = glyphs.length === 3 ? 1 : 2;
+  const width = glyphs.reduce((width, glyph) => width + glyph[0].length, (glyphs.length - 1) * gap);
+  const top = Math.floor((iconSize - digits[0].length) / 2);
+  let left = Math.floor((iconSize - width) / 2);
 
-    for (let pixel = 0; pixel < 15; pixel++) {
-      if (!(glyph & (1 << (14 - pixel)))) continue;
-      const x = left + (4 * index + (pixel % 3)) * scaleX;
-      const y = 3 + Math.floor(pixel / 3) * 2;
+  for (const glyph of glyphs) {
+    for (const [y, row] of glyph.entries()) {
+      for (const [x, level] of Array.from(row).entries()) {
+        if (level === "0") continue;
+        const coverage = Number.parseInt(level, 16) / 15;
+        const offset = pixelOffset(left + x, top + y);
 
-      bitmap.fill(0xff, pixelOffset(x, y), pixelOffset(x + scaleX, y));
-      bitmap.fill(0xff, pixelOffset(x, y + 1), pixelOffset(x + scaleX, y + 1));
+        for (let channel = offset; channel < offset + 3; channel++) {
+          const background = bitmap.readUInt8(channel);
+          bitmap[channel] = Math.round(background + (255 - background) * coverage);
+        }
+      }
     }
+
+    left += glyph[0].length + gap;
   }
 
   return nativeImage.createFromBitmap(bitmap, { width: iconSize, height: iconSize });
