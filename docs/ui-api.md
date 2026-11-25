@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-25): web, desktop i mobile zapisują rozwinięcie Working i Snoozed
+w lokalnych preferencjach paska bocznego.
+
 Status (2026-11-25): ustawienia wątków pozwalają wyłączyć automatyczne powiadomienia
 agenta o powiązanych pull requestach na całym koncie lub w danym projekcie.
 
@@ -1770,8 +1773,8 @@ Nowy wątek na workerze z obsługą worktrees rezerwuje także wiersz workspace/
 przed odczytem Git, aby późne dane nie zmieniały wysokości wycentrowanej treści.
 
 `UserSettings.sidebar` synchronizuje przypięcia (`pinned_thread_ids`, `pinned_bot_ids`).
-Filtr projektów (`project_ids`, puste = wszystkie), grupowanie, kolejność grup, sekcja Working
-i rozwinięcie Archived są lokalne dla urządzenia i gatewaya, przez wspólny
+Filtr projektów (`project_ids`, puste = wszystkie), grupowanie, kolejność grup, włączenie sekcji Working
+oraz rozwinięcie Working, Snoozed i Archived są lokalne dla urządzenia i gatewaya, przez wspólny
 `@canopy/domain/device-view`. Web i desktop używają localStorage z nieprzezroczystym
 zakresem z BFF (`GET /api/gateway-capabilities`, `clientPreferencesScope`); mobile
 pliku JSON z zakresem certyfikatu i parowania. Brakujące pola są jednorazowo kopiowane

@@ -2,6 +2,7 @@
   import type { ui } from "@canopy/contracts";
   import { sidebarChildren } from "@canopy/domain/sidebar-threads";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
+  import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import SidebarThread from "./SidebarThread.svelte";
   import SidebarThreadChildren from "./SidebarThreadChildren.svelte";
   import SidebarThreadDisclosure from "./SidebarThreadDisclosure.svelte";
@@ -21,9 +22,8 @@
   } = $props();
 
   const overview = useOverview();
-  let open = $state(false);
   let searchOpen = $state(true);
-  const expanded = $derived(searching ? searchOpen : open);
+  const expanded = $derived(searching ? searchOpen : devicePreferences.view.snoozedThreadsExpanded);
 
   $effect(() => {
     if (!searching) searchOpen = true;
@@ -37,7 +37,7 @@
       {expanded}
       ontoggle={() => {
         if (searching) searchOpen = !searchOpen;
-        else open = !open;
+        else devicePreferences.setView({ snoozedThreadsExpanded: !expanded });
       }}
     >
       <ul role="list" aria-label="Snoozed threads" class="grid min-w-0 grid-cols-1 gap-0.5">

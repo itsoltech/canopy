@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { FlatList, Text } from "react-native";
 import { ui } from "@canopy/contracts";
 import { visibleSidebarEntries } from "@canopy/domain/sidebar-groups";
@@ -40,12 +40,12 @@ export function SettingsThreadList({
   empty: ReactNode;
 }) {
   const { rise, layout } = useMotion();
-  const [workingOpen, setWorkingOpen] = useState(false);
+  const { view, setView } = useDevicePreferences();
+  const workingOpen = view.workingThreadsExpanded;
   const working = useSidebarDisclosureMotion(workingOpen);
   const snoozed = useSnoozedThreads(navigation);
   const disclosing = working.animating || snoozed.animating;
   const { filtered, settings, choices } = navigation;
-  const { view } = useDevicePreferences();
   const grouping = { groupByWorktree: view.groupByWorktree };
   const entries = sidebarEntries(filtered, settings, choices, working.rendered, grouping);
 
@@ -127,7 +127,7 @@ export function SettingsThreadList({
                       <SidebarNesting depth={item.depth}>
                         <SidebarListEntryView
                           {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
-                          onWorking={() => setWorkingOpen((value) => !value)}
+                          onWorking={() => setView({ workingThreadsExpanded: !workingOpen })}
                         />
                       </SidebarNesting>
                     </SidebarDisclosureRow>

@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-25): Working i Snoozed w pasku bocznym zachowują stan rozwinięcia
+po powrocie z Bots i po ponownym uruchomieniu klienta web, desktop, iOS lub Android.
+
 Status (2026-11-24): nowy wątek z pierwszą wiadomością zachowuje stan startu
 między przygotowaniem sesji a przekazaniem tury workerowi.
 
@@ -285,7 +288,8 @@ Working ma kolor nawiązujący do wskaźnika pracy. Uśpione wątki mają przyga
 tytuły i znaki projektów oraz status „Snoozed”. Otwarty wątek oraz wiersz pod kursorem,
 z fokusem lub otwartym menu mają zwykłe wyróżnienie tytułu i znaku projektu.
 Na ekranie dotykowym przyciśnięcie wiersza również przywraca zwykły kontrast.
-Każda sekcja rozwija i zwija listę jako całość.
+Każda sekcja rozwija i zwija listę jako całość. Domyślnie obie są zwinięte.
+Klient zapamiętuje ich stan oddzielnie dla danego urządzenia i gatewaya.
 Przy ograniczonym ruchu przełączenie jest natychmiastowe.
 Wyszukiwanie domyślnie rozwija **Snoozed**. Wyczyszczenie zapytania przywraca
 poprzednie ustawienie tej sekcji.
