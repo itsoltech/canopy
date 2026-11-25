@@ -12,7 +12,14 @@ export type {
   DesktopHtmlEvent,
 } from "./desktop-html.ts";
 
-export { isDesktopRoute } from "./desktop-route.ts";
+export { isDesktopActivityRoute, isDesktopRoute } from "./desktop-route.ts";
+
+export const maxActivityNotchItems = 24;
+
+export interface ActivityNotchItem {
+  path: string;
+  state: "working" | "approval" | "answer" | "completed" | "failed";
+}
 
 export interface DesktopAppearance {
   scheme: "system" | "light" | "dark";
@@ -218,6 +225,8 @@ export interface DesktopBridge {
   }): Promise<boolean>;
   /** Sets the app icon's notification count. Zero clears it. */
   setNotificationBadge?: (count: number) => Promise<void>;
+  /** Replaces the desktop activity list with statuses and internal routes only. */
+  setActivityNotch?: (items: readonly ActivityNotchItem[]) => Promise<void>;
   /** macOS notification authorization for this app bundle. */
   notificationPermission?: DesktopNotificationPermission;
   /** The path of a clicked notification, after main has focused this window. */

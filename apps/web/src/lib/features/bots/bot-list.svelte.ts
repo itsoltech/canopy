@@ -29,15 +29,16 @@ class BotList {
   /** Grows with every pushed or saved bot: a list read started before it is older. */
   #written = 0;
   #overview = $state.raw<OverviewState>();
-  #executionResync = $state(-1);
+  #listResync = $state(-1);
+
+  /** A successful list read for the current overview connection. */
+  get synchronized(): boolean {
+    return this.#overview?.connection === "live" && this.#listResync === this.#overview.resyncs;
+  }
 
   // Conversation and mutation responses also update bot metadata. Execution comes only from list summaries.
   executing(botId: string): boolean {
-    return (
-      this.#overview?.connection === "live" &&
-      this.#executionResync === this.#overview.resyncs &&
-      this.#executing.has(botId)
-    );
+    return this.synchronized && this.#executing.has(botId);
   }
 
   /** Keeps the list fresh until the returned function is called (use it from an `$effect`). */
@@ -71,9 +72,9 @@ class BotList {
     const resync = overview.resyncs;
 
     // The first list read can start before the overview subscription, and a gap may have missed a finish.
-    if (this.#users && untrack(() => this.#executionResync !== resync)) void this.refresh();
+    if (this.#users && untrack(() => this.#listResync !== resync)) void this.refresh();
 
-    return overview.subscribe((update) => {
+    const unsubscribe = overview.subscribe((update) => {
       const change = update.change;
 
       if (change.case === "bot") {
@@ -92,6 +93,14 @@ class BotList {
       if (this.#users && change.case === "feeds") void this.refresh();
       else if (this.#users && change.case === "linkedReadCompleted" && change.value === "ListBots") void this.refresh();
     });
+
+    return () => {
+      unsubscribe();
+      this.#overview = undefined;
+      this.#listResync = -1;
+      // A list read started before detaching cannot establish freshness on reattach.
+      this.#written++;
+    };
   }
 
   async refresh(): Promise<void> {
@@ -103,7 +112,7 @@ class BotList {
 
     this.#refreshing = true;
     const written = this.#written;
-    const executionResync = untrack(() => this.#overview?.resyncs ?? -1);
+    const listResync = untrack(() => this.#overview?.resyncs ?? -1);
 
     try {
       const response = decode(bots.ListBotsResponseSchema, await requestJson("GET", "/api/bots?archived=1"));
@@ -120,7 +129,7 @@ class BotList {
       this.list = response.bots.map((bot) => this.#keepEdit(bot));
       this.error = "";
       this.#executing = new Set(response.bots.filter((bot) => bot.executing).map((bot) => bot.id));
-      this.#executionResync = executionResync;
+      this.#listResync = listResync;
       botCache.reconcile(this.list);
     } catch {
       this.error = "Could not load bots";

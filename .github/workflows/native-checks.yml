@@ -38,6 +38,11 @@ jobs:
             test -s "$iconset/icon_${size}x${size}@2x.png"
           done
       - uses: ./.github/actions/setup-bun
+      - name: Activity notch window and IPC in Electron
+        timeout-minutes: 3
+        env:
+          CANOPY_LIVE: "1"
+        run: bun test ./apps/desktop/test/activity-notch.integration.test.ts
       - name: Tailscale CLI detection on the native filesystem
         run: bun test ./tests/integration/tailscale-desktop-detection.test.ts
       - name: Remote Desktop worker recovers from losing its saved route on Windows

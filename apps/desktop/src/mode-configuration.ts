@@ -25,18 +25,28 @@ interface ModeOptions {
   directory: string;
   remoteUpdate: RemoteAppUpdate | undefined;
   logs: Logs;
+  openSettings: () => void;
   closeSettings: () => void;
   apply: (config: DesktopConfiguration, client: DesktopClientCredential | undefined) => Promise<void>;
 }
 
 export function registerModeIpc(
-  authorize: (event: IpcMainInvokeEvent) => void,
+  authorize: (event: IpcMainInvokeEvent, setupOnly?: boolean) => void,
   lock: () => () => void,
   readMigration: () => Promise<ControllerResult>,
   options: () => ModeOptions,
 ) {
-  ipcMain.handle("canopy:configure", async (event, raw: ConfigurationInput) => {
+  ipcMain.handle("canopy:status", (event) => {
     authorize(event);
+
+    return options().status;
+  });
+  ipcMain.handle("canopy:settings", (event) => {
+    authorize(event);
+    options().openSettings();
+  });
+  ipcMain.handle("canopy:configure", async (event, raw: ConfigurationInput) => {
+    authorize(event, true);
     const release = lock();
 
     try {
@@ -51,7 +61,7 @@ export function registerModeIpc(
     }
   });
   ipcMain.handle("canopy:close-settings", (event) => {
-    authorize(event);
+    authorize(event, true);
     options().closeSettings();
   });
 }

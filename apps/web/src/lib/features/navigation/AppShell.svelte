@@ -60,6 +60,7 @@
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
   import { legacyDeviceView } from "@canopy/domain/device-view";
   import { watchNotifications } from "#lib/features/notifications/watch.svelte.ts";
+  import { watchActivityNotch } from "#lib/features/desktop/activity-notch.svelte.ts";
   import WhatsNewHost from "#lib/features/updates/WhatsNewHost.svelte";
   import { threadWarmSet } from "@canopy/domain/thread-warm-set";
   import { sidebarThreads } from "@canopy/domain/sidebar-threads";
@@ -211,6 +212,8 @@
   onMount(() => keybindings.connect());
 
   onMount(() => watchNotifications(overview, settings, () => page.url.pathname));
+
+  onMount(() => watchActivityNotch(overview, settings, capabilities));
 
   const threadActions = new ThreadActions(overview, settings, () => page.params.threadId);
 
