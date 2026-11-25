@@ -128,7 +128,8 @@ function rewriteScope(
 
     const users = new Set(table.foreignKeys.filter((key) => key.target === "users").flatMap((key) => key.columns));
 
-    if (table.name === "thread_visuals" || table.name === "agent_memory_notes") users.add("owner_user_id");
+    if (table.name === "thread_visuals" || table.name === "agent_memory_notes" || table.name === "thread_pull_requests")
+      users.add("owner_user_id");
 
     for (const column of users) {
       blockers.push(...(yield* checkScope(sql, input.source.ownerUserId, table.name, column)));

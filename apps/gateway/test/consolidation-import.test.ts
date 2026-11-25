@@ -193,6 +193,7 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
     VALUES(${uuid()},${bot},'reaction-fixture','Owner added a heart','completed',true)`;
   await s`UPDATE bots SET last_read_seq=(SELECT seq FROM bot_messages WHERE id=${botMessage}) WHERE id=${bot}`;
   await d`SELECT nextval('bot_messages_seq_seq')`;
+  await seedPullRequestWatch(s, localOwner, thread);
 
   await d`INSERT INTO computer_peers(owner_user_id,node_id,name,certificate,fingerprint)
     VALUES(${centralOwner},${source.nodeId},'source','fixture','fixture')`;
@@ -239,6 +240,16 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
     botApproval,
     hash,
   };
+}
+
+async function seedPullRequestWatch(sql: SQL, owner: string, threadId: string) {
+  const pullRequest = uuid();
+  await sql`INSERT INTO github_pull_requests(id,owner_user_id,repository_id,repository_name,number,node_id,created_at)
+    VALUES(${pullRequest},${owner},'1','example/project',1,'fixture-pr',now())`;
+  await sql`INSERT INTO thread_pull_requests(owner_user_id,thread_id,pull_request_id,source,evidence)
+    VALUES(${owner},${threadId},${pullRequest},'auto','branch')`;
+  await sql`INSERT INTO pr_check_watches(id,owner_user_id,thread_id,pull_request_id,notify_on,hops,head_sha,conflicting)
+    VALUES(${uuid()},${owner},${threadId},${pullRequest},ARRAY['complete'],2,${"a".repeat(40)},true)`;
 }
 
 async function seedMemory(
@@ -333,6 +344,11 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
     provider_session_id: "session-" + f.thread,
     worktree_switch_source_cwd: "/previous-checkout",
   });
+  expect(
+    await sql`SELECT w.owner_user_id,w.call_id,w.expires_at,w.conflicting,w.hops
+    FROM pr_check_watches w JOIN thread_pull_requests l USING(owner_user_id,thread_id,pull_request_id)
+    WHERE w.thread_id=${f.thread}`,
+  ).toEqual([{ owner_user_id: target.ownerUserId, call_id: null, expires_at: null, conflicting: true, hops: 2 }]);
   const [fork] = await sql`SELECT fork_after_turn_id FROM threads WHERE id=${f.fork}`;
   expect(fork?.fork_after_turn_id).toBe(f.turn);
 
