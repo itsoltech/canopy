@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
 import { ItemSchema, ThreadEventSchema, type GalleryImage, type Item } from "@canopy/contracts";
+import { itemType } from "@canopy/domain";
 import type { LocalMarkdownImage } from "@canopy/domain/markdown-images";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -50,7 +51,7 @@ export function imageMessageItem(
 }
 
 /** Called while holding the thread row; update only this item, preserving its first sequence. */
-export function writeImageItem(sql: SqlClient.SqlClient, source: CallSource, item: Item) {
+export function writeMediaItem(sql: SqlClient.SqlClient, source: CallSource, item: Item) {
   return Effect.gen(function* () {
     const locked = yield* sql<{ last_seq: string }>`SELECT last_seq FROM threads WHERE id=${source.threadId}::uuid`;
     const seq = BigInt(locked[0]!.last_seq) + 1n;
@@ -68,7 +69,7 @@ export function writeImageItem(sql: SqlClient.SqlClient, source: CallSource, ite
         'item_completed',${item.itemId},${JSON.stringify(toJson(ThreadEventSchema, event))}::jsonb,now())`;
     yield* sql`INSERT INTO thread_items(thread_id,item_id,turn_id,type,status,content,first_seq,last_seq)
       VALUES (${source.threadId}::uuid,${item.itemId},${source.turnId}::uuid,
-        ${item.content.case === "imageGallery" ? "image_gallery" : "agent_message"},'completed',
+        ${itemType(item)},'completed',
         ${JSON.stringify(toJson(ItemSchema, item))}::jsonb,${seq},${seq})
       ON CONFLICT (thread_id,item_id) DO UPDATE SET content=excluded.content,last_seq=excluded.last_seq`;
     yield* sql`UPDATE threads SET last_seq=${seq} WHERE id=${source.threadId}::uuid`;

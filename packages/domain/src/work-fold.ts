@@ -1,3 +1,10 @@
+import type { Item } from "@canopy/contracts";
+
+/** Published results shown after the turn, outside its work fold. */
+export function isPublishedReply(content: Item["content"]): boolean {
+  return content.case === "imageGallery" || content.case === "publishedVideo" || content.case === "visual";
+}
+
 /** When a turn's "Working for …" fold is open (web and mobile timelines, docs/timeline-folding.md). */
 export interface WorkFoldPreferences {
   readonly expandWhileWorking: boolean;

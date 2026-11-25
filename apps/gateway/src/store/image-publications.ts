@@ -48,7 +48,7 @@ export function reserveImages(sql: SqlClient.SqlClient, input: ImagePublication)
 
       if (completed[0]) {
         if (completed[0].source_thread_id !== input.source.threadId || completed[0].status !== "completed")
-          return yield* Effect.fail(new Invalid("This image publication is unavailable. Use a new call."));
+          return yield* Effect.fail(new Invalid("This publication is unavailable. Use a new call."));
 
         return { result: completed[0].result ?? {} };
       }
@@ -59,7 +59,7 @@ export function reserveImages(sql: SqlClient.SqlClient, input: ImagePublication)
 
       if (previous[0]) {
         if (previous[0].thread_id !== input.source.threadId || previous[0].request_hash !== input.requestHash)
-          return yield* Effect.fail(new Invalid("This call already identifies another image publication."));
+          return yield* Effect.fail(new Invalid("This call already identifies another publication."));
 
         if (previous[0].active) return { wait: true } as const;
       }
@@ -71,7 +71,7 @@ export function reserveImages(sql: SqlClient.SqlClient, input: ImagePublication)
         WHERE worker_id=${input.workerId}::uuid AND state='reserved' AND expires_at>now()`;
 
       if (active.length >= 2 || active.some((row) => row.thread_id === input.source.threadId))
-        return yield* Effect.fail(new Invalid("Images are already being prepared. Try again when they finish."));
+        return yield* Effect.fail(new Invalid("Attachments are already being prepared. Try again when they finish."));
 
       const totals = yield* sql<{ count: string; bytes: string }>`
         SELECT coalesce(sum(image_count),0)::text AS count,coalesce(sum(size_bytes),0)::text AS bytes
@@ -81,7 +81,9 @@ export function reserveImages(sql: SqlClient.SqlClient, input: ImagePublication)
       const budget = Math.min(input.maxBytes, IMAGE_REPLY_LIMITS.turnBytes - Number(totals[0]!.bytes));
 
       if (Number(totals[0]!.count) + input.count > IMAGE_REPLY_LIMITS.turnCount || budget <= 0)
-        return yield* Effect.fail(new Invalid("This turn reached its image limit. Show fewer images in a new turn."));
+        return yield* Effect.fail(
+          new Invalid("This turn reached its attachment limit. Publish fewer files in a new turn."),
+        );
 
       const token = Bun.randomUUIDv7();
 

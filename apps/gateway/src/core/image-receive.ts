@@ -8,19 +8,20 @@ export async function receiveThreadImage(
   query: (operation: string, offset: bigint) => Promise<ThreadImageExport>,
   maxBytes: number,
   deadline: number,
+  media: "image" | "video",
 ) {
   try {
     const meta = await query("probe", 0n);
     const size = Number(meta.sizeBytes);
 
     if (!Number.isSafeInteger(size) || size <= 0 || size > maxBytes || meta.data.length !== 0)
-      throw new Invalid("This image exceeds the remaining image limit. Choose a smaller image.");
+      throw new Invalid(`This ${media} exceeds the remaining ${media} limit. Choose a smaller ${media}.`);
     const data = Buffer.alloc(size);
     let offset = 0;
     let digest = "";
 
     while (offset < size) {
-      if (Date.now() >= deadline) throw new Invalid("The image transfer expired. Try again.");
+      if (Date.now() >= deadline) throw new Invalid(`The ${media} transfer expired. Try again.`);
       const chunk = await query("read", BigInt(offset));
 
       if (
@@ -32,14 +33,14 @@ export async function receiveThreadImage(
         chunk.data.length > IMAGE_REPLY_LIMITS.chunkBytes ||
         offset + chunk.data.length > size
       )
-        throw new Invalid("The image changed during transfer. Try again.");
+        throw new Invalid(`The ${media} changed during transfer. Try again.`);
       digest = chunk.sha256;
       data.set(chunk.data, offset);
       offset += chunk.data.length;
     }
 
     if (createHash("sha256").update(data).digest("hex") !== digest)
-      throw new Invalid("The image transfer was incomplete. Try again.");
+      throw new Invalid(`The ${media} transfer was incomplete. Try again.`);
 
     return { name: meta.name, data };
   } finally {

@@ -24,6 +24,11 @@ const ImageArguments = Schema.Struct({
   caption: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(1000))),
 });
 
+const VideoArguments = Schema.Struct({
+  path: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096)),
+  caption: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(500))),
+});
+
 export const ShowImages = ImageArguments.check(Schema.makeFilter((args) => imagePairsProblem(args.images) ?? true));
 
 export const IMAGE_TOOLS = {
@@ -45,6 +50,17 @@ export const IMAGE_TOOLS = {
       "For comparisons, give two images the same pair and sides before/after. Returns delivered only after copies are saved. " +
       "Never claim images were shown if this tool fails.",
     args: ShowImages,
+    mutates: true,
+  },
+  show_video: {
+    name: "show_video",
+    description:
+      "Show one local MP4, MOV or WebM recording in this thread as a durable, playable attachment. " +
+      "Use a regular file in this thread's workspace or attachments, or the per-user Temp folder on the bundled " +
+      "Windows worker in Canopy Desktop local mode. Traversal, symlinks and remote URLs are rejected. " +
+      "The limit is 20 MiB or the owner's file limit if lower. A caption is optional. " +
+      "Returns delivered only after a copy is saved.",
+    args: VideoArguments,
     mutates: true,
   },
 } as const;

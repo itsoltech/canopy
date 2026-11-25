@@ -25,18 +25,18 @@ export function openImageSource(
     path.split(/[\\/]/).includes("..") ||
     /^([a-z]+:|[/\\]{2})/i.test(path.replace(/^[a-z]:[/\\]/i, ""))
   )
-    throw imageRefusal("Use an image path inside this thread's directory.");
+    throw imageRefusal("Use a file path inside this thread's directory.");
   const absolute = isAbsolute(path);
   const full = absolute ? path : resolve(roots[0]?.path ?? "", path);
 
   if (process.platform === "win32" && full.slice(2).includes(":"))
-    throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
+    throw imageRefusal("This file is outside this thread's directory. Choose a file inside it.");
 
   const root =
     roots.find((r) => insideImageRoot(r.path, full) || insideImageRoot(r.canonical, full)) ??
     (absolute && (process.platform !== "win32" || /^[a-z]:[/\\]/i.test(full)) ? extraRoot?.(full) : undefined);
 
-  if (!root) throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
+  if (!root) throw imageRefusal("This file is outside this thread's directory. Choose a file inside it.");
   const base = insideImageRoot(root.path, full) ? root.path : root.canonical;
   const file = root.open(relative(base, full).split(sep));
 
@@ -45,11 +45,11 @@ export function openImageSource(
     const actual = file.path();
 
     if (!insideImageRoot(root.canonical, actual) || !stat.regular || stat.links !== 1)
-      throw imageRefusal("The image path changed. Choose a regular file inside this thread's directory.");
+      throw imageRefusal("The file path changed. Choose a regular file inside this thread's directory.");
     root.verify();
 
     if (stat.size <= 0 || stat.size > maxBytes)
-      throw imageRefusal("This image exceeds the remaining image limit. Choose a smaller image.");
+      throw imageRefusal("This file exceeds the remaining attachment limit. Choose a smaller file.");
 
     return { file, stat, root, name: full.slice(dirname(full).length + 1) };
   } catch (error) {
@@ -65,22 +65,22 @@ export async function snapshotImage(source: ReturnType<typeof openImageSource>, 
   const hash = createHash("sha256");
 
   for (let offset = 0; offset < data.length;) {
-    if (!valid()) throw imageRefusal("The image transfer expired. Try again.");
+    if (!valid()) throw imageRefusal("The attachment transfer expired. Try again.");
 
     const count = source.file.read(data, offset, Math.min(IMAGE_REPLY_LIMITS.chunkBytes, data.length - offset), offset);
 
-    if (!count) throw imageRefusal("The image changed. Try again.");
+    if (!count) throw imageRefusal("The file changed. Try again.");
     hash.update(data.subarray(offset, offset + count));
     offset += count;
     await Bun.sleep(0);
   }
 
-  if (!valid()) throw imageRefusal("The image transfer expired. Try again.");
+  if (!valid()) throw imageRefusal("The attachment transfer expired. Try again.");
   source.root.verify();
   const after = source.file.stat();
 
   if (after.size !== source.stat.size || after.version !== source.stat.version)
-    throw imageRefusal("The image changed. Try again.");
+    throw imageRefusal("The file changed. Try again.");
 
   return { data, sha256: hash.digest("hex") };
 }

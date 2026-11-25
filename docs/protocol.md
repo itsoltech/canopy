@@ -1,5 +1,9 @@
 # Protokół gateway ↔ worker
 
+Aktualizacja (2026-11-25): `Welcome.thread_video_replies_v1` ogłasza obsługę
+narzędzia `show_video`. Implementacja korzysta z tego samego ograniczonego
+eksportu `ExportThreadImage` co obrazy.
+
 Aktualizacja (2026-11-24): capability `antigravity_acp_v1` obejmuje natywne wątki Antigravity i przypisania skilli workera.
 
 Status (2026-11-24): raport środowiska zawiera inwentaryzację lokalnych skilli i tokeny
@@ -487,6 +491,12 @@ gatewayowych itemów galerii przez własne zdarzenia.
 Po zamknięciu WorkerLink worker kończy oczekujące jawne `show_images` lokalnym
 błędem i usuwa je z kolejki ponowień. Błąd oznacza brak potwierdzenia, ponieważ
 gateway mógł zapisać galerię przed utratą odpowiedzi.
+
+`show_video` rezerwuje miejsce w tym samym limicie tury i używa tych samych
+komend, reguł ścieżek (w tym lokalnego Temp na Windows) oraz obsługi utraty
+połączenia. Gateway zapisuje oryginalne bajty rozpoznanego kontenera i
+`Item.published_video = 27` z metadanymi załącznika. Worker odrzuca wywołanie
+na gatewayu bez `Welcome.thread_video_replies_v1` (10).
 
 Zakończona wiadomość agenta może zawierać lokalne obrazy Markdown. Worker
 wysyła wewnętrzne `import_image_reply({item_id})` po zdarzeniu zakończenia

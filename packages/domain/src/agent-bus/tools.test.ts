@@ -89,6 +89,7 @@ describe("tool sets per level", () => {
       "schedule_wakeup",
       "send_message",
       "show_images",
+      "show_video",
       "stop_background_task",
       "wait_threads",
       "watch_pr_checks",

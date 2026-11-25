@@ -1,5 +1,9 @@
 # Canopy na iOS i Android
 
+Status (2026-11-25): filmy publikowane przez agenta pojawiają się pod odpowiedzią
+po zakończeniu tury. Filmy agenta i zwykłe załączniki otwierają wspólny odtwarzacz
+z kontrolkami Canopy. Nowe karty visuals również pojawiają się po zakończeniu tury.
+
 Status (2026-11-25): Working i Snoozed zapamiętują rozwinięcie po zmianie zakładki
 i ponownym uruchomieniu aplikacji. [Sekcje wątków](threads.md#usypianie)
 
@@ -2637,10 +2641,18 @@ nie dodajemy natywnego generatora miniatur. Rodzaj `video` w szkicu opisuje wyb�
 pickera; upload nadal przesyła nazwę i bajty, a gateway niezależnie rozpoznaje
 kontener i zapisuje `kind = video`. Wysłane filmy mają plakat rastrowy z gatewaya,
 ikonę i znany czas. Plakat używa istniejącego przypiętego transportu i cache obrazów;
-pełny film nie trafia do cache obrazów. Przeglądarka używa `expo-video` z natywnymi
-kontrolkami odtwarzania, przewijania i pełnego ekranu. Start wymaga Play video,
-dźwięk jest początkowo wyciszony. Zamknięcie, utrata focusu trasy lub przejście aplikacji
-w tło zatrzymuje film. Wejście przeglądarki korzysta z istniejącego ograniczenia ruchu.
+pełny film nie trafia do cache obrazów. Film dekoduje natywny `expo-video`, a Canopy
+rysuje nakładkę odtwarzania. Start wymaga Play video, dźwięk jest początkowo wyciszony,
+a głośność reguluje się przyciskami urządzenia. Dotknięcie lub przeciągnięcie suwaka
+zmienia pozycję. Podczas odtwarzania nakładka znika po 2,5 sekundy bez interakcji
+i wraca po dotknięciu filmu. Z aktywnym czytnikiem ekranu kontrolki pozostają widoczne.
+Przycisk napisów pojawia się tylko dla filmu z osadzoną ścieżką napisów.
+Pełny ekran powiększa film do obszaru pod nagłówkiem w tej samej przeglądarce,
+z zachowaniem kontrolek, pozycji odtwarzania i bezpiecznych krawędzi ekranu.
+Przeglądarka obsługuje układ pionowy i poziomy zgodnie z ustawieniem urządzenia.
+Systemowy powrót na Androidzie z pełnego ekranu przywraca widok z metadanymi.
+Zamknięcie, utrata focusu trasy lub przejście aplikacji w tło zatrzymuje film.
+Wejście przeglądarki i znikanie kontrolek uwzględniają systemowe ograniczenie ruchu.
 Share video (iOS) lub Save video (Android) pobiera oryginał dopiero po wybraniu akcji.
 
 Natywny player nie dostaje tokenu urządzenia ani adresu gatewaya: lokalny moduł
@@ -2935,6 +2947,14 @@ manifestu zapisanego przez gateway, nie lokalnej ścieżki workera. Stała ramka
 zachowuje wysokość podczas importu i dekodowania. Niezapisany obraz pozostaje
 linkiem do pliku, a zdalny obraz linkiem zewnętrznym bez automatycznego pobierania.
 
+## Filmy agenta
+
+Item `published_video` pojawia się pod odpowiedzią po zakończeniu tury, także
+przy zwiniętej aktywności. Podgląd z opcjonalnym podpisem otwiera ten sam odtwarzacz
+co załączony film użytkownika. Bajty filmu są pobierane przez Connect
+po otwarciu odtwarzacza, który udostępnia zapis na Androidzie i udostępnianie
+na iOS.
+
 ## Źródła sprawdzone dla tego wdrożenia
 
 - [Expo SDK 58](https://expo.dev/changelog/sdk-58), [expo/fetch i Encoding APIs](https://docs.expo.dev/versions/v58.0.0/sdk/expo/).
@@ -2948,6 +2968,9 @@ Aktualizacje OTA: [Updates SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/up
 [podpisywanie EAS Update](https://docs.expo.dev/eas-update/code-signing/).
 
 ## Visuals agenta
+
+Nowa karta pojawia się pod odpowiedzią po zakończeniu tury, także przy zwiniętej
+sekcji pracy. Karty z wcześniejszych tur są dostępne podczas kolejnej.
 
 Karta HTML przed Run rezerwuje 112 dp zamiast wysokości dokumentu. Jawna zgoda
 i ostatnia wysokość są stanem pamięci sesji dla visuala i wersji, poza wierszem

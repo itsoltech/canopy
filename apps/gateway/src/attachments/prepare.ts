@@ -46,7 +46,7 @@ export async function prepareAttachment(
   rawName: string,
   data: Uint8Array,
   limits: AttachmentLimits,
-  options: { imageReply?: boolean } = {},
+  options: { replyKind?: "image" | "video" } = {},
 ): Promise<PreparedAttachment> {
   let name = safeFileName(rawName);
 
@@ -57,6 +57,9 @@ export async function prepareAttachment(
       `${name} is ${formatSize(data.length)}; files can be up to ${formatSize(limits.maxFileBytes)}`,
     );
   const sniffed = sniff(data, name);
+
+  if (options.replyKind === "video" && sniffed.kind !== "video")
+    throw new AttachmentRejected("Choose an MP4, MOV or WebM video.");
 
   if (sniffed.kind === "executable") throw new AttachmentRejected(`${name} is a program; programs cannot be attached`);
 
@@ -86,7 +89,7 @@ export async function prepareAttachment(
   let image: { data: Uint8Array; mimeType: string; width: number; height: number };
 
   try {
-    image = await normalize(data, sniffed.mimeType, options.imageReply ?? false, limits.maxFileBytes, name);
+    image = await normalize(data, sniffed.mimeType, options.replyKind === "image", limits.maxFileBytes, name);
   } catch (error) {
     if (error instanceof AttachmentRejected) throw error;
 

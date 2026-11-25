@@ -128,10 +128,10 @@ export const ingestThread = (
         known.add(incoming.eventId);
         const seq = ++last;
 
-        const gatewayGallery = origin === "worker" && galleryEvent(incoming);
+        const gatewayMedia = origin === "worker" && gatewayMediaEvent(incoming);
 
         const rejection =
-          gatewayGallery || gatewayOwnedItem(incoming)
+          gatewayMedia || gatewayOwnedItem(incoming)
             ? { code: "23514", reason: "data_error" as const }
             : thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
               ? { code: "23514", reason: "archived_thread" as const }
@@ -382,9 +382,9 @@ const isolateDataErrors = (
     }),
   );
 
-/** Gateway-owned image galleries cannot be created or amended by worker transcript events. */
-function galleryEvent(event: ThreadEvent): boolean {
-  if (event.body.case === "itemDelta") return event.body.value.itemId.startsWith("gallery-");
+/** Gateway-owned media cannot be created or amended by worker transcript events. */
+function gatewayMediaEvent(event: ThreadEvent): boolean {
+  if (event.body.case === "itemDelta") return publishedMediaId(event.body.value.itemId);
 
   if (event.body.case !== "itemStarted" && event.body.case !== "itemCompleted") return false;
   const item = event.body.value.item;
@@ -393,6 +393,11 @@ function galleryEvent(event: ThreadEvent): boolean {
   return Boolean(
     (content?.case === "agentMessage" && (content.value.images.length > 0 || content.value.imageError)) ||
     content?.case === "imageGallery" ||
-    item?.itemId.startsWith("gallery-"),
+    content?.case === "publishedVideo" ||
+    (item && publishedMediaId(item.itemId)),
   );
+}
+
+function publishedMediaId(itemId: string): boolean {
+  return itemId.startsWith("gallery-") || itemId.startsWith("published-video-");
 }

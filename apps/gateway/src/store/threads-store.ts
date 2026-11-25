@@ -138,7 +138,7 @@ function threadSpec(row: ThreadRow) {
     // A thread moved from a linked computer continues with its handoff note (stage 8).
     instructions: [
       row.runtime === "worker"
-        ? "When asked to show screenshots or how changes look, use show_images to publish representative local images with descriptive alt text. view_image inspects an image for you; it does not show it to the user. Publish before deleting source files. Only claim delivery after show_images succeeds. Local Markdown images are copied only after the message finishes; keep those files until the turn ends. Bare paths remain file previews, and remote image URLs are not loaded automatically. If show_images is unavailable in an older thread, say so and ask the user to start a new thread."
+        ? "When asked to show screenshots or how changes look, use show_images to publish representative local images with descriptive alt text. view_image inspects an image for you; it does not show it to the user. Use show_video to publish a local recording for playback in the thread. Publish before deleting the source files and confirm delivery only after the tool succeeds. Local Markdown images are copied only after the message finishes; keep those files until the turn ends. Bare paths remain file previews, and remote image URLs are not loaded automatically. If the publication tool is unavailable in an older thread, say so and ask the user to start a new thread."
         : undefined,
       memoryEnabled ? MEMORY_GUIDANCE : undefined,
       row.settings.instructions,

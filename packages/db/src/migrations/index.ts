@@ -27,6 +27,7 @@ import projectColor from "./0208_project_color.sql" with { type: "text" };
 import botApprovalRestrictedThread from "./0210_bot_approval_restricted_thread.sql" with { type: "text" };
 import antigravityProvider from "./0215_antigravity_provider.sql" with { type: "text" };
 import automaticPrNotifications from "./0216_automatic_pr_notifications.sql" with { type: "text" };
+import showVideo from "./0217_show_video.sql" with { type: "text" };
 import botMessageReactions from "./0214_bot_message_reactions.sql" with { type: "text" };
 import projectImage from "./0212_project_image.sql" with { type: "text" };
 import transcriptStructuredRawRefs from "./0185_transcript_structured_raw_refs.sql" with { type: "text" };
@@ -392,6 +393,7 @@ export const migrations = Migrator.fromRecord({
   "0214_bot_message_reactions": sqlFile(botMessageReactions),
   "0215_antigravity_provider": sqlFile(antigravityProvider),
   "0216_automatic_pr_notifications": sqlFile(automaticPrNotifications),
+  "0217_show_video": sqlFile(showVideo),
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

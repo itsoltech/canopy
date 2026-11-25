@@ -6,9 +6,15 @@ import type { ItemNode, TimelineRow } from "./timeline.ts";
 import { currentWorkHint, groupSummary, isToolItem, workCounts } from "@canopy/domain/work-summary";
 import type { IconName } from "@canopy/ui/icons";
 import { blank } from "./work-segments.ts";
-import { foldId, turnProgress, workSegments, type BodyRow, type WorkSegment } from "@canopy/domain/work-fold";
+import {
+  foldId,
+  isPublishedReply,
+  turnProgress,
+  workSegments,
+  type BodyRow,
+  type WorkSegment,
+} from "@canopy/domain/work-fold";
 import { recoverFoldRows } from "./work-history.ts";
-import { isReplyResult } from "./reply-items.ts";
 
 /**
  * Each turn's work under a stable "Working for …" / "Worked for …" row:
@@ -166,7 +172,7 @@ export function foldTurns(
     const turnId = turnIdOf(row);
 
     if (
-      (row.kind === "item" && isReplyResult(row.node.entry.item.content)) ||
+      (row.kind === "item" && isPublishedReply(row.node.entry.item.content)) ||
       (row.kind === "notice" && row.notice.notice.code === "extra_usage")
     ) {
       const list = results.get(turnId) ?? [];
@@ -225,8 +231,7 @@ export function foldTurns(
     out.push(...recoverFoldRows(fold.body, derived, report));
 
     for (const result of results.get(turnId) ?? []) {
-      if (!ends.has(turnId) && result.kind === "item" && result.node.entry.item.content.case === "imageGallery")
-        continue;
+      if (result.kind === "item" && !ends.has(turnId)) continue;
       out.push({ kind: "row", row: result, work: false });
     }
 

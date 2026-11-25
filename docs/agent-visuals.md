@@ -1,4 +1,12 @@
-# Obrazy w odpowiedziach i interaktywne visuals
+# Obrazy, filmy i interaktywne visuals w odpowiedziach
+
+Status (2026-11-25): `show_video` publikuje trwałe nagrania w odpowiedziach
+na web, desktopie i mobile. Kontrakt opisano w §10.
+Nowe karty `render_visual` i `render_html` pojawiają się po zakończeniu tury,
+razem z galeriami zdjęć i nagraniami.
+Podgląd HTML w rozmowie na desktopie pomija puste klatki inicjalizacji.
+Pierwszą klatkę można potwierdzić jeszcze podczas uruchamiania viewera.
+Odtwarzacz nagrań w web/desktop ma własne kontrolki w czacie, podglądzie i karcie pliku.
 
 Status (2026-11-19): **obrazy, `render_visual` i `render_html` zaimplementowane** w web/desktop/mobile.
 Na Windows w trybie lokalnym `show_images` obsługuje też katalog Temp profilu użytkownika.
@@ -23,6 +31,7 @@ Obrazy publikujemy jako trwałe załączniki, a interaktywne materiały nazywamy
 | Obszar | Bieżący kontrakt |
 | --- | --- |
 | Publikacja obrazów | `show_images` jako główna droga; lokalne obrazy Markdown przechodzą ten sam import; zwykłe ścieżki pozostają linkami/chipami. |
+| Publikacja nagrań | `show_video` zapisuje pojedynczy plik MP4, MOV lub WebM i dodaje odtwarzacz do odpowiedzi. |
 | Trwałość | Kopia w storage załączników gatewaya. Odczyt nie zależy od istnienia pliku ani dostępności workera po publikacji. |
 | Format visuals v1 | Wersjonowane drzewo komponentów JSON, kompilowane do samowystarczalnego HTML z zaufanym kitem Canopy. |
 | Interakcje | Lokalny stan komponentów, bez wywołań agenta lub API. `ask_user` pozostaje osobną interakcją poza visualem. |
@@ -222,13 +231,14 @@ treść i przestaje działać po usunięciu pliku. Nie jest podstawą trwałej g
 
 ### Galeria, telefon i połączone komputery
 
-Galerie `show_images` w web/desktop/mobile pojawiają się pod odpowiedzią dopiero
-po zakończeniu swojej tury (`completed`, `interrupted`, `failed`, `cancelled`),
-również przy zwiniętej sekcji pracy. W aktywnej turze nie zajmują miejsca na osi
-czasu i nie pobierają miniatur. Publikacja nadal od razu zapisuje trwałą kopię;
-odłożony jest tylko widok. Przeładowanie wątku stosuje tę samą regułę, a obrazy
-z poprzednich tur pozostają widoczne podczas kolejnej. Interaktywne visuals
-pozostają dostępne w trakcie pracy; obrazy Markdown zachowują pozycję w tekście.
+Galerie `show_images`, filmy `show_video` i nowe karty visuals w web/desktop/mobile
+pojawiają się pod odpowiedzią po zakończeniu swojej tury (`completed`,
+`interrupted`, `failed`, `cancelled`), również przy zwiniętej sekcji pracy.
+Gateway zapisuje wynik już podczas publikacji. Klient montuje kartę i może
+pobrać miniaturę albo spec dopiero po zakończeniu tury. Przeładowanie wątku
+stosuje tę samą regułę. Karty z wcześniejszych tur są dostępne podczas kolejnej.
+Aktualizacja visuala trafia do jego istniejącej karty. Obrazy Markdown zachowują
+pozycję w tekście.
 
 Galeria pokazuje maksymalnie 6 miniatur w 3 kolumnach desktopu i 2 telefonu;
 „Show all 10” rozwija resztę bez pobierania pełnych obrazów. `width`/`height`
@@ -855,7 +865,11 @@ Kontrolki wersji/cytowania/pobierania pozostają w głównej karcie.
 
 Podgląd ma najwyżej 1600 × 1000 px, 15 klatek/s i 4 MiB PNG na klatkę.
 Producent czeka na ACK po odczycie klatki; nie kolejkuje obrazów, gdy host jest
-wolniejszy. Niewidoczna karta zatrzymuje malowanie, a odmontowanie, zmiana
+wolniejszy. Host potwierdza także klatkę dostarczoną przed komunikatem
+`opened`, dzięki czemu producent może przesłać następną. Puste klatki
+i puste wyniki kodowania pomija, czekając na ponowne
+malowanie. Jeśli widoczna karta przez 10 s nie otrzyma poprawnej klatki, pokazuje
+błąd z Retry. Niewidoczna karta zatrzymuje malowanie, a odmontowanie, zmiana
 wersji, nawigacja głównego okna lub jego zamknięcie kończą proces podglądu.
 Komendy i zdarzenia są związane z losowym ID montażu i autoryzowanym
 `webContents` właściciela. Zakończenie starego montażu nie zamyka nowego.
@@ -943,3 +957,32 @@ Agent dostaje zmienne `--canopy-canvas`, `--canopy-surface`, `--canopy-panel`,
 `--canopy-action`, `--canopy-on-accent` z palety hosta. Kolory są walidowane
 przed wstrzyknięciem; dokument nie dostaje prywatnych klas ani zasobów Canopy.
 
+
+## 10. Nagrania (`show_video`)
+
+Agent wywołuje `show_video({path, caption?})` podczas aktywnej tury.
+Kopia staje się samodzielną odpowiedzią po zakończeniu tury. Web i desktop
+odtwarzają nagranie w rozmowie po naciśnięciu przycisku, a mobile otwiera
+natywny odtwarzacz z podglądu nagrania. Załącznik pozostaje dostępny do
+pobrania po usunięciu pliku źródłowego i po rozłączeniu workera.
+
+Narzędzie przyjmuje jeden lokalny plik MP4, MOV lub WebM do 20 MiB, z
+uwzględnieniem niższych limitów właściciela. Podpis jest opcjonalny i ma do
+500 znaków. Obowiązują te same przypięte katalogi i reguły eksportu co przy
+`show_images`, w tym katalog Temp w trybie lokalnym na Windows. Nagrania
+wliczają się do wspólnego budżetu publikacji w turze (100 plików i 200 MiB).
+Gateway identyfikuje kontener na podstawie bajtów, zachowuje oryginał i odczytuje
+czas trwania, jeśli kontener go udostępnia. Obsługa kodeka zależy od klienta.
+
+W web/desktop pasek odtwarzacza pokazuje czas, postęp i bufor. Umożliwia
+przewijanie wskaźnikiem lub klawiaturą, regulację dźwięku i pełny ekran.
+Przełącznik napisów pojawia się, jeśli przeglądarka wykryje ścieżkę napisów.
+Podczas odtwarzania pasek znika po bezczynności i wraca po aktywności wskaźnika
+lub klawiatury. Przeglądarki z pełnym ekranem dostępnym wyłącznie na elemencie
+wideo (np. Safari na iPhonie) używają w tym trybie systemowych kontrolek.
+
+Załącznik, pozycja osi czasu, audyt i potwierdzenie wywołania zapisują się w
+jednej transakcji. Narzędzie zwraca `delivered`, `item_id` i `attachment_ids`.
+Drugi odczyt tego samego wywołania zwraca zapisane potwierdzenie. Odtwarzacz
+pobiera zakresy bajtów przez zwykły, autoryzowany odczyt załączników.
+Starsza sesja Codexa z utrwalonym katalogiem narzędzi może wymagać nowego wątku.

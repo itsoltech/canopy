@@ -68,12 +68,13 @@ class ViewerLaunch {
   }
 
   command(command: typeof ViewerCommand.Type) {
-    if (this.ended || !this.opened || !this.id) return;
+    if (this.ended || !this.id) return;
 
     if (command.type === "ack") {
+      // Painting can begin before the child announces "opened".
       if (!this.framePending) return;
       this.framePending = false;
-    }
+    } else if (!this.opened) return;
 
     // Input floods must never consume ACK or lifecycle delivery slots.
     if (

@@ -132,6 +132,7 @@ const ESTIMATES = new Map<string, number>([
   ["answer", 160],
   ["item:userMessage", 96],
   ["item:agentMessage", 160],
+  ["item:publishedVideo", 320],
   ["item:subagent", 44],
 ]);
 

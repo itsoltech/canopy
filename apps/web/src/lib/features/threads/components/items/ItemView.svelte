@@ -23,6 +23,7 @@
   import LazyItemContent from "./LazyItemContent.svelte";
   import { useLazyContent } from "./lazy-content.ts";
   import ImageGallery from "#lib/features/attachments/ImageGallery.svelte";
+  import PublishedVideoView from "#lib/features/attachments/PublishedVideoView.svelte";
 
   /**
    * One transcript item (docs/transcript.md); every type has a view. `nested` = its child items.
@@ -77,6 +78,8 @@
   <ImageView image={content.value} status={item.status} />
 {:else if content.case === "imageGallery"}
   <ImageGallery gallery={content.value} />
+{:else if content.case === "publishedVideo"}
+  <PublishedVideoView video={content.value} />
 {:else if content.case === "contextCompaction"}
   <CompactionView compaction={content.value} />
 {:else if content.case === "interactionPrompt"}

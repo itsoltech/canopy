@@ -1,5 +1,8 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-25): `show_video({path, caption?})` publikuje nagranie z workera
+jako odtwarzalny załącznik odpowiedzi w wątku. [Publikacja nagrań](agent-visuals.md#10-nagrania-show_video)
+
 Status (2026-11-24): `switch_worktree` zmienia katalog własnego wątku w obrębie repozytorium
 workspace’u. `branch` tworzy nową gałąź od bieżącego commita, a `path` wskazuje istniejący checkout.
 Opcjonalne `continuation` kolejkuje następną turę po przełączeniu [wątku do worktree](worktrees.md#zmiana-worktree-przez-agenta).
@@ -94,7 +97,7 @@ i etykiety. Poświadczenia dostawcy nigdy nie trafiają do workera.
 - wyłączanie natywnych narzędzi dostawców: `apps/worker/src/providers/native-tools.ts`, z testem na prawdziwym Codexie,
 - definicje narzędzi, zestawy per poziom i reguły dostępu: `packages/domain/src/agent-bus`,
 - schemat: `agent_bus_calls`, `schedules`, `threads.spawned_by_call_id`, `threads.interaction_route`, `interaction_requests.routed_to`, `turns.hops` i wyzwalacze tur (migracja `0004` dopuszcza odrzucone `spawn_thread`/`send_message` bez `hops`),
-- worker: narzędzia jako `dynamicTools` Codexa przy `thread/start` (`codexAgentBusTools`), wywołania jako `AgentToolCall` z deterministycznym `call_id` (`toolCallId`), ponawiane po ponownym połączeniu z wyjątkiem [`show_images`](agent-visuals.md#import-przechowywanie-i-awarie),
+- worker: narzędzia jako `dynamicTools` Codexa przy `thread/start` (`codexAgentBusTools`), wywołania jako `AgentToolCall` z deterministycznym `call_id` (`toolCallId`), ponawiane po ponownym połączeniu z wyjątkiem publikacji [obrazów](agent-visuals.md#import-przechowywanie-i-awarie) i [nagrań](agent-visuals.md#10-nagrania-show_video),
 - gateway: `AgentBus` (`apps/gateway/src/core/agent-bus.ts`) i `AgentBusStore` (`apps/gateway/src/store/agent-bus.ts`): dekodowanie, fakty z bazy, `authorizeBusCall`, wykonanie, powiadomienia, pytania do rodzica,
 - testy: `tests/integration/agent-bus.test.ts` (gateway + skryptowany worker), `codex dynamic tools (live)` w `app-server.live.test.ts`.
 

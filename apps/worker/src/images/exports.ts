@@ -66,7 +66,7 @@ export class ThreadImageExports {
         known.maxBytes !== request.maxBytes ||
         known.allowLocalTemp !== request.allowLocalTemp)
     )
-      throw imageRefusal("This image transfer belongs to another request. Try again.");
+      throw imageRefusal("This attachment transfer belongs to another request. Try again.");
 
     if (request.operation === "release") {
       this.release(request.exportId);
@@ -74,15 +74,14 @@ export class ThreadImageExports {
       return {};
     }
 
-    if (!scope.cwd || !scope.running)
-      throw imageRefusal("This turn has ended. Ask the agent to show the images again.");
+    if (!scope.cwd || !scope.running) throw imageRefusal("This turn has ended. Publish the file again in a new turn.");
     const assigned = this.#scopes.get(request.threadId);
 
     if (!assigned || assigned.cwd !== scope.cwd || assigned.attachments !== scope.attachments) throw rootChanged();
     const roots = assigned.roots;
 
     if (!request.roots.length || request.roots.some((root) => !roots.some((pin) => pin.path === root)))
-      throw imageRefusal("This image is outside this thread's directory. Choose a file inside it.");
+      throw imageRefusal("This file is outside this thread's directory. Choose a file inside it.");
 
     for (const root of roots) root.verify();
 
@@ -91,7 +90,7 @@ export class ThreadImageExports {
       request.maxBytes <= 0n ||
       request.maxBytes > BigInt(IMAGE_REPLY_LIMITS.fileBytes)
     )
-      throw imageRefusal("This image exceeds the remaining image limit. Choose a smaller image.");
+      throw imageRefusal("This file exceeds the remaining attachment limit. Choose a smaller file.");
     let entry = known;
 
     if (!entry) {
@@ -100,7 +99,7 @@ export class ThreadImageExports {
         this.#exports.size >= 2 ||
         [...this.#exports.values()].some((e) => e.threadId === request.threadId)
       )
-        throw imageRefusal("Another image is being prepared. Try again.");
+        throw imageRefusal("Another attachment is being prepared. Try again.");
 
       const source = openImageSource(
         request.path,
@@ -134,13 +133,13 @@ export class ThreadImageExports {
     if (request.operation === "probe") return metadata;
 
     if (request.operation !== "read" || request.offset < 0n || request.offset >= entry.sizeBytes)
-      throw imageRefusal("This image transfer is incomplete. Try again.");
+      throw imageRefusal("This attachment transfer is incomplete. Try again.");
 
     try {
       if (!entry.snapshot) {
         const source = entry.source;
 
-        if (!source) throw imageRefusal("The image transfer expired. Try again.");
+        if (!source) throw imageRefusal("The attachment transfer expired. Try again.");
         const active = entry;
         entry.pending ??= snapshotImage(
           source,
@@ -148,7 +147,8 @@ export class ThreadImageExports {
         );
         entry.snapshot = await entry.pending;
 
-        if (this.#exports.get(request.exportId) !== entry) throw imageRefusal("The image transfer expired. Try again.");
+        if (this.#exports.get(request.exportId) !== entry)
+          throw imageRefusal("The attachment transfer expired. Try again.");
 
         if (entry.source) {
           entry.source.file.close();

@@ -1,5 +1,9 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-25): migracja `0217_show_video` dopuszcza zapis potwierdzeń
+`show_video` w `agent_bus_calls`. Nagrania korzystają z istniejącego storage
+załączników i rezerwacji tabeli `thread_image_publications`.
+
 Status (2026-11-25): migracja `0216_automatic_pr_notifications` zapisuje automatyczną obserwację PR
 w `pr_check_watches` bez identyfikatora wywołania i terminu wygaśnięcia. Stan konfliktu zapobiega
 ponownemu dostarczeniu tej samej notatki po restarcie lub konsolidacji.

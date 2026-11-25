@@ -10,13 +10,18 @@ export function streamViewer(target: BrowserWindow, fail: (message: string) => v
   let dirty = false;
   let visible = true;
   let lastFrame = 0;
+  const waitForFirstFrame = () => setTimeout(() => fail("Couldn't open this visual."), 10_000);
+  let firstFrameTimeout = waitForFirstFrame();
   target.webContents.setFrameRate(15);
   target.webContents.on("paint", (_event, _rect, image) => {
     dirty = true;
 
-    if (awaitingAck || !visible || Date.now() - lastFrame < 1000 / 15) return;
+    if (awaitingAck || !visible || Date.now() - lastFrame < 1000 / 15 || image.isEmpty()) return;
     const { width, height } = target.getContentBounds();
     const png = image.resize({ width, height }).toPNG();
+
+    // Electron returns an empty buffer when it cannot encode the current surface. Try again on the next paint.
+    if (!png.byteLength) return;
 
     if (png.byteLength > VIEWER_FRAME_BYTES) {
       fail("This visual's frame is too large to display.");
@@ -24,6 +29,7 @@ export function streamViewer(target: BrowserWindow, fail: (message: string) => v
       return;
     }
 
+    if (!lastFrame) clearTimeout(firstFrameTimeout);
     awaitingAck = true;
     dirty = false;
     lastFrame = Date.now();
@@ -37,6 +43,7 @@ export function streamViewer(target: BrowserWindow, fail: (message: string) => v
   }, 70);
 
   target.once("closed", () => {
+    clearTimeout(firstFrameTimeout);
     clearInterval(repaint);
     controls.dispose();
   });
@@ -56,12 +63,17 @@ export function streamViewer(target: BrowserWindow, fail: (message: string) => v
         return;
       case "host":
         if (command.message.type === "visibility") {
+          const resumed = !visible && command.message.visible;
           visible = command.message.visible;
 
           if (visible) {
+            if (resumed && !lastFrame) firstFrameTimeout = waitForFirstFrame();
             target.webContents.startPainting();
             dirty = true;
-          } else target.webContents.stopPainting();
+          } else {
+            clearTimeout(firstFrameTimeout);
+            target.webContents.stopPainting();
+          }
         }
 
         return;

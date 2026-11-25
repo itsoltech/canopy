@@ -250,6 +250,7 @@ async function welcomeMessage(options: WorkerLinkOptions, workerId: string, hell
     workerDiagnosticsV1: workerMetricsSupported(options, hello),
     threadVisualsV1: true,
     threadHtmlV1: true,
+    threadVideoRepliesV1: true,
     threadStorageCleanupV1: true,
   };
 }

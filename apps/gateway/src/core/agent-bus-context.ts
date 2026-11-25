@@ -5,6 +5,7 @@ import { AgentToolResultSchema, ui, type AgentToolCall, type AgentToolResult } f
 import { type AgentBusArgs, type AgentBusCall, type SpawnInstance, type SpawnTarget } from "@canopy/domain";
 import { Predicate, Schema, type Effect } from "effect";
 import type { WorkerConnection } from "../worker-link/index.ts";
+import type { ThreadMediaRequest } from "../store/image-gallery.ts";
 import {
   AgentBusStore,
   GatewayStore,
@@ -61,7 +62,7 @@ export interface BusHost {
     args: AgentBusArgs["request_secret"],
     connection?: WorkerConnection,
   ): Promise<JsonValue>;
-  showImages(source: CallSource, caller: ThreadRow, args: AgentBusArgs["show_images"]): Promise<JsonValue>;
+  publishMedia(source: CallSource, caller: ThreadRow, request: ThreadMediaRequest): Promise<JsonValue>;
   importImageReply(source: CallSource, caller: ThreadRow, itemId: string): Promise<JsonValue>;
   renderVisual(
     source: CallSource,
@@ -95,6 +96,7 @@ export const WAIT_POLL_MS = 1_000;
 /** Tools that persist their own call (reads store their result together with notification consumption). */
 export const STORES_ITS_CALL = new Set([
   "show_images",
+  "show_video",
   "render_visual",
   "render_html",
   "spawn_thread",

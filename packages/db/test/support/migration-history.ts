@@ -211,4 +211,5 @@ export const expectedSchemaMigrations = [
   "214_bot_message_reactions",
   "215_antigravity_provider",
   "216_automatic_pr_notifications",
+  "217_show_video",
 ];

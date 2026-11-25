@@ -92,7 +92,7 @@
         ]}
       >
         {#if video}
-          <div class="pointer-events-auto"><VideoPlayer {src} {poster} active={open} /></div>
+          <div class="pointer-events-auto"><VideoPlayer {src} {poster} active={open} label={name} /></div>
         {:else}
           <AttachmentImage
             {src}
