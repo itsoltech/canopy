@@ -86,6 +86,13 @@ const counted = [
   ["disabled", "off"],
 ] as const;
 
+/** Accounts reported by this proxy for the instance's harness. */
+export function proxyAccountsForHarness(accounts: ui.ProxyAccounts | undefined, harness: Provider): ui.ProxyAccount[] {
+  const providers = harnessProviders.get(harness);
+
+  return accounts?.state === "ok" && providers ? accounts.accounts.filter((a) => providers.includes(a.provider)) : [];
+}
+
 /**
  * One line for a harness's accounts behind a proxy, e.g. "2 Codex accounts · 1 cooling down". Undefined when the
  * accounts are unknown (no key, not read yet, an error state).
@@ -93,7 +100,7 @@ const counted = [
 export function proxyAccountsSummary(accounts: ui.ProxyAccounts | undefined, harness: Provider): string | undefined {
   if (accounts?.state !== "ok") return undefined;
   const providers = harnessProviders.get(harness) ?? [];
-  const own = accounts.accounts.filter((a) => providers.includes(a.provider));
+  const own = proxyAccountsForHarness(accounts, harness);
   const name = proxyProviderName(providers[0] ?? "");
 
   if (!own.length) return `No ${name} accounts`;

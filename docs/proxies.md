@@ -1,7 +1,7 @@
 # Współdzielone połączenia proxy
 
-Status: opis zaimplementowanego zachowania (2026-11-24), w tym limity kont proxy
-na głównym widoku Settings → Providers, wznowienie tury
+Status: opis zaimplementowanego zachowania (2026-11-25), w tym konta i limity proxy
+w szczegółach wybranej instancji Providers w web/desktop, wznowienie tury
 Claude po niedostępnym katalogu modeli proxy podczas startu, aktywny odczyt limitów
 Claude, wybór odczytów kont i modeli CLIProxyAPI, wyrównanie tożsamości kont
 oraz odświeżanie powiązań proxy po zmianie lub usunięciu instancji w web/desktop.
@@ -286,17 +286,20 @@ providera, konto, odznakę statusu, limity (te same mierniki co limity planu), k
 cooldownu i komunikat. Listę odświeża akcja **Refresh**. Bez klucza albo przy błędzie zostaje jedna
 krótka podpowiedź. W Settings → Providers instancja z proxy pokazuje „Through <proxy>”
 z podsumowaniem kont tego harnessu (np. „2 Codex accounts · 1 cooling down”) i linkiem
-do karty proxy, zamiast mierników planu. Mobile pokazuje te same informacje, stany
+do karty proxy. Mobile pokazuje te same informacje, stany
 i akcje (karta proxy, management key, Test connection, Refresh, picker proxy w instancji
 i nadpisaniu workera).
 Wspólne etykiety i podsumowanie: `@canopy/domain/proxy-accounts`.
 
-Po wybraniu **Open provider settings** w web, desktop i mobile widać sekcję
-**Proxy limits** nad listą instancji. Grupuje konta według używanego proxy CLIProxyAPI.
-Przy każdym koncie podaje dostawcę, jego aktualne okna limitów i znane terminy resetu.
-W web i desktop nazwa proxy prowadzi do jego karty w Settings → Proxies.
-Sekcja korzysta z tego samego odczytu `ListProxies` co popover. Pojawia się, gdy
-co najmniej jedno konto obsługiwanego dostawcy ma niewygasły odczyt.
+W web/desktop **Status and access → Proxy connection** pokazuje w wybranej
+instancji konta jej harnessu z przypisanego proxy CLIProxyAPI. Na przykład
+instancja Claude połączona przez proxy pokazuje konta Claude z tego proxy wraz
+z aktualnymi limitami i znanymi terminami resetu. Logowanie urządzenia korzysta
+z raportu konta workera. Jeśli włączone workery korzystają z różnych proxy,
+**All workers** pokazuje każde z tych proxy raz. Po wybraniu workera widok
+uwzględnia jego nadpisanie połączenia. Dane pochodzą ze wspólnego `ListProxies`.
+Na mobile **Proxy limits** nad listą instancji grupuje aktualne odczyty limitów
+według używanego proxy CLIProxyAPI.
 
 W Accounts na web/desktop każde raportowane okno, także 5-hour, zachowuje własny
 pasek pozostałego limitu i czas resetu. Przy znanej długości, dacie resetu i zużyciu

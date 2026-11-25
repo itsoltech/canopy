@@ -14,7 +14,7 @@ Jeśli worker nie może dowiązać pliku loginu lub jego blokady w izolowanej
 instancji Codexa, Canopy pokazuje przyczynę przy koncie i w błędzie tury.
 Instancja ze zgłoszonym błędem udostępniania loginu ma status **Login unavailable**.
 
-Status (2026-11-24) obejmuje widok limitów kont proxy w Providers, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
+Status (2026-11-25) obejmuje konta proxy ograniczone do wybranej instancji i wybór szczegółów workera w web/desktop, domyślne korzystanie z loginu CLI przez wątki wbudowanej instancji `codex/native` oraz raportowanie błędów dowiązań w trybie izolowanym. Dostępność w wydaniach: [release.md](release.md).
 
 Aktualizacja (2026-11-24): w panelu **Provider usage** w web/desktop procenty mają spójny rozmiar tekstu.
 
@@ -25,7 +25,12 @@ Claude Team liczy się jako ×5 według deklaracji użytkownika z 2026-11-15,
 nie niezależnie potwierdzonego limitu providera. Szczegóły zapisu i detekcji:
 [proxies.md](proxies.md#ręczny-plan-konta).
 
-Settings → Providers pokazuje status osobno dla instancji i workera. W web/desktop te same metadane są w **Settings → Workers**
+Settings → Providers pokazuje status osobno dla instancji i workera. W web/desktop
+lista pokazuje kanał połączenia, gdy provider ma kilka instancji. Przy wielu workerach
+**All workers** pokazuje zbiorczą gotowość instancji. W **Status and access → Worker details**
+można sprawdzić wersję, konto i limity jednego workera lub wrócić do **Summary**.
+Wybór dotyczy podglądu, a zakres edycji określa osobne pole u góry.
+Przy jednym workerze jego szczegóły są od razu widoczne. Te same metadane są w **Settings → Workers**
 po wybraniu maszyny, w zakładce **Configuration**. Raport dostępności
 CLI pozostaje osobny: obecność loginu nie oznacza poprawnego działania
 każdego modelu ani dostępności endpointu.
