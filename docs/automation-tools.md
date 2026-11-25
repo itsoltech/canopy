@@ -1,5 +1,8 @@
 # Narzędzia automatyzacji agentów
 
+Aktualizacja (2026-11-25). Instalacja i naprawa Agent Desktop na macOS otwierają
+kreator brakujących uprawnień na komputerze workera.
+
 Status (2026-11-23): **Settings → Agent tools na iOS i Androidzie obsługuje dostęp, instalacje i ustawienia nowych sesji**.
 
 Status (2026-11-22): **narzędzia, interaktywny Preview z podglądem zmiany viewportu,
@@ -131,8 +134,8 @@ lub niezgodnej binarki; Browser przygotowuje także swój runtime, gdy nie jest 
 Grant zapisuje się po potwierdzeniu startu przez worker, bez czekania na koniec
 instalacji. Trwająca instalacja nie jest uruchamiana ponownie. Brak instalatora
 lub raportu i odmowa startu pozostawiają poprzedni grant; błąd jest przy workerze.
-Gotowa binarka nie jest reinstalowana. Poprawne Desktop/Device z brakującymi
-uprawnieniami OS lub SDK mogą dostać grant, ale wymagają ręcznego przygotowania.
+Gotowa binarka nie jest reinstalowana. Właściciel może włączyć dostęp do zgodnej
+wersji Desktop lub Device przed zakończeniem konfiguracji uprawnień lub SDK.
 Nie ma kolejki instalacji po ponownym połączeniu: włączanie wymaga dostępnego
 workera i jego komputera. Lokalny grant można wyłączyć również offline.
 Operacja zbiorcza zachowuje wyniki i błędy osobno dla każdego workera.
@@ -146,6 +149,15 @@ i używa tego samego sposobu uruchamiania podczas weryfikacji i pracy narzędzia
 się dopiero po sprawdzeniu wersji i gotowości runtime'u.
 Instalator dopuszcza skrypt instalacyjny wyłącznie wybranego pakietu przez
 `--allow-scripts=<package>`; obsługuje też politykę skryptów npm 11.
+
+Jeśli na macOS brakuje Accessibility lub Screen Recording, worker uruchamia
+`agent-desktop permissions --guide`. Kreator otwiera odpowiedni panel Ustawień
+systemowych w sesji graficznej workera i wskazuje użytkownikowi aplikację, której
+trzeba udzielić dostępu. W Canopy zainstalowane narzędzie ma stan **Needs setup**.
+**Repair tool** lub **Retry install** po wcześniejszej nieudanej instalacji
+ponawia uruchomienie kreatora na zgodnej, zainstalowanej wersji.
+Użytkownik może też nadać uprawnienia w Ustawieniach systemowych na tym Macu.
+Po nadaniu uprawnień **Check tools** potwierdza gotowość.
 
 Gotowość jest raportowana przez `agent-tools` na podstawie rzeczywistego stanu
 runtime'u:

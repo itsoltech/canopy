@@ -105,7 +105,7 @@ test("desktop readiness still requires screen recording on macOS", async () => {
   });
 
   expect(found.ready).toBe(false);
-  expect(found.detail).toBe("Grant Screen Recording permission for desktop screenshots");
+  expect(found.detail).toContain("Allow Screen Recording in System Settings");
 });
 
 test("unsupported versions, platforms and malformed runtime responses never report ready", async () => {
