@@ -1,5 +1,10 @@
 # Boty
 
+Status (2026-11-25): szczegóły zmian ustawień bota w web/desktop pokazują instrukcje
+jako jednokolumnowy diff z zawijaniem tekstu oraz nagłówkiem przypiętym podczas przewijania.
+Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Status (2026-11-25): w sidebarze web/desktop widoczna akcja „Create bot” znajduje się
 po prawej stronie wyszukiwarki, w tym samym miejscu co „New thread”. W najwęższym
 panelu akcja zachowuje etykietę i pomija ikonę plusa, żeby wyszukiwarka miała więcej miejsca.
@@ -1359,8 +1364,11 @@ własne. Z `worker_id` można odczytać katalog innego dostępnego workera.
 Zmiana modelu, effort, dostawcy/instancji lub polityki zawsze wymaga istniejącej karty zgody,
 również przy `safe`. Warstwa zapisu sprawdza zatwierdzenie. Konfiguracja, wynik narzędzia
 i wpis w rozmowie zatwierdzają się atomowo; ponowienie checkpointu nie powiela zmiany.
-UI pokazuje spokojną linię, np. „Main bot changed its name to Kropka”, i **View** z wartościami
-przed/po, bez JSON. Maskotka reaguje istniejącą animacją. Instrukcje są trwałą częścią system
+Web i desktop pokazują linię zdarzenia, np. „Main bot changed its name to Kropka”. Akcja **View**
+pokazuje dodane i usunięte linie instrukcji ze znakami `+` i `-` oraz sąsiednimi liniami kontekstu.
+Przy zastąpieniu pojedynczej linii wyróżnia też zmienione słowa.
+Pozostałe pola i zmiany instrukcji przekraczające rozmiar diffu pokazują wartości przed i po.
+Maskotka reaguje istniejącą animacją. Instrukcje są trwałą częścią system
 promptu i obowiązują od następnej nowo rozpoczynanej tury; linia zmiany nie wchodzi do historii
 wysyłanej modelowi. Dotyczy to także edycji w ustawieniach oraz wyczyszczenia instrukcji.
 Worker porównuje trwały fingerprint nazwy, instrukcji, polityki zgód, modelu, effortu

@@ -1,9 +1,5 @@
 import type { SkillFile } from "@canopy/contracts";
-import { formatPatch, OMIT_HEADERS, structuredPatch } from "diff";
-
-// Both clients render the patch as individual rows. Keep large rewrites inspectable as source.
-const MAX_DIFF_LINES = 3_000;
-const MAX_DIFF_CHARS = 300_000;
+import { unifiedTextDiff } from "./text-diff.ts";
 
 /** Keep common context outside the changed block, including empty and trailing lines. */
 export function textChanges(before: string, after: string) {
@@ -58,14 +54,5 @@ export function environmentFileDiff(before?: SkillFile, after?: SkillFile) {
 
   if (previous === undefined || next === undefined) return { kind: "binary" as const, mode };
 
-  if (previous === next) return { kind: "text" as const, mode, diff: "" };
-
-  const patch = structuredPatch("", "", previous, next, undefined, undefined, { context: 3, timeout: 100 });
-
-  if (!patch || patch.hunks.reduce((count, hunk) => count + hunk.lines.length + 1, 0) > MAX_DIFF_LINES)
-    return { kind: "large" as const, mode };
-
-  const diff = formatPatch(patch, OMIT_HEADERS).replace(/\n$/, "");
-
-  return diff.length > MAX_DIFF_CHARS ? { kind: "large" as const, mode } : { kind: "text" as const, mode, diff };
+  return { ...unifiedTextDiff(previous, next), mode };
 }

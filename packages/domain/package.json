@@ -135,6 +135,7 @@
     "./source-command": "./src/source-command.ts",
     "./skill-source": "./src/skill-source.ts",
     "./environment-review": "./src/environment-review.ts",
+    "./text-diff": "./src/text-diff.ts",
     "./environment-selectors": "./src/environment-selectors.ts",
     "./access-picker": "./src/access-picker.ts",
     "./environment-library": "./src/environment-library.ts",
