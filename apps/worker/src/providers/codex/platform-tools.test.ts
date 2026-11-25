@@ -132,6 +132,9 @@ test.skipIf(!Bun.which("codex"))(
           dir,
         ),
         clientVersion: "test",
+        onServerRequest: async (request) => {
+          throw new Error(`Unexpected native request: ${request.method}`);
+        },
       });
 
       await Effect.runPromise(
