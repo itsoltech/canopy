@@ -4,7 +4,8 @@ Status (2026-11-23): web, desktop i mobile używają zróżnicowanej palety
 oznaczeń nowych i zapisanych projektów. Appearance jest lokalne dla profilu
 przeglądarki, instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
 Aktualizacja (2026-11-24): Desktop ma sekcję Accessibility z lokalnym wyborem obrysu fokusu.
-Aktualizacja (2026-11-25): korona drzewa w panelu bocznym webu i desktopu ma sezonową dekorację.
+Aktualizacja (2026-11-25): w panelu bocznym webu i desktopu warstwa śniegu ma
+jeden ciągły brzeg na całej koronie drzewa.
 Domyślny font interfejsu web i desktop ma etykietę Inter.
 Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
 W web i desktopie Thread width obejmuje także widok PR i podgląd `Rendered` plików Markdown.
