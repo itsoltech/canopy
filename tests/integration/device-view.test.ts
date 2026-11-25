@@ -106,6 +106,8 @@ describe("device view persistence for clients of the same owner", () => {
     a.initialize(legacy);
     b.initialize(legacy);
     a.set({
+      workingThreadsExpanded: true,
+      snoozedThreadsExpanded: true,
       archivedThreadsExpanded: false,
       archivedBotsExpanded: true,
       sidebarCollapsed: false,
@@ -116,6 +118,8 @@ describe("device view persistence for clients of the same owner", () => {
     });
     a.initialize(legacy);
     expect(a.values).toMatchObject({
+      workingThreadsExpanded: true,
+      snoozedThreadsExpanded: true,
       archivedThreadsExpanded: false,
       archivedBotsExpanded: true,
       sidebarWidth: 0,
@@ -124,6 +128,8 @@ describe("device view persistence for clients of the same owner", () => {
       collapsedSidebarGroups: ["heading:project:project-a", "heading:worktree:directory-a"],
     });
     expect(b.values).toMatchObject({
+      workingThreadsExpanded: false,
+      snoozedThreadsExpanded: false,
       archivedThreadsExpanded: true,
       archivedBotsExpanded: false,
       sidebarCollapsed: true,
@@ -135,6 +141,8 @@ describe("device view persistence for clients of the same owner", () => {
     const reopened = aStorage.open();
     reopened.initialize(legacy);
     expect(reopened.values).toEqual(a.values);
+    reopened.set({ snoozedThreadsExpanded: false });
+    expect(aStorage.open().values).toMatchObject({ workingThreadsExpanded: true, snoozedThreadsExpanded: false });
     reopened.set({ archivedThreadsExpanded: true, threadPanelCollapsed: true });
     expect(b.values.threadPanelCollapsed).toBe(false);
     expect(legacy).toEqual({ archivedThreadsExpanded: true, sidebarWidth: 320, sidebarCollapsed: true });

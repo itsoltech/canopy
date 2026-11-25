@@ -12,6 +12,8 @@ export const PULL_REQUEST_WIDTH = { default: 576, min: 320, max: 1200, minThread
 export const FILES_PANEL_WIDTH = { default: 288, min: 256, max: 480 } as const;
 
 const savedView = Schema.Struct({
+  workingThreadsExpanded: Schema.optionalKey(Schema.Boolean),
+  snoozedThreadsExpanded: Schema.optionalKey(Schema.Boolean),
   archivedThreadsExpanded: Schema.optionalKey(Schema.Boolean),
   archivedBotsExpanded: Schema.optionalKey(Schema.Boolean),
   sidebarCollapsed: Schema.optionalKey(Schema.Boolean),
@@ -50,6 +52,8 @@ export interface DeviceViewValues extends DeviceSidebarValues {
   threadSortMode: ThreadSortMode;
   lastSeenAppVersion: string;
   appUpdateFrom: string;
+  workingThreadsExpanded: boolean;
+  snoozedThreadsExpanded: boolean;
   archivedThreadsExpanded: boolean;
   archivedBotsExpanded: boolean;
   sidebarCollapsed: boolean;
@@ -72,6 +76,8 @@ export const deviceViewDefaults: DeviceViewValues = {
   threadSortMode: "activity",
   lastSeenAppVersion: "",
   appUpdateFrom: "",
+  workingThreadsExpanded: false,
+  snoozedThreadsExpanded: false,
   archivedThreadsExpanded: false,
   archivedBotsExpanded: false,
   sidebarCollapsed: false,

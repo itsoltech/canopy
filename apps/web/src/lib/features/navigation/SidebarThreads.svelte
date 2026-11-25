@@ -96,7 +96,7 @@
     ),
   );
 
-  let workingOpen = $state(false);
+  const workingOpen = $derived(devicePreferences.view.workingThreadsExpanded);
 
   const grouping = $derived({ groupByWorktree: devicePreferences.view.groupByWorktree });
 
@@ -239,7 +239,7 @@
             working
             label={working.heading}
             expanded={workingOpen}
-            ontoggle={() => (workingOpen = !workingOpen)}
+            ontoggle={() => devicePreferences.setView({ workingThreadsExpanded: !workingOpen })}
           >
             <ul role="list" aria-label="Working threads" class="grid min-w-0 grid-cols-1 gap-0.5">
               {@render renderRows(workingKeys, false)}

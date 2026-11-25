@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-25): Working i Snoozed zapamiętują rozwinięcie po zmianie zakładki
+i ponownym uruchomieniu aplikacji. [Sekcje wątków](threads.md#usypianie)
+
 Status (2026-11-25): na liście Bots akcja „Create bot” ma widoczną etykietę i ikonę
 plusa po prawej stronie wyszukiwarki, w tym samym miejscu co „New thread” w Threads.
 Dostępność w kanałach określa [promocja wydań](release.md).
