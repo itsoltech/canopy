@@ -55,6 +55,7 @@ function fixture(
 
   let nextAssetId = 1;
   let interruptUpload = false;
+  let transientUpload: "starter" | "uploaded" | undefined;
   let lostPublishResponse = false;
   let corrupt: ((assets: UploadedAsset[]) => UploadedAsset[]) | undefined;
 
@@ -98,18 +99,26 @@ function fixture(
         if (asset.id === id) uploaded.delete(name);
       }
     },
-    upload: (_repo, _tag, paths) => {
+    upload: (_repo, id, path) => {
+      expect(id).toBe(release.id);
+
       if (!release.draft) throw new Error("Cannot mutate published assets");
+      const name = basename(path);
 
-      for (const path of paths) {
-        const name = basename(path);
-        uploaded.set(name, { id: nextAssetId++, ...local(name) });
-        observe();
+      if (uploaded.has(name)) throw new Error(`Asset already exists: ${name}`);
+      uploaded.set(name, { id: nextAssetId++, ...local(name) });
+      observe();
 
-        if (interruptUpload) {
-          interruptUpload = false;
-          throw new Error("Upload interrupted after write");
-        }
+      if (interruptUpload) {
+        interruptUpload = false;
+        throw new Error("Upload interrupted after write");
+      }
+
+      if (transientUpload) {
+        if (transientUpload === "starter")
+          uploaded.set(name, { id: nextAssetId - 1, name, state: "starter", size: 0, digest: null });
+        transientUpload = undefined;
+        throw new Error("HTTP 502: Error creating policy");
       }
     },
     requireStableBeta,
@@ -179,6 +188,9 @@ function fixture(
     publish: () => uploadRelease(directory, { ...options, publish: true }, adapters),
     interrupt: () => {
       interruptUpload = true;
+    },
+    transientFailure: (state: "starter" | "uploaded") => {
+      transientUpload = state;
     },
     loseResponse: () => {
       lostPublishResponse = true;
@@ -340,6 +352,19 @@ test("interrupted uploads resume the draft; a lost publish response never clobbe
   await f.publish();
   expect([...f.uploaded.values()]).toEqual(published);
 });
+
+for (const state of ["starter", "uploaded"] as const) {
+  test(`an upload returning HTTP 502 recovers when GitHub left a ${state} asset`, async () => {
+    const f = fixture();
+    f.desktop();
+    await f.generate();
+    f.transientFailure(state);
+    await f.publish();
+
+    expect(f.release.draft).toBe(false);
+    expect([...f.uploaded.values()].some((asset) => asset.id === 1)).toBe(state === "uploaded");
+  });
+}
 
 for (const problem of ["missing", "state", "size", "digest"]) {
   test(`verification refuses publication when an uploaded asset has invalid ${problem}`, async () => {
