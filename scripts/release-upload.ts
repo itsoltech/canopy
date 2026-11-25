@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { api, git, pages, repository } from "./release-github.ts";
 import { NIGHTLY_DESKTOP_FEED, resolveVersion } from "./version.ts";
 import { limitReleaseBody } from "./release-body.mjs";
@@ -76,7 +76,7 @@ export interface ReleaseUploadAdapters {
   create: (options: ReleaseUploadOptions) => void;
   assets: (repo: string, id: number) => UploadedAsset[];
   deleteAsset: (repo: string, id: number) => void;
-  upload: (repo: string, tag: string, paths: string[]) => void;
+  upload: (repo: string, id: number, path: string) => void;
   requireStableBeta: (repo: string, tag: string, sha: string) => void;
   requireBetaPublication: (repo: string, tag: string) => void;
   requireNightlyPublication: (repo: string, tag: string, sha: string) => void;
@@ -125,8 +125,31 @@ const github: ReleaseUploadAdapters = {
   deleteAsset: (repo, id) => {
     execFileSync("gh", ["api", `repos/${repo}/releases/assets/${id}`, "--method", "DELETE"], { stdio: "inherit" });
   },
-  upload: (repo, tag, paths) => {
-    execFileSync("gh", ["release", "upload", tag, ...paths, "--repo", repo, "--clobber"], { stdio: "inherit" });
+  upload: (repo, id, path) => {
+    // The draft has already been resolved through REST. GitHub CLI's release upload
+    // would look it up again by tag through endpoints that can miss drafts.
+    const name = encodeURIComponent(basename(path));
+    const endpoint = `https://uploads.github.com/repos/${repo}/releases/${id}/assets?name=${name}`;
+
+    execFileSync(
+      "gh",
+      [
+        "api",
+        endpoint,
+        "--hostname",
+        "github.com",
+        "--method",
+        "POST",
+        "--header",
+        "Content-Type: application/octet-stream",
+        "--header",
+        `Content-Length: ${statSync(path).size}`,
+        "--input",
+        path,
+        "--silent",
+      ],
+      { stdio: "inherit" },
+    );
   },
   publish: (repo, id, stable) => {
     const notes = execFileSync("gh", ["api", `repos/${repo}/releases/${id}`, "--jq", '.body // ""'], {
@@ -228,39 +251,33 @@ export async function uploadRelease(
     throw new Error(`Release ${tag} is missing or has the wrong prerelease flag`);
 
   if (!release.draft) {
-    // A lost publish response or a later job failure must never trigger --clobber on a visible release.
+    // A lost publish response or a later job failure must never replace assets on a visible release.
     console.info(`${tag} is already published; leaving all assets unchanged`);
 
     return;
   }
 
   const expected = await localAssets(directory, names);
-  const uploaded = adapters.assets(repo, release.id);
+  const uploaded = new Map(adapters.assets(repo, release.id).map((asset) => [asset.name, asset]));
 
   if (options.publish && channel !== "nightly") {
-    for (const asset of uploaded.filter((item) => NIGHTLY_DESKTOP_FEED.test(item.name)))
-      adapters.deleteAsset(repo, asset.id);
+    for (const asset of uploaded.values())
+      if (NIGHTLY_DESKTOP_FEED.test(asset.name)) adapters.deleteAsset(repo, asset.id);
   }
 
-  const pending = expected.filter(
-    (asset) =>
-      !matches(
-        asset,
-        uploaded.find((other) => other.name === asset.name),
-      ),
-  );
+  const pending = expected.filter((asset) => !matches(asset, uploaded.get(asset.name)));
 
   for (const group of [
     pending.filter((asset) => !asset.name.endsWith(".yml") && !GENERATED.includes(asset.name)),
     pending.filter((asset) => asset.name.endsWith(".yml")),
     ...GENERATED.map((name) => pending.filter((asset) => asset.name === name)),
   ]) {
-    if (group.length)
-      adapters.upload(
-        repo,
-        tag,
-        group.map((asset) => join(directory, asset.name)),
-      );
+    for (const asset of group) {
+      const previous = uploaded.get(asset.name);
+
+      if (previous) adapters.deleteAsset(repo, previous.id);
+      adapters.upload(repo, release.id, join(directory, asset.name));
+    }
   }
 
   const verified = adapters.assets(repo, release.id);

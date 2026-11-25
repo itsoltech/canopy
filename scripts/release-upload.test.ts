@@ -98,18 +98,19 @@ function fixture(
         if (asset.id === id) uploaded.delete(name);
       }
     },
-    upload: (_repo, _tag, paths) => {
+    upload: (_repo, id, path) => {
+      expect(id).toBe(release.id);
+
       if (!release.draft) throw new Error("Cannot mutate published assets");
+      const name = basename(path);
 
-      for (const path of paths) {
-        const name = basename(path);
-        uploaded.set(name, { id: nextAssetId++, ...local(name) });
-        observe();
+      if (uploaded.has(name)) throw new Error(`Asset already exists: ${name}`);
+      uploaded.set(name, { id: nextAssetId++, ...local(name) });
+      observe();
 
-        if (interruptUpload) {
-          interruptUpload = false;
-          throw new Error("Upload interrupted after write");
-        }
+      if (interruptUpload) {
+        interruptUpload = false;
+        throw new Error("Upload interrupted after write");
       }
     },
     requireStableBeta,
