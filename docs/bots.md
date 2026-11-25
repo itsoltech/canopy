@@ -1,5 +1,10 @@
 # Boty
 
+Status (2026-11-25): w sidebarze web/desktop widoczna akcja „Create bot” znajduje się
+po prawej stronie wyszukiwarki, w tym samym miejscu co „New thread”. W najwęższym
+panelu akcja zachowuje etykietę i pomija ikonę plusa, żeby wyszukiwarka miała więcej miejsca.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-24): w prywatnym czacie właściciel i bot mogą reagować na wiadomości drugiej strony.
 Dodanie lub cofnięcie reakcji właściciela trafia do kontekstu bota.
 Web i desktop rezerwują miejsce na przycisk reakcji już w historii z pamięci podręcznej.
@@ -1687,8 +1692,9 @@ zapamiętany stan pracy botów z niedostępnego domu lub domu w trakcie odświe�
 - **Dostępność**: `role=log` rozmowy (polite), `role=status` dla stanu bota, karty jako
   regiony nazwane pytaniem/akcją, litery opcji jako skróty, cele dotykowe 48 px
   (`TouchTarget`) na urządzeniach dotykowych.
-- **Tworzenie**: „Create bot” otwiera `CreateBotWizard`; `oncreate` zapisuje `CreateBot` i otwiera
-  rozmowę. Adapter `botWizardInstances` (`features/bots/live.ts`) wybiera dostępność według
+- **Tworzenie**: „Create bot” po prawej stronie wyszukiwarki sidebara otwiera `CreateBotWizard`;
+  `oncreate` zapisuje `CreateBot` i otwiera rozmowę. Adapter `botWizardInstances`
+  (`features/bots/live.ts`) wybiera dostępność według
   katalogu harnessu (klucz `CLAUDE:id` / `CODEX:id` / `GROK:id`). Native i proxy
   są dostępne; wykonanie wymaga workera. Otwarcie kreatora pobiera
   definicje i katalogi ponownie; podczas pobierania pokazuje stan ładowania. Zmiany instancji,

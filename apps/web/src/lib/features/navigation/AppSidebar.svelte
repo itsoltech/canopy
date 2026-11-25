@@ -28,6 +28,7 @@
   import SidebarFilters from "./SidebarFilters.svelte";
   import SidebarSort from "./SidebarSort.svelte";
   import SidebarCopyJobs from "#lib/features/projects/SidebarCopyJobs.svelte";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { keybindings } from "#lib/features/commands/keybindings.svelte.ts";
@@ -122,13 +123,7 @@
     >
       {@html identity.art}
     </div>
-    <SidebarHeader {channel}>
-      {#if settings.loaded && section === "bots"}
-        <a href="/bots?create=1" class={iconLink} aria-label="Create bot">
-          <Icon name="pencil-square" />
-        </a>
-      {/if}
-    </SidebarHeader>
+    <SidebarHeader {channel} />
 
     {#if settings.loaded}
       {#if settings.enabledModules.length > 1 && (capabilities?.supports("/bots") ?? true)}<SectionSwitch
@@ -144,7 +139,7 @@
         <label
           class={[
             "flex min-w-0 flex-1 items-center gap-1 rounded-lg py-2 ps-(--sidebar-row-padding) text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400",
-            section === "bots" && "pe-(--sidebar-row-padding)",
+            section === "bots" && "@min-[16rem]:pe-(--sidebar-row-padding)",
           ]}
         >
           <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
@@ -184,6 +179,10 @@
               <Icon name="pencil-square" />
             </a>
           </div>
+        {:else}
+          <ButtonLink href="/bots?create=1" variant="ghost" icon="plus" class="h-9 sm:h-8 @max-[16rem]:[&_svg]:hidden"
+            >Create bot</ButtonLink
+          >
         {/if}
       </div>
     {/if}
