@@ -41,6 +41,11 @@ function receiveHeight() {
   });
 }
 
+function assertDimension(name: string, actual: number, expected: number) {
+  if (actual !== expected) console.log(`Activity notch ${name} expected ${expected} and got ${actual}`);
+  assert.equal(actual, expected, name);
+}
+
 function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: number) {
   const { bounds, workArea } = screen.getPrimaryDisplay();
   const cutout = mac ? loadMacActivityNotchDisplay().primaryCutout() : undefined;
@@ -52,10 +57,10 @@ function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: 
   const height = headerHeight + (rows ? Math.min(rows, 7) * 32 + 8 : 0);
   const x = Math.min(area.x + area.width - width, Math.max(area.x, Math.round(center - width / 2)));
 
-  assert.equal(native.y, mac ? bounds.y : workArea.y, "the native window sits flush at the expected top edge");
-  assert.equal(native.x, x, "the native window stays centered at both widths");
-  assert.equal(native.width, width);
-  assert.equal(native.height, Math.min(height, workArea.y + workArea.height - native.y));
+  assertDimension("top", native.y, mac ? bounds.y : workArea.y);
+  assertDimension("left", native.x, x);
+  assertDimension("width", native.width, width);
+  assertDimension("height", native.height, Math.min(height, workArea.y + workArea.height - native.y));
   assert.equal(overlay.isFocused(), false);
 }
 
@@ -126,11 +131,7 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow, head
   const { bounds, workArea } = screen.getPrimaryDisplay();
   const cutout = mac ? loadMacActivityNotchDisplay().primaryCutout() : undefined;
   const topInset = mac ? Math.max(workArea.y - bounds.y, cutout?.height ?? 0) : 0;
-  assert.equal(
-    headerHeight,
-    Math.ceil(topInset || 32),
-    "the renderer receives the menu height or the simulated height",
-  );
+  assertDimension("header height", headerHeight, Math.ceil(topInset || 32));
   assertNativeBounds(overlay, 0, headerHeight);
 
   stage = "expanding to one row";

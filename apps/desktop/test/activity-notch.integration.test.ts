@@ -43,7 +43,11 @@ test.skipIf(!supported || process.env["CANOPY_LIVE"] !== "1")(
 
     try {
       const [code, output] = await Promise.all([child.exited, new Response(child.stdout).text()]);
-      const failure = /^Activity notch (?:timed out|failed) while [a-z ]+$/m.exec(output)?.[0];
+
+      const failure = output
+        .match(/^Activity notch (?:(?:timed out|failed) while [a-z ]+|[a-z ]+ expected -?[\d.]+ and got -?[\d.]+)$/gm)
+        ?.join("\n");
+
       expect(code, failure ?? `Electron exited with ${child.signalCode ?? `code ${code}`}`).toBe(0);
     } finally {
       clearTimeout(timeout);
