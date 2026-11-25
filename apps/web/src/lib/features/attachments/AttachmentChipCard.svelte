@@ -58,7 +58,7 @@
       </div>
       <div class="flex justify-end">
         {#if attachment}<a
-            class="rounded-md px-2 py-1 text-sm/5 focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5"
+            class="rounded-md px-2 py-1 text-sm/5 focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5 desktop:cursor-default"
             href={attachmentUrl(attachment, "download")}
             download={attachment.name}>Download</a
           >{/if}

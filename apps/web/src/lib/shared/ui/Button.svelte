@@ -37,7 +37,11 @@
 
 <button
   {type}
-  class={[buttonClasses(variant, size, Boolean(icon || loading)), className]}
+  class={[
+    buttonClasses(variant, size, Boolean(icon || loading)),
+    variant === "text" && "desktop:not-disabled:cursor-pointer",
+    className,
+  ]}
   disabled={disabled || loading}
   aria-busy={loading || undefined}
   {...rest}

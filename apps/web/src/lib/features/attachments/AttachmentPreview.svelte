@@ -243,7 +243,7 @@
           >{#if text !== undefined}<CopyButton {text} label="Copy text" />{/if}</span
         >
         <a
-          class="rounded-md px-2 py-1.5 text-sm/5 font-medium focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5"
+          class="rounded-md px-2 py-1.5 text-sm/5 font-medium focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5 desktop:cursor-default"
           href={attachmentUrl(file, "download")}
           download={file.name}>Download</a
         >

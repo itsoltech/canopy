@@ -46,7 +46,6 @@ export const activityNotchStyles = `
     background: none;
     font: inherit;
   }
-  button:not(:disabled) { cursor: pointer; }
   button:focus-visible {
     outline: 2px solid ${palette.sky[400]};
     outline-offset: -3px;

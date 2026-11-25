@@ -505,7 +505,7 @@
         {:else if progressHref}
           <a
             href={progressHref}
-            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring hover:bg-action-hover sm:size-8"
+            class="relative grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-accent focus-ring hover:bg-action-hover sm:size-8 desktop:cursor-default"
             aria-label="Check progress"
             {@attach tooltip("Check progress")}
           >

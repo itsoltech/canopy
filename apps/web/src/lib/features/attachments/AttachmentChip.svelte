@@ -21,6 +21,11 @@
   let anchor = $state<HTMLAnchorElement>();
 
   const name = $derived(file?.name ?? mentionLabel(mention));
+
+  const interactiveClass = [
+    attachmentChipClass(),
+    "focus-ring hover:bg-brand-600/14 dark:hover:bg-brand-400/18 desktop:cursor-default",
+  ];
 </script>
 
 {#snippet body()}
@@ -32,18 +37,15 @@
 {/snippet}
 
 {#if file && attachmentPreviewKind(file) !== "file"}
-  <InlineLink
-    bind:element={anchor}
-    class={[attachmentChipClass(), "cursor-pointer focus-ring hover:bg-brand-600/14 dark:hover:bg-brand-400/18"]}
-    aria-label="Open {name}"
-    onactivate={() => (open = true)}>{@render body()}</InlineLink
+  <InlineLink bind:element={anchor} class={interactiveClass} aria-label="Open {name}" onactivate={() => (open = true)}
+    >{@render body()}</InlineLink
   >
 {:else if file}
   <InlineLink
     bind:element={anchor}
     href={attachmentUrl(file, "download")}
     download={name}
-    class={[attachmentChipClass(), "focus-ring hover:bg-brand-600/14 dark:hover:bg-brand-400/18"]}
+    class={interactiveClass}
     aria-label="Download {name}">{@render body()}</InlineLink
   >
 {:else}

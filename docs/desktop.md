@@ -6,6 +6,10 @@ W rozwiniętej liście wątki projektowe mają logo lub inicjały projektu.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
+Status (2026-11-25): kontrolki w stylu przycisku, także odsyłacze wyglądające
+jak przyciski, pokazują domyślną strzałkę. Kontrolki w stylu odsyłacza, także
+przyciski wyglądające jak linki, pokazują dłoń.
+
 Status (2026-11-24): w trybie zdalnym **Settings → Workers** rozróżnia lokalnego
 workera i workery zarejestrowane na gatewayu. Zapisany adres gatewaya można
 sprawdzić i edytować również podczas awarii połączenia.

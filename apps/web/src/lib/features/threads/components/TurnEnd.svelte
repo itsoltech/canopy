@@ -234,7 +234,7 @@
       {#if canContinue}
         <button
           type="button"
-          class="font-medium text-sky-700 hover:underline disabled:opacity-60 disabled:hover:no-underline dark:text-sky-400"
+          class="font-medium text-sky-700 hover:underline disabled:opacity-60 disabled:hover:no-underline dark:text-sky-400 desktop:not-disabled:cursor-pointer"
           disabled={Boolean(directory.sendBlockedReason) || continuing === "sending" || continuing === "sent"}
           title={directory.sendBlockedReason ?? "Send a message to resume this thread"}
           onclick={continueTurn}

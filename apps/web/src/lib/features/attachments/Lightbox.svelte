@@ -135,7 +135,7 @@
               <a
                 href={download}
                 download={name}
-                class="relative inline-flex min-h-12 items-center gap-1 rounded-md py-1.5 pr-2.5 pl-2 font-medium text-white focus-ring hover:bg-white/10 sm:min-h-8"
+                class="relative inline-flex min-h-12 items-center gap-1 rounded-md py-1.5 pr-2.5 pl-2 font-medium text-white focus-ring hover:bg-white/10 sm:min-h-8 desktop:cursor-default"
               >
                 <Icon name="arrow-down" class="shrink-0 text-white" />Download
               </a>

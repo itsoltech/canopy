@@ -23,7 +23,10 @@
   const size = $derived(explicitSize ?? defaultButtonSize(density));
 </script>
 
-<a class={[buttonClasses(variant, size, Boolean(icon)), className]} {...rest}>
+<a
+  class={[buttonClasses(variant, size, Boolean(icon)), variant !== "text" && "desktop:cursor-default", className]}
+  {...rest}
+>
   {#if icon}<Icon name={icon} tone={variant === "primary" || variant === "danger" ? "inherit" : "muted"} />{/if}
   {@render children()}
 </a>
