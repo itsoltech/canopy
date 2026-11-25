@@ -14,6 +14,7 @@
     inverted = false,
     class: className,
   }: { quote: ui.Quote; inverted?: boolean; class?: ClassValue } = $props();
+
   const revealSource = useCitationSource();
 
   async function reveal() {
