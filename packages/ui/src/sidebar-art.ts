@@ -3,11 +3,18 @@ import { palette } from "./tokens.ts";
 
 const tree = `<path fill-rule="evenodd" d="${canopyTree.outline}"/>`;
 
+export const sidebarTreePlacement = {
+  viewBox: "0 20 200 125",
+  preserveAspectRatio: "xMaxYMin meet",
+  transform: "translate(32 18) scale(1.18)",
+} as const;
+
 // White stops in a luminance mask fade the entire scene together on web and react-native-svg.
 function scene(channel: string, drawing: string, surroundings = "") {
   const id = `canopy-sidebar-${channel}`;
+  const { viewBox, preserveAspectRatio, transform } = sidebarTreePlacement;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 20 200 125" preserveAspectRatio="xMaxYMin meet" fill="currentColor">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="${viewBox}" preserveAspectRatio="${preserveAspectRatio}" fill="currentColor">
     <defs>
       <linearGradient id="${id}-fade" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="0" y2="139">
         <stop offset="0" stop-color="white"/>
@@ -23,7 +30,7 @@ function scene(channel: string, drawing: string, surroundings = "") {
     </defs>
     <g mask="url(#${id}-mask)">
       ${surroundings}
-      <g transform="translate(32 18) scale(1.18)">${drawing}</g>
+      <g transform="${transform}">${drawing}</g>
     </g>
   </svg>`;
 }

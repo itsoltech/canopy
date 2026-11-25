@@ -8,6 +8,15 @@
 
 <ContrastSetting />
 <DeviceChoiceRow
+  preference="seasonalAccents"
+  title="Seasonal accents"
+  description="Show seasonal decorations on the tree in the sidebar."
+  options={[
+    { value: "on", label: "On" },
+    { value: "off", label: "Off" },
+  ]}
+/>
+<DeviceChoiceRow
   preference="effortDisplay"
   title="Effort display"
   description="Show reasoning effort as names or bars in model controls."
