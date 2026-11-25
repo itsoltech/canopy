@@ -5,7 +5,7 @@ import { parseModelRates, rateHash, type FrozenModelRates } from "./model-rates.
 
 const CATALOG_ROOT = "https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers";
 
-type PricingProvider = "openai" | "xai";
+type PricingProvider = "openai" | "xai" | "google" | "anthropic";
 
 type CatalogOptions = { source?: string; now?: () => number };
 
@@ -29,7 +29,7 @@ const diskSchema = z.object({
 type Entry = z.infer<typeof entrySchema> & { frozen?: FrozenModelRates };
 
 /** Provider-scoped prices, durable misses and backoff survive worker restarts. */
-class ModelPricingCatalog {
+export class ModelPricingCatalog {
   readonly #entries = new Map<string, Entry>();
   readonly #path: string;
   readonly #now: () => number;
@@ -41,7 +41,7 @@ class ModelPricingCatalog {
   constructor(
     dataDir: string,
     readonly provider: PricingProvider,
-    options: CatalogOptions,
+    options: CatalogOptions = {},
   ) {
     this.#path = join(dataDir, "pricing", `${provider}.json`);
     this.#source = options.source ?? `${CATALOG_ROOT}/${provider}/models/`;

@@ -2,7 +2,11 @@ import { z } from "zod";
 import { createHash } from "node:crypto";
 
 const price = z.number().finite().nonnegative();
-const cache = z.object({ read: price.optional(), write: z.record(z.string(), price).optional() }).strict();
+
+const cache = z
+  .object({ read: price.optional(), write: z.record(z.string(), price).optional(), storage: price.optional() })
+  .strict();
+
 const count = z.number().int().nonnegative();
 
 const context = z
@@ -42,15 +46,29 @@ const model = z.object({
   }),
 });
 
+const scheduledMultiplier = z.object({
+  when: z.object({ date: dateCondition }).strict(),
+  factor: z.object({ text: price }),
+});
+
+// Standard token estimates exclude optional tiers and regional surcharges. Their factors may vary by modality.
+const nonStandardMultiplier = z.object({ when: z.union([tier, regional]), factor: z.object({}) });
+
+const standardModel = model.extend({
+  cost: model.shape.cost.extend({
+    multipliers: z.array(z.union([scheduledMultiplier, nonStandardMultiplier.transform(() => undefined)])).default([]),
+  }),
+});
+
 export interface FrozenModelRates {
   model: string;
   source: string;
   sourceDate: string;
   hash: string;
-  rates: z.infer<typeof model>;
+  rates: z.infer<typeof model> & { standardDateMultipliers?: z.infer<typeof scheduledMultiplier>[] };
 }
 
-interface PricingTokens {
+export interface PricingTokens {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens: number;
@@ -68,12 +86,24 @@ export function rateHash(text: string): string {
 }
 
 export function parseModelRates(text: string, provider: string): FrozenModelRates["rates"] {
-  const result = model.parse(Bun.TOML.parse(text));
+  const data = Bun.TOML.parse(text);
+  const result = provider === "google" || provider === "anthropic" ? parseStandardRates(data) : model.parse(data);
 
   // A file may inherit a base model, but never a different provider's price table.
   if (result.base_model && !result.base_model.startsWith(`${provider}/`)) throw new Error("foreign model");
 
   return result;
+}
+
+function parseStandardRates(data: ReturnType<typeof Bun.TOML.parse>): FrozenModelRates["rates"] {
+  const result = standardModel.parse(data);
+  const { multipliers, ...cost } = result.cost;
+
+  return {
+    ...result,
+    cost: { ...cost, multipliers: [] },
+    standardDateMultipliers: multipliers.flatMap((entry) => (entry ? [entry] : [])),
+  };
 }
 
 function contextual(rates: z.infer<typeof rate>, tokens: number) {
@@ -122,22 +152,49 @@ export function quoteXai(frozen: FrozenModelRates, usage: PricingTokens): ApiQuo
   return apiQuote(frozen, tokenCost(usage, input, output, 1), { tier: "default", basis: "base-token-rates" });
 }
 
+/** ACP prompt totals can span several requests, so use base rates with known calendar changes. */
+export function quoteAntigravity(
+  frozen: FrozenModelRates,
+  usage: PricingTokens,
+  observedAt: number,
+  cacheWriteTtl?: string,
+): ApiQuote | undefined {
+  if (!validTokenUsage(usage)) return undefined;
+  const { input, output } = frozen.rates.cost.text;
+  const effectiveDate = new Date(observedAt).toISOString().slice(0, 10);
+  const scheduled = frozen.rates.standardDateMultipliers ?? [];
+
+  const factor = scheduled
+    .filter(({ when: { date } }) => (!date.lt || effectiveDate < date.lt) && (!date.gte || effectiveDate >= date.gte))
+    .reduce((scale, entry) => scale * entry.factor.text, 1);
+
+  const usd = tokenCost(usage, input, output, factor, cacheWriteTtl);
+
+  return apiQuote(frozen, usd, {
+    tier: "default",
+    basis: "base-token-rates",
+    ...(scheduled.length > 0 && { effectiveDate }),
+    ...(usage.cacheWriteInputTokens > 0 && cacheWriteTtl && { cacheWriteTtl }),
+  });
+}
+
 function tokenCost(
   { inputTokens, outputTokens, cachedInputTokens, cacheWriteInputTokens }: PricingTokens,
   input: Pick<z.infer<typeof rate>, "price" | "cache">,
   output: Pick<z.infer<typeof rate>, "price">,
   factor: number,
+  cacheWriteTtl?: string,
 ): number | undefined {
   if (cachedInputTokens > 0 && input.cache?.read === undefined) return undefined;
-  // Neither harness reports a cache-write TTL.
   const writes = [...new Set(Object.values(input.cache?.write ?? {}))];
+  const writeRate = cacheWriteTtl ? input.cache?.write?.[cacheWriteTtl] : writes.length === 1 ? writes[0] : undefined;
 
-  if (cacheWriteInputTokens > 0 && writes.length !== 1) return undefined;
+  if (cacheWriteInputTokens > 0 && writeRate === undefined) return undefined;
 
   return (
     (((inputTokens - cachedInputTokens - cacheWriteInputTokens) * input.price +
       cachedInputTokens * (input.cache?.read ?? 0) +
-      cacheWriteInputTokens * (writes[0] ?? 0) +
+      cacheWriteInputTokens * (writeRate ?? 0) +
       outputTokens * output.price) *
       factor) /
     1_000_000
@@ -147,7 +204,7 @@ function tokenCost(
 function apiQuote(
   frozen: FrozenModelRates,
   usd: number | undefined,
-  details: { tier: string; effectiveDate?: string | undefined; basis?: "base-token-rates" },
+  details: { tier: string; effectiveDate?: string | undefined; basis?: "base-token-rates"; cacheWriteTtl?: string },
 ): ApiQuote | undefined {
   if (usd === undefined || !Number.isFinite(usd)) return undefined;
 

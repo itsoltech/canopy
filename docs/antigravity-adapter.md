@@ -1,7 +1,8 @@
 # Antigravity CLI przez ACP
 
 Status (2026-11-25). Worker obsługuje wątki Google Antigravity przez ACP v1
-i sprawdza logowanie urządzenia przez krótkotrwałą sesję ACP.
+i sprawdza logowanie urządzenia przez krótkotrwałą sesję ACP. Szacuje również
+koszt tokenów Antigravity według stawek API modeli Gemini i Claude.
 Wymaga `agy` z linii 1.x od wersji 1.5.16, która udostępnia używane przez
 Canopy ustawienia izolacji i zgód. Dostępność w kanałach wynika z [promocji wydań](release.md).
 
@@ -31,8 +32,25 @@ Własne dane rozmowy i artefakty CLI znajdują się w
 na podstawie zapisanego identyfikatora ACP po restarcie lub wyładowaniu procesu.
 Odświeżenie konfiguracji narzędzi następuje na granicy tur.
 Potwierdzone trwałe usunięcie wątku obejmuje jego prywatny katalog.
-Worker raportuje zużycie tokenów zwrócone przez CLI. Katalog kosztów API Canopy
-nie zawiera stawek Google.
+Worker raportuje zużycie tokenów zwrócone przez CLI.
+
+## Szacunek kosztu
+
+Worker wycenia sumy tokenów z odpowiedzi ACP `session/prompt` dla modelu
+skonfigurowanego w sesji. Dopasowuje identyfikatory CLI do katalogów Google
+i Anthropic w [models.dev](https://models.dev), np. `gemini-3.1-pro` do
+`gemini-3.1-pro-preview`. Ceny korzystają z trwałego cache workera.
+
+Szacunek używa podstawowych stawek tekstowych Standard, osobnej ceny odczytu
+cache i ceny całego wyjścia z rozumowaniem. Dla zapisów cache Claude przyjmuje
+domyślny czas życia 5 minut. Zmiany stawek przypisane do daty obowiązują według
+dnia UTC zakończenia promptu. Sumy ACP mogą łączyć kilka wywołań, więc nie
+stosujemy progów długiego kontekstu ani opłat za narzędzia i przechowywanie cache.
+Przy braku stawki za zgłoszone tokeny albo modelu bez jednoznacznego cennika
+koszt pozostaje nieznany. Każdy szacunek zapisuje wersję cennika. Wcześniejsze
+raporty zachowują pierwotne pokrycie. [Gemini API](https://ai.google.dev/gemini-api/docs/pricing)
+· [Claude API](https://platform.claude.com/docs/en/about-claude/pricing)
+· [Zasady agregacji w Usage](usage.md)
 
 ## Konfiguracja i skille
 

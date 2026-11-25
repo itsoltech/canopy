@@ -9,6 +9,10 @@ import { journalHello, openGatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
+import {
+  cacheAntigravityPricing,
+  carbonPriceFixture,
+} from "../../apps/worker/src/providers/fixtures/antigravity-pricing.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { snapshot } from "./support/thread-move.ts";
 
@@ -139,6 +143,7 @@ test.skipIf(!dockerAvailable)(
 
     try {
       const dataDir = makeTemp("canopy-agy-worker-");
+      cacheAntigravityPricing(dataDir, "google", { "gemini-4-carbon": carbonPriceFixture });
       const repo = makeTemp("canopy-agy-workspace-");
       const accountStateFile = join(dataDir, "device-account-state");
       await Bun.write(accountStateFile, "signed_out");
@@ -223,13 +228,31 @@ test.skipIf(!dockerAvailable)(
         );
 
         expect(replies(finished, turnId)).toContain(answer);
-        expect(finished.turns.find((t) => t.id === turnId)?.usage).toMatchObject({
+        const usage = finished.turns.find((t) => t.id === turnId)?.usage;
+        expect(usage).toMatchObject({
           model,
           inputTokens: 20n,
           outputTokens: 5n,
           cachedInputTokens: 5n,
           reasoningOutputTokens: 3n,
+          pricingVersion: expect.stringContaining("gemini-4-carbon.toml"),
         });
+        expect(usage?.estimatedCostUsd).toBeGreaterThan(0);
+        expect(usage?.reportedCostUsd).toBeUndefined();
+
+        const stats = await gateway.api.getUsageStats({ days: 7, provider: "antigravity" });
+        expect(stats.totals).toMatchObject({
+          reports: 1n,
+          effectiveEstimatedCostReports: 1n,
+          unknownEffectiveCostReports: 0n,
+          effectiveCostUsd: usage?.estimatedCostUsd,
+        });
+        expect(stats.days.flatMap((day) => day.providers)).toContainEqual(
+          expect.objectContaining({
+            key: "antigravity",
+            totals: expect.objectContaining({ effectiveCostUsd: usage?.estimatedCostUsd }),
+          }),
+        );
         expect(
           finished.items.some(
             ({ item, turnId: owner }) =>
