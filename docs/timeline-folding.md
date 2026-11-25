@@ -5,7 +5,9 @@ doczytywania brakującej pracy podczas przewijania lub na żądanie w web/deskto
 stosowania „After the turn” do pracy poprzedzającej steer, kompaktowania kontekstu
 jako widocznej granicy segmentów pracy, odstępów wokół wiadomości postępu
 w web/desktop, ograniczonej długości podglądów aktywności i etykiet narzędzi Canopy
-w nagłówkach pracy. Dostępność w wydaniach zależy od kanału.
+w nagłówkach pracy. Po ukończonej turze wiadomości o postępie pozostają w sekcji
+pracy, także gdy dostawca kończy turę pustą odpowiedzią. Dostępność w wydaniach
+zależy od kanału.
 
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
 przy przyjęciu wiadomości, przed wysłaniem `StartTurn`. Echo `user_message` od
@@ -54,7 +56,12 @@ Poza foldem widać tylko ostatnią wiadomość agenta tury (albo segmentu, niże
 | Claude | `stream_event` `message_delta` z `stop_reason: "end_turn"` (wiadomość bez `tool_use`; `assistant` ma tu `stop_reason: null`) | po zakończeniu wiadomości: worker ponownie wysyła `itemCompleted` jej ostatniego tekstu z fazą `final_answer`, zwykle tuż przed `result` |
 | Grok (ACP) i dostawcy bez sygnału | brak | po końcu tury |
 
-Wiadomości `commentary` i `partial_answer` zawsze zostają w pracy podczas tury. Wiadomość bez fazy (Claude przed `end_turn`, Grok, starszy worker) przy zwiniętym foldzie strumieniuje w nim: nagłówek pokazuje wtedy „Writing…”, a treść nie pojawia się pod foldem, więc nie znika z powrotem przy kolejnym narzędziu. Przy otwartym foldzie (While working: Expanded albo ręczne rozwinięcie) najnowsza niepusta wiadomość bez fazy strumieniuje tymczasowo w slocie odpowiedzi, a kolejne narzędzie przenosi ją do pracy; kolejność i tak jest widoczna. Samo zajęcie slotu nie dowodzi, że odpowiedź jest końcowa: bez fazy automatyczne zwinięcie czeka na koniec tury. `AnswerSlot` zwija dotychczasowe miejsce wiadomości przez przejście wysokości `expand` i token `--duration-fast`. Zakończona tura zachowuje ostatnią wiadomość; tura przerwana lub nieudana tylko wtedy, gdy po wiadomości nie przyszła dalsza praca. Puste/encrypted-only itemy nie tworzą widocznej treści. Przy reduced motion przeniesienie wiadomości jest natychmiastowe.
+Wiadomości `commentary` i `partial_answer` zostają w pracy podczas tury i po jej
+ukończeniu. Gdy ukończone sprawdzenie z harmonogramu zawiera tylko postęp,
+komendę i pustą odpowiedź, pod zwiniętą pracą nie ma odpowiedzi. Tekst postępu
+i wynik komendy można odczytać po rozwinięciu sekcji pracy.
+
+Wiadomość bez fazy (Claude przed `end_turn`, Grok, starszy worker) przy zwiniętym foldzie strumieniuje w nim: nagłówek pokazuje wtedy „Writing…”, a treść nie pojawia się pod foldem, więc nie znika z powrotem przy kolejnym narzędziu. Przy otwartym foldzie (While working: Expanded albo ręczne rozwinięcie) najnowsza niepusta wiadomość bez fazy strumieniuje tymczasowo w slocie odpowiedzi, a kolejne narzędzie przenosi ją do pracy; kolejność i tak jest widoczna. Samo zajęcie slotu nie dowodzi, że odpowiedź jest końcowa: bez fazy automatyczne zwinięcie czeka na koniec tury. `AnswerSlot` zwija dotychczasowe miejsce wiadomości przez przejście wysokości `expand` i token `--duration-fast`. Ukończona tura pokazuje ostatnią wiadomość końcową lub bez fazy. Tura przerwana lub nieudana pokazuje ostatnią wiadomość tylko wtedy, gdy po niej nie przyszła dalsza praca. Puste/encrypted-only itemy nie tworzą widocznej treści. Przy reduced motion przeniesienie wiadomości jest natychmiastowe.
 
 Stopka końca (także „Could not finish this turn”) jest częścią tej samej grupy
 co praca tury. Późne itemy starej tury i koniec jej zadań nie przenoszą stopki

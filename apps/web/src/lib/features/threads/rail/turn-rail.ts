@@ -59,7 +59,7 @@ export function railTurns(rows: readonly FeedRow[]): RailTurn[] {
         title:
           row.kind === "input" ? turnTitle(row.turn) : row.inputOf ? turnTitle(row.inputOf, text) : previewTitle(text),
       };
-    } else if (row.kind === "turn-end" && row.answer) {
+    } else if (row.kind === "turn-end") {
       turns[at] = { ...turn, answer: row.answer.slice(0, 2000) };
     } else if (row.kind === "item" && row.node.entry.item.content.case === "agentMessage") {
       const message = row.node.entry.item.content.value;
