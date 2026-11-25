@@ -14,6 +14,7 @@ ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNot
 });
 
 ipcRenderer.on("canopy:activity-notch-collapse", () => collapseListener?.());
+
 ipcRenderer.on("canopy:activity-notch-height", (_event, height: number) => {
   headerHeight = height;
   heightListener?.(height);
