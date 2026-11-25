@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-25): cytaty w wysłanych wiadomościach w web i desktopie dopasowują
+kolor do dymku w jasnym i ciemnym trybie.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-25): wiadomość zapisana w prywatnym czacie po zmianie modelu
 czeka na nową turę po przekazaniu kontekstu. Dostępność w kanałach określa
 [promocja wydań](release.md).
@@ -1630,7 +1634,8 @@ zapamiętany stan pracy botów z niedostępnego domu lub domu w trakcie odświe�
   Twoje wiadomości pozostają po prawej, do 36rem. Inne boty wymienione z nazwy w tekście są
   chipami z awatarem w ich kolorze (`BotChip`, `mentions.ts`). W Twoich wiadomościach chipy
   wynikają ze strukturalnych ID i zakresów, nie ze zgadywania nazwy. `CitationChip` pokazuje
-  cytaty w tekście; pełny fragment, komentarz i źródło są w podglądzie. `MessageQuotes`
+  cytaty w tekście. W Twoich wiadomościach etykieta, ikona i obrys fokusu używają
+  koloru tekstu dymku. Pełny fragment, komentarz i źródło są w podglądzie. `MessageQuotes`
   zachowuje bloki starszych klientów bez zakresów nad treścią.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
