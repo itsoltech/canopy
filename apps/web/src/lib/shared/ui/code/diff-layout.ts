@@ -1,4 +1,36 @@
 import type { DiffLine } from "./diff.ts";
+import { replacedWords, type WordChange } from "@canopy/domain/text-diff";
+
+/** Pair isolated line replacements so an insertion never shifts word highlights onto an unrelated line. */
+export function replacementHighlights(lines: readonly DiffLine[]): Map<DiffLine, readonly WordChange[]> {
+  const highlights = new Map<DiffLine, readonly WordChange[]>();
+
+  for (const [index, before] of lines.entries()) {
+    const after = lines[index + 1];
+
+    if (
+      before.kind !== "del" ||
+      after?.kind !== "add" ||
+      lines[index - 1]?.kind === "del" ||
+      lines[index + 2]?.kind === "add"
+    )
+      continue;
+
+    const words = replacedWords(before.code, after.code);
+
+    if (!words) continue;
+    highlights.set(
+      before,
+      words.filter((word) => !word.added),
+    );
+    highlights.set(
+      after,
+      words.filter((word) => !word.removed),
+    );
+  }
+
+  return highlights;
+}
 
 export interface DiffRow {
   left?: DiffLine;

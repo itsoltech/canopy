@@ -2,7 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import { languageOfDiff, parseDiff } from "./diff.ts";
-  import { visibleDiffLines, splitDiffLines } from "./diff-layout.ts";
+  import { visibleDiffLines, splitDiffLines, replacementHighlights } from "./diff-layout.ts";
   import DiffLine from "./DiffLine.svelte";
   import { Highlight } from "./highlight.svelte.ts";
   import type { LanguageId } from "./languages.ts";
@@ -14,16 +14,19 @@
     streaming = false,
     class: className,
     review,
+    prose = false,
   }: {
     diff: string;
     lang?: LanguageId | undefined;
     streaming?: boolean;
     class?: ClassValue;
     review?: DiffReview | undefined;
+    /** Instructions and other prose always wrap in one column and show whitespace changes. */
+    prose?: boolean;
   } = $props();
 
   const parsed = $derived(parseDiff(diff));
-  const language = $derived(lang ?? languageOfDiff(diff));
+  const language = $derived(prose ? undefined : (lang ?? languageOfDiff(diff)));
 
   const next = new Highlight(
     () => parsed.next,
@@ -35,12 +38,13 @@
     () => language,
   );
 
-  const lines = $derived(visibleDiffLines(parsed.lines, device.values.hideWhitespace === "on"));
-  const split = $derived(device.values.diffLayout === "split");
+  const lines = $derived(visibleDiffLines(parsed.lines, !prose && device.values.hideWhitespace === "on"));
+  const split = $derived(!prose && device.values.diffLayout === "split");
   const rows = $derived(splitDiffLines(lines));
+  const highlights = $derived(prose ? replacementHighlights(lines) : undefined);
 </script>
 
-<div class={["diff-lines text-(--code-fg)", className]}>
+<div class={["diff-lines text-(--code-fg)", prose && "diff-prose", className]}>
   {#if lines.length < parsed.lines.length}<p class="px-3 font-sans text-xs/5 whitespace-normal text-zinc-500">
       Whitespace-only changes hidden.
     </p>{/if}
@@ -63,7 +67,15 @@
     </div>
   {:else}
     <div class="min-w-full">
-      {#each lines as line, index (index)}<DiffLine {line} {old} {next} {streaming} {review} />
+      {#each lines as line, index (index)}<DiffLine
+          {line}
+          {old}
+          {next}
+          {streaming}
+          {review}
+          {prose}
+          words={highlights?.get(line)}
+        />
         {#if review?.editor && review.editorAfter !== undefined && line.anchor?.index === review.editorAfter}
           <div class="min-w-0 font-sans whitespace-normal">{@render review.editor()}</div>
         {/if}
@@ -71,3 +83,9 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .diff-prose {
+    width: 100%;
+  }
+</style>
