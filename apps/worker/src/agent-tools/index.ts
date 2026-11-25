@@ -133,7 +133,8 @@ export class AgentTools {
       try {
         const session = threadId ? agentToolSession(threadId) : "";
         const scope = session && tool !== AgentTool.DEVICE ? ["--session", session] : [];
-        const [command, ...args] = toolArgv(path, [...scope, "mcp"], env);
+        const headed = session && tool === AgentTool.DESKTOP && defaults?.desktop?.allowPhysicalInput;
+        const [command, ...args] = toolArgv(path, [...scope, ...(headed ? ["--headed"] : []), "mcp"], env);
 
         return command
           ? [

@@ -20,6 +20,7 @@ function formValues(defaults: AgentToolSessionDefaults) {
     height,
     scheme: browser?.colorScheme ?? "",
     app: defaults.desktop?.app ?? "",
+    allowPhysicalInput: defaults.desktop?.allowPhysicalInput ?? false,
     platform: defaults.device?.platform ?? "",
     allowBoot: defaults.device?.allowBoot ?? true,
     timeout: String(defaults.device?.acquireTimeoutSeconds ?? ""),
@@ -46,7 +47,11 @@ function inputValue(tool: AgentTool, values: FormValues) {
   }
 
   if (tool === AgentTool.DESKTOP)
-    return { value: create(AgentToolSessionDefaultsSchema, { desktop: { app: values.app.trim() } }) };
+    return {
+      value: create(AgentToolSessionDefaultsSchema, {
+        desktop: { app: values.app.trim(), allowPhysicalInput: values.allowPhysicalInput },
+      }),
+    };
 
   if (values.timeout && (!/^\d+$/.test(values.timeout) || Number(values.timeout) < 1 || Number(values.timeout) > 240))
     return { error: "Enter a device wait from 1 to 240 seconds." };
@@ -98,9 +103,9 @@ export function AgentToolDefaults({ tool }: { tool: AgentTool }) {
       <Text accessibilityRole="header" style={[type.chrome, { color: c.text }]}>
         Session defaults
       </Text>
-      <Text style={[type.meta, { color: c.muted }]}>
-        For new sessions on all workers. Agents can override these values.
-      </Text>
+      {tool !== AgentTool.DESKTOP && (
+        <Text style={[type.meta, { color: c.muted }]}>These defaults apply to new sessions across your workers.</Text>
+      )}
       <DefaultsFields tool={tool} values={values} disabled={disabled} change={change} />
       <SettingsActions>
         <Button
@@ -181,14 +186,23 @@ function DefaultsFields({
         </>
       )}
       {tool === AgentTool.DESKTOP && (
-        <Field
-          label="Default app"
-          placeholder="Safari"
-          value={values.app}
-          maxLength={200}
-          editable={!disabled}
-          onChangeText={(app) => change({ app })}
-        />
+        <>
+          <Field
+            label="Default app"
+            placeholder="Safari"
+            value={values.app}
+            maxLength={200}
+            editable={!disabled}
+            onChangeText={(app) => change({ app })}
+          />
+          <SettingToggle
+            title="Allow physical input"
+            description="In later turns, Agent Desktop can move your pointer, change window focus and send keystrokes on workers where it’s enabled."
+            value={values.allowPhysicalInput}
+            disabled={disabled}
+            onChange={(allowPhysicalInput) => change({ allowPhysicalInput })}
+          />
+        </>
       )}
       {tool === AgentTool.DEVICE && (
         <>

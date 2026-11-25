@@ -2,6 +2,7 @@ import { create, equals, type DescMessage, type MessageShape } from "@bufbuild/p
 import { getContext, setContext } from "svelte";
 import {
   AgentToolSessionDefaultsSchema,
+  DesktopSessionDefaultsSchema,
   SandboxProfileSchema,
   type AgentToolSessionDefaults,
   type SandboxProfile,
@@ -165,15 +166,33 @@ export class SettingsState {
     );
   }
 
-  async updateAgentToolDefaults(change: Partial<Omit<AgentToolSessionDefaults, "$typeName">>): Promise<boolean> {
-    await this.#writeUser("agentToolDefaults", (current) => ({ ...current, ...change }));
+  async updateAgentToolDefaults(
+    change: AgentToolSessionDefaults,
+    baseline: AgentToolSessionDefaults,
+  ): Promise<boolean> {
+    const desktop = change.desktop;
+    const before = baseline.desktop;
+
+    const allowPhysicalInput =
+      desktop?.allowPhysicalInput === before?.allowPhysicalInput ? undefined : desktop?.allowPhysicalInput;
+
+    const patch = (current: AgentToolSessionDefaults) => {
+      if (!desktop || !before) return { ...current, ...change };
+
+      return {
+        ...current,
+        desktop: create(DesktopSessionDefaultsSchema, {
+          app: desktop.app === before.app ? current.desktop?.app : desktop.app,
+          allowPhysicalInput: allowPhysicalInput ?? current.desktop?.allowPhysicalInput,
+        }),
+      };
+    };
+
+    // A conflict can include a revocation. Enabling physical input requires a fresh Save in that case.
+    await this.#writeUser("agentToolDefaults", patch, allowPhysicalInput === true);
     const saved = this.#server.user.agentToolDefaults ?? create(AgentToolSessionDefaultsSchema);
 
-    return equals(
-      AgentToolSessionDefaultsSchema,
-      saved,
-      create(AgentToolSessionDefaultsSchema, { ...saved, ...change }),
-    );
+    return equals(AgentToolSessionDefaultsSchema, saved, patch(saved));
   }
 
   async updateThreadRetention(archivedThreadDays: number): Promise<boolean> {
@@ -364,6 +383,7 @@ export class SettingsState {
   #writeUser<S extends UserSection>(
     section: S,
     patch: (current: ui.UserSettings[S] & {}) => ui.UserSettings[S] & {},
+    failOnConflict = false,
   ): Promise<void> {
     const schema: DescMessage = userSchemas[section];
     // SAFETY: `userSchemas` lists every section with the message type of that ui.UserSettings field, so a message of
@@ -372,8 +392,8 @@ export class SettingsState {
     const current = () => this.user[section] ?? blank();
     const confirmed = () => this.#server.user[section] ?? blank();
     const show = (next: ui.UserSettings[S] & {}) => (this.user = { ...this.user, [section]: next });
-    // The thread picker should only see saved shell policies. The profile editor reports write errors inline.
-    const optimistic = section !== "sandboxProfiles";
+    // Show new shell policies and physical input opt-ins after the gateway confirms them.
+    const optimistic = section !== "sandboxProfiles" && !failOnConflict;
 
     if (optimistic) show(patch(current()));
 
@@ -405,6 +425,11 @@ export class SettingsState {
 
           return;
         } catch (cause) {
+          if (failOnConflict && cause instanceof HttpError && cause.status === 409) {
+            await this.reload().catch(() => undefined);
+            throw cause;
+          }
+
           if (!(await this.#retryAfterConflict(cause, attempt, confirmed, before, schema, !optimistic))) {
             this.user = { ...this.user, [section]: this.#server.user[section] };
 

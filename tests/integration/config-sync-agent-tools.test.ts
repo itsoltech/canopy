@@ -21,7 +21,7 @@ describe.skipIf(!dockerAvailable)("agent-tool defaults across linked computers",
     await a.update({
       agentToolDefaults: {
         browser: { viewportWidth: 1280, viewportHeight: 800, colorScheme: "dark" },
-        desktop: { app: "Canopy" },
+        desktop: { app: "Canopy", allowPhysicalInput: true },
         device: { platform: "apple", allowBoot: false, acquireTimeoutSeconds: 30 },
       },
     });
@@ -31,12 +31,13 @@ describe.skipIf(!dockerAvailable)("agent-tool defaults across linked computers",
       (value) =>
         value?.browser?.viewportWidth === 1280 &&
         value?.device?.allowBoot === false &&
-        value?.desktop?.app === "Canopy",
+        value?.desktop?.allowPhysicalInput === true,
       20_000,
     );
 
     expect(saved?.browser).toMatchObject({ viewportWidth: 1280, viewportHeight: 800, colorScheme: "dark" });
     expect(saved?.device).toMatchObject({ platform: "apple", allowBoot: false, acquireTimeoutSeconds: 30 });
+    expect(saved?.desktop).toMatchObject({ app: "Canopy", allowPhysicalInput: true });
     await a.update({ agentToolDefaults: {} });
 
     const reset = await eventually(
@@ -44,7 +45,8 @@ describe.skipIf(!dockerAvailable)("agent-tool defaults across linked computers",
       (value) =>
         value?.browser?.viewportWidth === undefined &&
         value?.device?.allowBoot === undefined &&
-        value?.desktop?.app === "",
+        value?.desktop?.app === "" &&
+        value?.desktop?.allowPhysicalInput === false,
       20_000,
     );
 
@@ -56,5 +58,6 @@ describe.skipIf(!dockerAvailable)("agent-tool defaults across linked computers",
     const restarted = (await b.settings()).agentToolDefaults;
     expect(restarted?.device?.allowBoot).toBeUndefined();
     expect(restarted?.browser?.viewportWidth).toBeUndefined();
+    expect(restarted?.desktop?.allowPhysicalInput).toBe(false);
   }, 60_000);
 });

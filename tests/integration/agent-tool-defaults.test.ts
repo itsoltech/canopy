@@ -10,7 +10,7 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 
 const defaults = create(AgentToolSessionDefaultsSchema, {
   browser: { viewportWidth: 1440, viewportHeight: 900, colorScheme: "dark" },
-  desktop: { app: "Canopy" },
+  desktop: { app: "Canopy", allowPhysicalInput: true },
   device: { platform: "ios", allowBoot: false, acquireTimeoutSeconds: 120 },
 });
 
@@ -127,7 +127,12 @@ describe.skipIf(!dockerAvailable)("account agent-tool session defaults", () => {
     );
 
     expect(creation?.case === "createThread" && creation.value.thread?.agentToolDefaults).toEqual(defaults);
-    const changed = await save({ browser: { colorScheme: "light" }, device: { allowBoot: true } });
+
+    const changed = await save({
+      browser: { colorScheme: "light" },
+      desktop: { allowPhysicalInput: false },
+      device: { allowBoot: true },
+    });
 
     const turn = (
       await gateway.api.sendMessage({

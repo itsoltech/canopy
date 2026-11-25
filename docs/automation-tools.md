@@ -1,5 +1,8 @@
 # Narzędzia automatyzacji agentów
 
+Aktualizacja (2026-11-25). **Allow physical input** pozwala właścicielowi włączyć
+sterowanie wskaźnikiem w Agent Desktop w kolejnych turach na workerach z grantem.
+
 Aktualizacja (2026-11-25). Instalacja i naprawa Agent Desktop na macOS otwierają
 kreator brakujących uprawnień na komputerze workera.
 
@@ -98,6 +101,10 @@ ani nie rozpoczynają instalacji.
   i nie wskazują jawnie aplikacji, okna ani referencji elementu. Preview używa jej
   jako początkowego filtra celu, zachowując jawny wybór okna. Rozmiar pochodzi
   z rzeczywistego okna lub ekranu; ustawienie nie zmienia rozdzielczości monitora.
+  **Allow physical input** jest domyślnie wyłączone. Po zapisaniu włączenia
+  Agent Desktop może poruszać wskaźnikiem, zmieniać fokus i wysyłać klawisze na
+  workerach, którym użytkownik udzielił dostępu do narzędzia. Zmiana wchodzi w
+  życie od kolejnej tury. Grant i uprawnienia tury obowiązują przy każdym wywołaniu.
 - **Device:** preferowana platforma (dowolna, iOS, Android lub Apple), zgoda na
   uruchamianie skonfigurowanych emulatorów/symulatorów (domyślnie tak) i oczekiwanie
   na urządzenie 1–240 s (domyślnie 60 s). Jawny cel agenta ma pierwszeństwo,
@@ -243,8 +250,15 @@ Zamknięcie sesji harnessu lub zmiana katalogu narzędzi zamyka bridge. Dla
 Browser MCP nie przekazuje jednak tej wartości swoim kolejnym child calls, więc
 worker dodaje także opcjonalne `AGENT_BROWSER_SESSION` w descriptor env.
 Desktop przekazuje startupowe `--session` przez `forwarded_globals` i nie wymaga
-dodatkowego env. Jego MCP nie obsługuje pola `session` w zwykłych wywołaniach,
-więc bridge nie dodaje go do argumentów upstream. Przypina jednak `session`
+dodatkowego env. Worker uruchamia MCP Desktop z `--headed` wyłącznie wtedy, gdy
+ustawienia właściciela w `ThreadSpec` jawnie zezwalają na fizyczne sterowanie.
+Bez tego trybu `mouse-click` zwraca `POLICY_DENIED`, a kliknięcie przez `ref_id`
+korzysta z akcji dostępności elementu. Bridge nie ponawia odmowy ani nie zmienia
+trybu w reakcji na wywołanie. W trakcie tury agent nie może ustawić `--headed`
+w argumencie pojedynczego wywołania. Ręczne sterowanie w Preview jest niezależne
+od ustawienia dostępnego agentowi. MCP Desktop nie obsługuje pola `session`
+w zwykłych wywołaniach, więc bridge nie dodaje go do argumentów upstream.
+Przypina jednak `session`
 każdego wpisu w `desktop_batch.commands_json` i `id` operacji `session end`,
 także w batch. Nie udostępnia `session start`, które zawsze tworzy nowe ID,
 globalnego `session gc` ani `sandbox exec`, które pomija startupowe flagi

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { automationMcp } from "../providers/local-automation.ts";
 import { AgentTools } from "./index.ts";
 import { executable, fixture } from "./fixtures.test-support.ts";
+import { agentToolSpec } from "./specs.ts";
 
 const event = z.object({ kind: z.string(), args: z.array(z.string()).optional() });
 const state = z.object({ launched: z.boolean(), width: z.number().optional(), height: z.number().optional() });
@@ -18,6 +19,7 @@ export async function defaultsFixture() {
   writeFileSync(log, "");
   const server = join(import.meta.dir, "../agent-tools-mcp/fixtures/server.ts");
   const events = join(f.dir, "mcp-events.jsonl");
+  writeFileSync(events, "");
 
   executable(
     f.path(AgentTool.BROWSER),
@@ -44,6 +46,24 @@ if (args.includes("mcp")) {
   output({});
  }
 }
+`,
+  );
+
+  executable(
+    f.path(AgentTool.DESKTOP),
+    `
+const args = process.argv.slice(2);
+if (args.includes("--version")) { console.log(${JSON.stringify(agentToolSpec(AgentTool.DESKTOP).version)}); process.exit(0); }
+if (args.includes("status")) {
+ console.log(JSON.stringify({ ok: true, data: { platform: "linux", supported_surfaces: ["window"], permissions: {
+  accessibility: { state: "granted" }, screen_recording: { state: "not_required" }
+ } } }));
+ process.exit(0);
+}
+if (!args.includes("mcp")) throw new Error("Unexpected Desktop command");
+process.env.CANOPY_MCP_DESKTOP_POLICY = "1";
+process.argv.splice(2, 0, ${JSON.stringify(events)});
+await import(${JSON.stringify(server)});
 `,
   );
 
@@ -84,7 +104,7 @@ if (args.includes("mcp")) {
       () => "active-turn",
     );
 
-    if (!result) throw new Error("Missing browser bridge");
+    if (!result) throw new Error("Missing automation bridge");
 
     return result;
   };
@@ -95,6 +115,7 @@ if (args.includes("mcp")) {
     defaults,
     spec,
     bridge,
+    mcpCalls: () => readFileSync(events, "utf8").match(/"event":"called"/g)?.length ?? 0,
     deny(value: boolean) {
       denied = value;
     },
