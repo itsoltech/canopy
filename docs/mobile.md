@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Status (2026-11-25): pełnoekranowy Preview ma dolny pasek nawigacji, arkusz wyboru
+źródła oraz edycję adresu i tekstu na żądanie. Obraz obsługuje lokalne gesty dwoma
+palcami, a Inspect preview / Control app przełącza działanie jednego palca.
+Preview i jego arkusze obracają się zgodnie z orientacją systemu.
+
 Status (2026-11-25): filmy publikowane przez agenta pojawiają się pod odpowiedzią
 po zakończeniu tury. Filmy agenta i zwykłe załączniki otwierają wspólny odtwarzacz
 z kontrolkami Canopy. Nowe karty visuals również pojawiają się po zakończeniu tury.
@@ -526,21 +531,33 @@ korzystają z tego samego pełnego ekranu, belki zamknięcia i ukrywania kontrol
 Powiększenie podglądu jest dostępne niezależnie od wybranego narzędzia i celu.
 
 Preview wybiera kartę przeglądarki, okno lub urządzenie. Obraz zachowuje proporcje
-i dopasowuje się do wolnego miejsca; letterboxing nie jest obszarem sterowania.
-Tap wysyła kliknięcie, swipe — drag, a jawne kontrolki pozwalają przewijać,
-wpisywać tekst i wysyłać Enter/Escape oraz Back/Home urządzenia. Browser ma adres
-i Back/Forward/Reload page. Stała belka z `Close preview` oraz `Hide controls` /
-`Show controls` pozostaje poza obrazem i obszarem przechwytywania gestów. Ukrycie
-kontrolek powiększa obraz bez restartu subskrypcji, zmiany celu ani utraty szkicu
-wpisywanego tekstu. Kontrolki mają osobny przewijany obszar: poniżej obrazu
-w pionie, a na ekranie niższym niż 500 dp — obok. Klawiatura zmniejsza obszar
-treści, zachowując belkę zamknięcia. Preview nie ma gestu przeciągania arkusza.
+i dopasowuje się do wolnego miejsca. Gest dwoma palcami powiększa obraz wokół ich
+środka i przesuwa go w granicach podglądu. Do końca tego gestu dotyk pozostaje
+lokalny, również po oderwaniu jednego palca. Domyślnie stuknięcie jednym palcem
+wysyła kliknięcie, a przesunięcie wysyła przeciągnięcie. Współrzędne uwzględniają
+powiększenie i przesunięcie obrazu. Margines wokół obrazu nie wysyła kliknięć.
+`Inspect preview` pozwala przesuwać powiększony obraz jednym palcem i przełączać
+powiększenie podwójnym stuknięciem. `Control app` przywraca sterowanie dotykiem
+z zachowaniem powiększenia. Przełącznik działa też przy ukrytych kontrolkach.
+Czytnik ekranu udostępnia powiększenie, pomniejszenie i powrót do dopasowania.
+Zmiana narzędzia lub celu przywraca dopasowanie.
 
-Wybór celu i kontrolki są zamontowane również przed pierwszą klatką i przy błędzie,
-a brakujące dane jedynie wyłączają akcje. Status i pojedynczy wiersz metadanych
-lub komunikatu mają stałe miejsce. Ładowanie listy celów, nadejście klatki, zmiana
-tytułu oraz pojawianie się i znikanie komunikatów nie przesuwają obrazu. Błąd
-i szczegóły przewijają się wewnątrz tego samego obszaru co podgląd.
+Dolny pasek udostępnia nawigację właściwą dla danego źródła i `Type text`. Przycisk
+źródła otwiera jeden arkusz z wyborem Browser/Desktop/Device oraz kartą, oknem lub
+urządzeniem. W Browser adres otwiera pole edycji, a obok znajduje się `Reload page`.
+`More controls` udostępnia klawisze Enter/Escape i dodatkowe akcje urządzenia.
+Browser i Desktop mają przewijanie bezpośrednio na pasku.
+Na szerokim, niskim ekranie pasek mieści się w jednym wierszu.
+Podczas edycji jeden wiersz z polem i akcją zastępuje pasek i podąża za klawiaturą.
+Obrócenie telefonu zmienia układ Preview i otwartego arkusza. Zachowuje bieżący
+cel, transmisję oraz powiększenie. Systemowa blokada orientacji nadal obowiązuje.
+
+Belka nad obrazem zawiera status, `Close preview`, przełącznik inspekcji oraz
+`Hide preview toolbar` / `Show preview toolbar`. Ukrycie paska oddaje miejsce
+obrazowi, zachowując subskrypcję, cel i szkice edycji. Wybór źródła działa
+również przed pierwszą klatką i przy błędzie. Akcje zdalne uaktywniają się po
+połączeniu. Krótkie komunikaty pojawiają się w obrębie obrazu i nie zmieniają
+jego rozmiaru. Błąd i szczegóły przewijają się wewnątrz tego samego obszaru.
 
 Subskrypcja ma maks. 5 klatek/s, przechowuje tylko bieżącą klatkę w pamięci
 i kończy się po zamknięciu Preview, zmianie zakresu, utracie dostępu lub przejściu

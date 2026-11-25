@@ -6,7 +6,15 @@ import { KeyboardWindow } from "./KeyboardWindow";
 import { OverlaySurface } from "./OverlaySurface";
 import { useOverlayTransition } from "./useOverlayTransition";
 import { useKeyboardPresentation } from "./useKeyboardPresentation";
-import { mayPresent, OverlayLayer, overlayNested, OverlayParent, setOverlay, subscribeOverlays } from "./overlay-stack";
+import {
+  mayPresent,
+  OverlayLayer,
+  overlayNested,
+  OverlayOrientations,
+  OverlayParent,
+  setOverlay,
+  subscribeOverlays,
+} from "./overlay-stack";
 
 /** Window width from which overlays open as centered cards. */
 export const WIDE_OVERLAY = 600;
@@ -72,6 +80,7 @@ export function Overlay({
   const allowed = useSyncExternalStore(subscribeOverlays, () => mayPresent(id));
   const nested = useSyncExternalStore(subscribeOverlays, () => overlayNested(id));
   const Layer = useContext(OverlayLayer);
+  const supportedOrientations = useContext(OverlayOrientations);
 
   const { progress, velocity, mounted, native, attached, didDismiss, didLayout } = useOverlayTransition(
     presented && !closing && allowed,
@@ -97,6 +106,7 @@ export function Overlay({
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
+      supportedOrientations={supportedOrientations}
       onRequestClose={requestClose}
       onDismiss={didDismiss}
     >

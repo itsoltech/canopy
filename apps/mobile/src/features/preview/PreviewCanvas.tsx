@@ -1,84 +1,137 @@
-import { useRef, useState } from "react";
-import { Image, Text, View, type GestureResponderEvent } from "react-native";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { Image, Text, View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { AgentPreviewInputSchema, type AgentPreviewEvent, type AgentPreviewInput } from "@canopy/contracts";
+import { GestureDetector } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { scheduleOnUI } from "react-native-worklets";
 import { styles, useColors } from "../../ui/theme";
+import type { Point } from "../attachments/image-zoom";
+import { usePreviewGestures } from "./preview-gestures";
+import { usePreviewZoom } from "./preview-zoom";
 
-/** Capture only the fitted image, so letterboxing never becomes a remote click. */
 export function PreviewCanvas({
   frame,
   uri,
   enabled,
+  inspecting,
   input,
 }: {
   frame?: AgentPreviewEvent;
   uri?: string;
   enabled: boolean;
+  inspecting: boolean;
   input: (value: AgentPreviewInput) => void;
 }) {
   const c = useColors();
-  const [box, setBox] = useState({ width: 0, height: 0 });
-  const [loaded, setLoaded] = useState(false);
-  const start = useRef<{ x: number; y: number } | undefined>(undefined);
-  const scale = frame ? Math.min(box.width / frame.width, box.height / frame.height, 1) : 0;
-  const width = frame ? frame.width * scale : 0;
-  const height = frame ? frame.height * scale : 0;
-  const interactive = enabled && loaded;
 
-  function point(event: GestureResponderEvent) {
-    return {
-      x: Math.max(0, Math.min(1, event.nativeEvent.locationX / width)),
-      y: Math.max(0, Math.min(1, event.nativeEvent.locationY / height)),
-    };
-  }
-
-  function release(event: GestureResponderEvent) {
-    const from = start.current;
-    start.current = undefined;
-
-    if (!from || !interactive) return;
-    const to = point(event);
-    input(create(AgentPreviewInputSchema, { kind: "pointer-down", ...from, button: 0, buttons: 1 }));
-
-    if (Math.abs(to.x - from.x) * width + Math.abs(to.y - from.y) * height > 8)
-      input(create(AgentPreviewInputSchema, { kind: "pointer-move", ...to, buttons: 1 }));
-    input(create(AgentPreviewInputSchema, { kind: "pointer-up", ...to, button: 0 }));
+  if (uri && frame) {
+    return (
+      <PreviewImage
+        width={frame.width}
+        height={frame.height}
+        uri={uri}
+        enabled={enabled}
+        inspecting={inspecting}
+        input={input}
+      />
+    );
   }
 
   return (
-    <View
-      onLayout={(event) => setBox(event.nativeEvent.layout)}
-      style={{ flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center", backgroundColor: c.well }}
-    >
-      {uri && frame && width > 0 && height > 0 ? (
-        <View
-          accessibilityLabel="Live preview"
-          accessibilityHint="Tap to click. Swipe to drag. Use the controls below to scroll or type."
-          onStartShouldSetResponder={() => interactive}
-          onResponderTerminationRequest={() => false}
-          onResponderGrant={(event) => {
-            start.current = point(event);
-          }}
-          onResponderRelease={release}
-          onResponderTerminate={() => {
-            start.current = undefined;
-          }}
-          style={{ width, height }}
-        >
+    <View style={{ flex: 1, justifyContent: "center", backgroundColor: c.well }}>
+      <Text style={[styles.overlay, { color: c.muted, padding: 20, textAlign: "center" }]}>
+        Waiting for the first live frame…
+      </Text>
+    </View>
+  );
+}
+
+function PreviewImage({
+  width,
+  height,
+  uri,
+  enabled,
+  inspecting,
+  input,
+}: {
+  width: number;
+  height: number;
+  uri: string;
+  enabled: boolean;
+  inspecting: boolean;
+  input: (value: AgentPreviewInput) => void;
+}) {
+  const c = useColors();
+  const [loaded, setLoaded] = useState(false);
+  const model = usePreviewZoom(width, height);
+  const { geometry, read, viewport, adjust } = model;
+  const remote = useRef<typeof input | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    remote.current = enabled && loaded && !inspecting ? input : undefined;
+
+    return () => {
+      remote.current = undefined;
+    };
+  }, [enabled, loaded, inspecting, input]);
+
+  const sendPointer = useCallback((from: Point, to: Point, drag: boolean) => {
+    const send = remote.current;
+
+    if (!send) return;
+    send(create(AgentPreviewInputSchema, { kind: "pointer-down", ...from, button: 0, buttons: 1 }));
+
+    if (drag) send(create(AgentPreviewInputSchema, { kind: "pointer-move", ...to, buttons: 1 }));
+    send(create(AgentPreviewInputSchema, { kind: "pointer-up", ...to, button: 0 }));
+  }, []);
+
+  const gesture = usePreviewGestures(model, enabled && loaded, inspecting, sendPointer);
+
+  const imageStyle = useAnimatedStyle(() => {
+    const { scale, offset } = read();
+
+    return { ...geometry.get().fitted, transform: [{ translateX: offset.x }, { translateY: offset.y }, { scale }] };
+  });
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <View
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="Live preview"
+        accessibilityHint={
+          inspecting
+            ? "Adjust to zoom. Choose Control app to send touch input."
+            : "Adjust to zoom. Touches with one finger control the app."
+        }
+        accessibilityActions={[
+          { name: "increment", label: "Zoom in" },
+          { name: "decrement", label: "Zoom out" },
+          { name: "reset", label: "Reset zoom" },
+        ]}
+        onAccessibilityAction={({ nativeEvent }) => scheduleOnUI(adjust, nativeEvent.actionName)}
+        onLayout={({ nativeEvent: { layout } }) => viewport.set({ width: layout.width, height: layout.height })}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+          backgroundColor: c.well,
+        }}
+      >
+        <Animated.View pointerEvents="none" style={imageStyle}>
           <Image
             source={{ uri }}
             resizeMode="contain"
+            fadeDuration={0}
             onLoad={() => setLoaded(true)}
             onError={() => setLoaded(false)}
-            pointerEvents="none"
             style={{ width: "100%", height: "100%" }}
           />
-        </View>
-      ) : (
-        <Text style={[styles.overlay, { color: c.muted, padding: 20, textAlign: "center" }]}>
-          Waiting for the first live frame…
-        </Text>
-      )}
-    </View>
+        </Animated.View>
+      </View>
+    </GestureDetector>
   );
 }

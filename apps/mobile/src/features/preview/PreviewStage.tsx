@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { Button } from "../../ui/Button";
+import { useMotion } from "../../ui/motion";
 import { styles, useColors } from "../../ui/theme";
 import { useCopyText } from "../viewers/useCopyText";
 import { PreviewCanvas } from "./PreviewCanvas";
@@ -14,6 +16,7 @@ export function PreviewStage({
   failed,
   enabled,
   live,
+  inspecting,
   scope,
 }: {
   preview: ReturnType<typeof useAgentPreview>;
@@ -22,12 +25,22 @@ export function PreviewStage({
   failed: boolean;
   enabled: boolean;
   live: boolean;
+  inspecting: boolean;
   scope: string;
 }) {
   const c = useColors();
 
   if (allowed && !failed) {
-    return <PreviewCanvas key={scope} frame={preview.frame} uri={preview.uri} enabled={live} input={preview.input} />;
+    return (
+      <PreviewCanvas
+        key={scope}
+        frame={preview.frame}
+        uri={preview.uri}
+        enabled={live}
+        inspecting={inspecting}
+        input={preview.input}
+      />
+    );
   }
 
   return (
@@ -82,12 +95,14 @@ export function PreviewStatus({
   failed,
   live,
   frame,
+  inspecting,
 }: {
   unavailable: boolean;
   allowed: boolean;
   failed: boolean;
   live: boolean;
   frame: boolean;
+  inspecting: boolean;
 }) {
   const c = useColors();
 
@@ -99,13 +114,59 @@ export function PreviewStatus({
         ? "Disconnected"
         : live
           ? frame
-            ? "Live"
+            ? inspecting
+              ? "Inspecting"
+              : "Live"
             : "Waiting"
           : "Connecting…";
 
   return (
-    <Text accessibilityLiveRegion="polite" numberOfLines={1} style={[styles.overlayMeta, { color: c.muted }]}>
+    <Text
+      accessibilityLiveRegion="polite"
+      numberOfLines={1}
+      style={[styles.overlayMeta, { maxWidth: 112, color: c.muted }]}
+    >
       {status}
     </Text>
+  );
+}
+
+export function PreviewNotice({ text }: { text: string }) {
+  const c = useColors();
+  const { rise } = useMotion();
+
+  if (!text) return null;
+
+  return (
+    <Animated.View
+      entering={rise.entering}
+      exiting={rise.exiting}
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        bottom: 8,
+        left: 12,
+        right: 12,
+        alignItems: "center",
+      }}
+    >
+      <Text
+        accessibilityLiveRegion="polite"
+        numberOfLines={2}
+        style={[
+          styles.overlayMeta,
+          {
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+            overflow: "hidden",
+            color: c.text,
+            backgroundColor: c.surface,
+          },
+        ]}
+      >
+        {text}
+      </Text>
+    </Animated.View>
   );
 }

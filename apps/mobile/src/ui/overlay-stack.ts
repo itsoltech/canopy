@@ -1,10 +1,14 @@
 import { createContext, type ComponentType } from "react";
+import type { ModalProps } from "react-native";
 
 /** The app window; overlays rendered outside any overlay present from it. */
 export const ROOT_OVERLAY = "root";
 
 /** The overlay whose native modal contains the current subtree. */
 export const OverlayParent = createContext(ROOT_OVERLAY);
+
+/** Sheets opened from a full-screen viewer follow the viewer's allowed orientations. */
+export const OverlayOrientations = createContext<ModalProps["supportedOrientations"]>(undefined);
 
 /** Rendered inside every overlay and once at the root, so shared dialogs can present above the topmost overlay. */
 export const OverlayLayer = createContext<ComponentType<{ host: string }> | undefined>(undefined);
