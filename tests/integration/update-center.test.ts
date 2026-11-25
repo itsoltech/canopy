@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createHash } from "node:crypto";
@@ -466,6 +466,57 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     const run = await new UpdateRunStore(f.gateway.runtime, f.gateway.userId).read();
     expect(run?.steps.map((s) => s.state)).toEqual(["running", "queued"]);
     expect(f.gateway.worker.commands.some((c) => c.case === "installCli")).toBe(false);
+  });
+
+  test("turns sent during the update announcement stay queued and resume if the announcement fails", async () => {
+    const { gateway } = await fixture("binary", "1.0.0");
+    const { api, worker } = gateway;
+    const projectId = (await api.createProject({ name: "Update queue" })).project!.id;
+
+    const workspaceId = (await api.createWorkspace({ projectId, workerId: gateway.workerId, rootPath: "/repo/update" }))
+      .workspace!.id;
+
+    const thread = (
+      await api.createThread({ projectId, workspaceId, provider: Provider.CODEX, clientRequestId: crypto.randomUUID() })
+    ).thread!;
+
+    await eventually(
+      () => api.getThread({ threadId: thread.id }),
+      (r) => r.thread?.status === "idle",
+    );
+    const announce = Promise.withResolvers<void>();
+    const reached = Promise.withResolvers<void>();
+
+    const spy = spyOn(gateway.core.departures, "announce").mockImplementation(() => {
+      reached.resolve();
+
+      return announce.promise;
+    });
+
+    const updateFailed = failure(api.manageUpdates({ action: "gateway" }));
+
+    try {
+      await Promise.race([
+        reached.promise,
+        updateFailed.then((reason) => {
+          throw new Error(`Gateway never announced the update: ${reason}`);
+        }),
+      ]);
+      const { turn } = await api.sendMessage({ threadId: thread.id, text: "Run once updates allow it" });
+      const turnId = turn!.id;
+      expect(turn?.status).toBe("queued");
+      expect(worker.commands.some((c) => c.case === "startTurn" && c.value.turnId === turnId)).toBe(false);
+      announce.reject(new Error("Update announcement failed"));
+      await updateFailed;
+      await eventually(
+        async () => worker.commands.some((c) => c.case === "startTurn" && c.value.turnId === turnId),
+        Boolean,
+      );
+    } finally {
+      announce.resolve();
+      await updateFailed;
+      spy.mockRestore();
+    }
   });
 
   test("a failed gateway blocks its workers while an independent app still updates", async () => {

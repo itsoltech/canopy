@@ -128,9 +128,16 @@ export async function corePump(hostContext: GatewayCore, threadId: string): Prom
   await corePumpQueued(hostContext, threadId);
 }
 
+function deferUpdatePump(core: GatewayCore, threadId: string): boolean {
+  if (!core.updates.draining) return false;
+  core[coreState].updateDeferred.add(threadId);
+
+  return true;
+}
+
 /** Shared admission path, also used inside the transaction accepting a user message. */
 export async function corePumpQueued(hostContext: GatewayCore, threadId: string): Promise<void> {
-  if (hostContext[coreState].options.relocation?.draining) return;
+  if (hostContext[coreState].options.relocation?.draining || deferUpdatePump(hostContext, threadId)) return;
   const state = await queueAdmissionState(hostContext, threadId);
 
   if (!state) return;
@@ -149,7 +156,7 @@ export async function corePumpQueued(hostContext: GatewayCore, threadId: string)
 
   // The user may reorder or edit the queue meanwhile: the head starts only as read, else it is read again.
   for (let attempt = 0; attempt < 5; attempt++) {
-    if (hostContext[coreState].options.relocation?.draining) return;
+    if (hostContext[coreState].options.relocation?.draining || deferUpdatePump(hostContext, threadId)) return;
     const turn = await coreRun(hostContext, (s) => s.nextTurn(threadId));
 
     if (!turn) return;
@@ -435,12 +442,6 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */
   async pump(this: GatewayCore, threadId: string): Promise<void> {
-    if (this.updates.draining) {
-      this[coreState].updateDeferred.add(threadId);
-
-      return;
-    }
-
     this[coreState].pumpAdmissions++;
 
     try {

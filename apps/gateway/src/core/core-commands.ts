@@ -164,6 +164,8 @@ function sendWorkerCommand(
       (outbound.case === "createThread" || outbound.case === "startTurn") && outbound.value.profiledThread;
 
     const send = () => {
+      if (hostContext.updates.draining && NEW_THREAD_WORK.has(outbound.case)) return;
+
       if (
         profiled &&
         (connection.sandboxConfigReport !== sandboxReport ||
@@ -190,6 +192,8 @@ async function deliverCommand(
   const relocation = hostContext[coreState].options.relocation;
 
   if (!connection?.isOpen || !kind.case) return;
+
+  if (hostContext.updates.draining && NEW_THREAD_WORK.has(kind.case)) return;
 
   if (lifecycleCommand(command) && !(await coreRun(hostContext, (s) => s.commandDispatchable(command.commandId))))
     return;

@@ -253,6 +253,19 @@ describe.skipIf(process.platform === "win32")("binary gateway with embedded web"
     ).toBe("closed");
   }, 60_000);
 
+  test("passes supervision to the updated binary before it starts serving or waits on existing turns", async () => {
+    const f = await start({ CANOPY_TEST_BUSY_HANDOVER: "1" });
+    await f.serving("1.0.0");
+    await f.stage("2.0.0", "1.0.0");
+    await f.resident("2.0.0");
+    const events = await f.events();
+    const candidate = events.find((e) => e.type === "child" && e.version === "2.0.0")!;
+    expect(events.some((e) => e.type === "stopped" && e.pid === candidate.pid)).toBe(true);
+    expect(events.some((e) => e.type === "healthy" && e.pid === candidate.pid)).toBe(false);
+    expect(events.some((e) => e.type === "idle-checked" && e.pid === candidate.pid)).toBe(false);
+    expect(await readUpdateRecord(f.binaryPath)).toMatchObject({ version: "2.0.0", state: "succeeded" });
+  }, 30_000);
+
   test("a busy web port leaves the gateway running, says why and recovers when the port frees up", async () => {
     const port = await freePort();
     const blocker = createServer();
