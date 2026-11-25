@@ -1,5 +1,8 @@
 # Konto GitHub i pull requesty
 
+Status (2026-11-25) — menu kontekstowe PR w podsumowaniu wątku web i desktop
+otwiera PR na GitHubie, odświeża jego stan i pozwala go odpiąć (§3).
+
 Status (2026-11-25): powiązanie nowego PR z wątkiem włącza automatyczne notatki dla agenta
 o konflikcie z bazą i zbiorczym wyniku CI. Właściciel może je wyłączyć globalnie albo nadpisać
 ustawienie dla projektu (§10). Dostępność według [promocji wydań](release.md).
@@ -300,6 +303,12 @@ tej samej generacji JSON. Trwały cache ma retencję i kwoty z §4.
 Autodetekcja wyróżnia PR bieżącej gałęzi przed historią; w każdej grupie obowiązuje
 data utworzenia PR, nie data linku. Web/desktop i mobile pokazują Auto/Manual
 oraz Current branch/History. Unlink zachowuje trwały tombstone.
+
+W podsumowaniu wątku web i desktop prawy przycisk myszy, Shift+F10 lub przytrzymanie
+wiersza otwiera menu PR. **Open on GitHub** otwiera PR w przeglądarce. **Refresh status**
+pobiera aktualny stan PR i checków. **Unlink from thread** usuwa powiązanie wybranego PR
+z tym wątkiem i blokuje ponowne automatyczne powiązanie tej pary. **Link pull request**
+pozwala ją przywrócić ręcznie.
 
 Lista powiązanych PR nie zależy wyłącznie od cache bieżącej rewizji dostępu: rotacja tokenu
 (co 8 h) i retencja go unieważniają. Gateway zapisuje ostatnie znane podsumowanie (tytuł, stan,

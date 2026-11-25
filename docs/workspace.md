@@ -2,6 +2,8 @@
 
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 Aktualizacja (2026-11-24): widok PR i `Rendered` plików Markdown korzystają z Thread width w web/desktop.
+Aktualizacja (2026-11-25) — menu kontekstowe PR w podsumowaniu web i desktop pozwala
+otworzyć PR na GitHubie, odświeżyć stan i odpiąć PR od wątku.
 
 Status (2026-11-24): **zaimplementowane, układ v3**. Po zmianie worktree wątku
 otwarte podsumowanie i Diff w web/desktop od razu pobierają stan nowego checkoutu,
@@ -358,7 +360,7 @@ Preview można przenieść do pełnej karty głównego obszaru lub otworzyć w o
 | --- | --- |
 | Wiadomości i composer | Pierwsza zakładka `Thread`; szkic, kolejka i oczekujące interakcje pozostają przy rozmowie |
 | Komputer, Directory/Worktree (kopiowanie, Open folder, Manage worktree), Branch, uwaga o trybie uprawnień | Podsumowanie |
-| Pull requesty: stan, checki, numer, wyróżnienie PR bieżącej gałęzi, `Link pull request`, `Create pull request` | Podsumowanie; wiersz PR otwiera pełny PR w zakładce |
+| Pull requesty: stan, checki, numer, wyróżnienie PR bieżącej gałęzi, `Link pull request`, `Create pull request` | Kliknięcie wiersza w podsumowaniu otwiera PR w zakładce. Menu kontekstowe pozwala otworzyć PR na GitHubie, odświeżyć stan i odpiąć PR. |
 | Zadania w tle i harmonogramy (pauza, wznowienie, anulowanie, `Schedule a task`) | Podsumowanie; wiersz zadania otwiera jego wynik w zakładce |
 | Connectory: konta z dostępnością i `Manage` | Podsumowanie |
 | Sekrety, fork, lineage, subagenci, `New side thread` | Podsumowanie |

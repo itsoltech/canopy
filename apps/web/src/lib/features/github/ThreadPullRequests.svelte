@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ui, github } from "@canopy/contracts";
+  import { tick } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import { SharedRead, queries } from "#lib/shared/queries.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
@@ -15,7 +16,9 @@
   let offset = $state(0);
   const listId = $props.id();
   let creating = $state(false);
+  let unlinking = $state(false);
   let error = $state("");
+  let heading = $state<HTMLHeadingElement>();
   let previous = $state<{ thread: string; offset: number; value: github.ThreadPullRequestsResponse }>();
   let identity = $state("");
 
@@ -38,6 +41,7 @@
       identity = current;
       offset = 0;
       expanded = false;
+      error = "";
     }
   });
 
@@ -54,11 +58,43 @@
     offset = 0;
   };
 
-  /** The refresh records its reason on the gateway; the list shows it either way. */
-  const retry = async (id: string) => {
-    await api.pullRequest(id, true).catch(() => {});
-    await read.reload().catch(() => {});
-  };
+  async function refresh(id: string) {
+    const threadId = thread.id;
+    const snapshot = await api.pullRequest(id, true).catch(() => undefined);
+
+    if (threadId === thread.id) await read.reload().catch(() => {});
+
+    return !!snapshot && !snapshot.stale;
+  }
+
+  async function unlink(pullRequestId: string, row: HTMLLIElement | undefined) {
+    if (unlinking || data?.stale) return;
+    const threadId = thread.id;
+    const revision = data?.revision ?? thread.pullRequestRevision;
+    unlinking = true;
+    error = "";
+
+    try {
+      const updated = await api.unlink(threadId, pullRequestId, revision);
+
+      if (threadId !== thread.id) return;
+      const hadFocus = row?.contains(document.activeElement);
+      // The mutation returns page one. Apply it without waiting for the overview event.
+      offset = 0;
+
+      if (updated.revision >= (read.data?.revision ?? thread.pullRequestRevision)) read.set(updated);
+
+      if (hadFocus) {
+        await tick();
+
+        if (document.activeElement === document.body) heading?.focus({ preventScroll: true });
+      }
+    } catch {
+      if (threadId === thread.id) error = "Could not unlink this pull request. Refresh the list, then try again.";
+    } finally {
+      unlinking = false;
+    }
+  }
 
   const links = $derived(
     data?.links ??
@@ -68,6 +104,8 @@
 
 <section aria-label="Pull requests" class={["grid min-w-0 gap-0.5 px-1.5 py-1", className]}>
   <h2
+    bind:this={heading}
+    tabindex="-1"
     class="flex items-center justify-between gap-2 px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
   >
     Pull requests <span class="tabular-nums">{total}</span>
@@ -75,13 +113,16 @@
   {#snippet rows(items: typeof links)}
     {#each items as link (link.summary?.ref?.id)}
       {@const pr = link.summary}
-      {#if pr?.ref}<LinkedPullRequestRow
+      {@const ref = pr?.ref}
+      {#if pr && ref}<LinkedPullRequestRow
           threadId={thread.id}
           {link}
           summary={pr}
-          pullRequest={pr.ref}
+          pullRequest={ref}
           stale={!!data?.stale}
-          onretry={() => retry(pr.ref!.id)}
+          onrefresh={() => refresh(ref.id)}
+          unlinkDisabled={unlinking || !!data?.stale}
+          onunlink={(row) => void unlink(ref.id, row)}
         />{/if}
     {/each}
   {/snippet}
@@ -114,16 +155,20 @@
       onclick={() => (expanded ? collapse() : (expanded = true))}
       >{expanded ? "Show less" : `Show ${total - 4} more`}</button
     >{/if}
-  {#if read.snapshot.error || error}<Alert
+  {#if read.snapshot.error || error}<Alert tone="error"
       >{error || "Could not load pull requests. Check the connection, then retry."}<Button
         size="sm"
-        onclick={() => void read.reload().catch(() => {})}>Retry</Button
+        onclick={() => {
+          heading?.focus({ preventScroll: true });
+          error = "";
+          void read.reload().catch(() => {});
+        }}>{error ? "Refresh list" : "Retry"}</Button
       ></Alert
     >{/if}
   <LinkPullRequest
     threadId={thread.id}
     revision={data?.revision ?? thread.pullRequestRevision}
-    disabled={data?.stale}
+    disabled={unlinking || !!data?.stale}
     onlinked={() => {
       collapse();
       void read.reload();
@@ -131,7 +176,7 @@
   />
   {#if !data?.hasCurrentBranch && !links.some((link) => link.currentBranch)}<PanelRow
       icon="git-fork"
-      disabled={data?.stale}
+      disabled={unlinking || !!data?.stale}
       onclick={() => (creating = true)}>Create pull request</PanelRow
     >{/if}
   <CreatePullRequest threadId={thread.id} bind:open={creating} oncreated={() => void read.reload()} />
