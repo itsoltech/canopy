@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-25): ustawienia wątków pozwalają wyłączyć automatyczne powiadomienia
+agenta o powiązanych pull requestach na całym koncie lub w danym projekcie.
+
 Status (2026-11-25): w edytorze web/desktop można przeciągać załączniki, wzmianki
 i cytaty do innego miejsca w tekście.
 
@@ -322,6 +325,16 @@ przez istniejący endpoint ustawień wątku. Klient pokazuje wartość efektywn�
 wątek → projekt → konto → wyłączone; nie zapisuje rozstrzygniętej wartości przy tworzeniu.
 Powód `Thread.archived_by = merge` identyfikuje automatyczną archiwizację.
 Warunki po stronie gatewaya: [github.md](github.md), interfejs: [threads.md](threads.md#automatyczna-archiwizacja-po-merge).
+
+## Powiadomienia agenta o pull requestach
+
+Opcjonalne `ThreadDefaults.notify_on_linked_pull_requests` jest domyślnie włączone
+na koncie. Projekt dziedziczy wartość konta lub zapisuje jawne `true` albo `false`.
+Pole korzysta z wersjonowanych `UpdateUserSettings` i `UpdateProjectSettings`,
+zmian overview oraz wspólnej konfiguracji połączonych komputerów. Usunięcie wartości
+przywraca domyślne zachowanie konta lub dziedziczenie w projekcie.
+W web i desktop ustawienie **Notify agent about pull requests** znajduje się w
+**Settings → Threads → Conversation** oraz w zakładce **Threads** w ustawieniach projektu.
 
 ## Proponowane odpowiedzi
 

@@ -136,7 +136,7 @@ export function watchView(row: PrCheckWatchRow): JsonObject {
     ...(row.end_reason && { end_reason: row.end_reason }),
     notify_on: row.notify_on,
     head_sha: row.head_sha,
-    until: new Date(row.expires_at).toISOString(),
+    ...(row.expires_at && { until: new Date(row.expires_at).toISOString() }),
     created_at: new Date(row.created_at).toISOString(),
     ...(row.ended_at && { ended_at: new Date(row.ended_at).toISOString() }),
   };

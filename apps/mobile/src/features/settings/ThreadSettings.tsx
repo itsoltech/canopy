@@ -17,7 +17,7 @@ import { FollowUpSettings } from "./FollowUpSettings";
 import { SubagentPermissionSettings } from "./SubagentPermissionSettings";
 import { AccountConfigNotices } from "./AccountConfigNotices";
 import { SandboxProfilesSettings } from "./SandboxProfilesSettings";
-import { AutoArchiveSettings } from "./AutoArchiveSettings";
+import { PullRequestSettings } from "./PullRequestSettings";
 import { Button } from "../../ui/components";
 import { ThreadRetentionSettings } from "./ThreadRetentionSettings";
 
@@ -31,12 +31,12 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
       <FollowUpSettings settings={settings} />
       <SubagentPermissionSettings settings={settings} />
       <SandboxProfilesSettings />
-      <AutoArchiveSettings
-        value={defaults.autoArchiveOnMerge}
+      <PullRequestSettings
+        value={defaults}
         disabled={!settings.user || settings.saving}
-        onChange={(autoArchiveOnMerge) =>
+        onChange={(patch) =>
           void settings.update({
-            threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, autoArchiveOnMerge }),
+            threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, ...patch }),
           })
         }
       />
@@ -86,6 +86,7 @@ function NewThreadSettings({ settings }: { settings: Settings }) {
                   threadDefaults: create(ui.ThreadDefaultsSchema, {
                     subagentPermissionMode: defaults.subagentPermissionMode,
                     autoArchiveOnMerge: defaults.autoArchiveOnMerge,
+                    notifyOnLinkedPullRequests: defaults.notifyOnLinkedPullRequests,
                   }),
                 })
               }

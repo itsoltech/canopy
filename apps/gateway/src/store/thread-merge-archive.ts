@@ -42,6 +42,7 @@ export const mergeArchiveIdle = (sql: SqlClient.SqlClient, ids: string[]) =>
       EXISTS (SELECT 1 FROM goals g WHERE g.thread_id=t.id AND g.status IN ('active','proposed')) OR
       EXISTS (SELECT 1 FROM turn_steers s WHERE s.thread_id=t.id AND s.status IN ('pending','accepted')) OR
       EXISTS (SELECT 1 FROM background_task_notes n WHERE n.thread_id=t.id AND (n.status='steering' OR (n.status='waiting' AND n.wake))) OR
+      EXISTS (SELECT 1 FROM pr_check_notes n WHERE n.thread_id=t.id AND (n.status='steering' OR (n.status='waiting' AND n.wake))) OR
       EXISTS (SELECT 1 FROM agent_bus_calls c WHERE (c.source_thread_id=t.id OR c.target_thread_id=t.id) AND c.notify_status='pending'))`;
 
     return busy.length === 0;

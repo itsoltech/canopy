@@ -1,6 +1,8 @@
 import { setModules } from "./support/module-settings.ts";
 import { describe, expect, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
+import { Effect } from "effect";
+import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway } from "./support/gateway.ts";
 import { linkedRead } from "./support/github-read.ts";
 import { pollingFixture } from "./support/github-polling.ts";
@@ -10,7 +12,7 @@ describe.skipIf(!dockerAvailable)("durable merge archival without a visible clie
     test(`${initial}: discovers merge after a gateway restart`, async () => {
       const fixture = pollingFixture();
       fixture.state.pr = initial;
-      fixture.state.running = false;
+      fixture.state.running = initial === "OPEN";
       let gw = await startTestGateway({ github: fixture.options });
 
       try {
@@ -26,6 +28,8 @@ describe.skipIf(!dockerAvailable)("durable merge archival without a visible clie
         });
         await gw.core.github.background.tick();
         expect((await gw.api.getThread({ threadId: thread })).thread!.archivedAt).toBeUndefined();
+
+        if (initial === "OPEN") await gw.core.checkWatches.tick();
 
         if (initial === "CLOSED") {
           expect(fixture.requests.some((r) => r.path.endsWith("/check-runs"))).toBe(false);
@@ -46,6 +50,8 @@ describe.skipIf(!dockerAvailable)("durable merge archival without a visible clie
         await setModules(gw, "bots");
         await gw.close(true);
         gw = await startTestGateway({ github: fixture.options, storage });
+        fixture.state.running = false;
+        fixture.state.version++;
         fixture.state.pr = "MERGED";
         fixture.state.updatedAt = "2026-11-10T12:02:00Z";
         fixture.advance(70_000);
@@ -58,6 +64,25 @@ describe.skipIf(!dockerAvailable)("durable merge archival without a visible clie
         expect(stillOpen).toEqual([{ archived_at: null }]);
         await setModules(gw, "threads", "bots");
         await gw.core.github.background.tick();
+
+        if (initial === "OPEN") {
+          const records = await eventually(
+            () =>
+              gw.runtime.runPromise(
+                Effect.gen(function* () {
+                  const sql = yield* SqlClient.SqlClient;
+
+                  return yield* sql<{ status: string; text: string }>`SELECT status, input->>'text' AS text
+                  FROM turns WHERE thread_id=${thread}::uuid AND trigger='pr_checks'`;
+                }),
+              ),
+            (turns) => turns.some((turn) => turn.status === "completed"),
+          );
+
+          expect(records).toEqual([{ status: "completed", text: expect.stringContaining("1 passed.") }]);
+          await gw.core.github.background.tick();
+        }
+
         const archived = (await gw.api.getThread({ threadId: thread })).thread!;
         expect(archived.archivedAt).toBeDefined();
         expect(archived.archivedBy).toBe("merge");

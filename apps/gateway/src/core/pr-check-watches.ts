@@ -27,6 +27,7 @@ import {
   type WatchProgress,
 } from "../store/index.ts";
 import { prCheckTool, pullRequestUrl, type PrCheckCall } from "./pr-check-tools.ts";
+import { AutomaticPrChecks } from "./automatic-pr-checks.ts";
 
 /**
  * CI check watches of pull requests linked to a thread (docs/agent-bus.md, "Checki CI"; docs/github.md §10).
@@ -71,7 +72,20 @@ const progressOf = (w: PrCheckWatchRow): WatchProgress => ({
   headChanged: w.head_changed,
   seen: w.seen,
   settled: w.settled,
+  conflicting: w.conflicting,
 });
+
+const followHead = (progress: WatchProgress, headSha: string, now: number): WatchProgress => ({
+  ...progress,
+  headSha,
+  headSeenAt: new Date(now),
+  headChanges: Math.min(progress.headChanges + 1, 32_767),
+  headChanged: !!progress.headSha,
+  seen: {},
+  settled: false,
+});
+
+const linkedPair = (w: PrCheckWatchRow) => `${w.thread_id}:${w.pull_request_id}`;
 
 export class PrCheckWatches {
   readonly #host: PrCheckWatchesHost;
@@ -79,6 +93,7 @@ export class PrCheckWatches {
   #flight: Promise<void> | undefined;
   /** Per watch: the producer revision its checks were last read at, when, and how many there were (pending). */
   readonly #read = new Map<string, { revision: string; at: number; total: number; needsReread: boolean }>();
+  readonly #automatic = new AutomaticPrChecks();
   /** Threads being delivered: a second call waits for the first one, then runs again. */
   readonly #delivering = new Map<string, Promise<void>>();
 
@@ -109,31 +124,92 @@ export class PrCheckWatches {
     }));
   }
 
+  /** The archive sweep may discover a merge after an in-flight check tick took its snapshot. */
+  async beforeMergeArchive(): Promise<void> {
+    await this.#flight;
+    await this.tick();
+  }
+
   async #tick(): Promise<void> {
     const now = this.github.prs.accounts.http.now();
     const live: PrCheckWatchRow[] = [];
 
     for (const w of await this.run((s) => s.active(this.github.owner))) {
       if (!w.thread_open) await this.run((s) => s.end(w.owner_user_id, w.id, "thread_closed", true));
-      else if (!w.linked) await this.#ended(w, "unlinked");
-      else if (now >= new Date(w.expires_at).getTime()) await this.#ended(w, "timeout");
+      else if (!w.linked) {
+        if (w.call_id) await this.#ended(w, "unlinked");
+        else await this.run((s) => s.end(w.owner_user_id, w.id, "unlinked", true));
+      } else if (w.expires_at && now >= new Date(w.expires_at).getTime()) await this.#ended(w, "timeout");
       else live.push(w);
     }
 
     const updates = await pollAgentWatches(this.github.prs, new Set(live.map((w) => w.pull_request_id)));
+    const manual = live.filter((w) => w.call_id);
+    const covered = new Set(manual.map(linkedPair));
 
-    for (const w of live)
+    for (const w of manual)
       await this.#judge(w, updates.get(w.pull_request_id), now).catch((cause: unknown) =>
         this.#host.log(`CI watch ${w.id}: ${githubFailure(cause).rawMessage}`),
       );
 
-    for (const id of this.#read.keys()) if (!live.some((w) => w.id === id)) this.#read.delete(id);
+    for (const w of live) {
+      if (w.call_id) continue;
+      const update = updates.get(w.pull_request_id);
+
+      if (!update || update instanceof Error) continue;
+      await this.#judgeAutomatic(w, update, covered.has(linkedPair(w)), now).catch((cause: unknown) => {
+        this.#automatic.forget(w.id);
+        this.#host.log(`Automatic PR notifications ${w.id}: ${githubFailure(cause).rawMessage}`);
+      });
+    }
+
+    const liveIds = new Set(live.map((w) => w.id));
+
+    for (const id of this.#read.keys()) if (!liveIds.has(id)) this.#read.delete(id);
+    this.#automatic.retain(liveIds);
     const threads = await this.run((s) => s.pendingThreads(this.github.owner));
 
     for (const threadId of threads) {
       await this.deliver(threadId);
       await this.#host.pump(threadId);
     }
+  }
+
+  async #judgeAutomatic(w: PrCheckWatchRow, update: github.PullRequestUpdate, covered: boolean, now: number) {
+    const snapshot = update.snapshot;
+    const summary = snapshot?.summary;
+
+    if (!summary?.headSha || !snapshot || snapshot.stale) return;
+    const state = summary.state;
+
+    if (state === "closed") {
+      await this.run((s) => s.end(w.owner_user_id, w.id, state, false));
+
+      return;
+    }
+
+    const previous = progressOf(w);
+    const moved = previous.headSha !== summary.headSha;
+
+    if (moved) this.#automatic.forget(w.id);
+    const progress = moved ? followHead(previous, summary.headSha, now) : previous;
+
+    const observed = await this.#automatic.observe(
+      this.github.prs,
+      w,
+      snapshot,
+      update.revision,
+      progress,
+      covered,
+      now,
+    );
+
+    if (observed.notification) {
+      const body = this.#body(w, observed.progress, observed.notification, state !== "merged");
+      await this.#note(w, observed.progress, body, state === "merged" ? state : undefined);
+    } else if (state === "merged") await this.run((s) => s.end(w.owner_user_id, w.id, state, false));
+    else if (moved || observed.progress.conflicting !== w.conflicting || observed.progress.seen !== progress.seen)
+      await this.run((s) => s.progress(w.owner_user_id, w.id, observed.progress));
   }
 
   async #judge(w: PrCheckWatchRow, update: github.PullRequestUpdate | Error | undefined, now: number): Promise<void> {
@@ -154,14 +230,7 @@ export class PrCheckWatches {
 
     if (moved) {
       // A new commit: its checks start over; each followed commit adds a hop (an agent pushing fixes in a loop).
-      progress = {
-        headSha: summary.headSha,
-        headSeenAt: new Date(now),
-        headChanges: w.head_changes + 1,
-        headChanged: true,
-        seen: {},
-        settled: false,
-      };
+      progress = followHead(progress, summary.headSha, now);
       this.#read.delete(w.id);
     }
 
@@ -241,9 +310,11 @@ export class PrCheckWatches {
     w: PrCheckWatchRow,
     progress: WatchProgress,
     rest: Pick<PrChecksNote, "event" | "checks" | "omitted" | "counts" | "reason">,
+    watching = !rest.reason,
   ): PrChecksNote {
     return {
       watch_id: w.id,
+      ...(!w.call_id && { automatic: true }),
       pull_request_id: w.pull_request_id,
       repository: w.repository_name,
       number: w.number,
@@ -251,15 +322,17 @@ export class PrCheckWatches {
       head_sha: progress.headSha,
       head_changed: progress.headChanged,
       ...rest,
-      watching: !rest.reason,
-      until: new Date(w.expires_at).toISOString(),
+      watching,
+      until: w.expires_at ? new Date(w.expires_at).toISOString() : "",
     };
   }
 
   async #note(w: PrCheckWatchRow, progress: WatchProgress, body: PrChecksNote, end: string | undefined) {
-    const hops = w.hops + progress.headChanges;
+    const hops = w.call_id ? w.hops + progress.headChanges : w.hops;
     const wake = hops <= DEFAULT_BUS_LIMITS.maxHops;
     await this.run((s) => s.note(w.owner_user_id, w.id, progress, { body, wake, hops, ...(end && { end }) }));
+
+    if (!w.call_id) return;
     await this.deliver(w.thread_id);
 
     if (end) await this.#host.changed(w.thread_id);

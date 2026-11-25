@@ -2257,6 +2257,9 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
+Status (2026-11-25): konsolidacja obsługuje schemat migracji `0216` i zachowuje stan
+automatycznej obserwacji podlinkowanych PR-ów. Eksport i cel muszą mieć zgodny katalog.
+
 Status (2026-11-24): konsolidacja wymaga migracji 0214 po obu stronach. Import zachowuje emoji
 przypisane do wiadomości bota oraz zapis powiadomień o reakcji w historii tur. Jeśli
 wątek zmienił worktree, import zachowuje katalog, w którym działała tura

@@ -9,4 +9,5 @@ export const createCoreGitHub = (core: GatewayCore, options: GatewayCoreOptions)
     options.github,
     (ids) => core.threadsChanged(ids),
     (id) => coreArchiveThread(core, id, true, "merge"),
+    () => core.checkWatches.beforeMergeArchive(),
   );

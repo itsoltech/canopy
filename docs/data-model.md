@@ -1,5 +1,9 @@
 # Model danych (PostgreSQL)
 
+Status (2026-11-25): migracja `0216_automatic_pr_notifications` zapisuje automatyczną obserwację PR
+w `pr_check_watches` bez identyfikatora wywołania i terminu wygaśnięcia. Stan konfliktu zapobiega
+ponownemu dostarczeniu tej samej notatki po restarcie lub konsolidacji.
+
 Status (2026-11-24): migracja `0214_bot_message_reactions` zapisuje reakcje na prywatne
 wiadomości w `bot_messages.reactions`. Reaguje tylko druga strona rozmowy.
 `bot_turns.reaction_input` oznacza wejście modelu utworzone przy zmianie reakcji właściciela.

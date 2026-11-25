@@ -33,6 +33,7 @@ export class GitHubAccounts {
     options: GitHubOptions = {},
     publish: (ids: readonly string[]) => Promise<void> = async () => {},
     archive: (threadId: string) => Promise<void> = async () => {},
+    settleCheckNotes?: () => Promise<void>,
   ) {
     this.run = async (use) => {
       const result = await runtime.runPromise(Effect.exit(GatewayStore.use((s) => use(s.github)).pipe(queryRpc)));
@@ -59,7 +60,7 @@ export class GitHubAccounts {
     });
     this.prs = new GitHubPullRequests(this, publish);
     this.mutations = new GitHubMutations(this.prs);
-    this.background = new GitHubBackground(this.prs, archive);
+    this.background = new GitHubBackground(this.prs, archive, settleCheckNotes);
     this.catalogue = new GitHubCatalogue(this.access, this.prs.client, () => this.prs.changed());
     this.device = new GitHubDeviceFlow(this.run, this.http, owner, (id) => this.catalogue.refresh(id));
   }

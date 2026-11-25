@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { detectionPull } from "./github-detection.ts";
 import { githubPrData } from "./github-pr.ts";
 import { readFixture, readHead, readBase } from "./github-read.ts";
 
@@ -17,6 +18,8 @@ export function pollingFixture(paginatedChecks = false) {
     running: true,
     /** The check's conclusion once it stopped running. */
     conclusion: "SUCCESS",
+    /** A second check appears while workflows fan out, then either runs or passes. */
+    tests: "absent",
     legacyRunning: false,
     head: readHead,
     base: readBase,
@@ -28,6 +31,8 @@ export function pollingFixture(paginatedChecks = false) {
     checkPages: 1,
   };
 
+  const branch = githubPrData().headRefName;
+  let discover = false;
   const previousHeads = new Map<string, typeof state>();
 
   const envelope = (pullRequest: Schema.JsonObject) =>
@@ -58,12 +63,24 @@ export function pollingFixture(paginatedChecks = false) {
         checkSuite: { app: { name: "Actions" }, workflowRun: { databaseId: 123 } },
       };
 
+      const nodes = [check];
+
+      if (state.tests !== "absent")
+        nodes.push({
+          ...check,
+          id: `TEST_${state.head.slice(0, 4)}`,
+          name: "Tests",
+          status: state.tests === "pending" ? "IN_PROGRESS" : "COMPLETED",
+          conclusion: state.tests === "pending" ? null : "SUCCESS",
+          checkSuite: { app: { name: "Actions" }, workflowRun: { databaseId: 124 } },
+        });
+
       const statusCheckRollup =
         state.checkPages === 0
           ? null
           : {
-              state: state.running || state.legacyRunning ? "PENDING" : state.conclusion,
-              contexts: { totalCount: 1, nodes: [check], pageInfo: { hasNextPage: false, endCursor: null } },
+              state: state.running || state.legacyRunning || state.tests === "pending" ? "PENDING" : state.conclusion,
+              contexts: { totalCount: nodes.length, nodes, pageInfo: { hasNextPage: false, endCursor: null } },
             };
 
       const commits = { nodes: [{ commit: { oid: state.head, statusCheckRollup } }] };
@@ -79,6 +96,7 @@ export function pollingFixture(paginatedChecks = false) {
             baseRefOid: state.base,
             mergeable: state.mergeable,
             mergeStateStatus: state.mergeStateStatus,
+            ...(discover && { headRepository: { databaseId: 777, nameWithOwner: "itsoltech/canopy" } }),
             commits: paginatedChecks ? pr.commits : commits,
           }),
         );
@@ -91,6 +109,9 @@ export function pollingFixture(paginatedChecks = false) {
       const root = "/repos/itsoltech/canopy";
 
       if (!url.pathname.startsWith(`${root}/`)) return;
+
+      if (discover && url.pathname === `${root}/pulls` && url.searchParams.get("head") === `itsoltech:${branch}`)
+        return Response.json([detectionPull(42, branch, state.head)]);
 
       const [, sha, resource] =
         /^commits\/([a-f0-9]{40})\/(check-runs|status)$/.exec(url.pathname.slice(root.length + 1)) ?? [];
@@ -115,12 +136,15 @@ export function pollingFixture(paginatedChecks = false) {
           `metadata-${state.updatedAt}-${state.head}-${state.base}-${state.pr}-${state.mergeable}-${state.mergeStateStatus}`,
         );
       } else if (commit && resource === "check-runs") {
+        const runs = [{ status: commit.running ? "in_progress" : "completed" }];
+
+        if (commit.tests !== "absent") runs.push({ status: commit.tests === "pending" ? "in_progress" : "completed" });
         body = {
-          total_count: Math.max(0, commit.checkPages * 100 - 99),
-          check_runs: commit.checkPages === 0 ? [] : [{ status: commit.running ? "in_progress" : "completed" }],
+          total_count: Math.max(0, commit.checkPages * 100 - 100 + runs.length),
+          check_runs: commit.checkPages === 0 ? [] : runs,
         };
         etag = JSON.stringify(
-          `checks-${commit.version}-${commit.running}-${commit.checkPages}-${url.searchParams.get("page")}`,
+          `checks-${commit.version}-${commit.running}-${commit.tests}-${commit.checkPages}-${url.searchParams.get("page")}`,
         );
       } else if (commit && resource === "status") {
         body =
@@ -169,6 +193,11 @@ export function pollingFixture(paginatedChecks = false) {
     options: { ...fixture.options, fetch: transport },
     state,
     requests,
+    discoverBranch: () => {
+      discover = true;
+
+      return branch;
+    },
     pushHead: (sha: string) => {
       previousHeads.set(state.head, { ...state });
       state.head = sha;

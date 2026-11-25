@@ -1,5 +1,9 @@
 # Konto GitHub i pull requesty
 
+Status (2026-11-25): powiązanie nowego PR z wątkiem włącza automatyczne notatki dla agenta
+o konflikcie z bazą i zbiorczym wyniku CI. Właściciel może je wyłączyć globalnie albo nadpisać
+ustawienie dla projektu (§10). Dostępność według [promocji wydań](release.md).
+
 Status (2026-11-24): zmiana worktree odświeża kontekst Git wątku i zachowuje wcześniejsze powiązania z PR.
 Status (2026-11-24): odświeżenie listy PR synchronizuje stan w szczegółach wątku i sidebarze (§3).
 
@@ -42,7 +46,7 @@ otwarcia wątku, zapisu zdarzeń, ACK workera ani startu tury.
 | Review | Komentarze ogólne i odpowiedzi, inline i zakresy linii w unified/split, pending review, Comment/Approve/Request changes, resolve/unresolve, edycja/usuwanie własnych komentarzy, Viewed z GitHub | Dismiss cudzych reviews, automatyczne publikowanie uwag agenta |
 | Cykl PR | Create z gałęzi wątku i szkicem agenta do zatwierdzenia, ready/draft, merge/squash/rebase, auto-merge on/off, update branch, close/reopen | Revert, automatyczne usuwanie gałęzi, zarządzanie całym stosem PR jedną akcją |
 | Metadane i CI | Tytuł/opis, request/re-request reviewerów i zespołów, assignees, labels; re-run failed/jobs/run, cancel run, logi checków/jobs | Edycja workflow, sekretów i ustawień repo, uruchamianie dowolnego workflow |
-| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Agent może też lokalnie podlinkować PR bieżącego repo przez `link_pull_request` jako fallback po `gh pr create`, a następnie odczytywać checki przez `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) | Wywoływanie mutacji GitHub nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
+| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Agent może też lokalnie podlinkować PR bieżącego repo przez `link_pull_request` jako fallback po `gh pr create`. Wątek automatycznie otrzymuje konflikty i zbiorcze wyniki CI ([agent-bus.md](agent-bus.md#checki-ci)). | Wywoływanie mutacji GitHub nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
 
 Nie tworzymy klienta git, nowego systemu zgód, własnego hostingu diffów ani mechanizmu
 aktualizacji. Każda mutacja jest jawną akcją użytkownika, bez ukrytych zapisów przy auth,
@@ -473,10 +477,10 @@ kotwicy, werdyktu oraz rewizji review; nie zapisuje treści komentarza w audycie
 
 Obserwator UI oznacza widoczny ekran, nie samo otwarte połączenie. Web używa widoczności strony,
 mobile AppState i fokusu ekranu; krótka odnawiana dzierżawa widoku wygasa po 90 s.
-Aktywny `watch_pr_checks` podtrzymuje tego samego producenta bez widocznego ekranu.
+Automatyczne powiadomienia i aktywny `watch_pr_checks` podtrzymują tego samego producenta bez widocznego ekranu.
 Warunkowy odczyt metadanych wykrywa również zmianę stanu scalenia przy tym samym SHA.
-Gdy GitHub potwierdzi konflikt z gałęzią bazową, gateway powiadamia agenta i kończy obserwację
-niezależnie od liczby checków i filtra powiadomień.
+Gdy GitHub potwierdzi konflikt z gałęzią bazową, gateway powiadamia agenta niezależnie od liczby checków.
+Jawny watch wtedy się kończy. Automatyczne powiadomienia śledzą PR po rozwiązaniu konfliktu.
 Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmonogram.
 
 | Widoczność | Harmonogram startowy | Zakres |
@@ -485,14 +489,15 @@ Wiele kart/urządzeń i watchy agenta współdzieli najszybszy potrzebny harmono
 | Otwarty PR, trwające checki | Zasoby checków z pending/in progress co 15 s; metadata i jedna pozostała strona CI co 60 s | Bez okresowego GraphQL, timeline ani diffów |
 | Widoczny panel wątku | Ten sam współdzielony harmonogram warunkowy | Bez osobnego pollera nagłówków |
 | Aktywny `watch_pr_checks` | Ten sam współdzielony harmonogram warunkowy | Działa także bez panelu; kończy się m.in. po wykryciu konfliktu, zamknięciu/merge PR, upływie terminu lub anulowaniu |
+| Automatyczne powiadomienia podlinkowanego PR | Ten sam współdzielony harmonogram warunkowy | Jeden komunikat o trwającym konflikcie i zwięzłe podsumowanie po ustabilizowaniu końcowego wyniku CI |
 | Zakończenie CI z aktywnym auto-merge | Natychmiastowy probe metadanych, potem co około 10 s przez najwyżej 2 min | Tylko warunkowe REST metadata; pełne podsumowanie i publikacja do overview po wykryciu zmiany |
 | Closed/merged, także widoczny | Brak okresowego pollingu | Zmiany po ręcznym Refresh lub własnej mutacji |
 | Aktywny wątek w tle, bez watcha CI | Bez okresowego odświeżania danych PR | Rozpoznanie po zmianie checkoutu/pushu pozostaje osobnym zdarzeniem |
 | Brak obserwatorów i aktywności albo archiwum | Brak okresowego pollingu | Wznowienie po otwarciu, zmianie gałęzi/pushu lub ręcznym Refresh |
 
 Wymagane przez endpoint `x-poll-interval` jest dolną granicą. Terminy watcha mają jitter +0–10%,
-aby nie wyprzedzać TTL cache. Bez widocznego panelu lub aktywnego watcha CI
-nie odświeżamy okresowo danych PR.
+aby nie wyprzedzać TTL cache. Widoczny panel, obserwacja CI lub automatyczna archiwizacja
+podtrzymują okresowe odświeżanie PR.
 Po pomyślnym zakończeniu `watch_pr_checks` istniejący producent utrzymuje przez najwyżej 2 min
 krótki follow-up metadanych, ponieważ GitHub może wykonać auto-merge chwilę po zakończeniu checków.
 Probe używa ETag i kończy się natychmiast po wykryciu `merged`/`closed` albo po upływie tego okna;
@@ -1340,6 +1345,17 @@ za **Show details**, według `connectors/test-error.ts`; nie logujemy surowych w
 Testy obejmują również echo tokenu w odpowiedzi serwera i redakcję przed cache/logiem/streamem.
 
 ## 10. Powiązania z istniejącymi funkcjami
+
+**Automatyczne powiadomienia GitHub** domyślnie obejmują nowe powiązania utworzone w panelu,
+przez `link_pull_request`, przez wykrycie z gałęzi lub podczas tworzenia PR. Włącznik
+**Notify agent about pull requests** znajduje się w **Settings → Threads → Conversation**
+w web/desktopie oraz w **Settings → Threads** na telefonie. Zakładka **Threads** w ustawieniach
+projektu w web/desktopie lub szczegóły projektu na telefonie pozwalają dziedziczyć wybór globalny
+albo wymusić **On** lub **Off**. Ustawienie dotyczy wątku, do którego
+podlinkowano PR, również przy kilku wątkach korzystających z tego samego PR. Wyłączenie zatrzymuje
+automatyczną obserwację w tym zakresie. Jawne `watch_pr_checks` pozostaje dostępne.
+Przed automatyczną archiwizacją po merge gateway sprawdza, czy ma jeszcze końcowy wynik CI
+do dostarczenia. Tura uruchomiona przez notatkę może się zakończyć przed archiwizacją wątku.
 
 | Funkcja | Decyzja |
 | --- | --- |

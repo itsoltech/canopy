@@ -49,9 +49,9 @@ export const PR_CHECK_TOOLS = {
   link_pull_request: {
     name: "link_pull_request",
     description:
-      "Link a GitHub pull request to this thread so watch_pr_checks can observe it. Use its URL from gh pr create " +
-      "or owner/repo#123. Its base or head repository must match this thread's workspace or recorded Git remotes. This only changes " +
-      "the Canopy thread link; it does not modify GitHub. If the user deliberately unlinked it, ask them to link " +
+      "Link a GitHub pull request to this thread. Canopy automatically posts merge conflicts and final CI summaries " +
+      "when automatic GitHub notifications are enabled. Use the URL from gh pr create or owner/repo#123. " +
+      "Its base or head repository must match this thread's workspace or recorded Git remotes. If the user deliberately unlinked it, ask them to link " +
       "it in the thread's Pull requests panel instead. Safe to repeat when it is already linked.",
     args: LinkPullRequest,
     mutates: true,
@@ -59,8 +59,8 @@ export const PR_CHECK_TOOLS = {
   watch_pr_checks: {
     name: "watch_pr_checks",
     description:
-      "Watch the CI checks of a pull request linked to this thread and get a message here when they fail or finish, " +
-      "instead of polling or sleeping. A pull request you open with gh pr create is linked automatically; if that " +
+      "Choose which CI events to receive for a linked pull request, or read its current checks. Canopy already posts " +
+      "final CI summaries and merge conflicts automatically when enabled. A pull request you open with gh pr create is linked automatically; if that " +
       "does not happen, link it with link_pull_request first. Uses the " +
       "user's GitHub account in Canopy. Follows new commits pushed to the pull request; ends when every check passes, " +
       "GitHub reports merge conflicts, the pull request is merged or closed, or after timeout_minutes. Messages name the failed checks with their " +
@@ -70,7 +70,7 @@ export const PR_CHECK_TOOLS = {
   },
   list_pr_watches: {
     name: "list_pr_watches",
-    description: "This thread's CI check watches (watch_pr_checks): active and recently ended, with their state.",
+    description: "List the CI watches started with watch_pr_checks in this thread, including recent ended watches.",
     args: ListPrWatches,
     mutates: false,
   },

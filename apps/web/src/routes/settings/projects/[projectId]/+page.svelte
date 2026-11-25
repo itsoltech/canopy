@@ -9,6 +9,7 @@
   import ProjectWorkers from "#lib/features/workspaces/ProjectWorkers.svelte";
   import ProjectWorktreeDefaults from "#lib/features/worktrees/ProjectWorktreeDefaults.svelte";
   import AutoArchiveSettings from "#lib/features/settings/AutoArchiveSettings.svelte";
+  import GitHubThreadNotifications from "#lib/features/settings/GitHubThreadNotifications.svelte";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import ProjectAvatar from "#lib/shared/ui/ProjectAvatar.svelte";
@@ -120,6 +121,7 @@
     </SettingsGroup>
 
     <AutoArchiveSettings projectId={project.id} />
+    <GitHubThreadNotifications projectId={project.id} />
   {/snippet}
   {#snippet secrets()}
     {#key project.id}<ProjectSecrets projectId={project.id} />{/key}

@@ -149,7 +149,12 @@ export function consolidationCatalog(sql: Database) {
     );
 
     // Keep the table allowlist closed to columns and FKs introduced without a reviewed import policy.
-    if (signature !== "ec01736abf5e3a5ba0791405cf373c64a1fd9771e6ca11fd84128c98cd9793b0")
+    const expectedSignature =
+      id >= 216
+        ? "d9308c1a668ad42ea980e1afa7845a59aca8ec180f0e8b116b7a0fd14ebf8fed"
+        : "ec01736abf5e3a5ba0791405cf373c64a1fd9771e6ca11fd84128c98cd9793b0";
+
+    if (signature !== expectedSignature)
       return yield* Effect.fail(
         consolidationError("The consolidation schema has unsupported columns or foreign keys."),
       );
