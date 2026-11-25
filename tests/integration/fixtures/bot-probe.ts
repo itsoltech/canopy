@@ -174,6 +174,7 @@ export function botFailure(text: string) {
     model: { message: "Model not found", codex: "modelNotFound" },
     usage: { message: "Usage limit reached", codex: "usageLimitExceeded" },
     proxy: { message: "Endpoint unavailable: invalid configuration", codex: "badRequest" },
+    unavailable: { message: "503 No available API keys (all rate limited or no group assignment)", codex: "other" },
     network: { message: "Connection timed out", codex: "httpConnectionFailed" },
     stream: { message: "Response stream disconnected", codex: "responseStreamDisconnected" },
     exit: { message: "CLI process exited (7)", codex: "processExit" },

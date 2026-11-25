@@ -299,9 +299,10 @@ export class BotTurns {
         Match.when("grok", () => runGrokBot(context)),
         Match.exhaustive,
       )
+      // A steering notice can fail independently of the terminal event. Keep the harness outcome.
+      .finally(() => steering?.close().catch(() => this.ctx.ops.log("bots: steering cleanup failed")))
       .then(
         async () => {
-          await steering?.close();
           await record({
             body: {
               case: "turnFinished",
@@ -310,7 +311,6 @@ export class BotTurns {
           });
         },
         async (error) => {
-          await steering?.close();
           await this.#failed(
             input,
             abort.signal.aborted,
