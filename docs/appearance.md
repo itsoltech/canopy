@@ -4,6 +4,7 @@ Status (2026-11-23): web, desktop i mobile używają zróżnicowanej palety
 oznaczeń nowych i zapisanych projektów. Appearance jest lokalne dla profilu
 przeglądarki, instalacji desktopowej i instalacji mobilnej, również po ponownym uruchomieniu.
 Aktualizacja (2026-11-24): Desktop ma sekcję Accessibility z lokalnym wyborem obrysu fokusu.
+Aktualizacja (2026-11-25): korona drzewa w panelu bocznym webu i desktopu ma sezonową dekorację.
 Domyślny font interfejsu web i desktop ma etykietę Inter.
 Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
 W web i desktopie Thread width obejmuje także widok PR i podgląd `Rendered` plików Markdown.
@@ -151,6 +152,26 @@ Inter jest domyślnym fontem interfejsu. Po otwarciu pickera Desktop oraz
 przeglądarki z udzieloną zgodą wczytują rodziny zainstalowane na urządzeniu.
 Przeglądarka, która potrzebuje zgody, wyświetla akcję **Show installed fonts**.
 Gdy odczyt listy jest niedostępny, nadal można wpisać nazwę rodziny i obejrzeć próbkę.
+
+## Sezonowe akcenty w web i desktopie
+
+**Settings → Appearance → Interface → Seasonal accents** steruje dekoracją drzewa
+w panelu bocznym. Ustawienie jest domyślnie włączone i zapisuje się w
+profilu klienta. **Reset appearance** przywraca wartość domyślną.
+
+Śnieg na koronie drzewa pojawia się co roku od 1 grudnia o 00:00 do 7 stycznia
+o 00:00 (koniec wyłączny), według czasu lokalnego urządzenia. Widoczny panel
+sprawdza datę o północy oraz po odzyskaniu fokusu okna. Poza okresem i po
+wyłączeniu preferencji korona wygląda jak zwykle. Statyczna dekoracja korzysta
+z bieżącej palety. Technologie asystujące ją pomijają, a systemowe wymuszone
+kolory ukrywają ilustrację.
+
+Wąski web pokazuje ją w otwartym menu nawigacji. Desktop w trybie lokalnym i
+zdalnym używa tego samego renderera. Zakres obejmuje ilustrację w panelu
+bocznym tych klientów. Akcenty są częścią kodu aplikacji. Dodanie okazji
+polega na podaniu identyfikatora i granic w lokalnym kalendarzu oraz dodaniu
+dekoracji dla tego identyfikatora. Przy nakładających się okresach obowiązuje
+pierwszy pasujący wpis.
 
 ## Dostępność w Desktopie
 

@@ -10,7 +10,6 @@
   import { needsYou, workingTreeCount } from "#lib/features/threads/activity.ts";
   import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
   import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
-  import { sidebarIdentity } from "@canopy/ui/sidebar-art";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import { pendingHabitCount } from "#lib/features/memory/habit-suggestions.svelte.ts";
@@ -19,6 +18,7 @@
   import UpdatesIndicator from "#lib/features/desktop/UpdatesIndicator.svelte";
   import SidebarUsage from "#lib/features/providers/SidebarUsage.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
+  import SidebarBackdrop from "./SidebarBackdrop.svelte";
   import SectionSwitch from "./SectionSwitch.svelte";
   import type { ModuleId } from "@canopy/domain";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
@@ -40,7 +40,6 @@
   import { footerPopovers } from "./footer-popovers.svelte.ts";
 
   const channel = releaseChannel(CANOPY_VERSION);
-  const identity = sidebarIdentity[channel];
   const footer = footerPopovers();
   const capabilities = useGatewayCapabilities();
   const addProject = useAddProject();
@@ -114,15 +113,7 @@
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->
 <div class="density-chrome sidebar-scale @container flex h-full flex-col">
   <div class="relative isolate shrink-0">
-    <div
-      class="sidebar-watermark pointer-events-none absolute inset-0 -z-10 overflow-hidden forced-colors:hidden"
-      style:background-image={identity.gradient}
-      style:--ink-light={identity.ink.light}
-      style:--ink-dark={identity.ink.dark}
-      aria-hidden="true"
-    >
-      {@html identity.art}
-    </div>
+    <SidebarBackdrop {channel} />
     <SidebarHeader {channel} />
 
     {#if settings.loaded}
@@ -261,11 +252,6 @@
 </div>
 
 <style>
-  .sidebar-watermark {
-    color: light-dark(var(--ink-light), var(--ink-dark));
-    background-size: 100% min(5.5rem, 100%);
-    background-repeat: no-repeat;
-  }
   /* Keep muted navigation controls and list captions legible in both themes. */
   .sidebar-scale :global(.sidebar-foreground) {
     --theme-zinc-500: color-mix(in srgb, var(--theme-muted) 80%, var(--theme-ink));
