@@ -242,12 +242,18 @@ async function verifyMacPackaging(arch: "x64" | "arm64") {
   const permission = join(resources, "native/notification-permission.node");
   await expect(verify(context)).rejects.toThrow("Packaged native addon missing: notification-permission.node");
   writeFileSync(permission, nativeBinary);
+  const display = join(resources, "native/activity-notch-display.node");
+  await expect(verify(context)).rejects.toThrow("Packaged native addon missing: activity-notch-display.node");
+  writeFileSync(display, machO[otherArch]);
+  await expect(verify(context)).rejects.toThrow(`Native addon must be a ${arch} Mach-O: activity-notch-display.node`);
+  writeFileSync(display, nativeBinary);
   writeFileSync(join(runtime, "bun"), machO[otherArch]);
   await expect(verify(context)).rejects.toThrow(`Packaged Mach-O must be ${arch} only`);
   writeFileSync(join(runtime, "bun"), nativeBinary);
   await expect(verify(context)).resolves.toBeUndefined();
   expect(signing.binaries).toContain(adapter);
   expect(signing.binaries).toContain(permission);
+  expect(signing.binaries).toContain(display);
 
   for (const locale of ["en", "pl"]) {
     const localization = readFileSync(join(resources, `${locale}.lproj/InfoPlist.strings`), "utf8");

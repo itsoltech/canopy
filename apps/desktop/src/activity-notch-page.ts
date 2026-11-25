@@ -1,9 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { motion, palette, radius } from "@canopy/ui";
-import { themeVariables } from "@canopy/ui/themes";
+import { motion } from "@canopy/ui";
+import { icons } from "@canopy/ui/icons";
+import { activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
-
-const colors = themeVariables("ash", "dark");
 
 const statuses = {
   approval: { label: "Needs approval", one: "needs approval", many: "need approval" },
@@ -13,188 +12,58 @@ const statuses = {
   completed: { label: "Completed", one: "completed", many: "completed" },
 } satisfies Record<ActivityNotchRow["state"], { label: string; one: string; many: string }>;
 
-const styles = `
-  :root {
-    color-scheme: dark;
-    --notch-height: 40px;
-    --control-overlay: 1.75rem;
-    --type-compact: 0.8125rem;
-    --type-meta: 0.71875rem;
-    --icon-compact: 0.875rem;
-    --radius-md: ${radius.md}px;
-    --canvas: ${colors.canvas};
-    --panel: ${palette.zinc[950]};
-    --hover: ${colors.hover};
-    --ink: ${colors.ink};
-    --muted: ${colors.muted};
-    --border: ${colors.border};
-    --acc-expand: ${motion.fast}ms;
-    --acc-collapse: ${motion.quick}ms;
-    --acc-ease: cubic-bezier(${motion.smoothOut.join(", ")});
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    overflow: hidden;
-    color: var(--ink);
-    font: var(--type-compact) / 1.25rem system-ui, sans-serif;
-    user-select: none;
-  }
-  button {
-    appearance: none;
-    border: 0;
-    color: inherit;
-    background: none;
-    font: inherit;
-  }
-  button:not(:disabled) { cursor: pointer; }
-  button:focus-visible {
-    outline: 2px solid ${palette.sky[400]};
-    outline-offset: -3px;
-  }
-  .t-acc {
-    position: relative;
-    overflow: hidden;
-    border-radius: calc(var(--notch-height) / 2);
-    background: var(--canvas);
-  }
-  .t-acc::after {
-    position: absolute;
-    inset: 0;
-    border: 1px solid var(--border);
-    border-radius: inherit;
-    pointer-events: none;
-    content: "";
-  }
-  .t-acc-head, .row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    text-align: start;
-  }
-  .t-acc-head {
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto) var(--icon-compact);
-    height: var(--notch-height);
-    padding: 0 0.75rem;
-    border-radius: inherit;
-    font-weight: 600;
-  }
-  .t-acc-head:not(:disabled):hover, .row:hover { background: var(--hover); }
-  .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .status {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    min-width: 0;
-    color: var(--muted);
-    font-size: var(--type-meta);
-    line-height: 1rem;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-  }
-  .status::before {
-    flex: none;
-    width: 0.375rem;
-    height: 0.375rem;
-    border-radius: 50%;
-    background: var(--indicator, transparent);
-    content: "";
-  }
-  [data-state="working"] { --indicator: ${palette.sky[400]}; }
-  [data-state="approval"], [data-state="answer"] { --indicator: ${palette.amber[400]}; }
-  [data-state="completed"] { --indicator: ${palette.emerald[400]}; }
-  [data-state="failed"] { --indicator: ${palette.rose[400]}; }
-  .t-acc-chevron {
-    display: grid;
-    place-items: center;
-    width: var(--icon-compact);
-    height: var(--icon-compact);
-    color: var(--muted);
-    transition: transform var(--acc-expand) var(--acc-ease);
-  }
-  .t-acc-chevron::before {
-    width: 0.375rem;
-    height: 0.375rem;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: translateY(-1.5px) rotate(45deg);
-    content: "";
-  }
-  .t-acc[data-open="true"] .t-acc-chevron { transform: scaleY(-1); }
-  .t-acc-head:disabled .t-acc-chevron { visibility: hidden; }
-  .t-acc-panel {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
-  }
-  .t-acc[data-open="true"] .t-acc-panel {
-    grid-template-rows: 1fr;
-    transition-duration: var(--acc-expand);
-  }
-  .t-acc-panel-inner {
-    min-height: 0;
-    overflow: hidden;
-    background: var(--panel);
-  }
-  .rows {
-    height: max(0px, calc(100dvh - var(--notch-height)));
-    margin: 0;
-    padding: 0.25rem;
-    overflow: auto;
-    overscroll-behavior: contain;
-    scrollbar-color: var(--border) transparent;
-    scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    list-style: none;
-  }
-  .row {
-    min-height: var(--control-overlay);
-    padding: 0 0.5rem;
-    border-radius: var(--radius-md);
-    font-variant-numeric: tabular-nums;
-  }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .t-acc-panel, .t-acc-chevron { transition: none; }
-  }
-`;
+const activityGlyphs = {
+  approval: icons["shield-exclamation"],
+  answer: icons["chat-bubble-bottom-center-text"],
+  failed: icons["x-circle"],
+  working: [],
+  completed: icons["check-circle"],
+} satisfies Record<ActivityNotchRow["state"], readonly string[]>;
+
+const glyphs = Object.entries(activityGlyphs)
+  .map(([state, paths]) => {
+    const icon = paths.length
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths.map((path) => `<path d="${path}"/>`).join("")}</svg>`
+      : '<span class="spinner"></span>';
+
+    return `<span data-glyph="${state}" hidden>${icon}</span>`;
+  })
+  .join("");
 
 const script = `
   const bridge = window.canopyActivityNotch;
-  const notch = document.querySelector(".t-acc");
-  const toggle = document.querySelector(".t-acc-head");
+  const notch = document.querySelector(".notch");
+  const surface = document.querySelector(".notch-body");
+  const toggle = document.querySelector(".notch-toggle");
   const toggleAction = document.getElementById("toggle-action");
   const panel = document.getElementById("activity-panel");
   const summary = document.getElementById("activity-summary");
-  const summaryText = summary.firstElementChild;
+  const summaryText = document.getElementById("activity-description");
+  const glyphs = summary.querySelectorAll("[data-glyph]");
+  const total = document.getElementById("activity-count");
   const list = document.querySelector(".rows");
   const statuses = ${JSON.stringify(statuses)};
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
+  let collapseTimer;
+  let openedByHover = false;
 
   function setExpanded(expanded) {
+    clearTimeout(collapseTimer);
+    openedByHover = false;
     if (notch.dataset.open === String(expanded)) return false;
 
     if (!expanded && panel.contains(document.activeElement)) toggle.focus({ preventScroll: true });
     notch.dataset.open = String(expanded);
     toggle.setAttribute("aria-expanded", String(expanded));
-    toggleAction.textContent = expanded ? "Hide " : "Show ";
+    toggleAction.textContent = expanded ? "Hide activity" : "Show activity";
     panel.setAttribute("aria-hidden", String(!expanded));
     panel.inert = !expanded;
     return true;
+  }
+
+  function requestExpanded(expanded) {
+    if (setExpanded(expanded)) bridge.setExpanded(expanded);
   }
 
   function createRow(id) {
@@ -242,22 +111,45 @@ const script = `
     if (list.contains(activeRow) && document.activeElement !== activeRow) activeRow.focus({ preventScroll: true });
 
     const state = Object.keys(statuses).find((candidate) => counts.has(candidate));
+    total.textContent = state ? numbers.format(rows.length) : "";
+    let description = "No activity";
     if (state) {
       const count = counts.get(state);
-      summaryText.textContent = numbers.format(count) + " " + statuses[state][count === 1 ? "one" : "many"];
+      const status = statuses[state][count === 1 ? "one" : "many"];
+      const itemCount = total.textContent + (rows.length === 1 ? " item" : " items");
+      description = itemCount + ". " + numbers.format(count) + " " + status + ".";
       summary.dataset.state = state;
     } else {
-      summaryText.textContent = "No activity";
       delete summary.dataset.state;
-      if (setExpanded(false)) bridge.setExpanded(false);
+      requestExpanded(false);
     }
+    if (summaryText.textContent !== description) summaryText.textContent = description;
+    for (const glyph of glyphs) glyph.hidden = glyph.dataset.glyph !== state;
     toggle.disabled = !state;
   }
 
-  toggle.addEventListener("click", () => {
-    const expanded = notch.dataset.open !== "true";
-    setExpanded(expanded);
-    bridge.setExpanded(expanded);
+  surface.addEventListener("pointerenter", (event) => {
+    if (event.pointerType !== "mouse" || toggle.disabled) return;
+    clearTimeout(collapseTimer);
+    if (notch.dataset.open === "true") return;
+
+    requestExpanded(true);
+    openedByHover = true;
+  });
+  surface.addEventListener("pointerleave", (event) => {
+    if (event.pointerType !== "mouse" || notch.dataset.open !== "true") return;
+    collapseTimer = setTimeout(() => requestExpanded(false), ${motion.fast});
+  });
+  surface.addEventListener("mousedown", (event) => {
+    if (event.target.closest("button")) event.preventDefault();
+  });
+  toggle.addEventListener("click", (event) => {
+    // The pointer had to hover the header to click it. Treat the first click as an open.
+    if (event.detail > 0 && openedByHover) {
+      openedByHover = false;
+      return;
+    }
+    requestExpanded(notch.dataset.open !== "true");
   });
   notch.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !setExpanded(false)) return;
@@ -265,6 +157,7 @@ const script = `
     bridge.setExpanded(false);
   });
   bridge.onCollapse(() => setExpanded(false));
+  bridge.onHeight((px) => document.documentElement.style.setProperty("--notch-height", px + "px"));
   bridge.onRows(renderRows);
 `;
 
@@ -278,18 +171,21 @@ export function activityNotchPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
-  <style nonce="${nonce}">${styles}</style>
+  <style nonce="${nonce}">${activityNotchStyles}</style>
 </head>
 <body>
-  <main class="t-acc" data-open="false">
-    <button class="t-acc-head" type="button" aria-expanded="false" aria-controls="activity-panel" disabled>
-      <span class="truncate"><span id="toggle-action" class="sr-only">Show </span>Activity</span>
-      <span id="activity-summary" class="status"><span class="truncate">No activity</span></span>
-      <span class="t-acc-chevron" aria-hidden="true"></span>
-    </button>
-    <div id="activity-panel" class="t-acc-panel" aria-hidden="true" inert>
-      <div class="t-acc-panel-inner">
-        <ul class="rows" aria-label="Activity"></ul>
+  <main class="notch" data-open="false">
+    <div class="notch-body">
+      <button class="notch-toggle" type="button" aria-expanded="false" aria-controls="activity-panel" aria-describedby="activity-description" disabled>
+        <span id="toggle-action" class="sr-only">Show activity</span>
+        <span id="activity-summary" class="wing" aria-hidden="true">${glyphs}</span>
+        <span id="activity-count" class="wing count" aria-hidden="true"></span>
+      </button>
+      <p id="activity-description" class="sr-only" role="status">No activity</p>
+      <div id="activity-panel" class="panel" aria-hidden="true" inert>
+        <div class="panel-inner">
+          <ul class="rows" aria-label="Activity"></ul>
+        </div>
       </div>
     </div>
   </main>
