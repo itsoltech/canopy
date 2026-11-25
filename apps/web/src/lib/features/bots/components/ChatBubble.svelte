@@ -142,7 +142,7 @@
 
 {#snippet mention(index: number)}
   {@const found = inline[index]}
-  {#if found?.quote}<CitationChip quote={found.quote} />{:else if found?.connector}<ConnectorChip
+  {#if found?.quote}<CitationChip quote={found.quote} inverted={mine} />{:else if found?.connector}<ConnectorChip
       mention={found.connector}
     />{:else if found?.bot}<BotChip bot={found.bot} />{/if}
 {/snippet}

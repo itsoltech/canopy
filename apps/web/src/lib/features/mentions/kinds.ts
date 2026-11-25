@@ -62,9 +62,11 @@ function attachmentIcon(source: string): IconName {
   return "document-text";
 }
 
+export const CHIP_LAYOUT_CLASS =
+  "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md py-px pr-1.5 pl-1 align-baseline font-medium select-text";
+
 /** The chip: accent text with the kind's icon (or the plugin's own), on a faint accent wash. */
-export const CHIP_CLASS =
-  "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md bg-brand-600/8 py-px pr-1.5 pl-1 align-baseline font-medium text-brand-700 select-text dark:bg-brand-400/12 dark:text-brand-300";
+export const CHIP_CLASS = `${CHIP_LAYOUT_CLASS} bg-brand-600/8 text-brand-700 dark:bg-brand-400/12 dark:text-brand-300`;
 
 export const CHIP_ICON_CLASS =
   "size-4 shrink-0 self-center fill-brand-600 text-brand-600 dark:fill-brand-400 dark:text-brand-400";
