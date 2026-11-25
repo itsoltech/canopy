@@ -191,11 +191,16 @@
   inset-inline-start: 1.875rem;
 }
 
-/* Activity lives in the guide gutter so titles stay aligned when the state changes. */
+/* The activity slot borrows 6px from the indent on the row side of the guide. */
+.sidebar-group-thread {
+  --sidebar-group-activity-space: 1.875rem;
+
+  padding-inline-start: calc(var(--sidebar-group-activity-space) - 0.375rem);
+}
+
 .sidebar-group-activity {
   position: absolute;
-  inset-inline-start: -1.75rem;
-  z-index: 1;
+  inset-inline-start: calc(-1 * var(--sidebar-group-activity-space));
   display: flex;
   align-items: center;
   pointer-events: none;

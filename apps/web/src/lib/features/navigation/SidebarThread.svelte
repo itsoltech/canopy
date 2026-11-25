@@ -149,7 +149,10 @@
   {inlineProvider}
   dense={groupedProject}
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
-  class={["sidebar-row-padding grid gap-0.5", groupedProject ? "rounded-lg py-1.5 sm:py-1" : "rounded-xl py-2"]}
+  class={[
+    "sidebar-row-padding grid gap-0.5",
+    groupedProject ? "sidebar-group-thread rounded-lg py-1.5 sm:py-1" : "rounded-xl py-2",
+  ]}
 >
   <span class={["relative flex min-w-0 items-center", groupedProject ? "gap-2" : "gap-1"]}>
     <span class={groupedProject ? "sidebar-group-activity" : "flex shrink-0"}>
