@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { JsonObject as MutableJsonObject } from "@bufbuild/protobuf";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -6,54 +7,11 @@ import type { JsonObject } from "@canopy/domain";
 import { Schema } from "effect";
 import type { McpConnection, ToolSpec } from "./types.ts";
 import { httpMcpFailure, McpFailure, networkMcpFailure, protocolMcpFailure, type McpPhase } from "./mcp-errors.ts";
-
-type McpResult = Awaited<ReturnType<Client["callTool"]>>;
-
-const isStructuredResult = Schema.is(Schema.JsonObject);
-
-const MAX_MCP_TEXT_BYTES = 100_000;
-const MAX_MCP_IMAGE_RESULT_BYTES = 1_000_000;
-const resultBytes = (result: McpResult) => Buffer.byteLength(JSON.stringify(result));
-
-function boundedMcpResult(result: McpResult): McpResult {
-  const bytes = resultBytes(result);
-
-  if (bytes <= MAX_MCP_TEXT_BYTES) return result;
-
-  if ("content" in result && Array.isArray(result.content)) {
-    const content = result.content.filter((block) => block.type !== "image");
-
-    if (content.length < result.content.length) {
-      const withoutImages = { ...result, content };
-
-      if (resultBytes(withoutImages) <= MAX_MCP_TEXT_BYTES && bytes <= MAX_MCP_IMAGE_RESULT_BYTES) return result;
-
-      if (content.length || result.structuredContent) {
-        content.push({ type: "text", text: "Canopy omitted images that exceeded the connector response limit." });
-
-        if (resultBytes(withoutImages) <= MAX_MCP_TEXT_BYTES) return withoutImages;
-      }
-    }
-  }
-
-  if (isStructuredResult(result.structuredContent)) {
-    const metadata: McpResult = {
-      structuredContent: result.structuredContent,
-      isError: result.isError === true,
-      content: [{ type: "text", text: "Canopy omitted bulky content. The structured result is available." }],
-    };
-
-    if (resultBytes(metadata) <= MAX_MCP_TEXT_BYTES) return metadata;
-  }
-
-  return {
-    isError: true,
-    content: [{ type: "text", text: "The connector response exceeded Canopy’s size limit." }],
-  };
-}
+import { limitMcpResponse, limitMcpResult, mcpResultTooLarge } from "./mcp-result.ts";
 
 /** The SDK has already parsed the wire JSON; this only states it in the gateway's JSON type. */
 const toolSchema = Schema.decodeUnknownSync(Schema.JsonObject);
+const resultSchema = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.MutableJson));
 
 /** Only the two remote transports are imported. No stdio or process launcher exists here. */
 export async function withMcp<A>(
@@ -61,6 +19,7 @@ export async function withMcp<A>(
   signal: AbortSignal,
   use: (client: Client) => Promise<A>,
   requestPhase: McpPhase = "tools/call",
+  onResponseLimit?: () => void,
 ): Promise<A> {
   if (!server.enabled) throw new Error("MCP server is disabled");
   const url = new URL(server.url);
@@ -93,7 +52,7 @@ export async function withMcp<A>(
       throw failure;
     }
 
-    return response;
+    return onResponseLimit ? limitMcpResponse(response, onResponseLimit) : response;
   };
 
   const transport =
@@ -183,13 +142,30 @@ export async function mcpCall(
   tool: ToolSpec,
   args: JsonObject,
   signal: AbortSignal,
-): Promise<McpResult> {
-  return withMcp(server, signal, async (client) => {
-    const result = await client.callTool({ name: tool.remoteName!, arguments: args }, undefined, {
-      signal,
-      timeout: 120_000,
-    });
+  redact: (json: string) => string,
+): Promise<MutableJsonObject> {
+  const responseLimit = new AbortController();
+  const active = AbortSignal.any([signal, responseLimit.signal]);
 
-    return boundedMcpResult(result);
+  return withMcp(
+    server,
+    active,
+    async (client) => {
+      const result = await client.callTool({ name: tool.remoteName!, arguments: args }, undefined, {
+        signal: active,
+        timeout: 120_000,
+      });
+
+      const limited = limitMcpResult(resultSchema(result));
+      const json = JSON.stringify(limited);
+      const safe = redact(json);
+
+      return safe === json ? limited : limitMcpResult(resultSchema(JSON.parse(safe)));
+    },
+    "tools/call",
+    () => responseLimit.abort(),
+  ).catch((error) => {
+    if (responseLimit.signal.aborted && !signal.aborted) return mcpResultTooLarge;
+    throw error;
   });
 }

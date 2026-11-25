@@ -191,15 +191,13 @@ async function prepareCall(
   }
 
   return {
-    send: async () => {
-      const response = await mcpCall(
+    send: () =>
+      mcpCall(
         connection.server,
         { name: tool.name, description: tool.description, parameters: {}, source: "mcp", remoteName: tool.remoteName },
         args,
         signal,
-      );
-
-      return JSON.parse(redactConnector(JSON.stringify(response), connection.value));
-    },
+        (json) => redactConnector(json, connection.value),
+      ),
   };
 }

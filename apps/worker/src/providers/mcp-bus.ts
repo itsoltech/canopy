@@ -25,6 +25,8 @@ import { toolCallId } from "./tool-call-id.ts";
 import { Schema } from "effect";
 import type { JsonValue } from "@canopy/domain";
 import { decodeJsonObject, jsonObject, jsonString } from "./json.ts";
+import { connectorNativeResult } from "./mcp-connector-result.ts";
+import { threadSecretOutputGuard } from "../runtime/thread-secrets.ts";
 
 const McpRequest = Schema.Struct({
   id: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
@@ -250,27 +252,17 @@ async function callTool(
     const isError = result.isError || (files?.isError ?? false);
     await record(isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, isError);
 
-    if (connector && result.attachments.length === 0) return reply(toolReply(result));
+    const native =
+      connector && connectorNativeResult(result.resultJson, threadSecretOutputGuard(options.threadId).redact);
 
-    return reply({ content: [{ type: "text", text: result.content }, ...(files?.content ?? [])], isError });
+    return reply({
+      content: [{ type: "text", text: result.content }, ...(native ? native.content : []), ...(files?.content ?? [])],
+      ...(native && native.structuredContent && { structuredContent: native.structuredContent }),
+      isError,
+    });
   } catch {
     await record(ItemStatus.FAILED, "Platform tool failed", true);
 
     return reply({ content: [{ type: "text", text: "Platform tool failed" }], isError: true });
   }
-}
-
-function toolReply(result: AgentToolResult): JsonValue {
-  if (result.resultJson) {
-    try {
-      const envelope = decodeJsonObject(JSON.parse(result.resultJson));
-      const content = envelope["content"];
-
-      if (Array.isArray(content)) return { ...envelope, isError: result.isError };
-    } catch {
-      // Gateways without a native MCP envelope still supply the text result.
-    }
-  }
-
-  return { content: [{ type: "text", text: result.content }], isError: result.isError };
 }

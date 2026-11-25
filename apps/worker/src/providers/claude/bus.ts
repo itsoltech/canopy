@@ -11,6 +11,7 @@ import { ListToolsRequestSchema, ToolSchema, type Tool } from "@modelcontextprot
 import { z } from "zod";
 import type { ViewImageResult } from "../../images/index.ts";
 import { toolCallId } from "../tool-call-id.ts";
+import { connectorNativeResult } from "../mcp-connector-result.ts";
 import { threadMemoryTools } from "../memory-tools.ts";
 import { BUS_SERVER } from "./mapping.ts";
 import type { JsonValue } from "@canopy/domain";
@@ -170,8 +171,11 @@ function remoteToolHandler(
       }),
     );
 
+    const { redact } = threadSecretOutputGuard(options.threadId);
+    const native = connectorAccountId ? connectorNativeResult(result.resultJson, redact) : undefined;
+
     return {
-      content: [{ type: "text", text: threadSecretOutputGuard(options.threadId).redact(result.content) }],
+      content: [{ type: "text", text: redact(result.content) }, ...(native?.content ?? [])],
       ...(result.isError && { isError: true }),
     };
   };

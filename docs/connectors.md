@@ -1,7 +1,7 @@
 # Konektory Canopy
 
-Aktualizacja (2026-11-25): odpowiedzi MCP z obrazami mają osobny limit, a most
-Codex i Grok przekazuje zachowane obrazy w natywnych blokach MCP.
+Aktualizacja (2026-11-25): odpowiedzi MCP z obrazami mają osobny limit, a adaptery
+Codex, Grok i Claude przekazują zachowane obrazy w natywnych blokach MCP.
 
 Status (2026-11-24): w web/desktop **Tool accounts** zawiera konta MCP, a po włączeniu modułu Bots
 zakładka **Slack bots** udostępnia konta wiadomości. Okno **Connect Atlassian**
@@ -355,12 +355,13 @@ Szczegóły: [protocol.md](protocol.md#modele-effort-i-steer).
 Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.
 
-Gateway ogranicza odpowiedzi tekstowe MCP do 100 000 bajtów. Odpowiedź z obrazami
-może mieć do 1 000 000 bajtów, jeśli po odjęciu bloków obrazu mieści się w limicie
-tekstu. Powyżej limitu obrazów gateway zachowuje mieszczący się tekst i metadane
-z informacją o pominięciu obrazów. Gdy sam tekst jest za duży, gateway może
-zwrócić mieszczący się wynik strukturalny. Most MCP dla Codex i Grok przekazuje
-zachowane obrazy jako bloki obrazu.
+Gateway liczy bajty UTF-8 zserializowanej odpowiedzi MCP. Tekst i metadane mają
+budżet 100 000 bajtów, a cała odpowiedź z obrazami 1 000 000 bajtów. Gateway
+zachowuje mieszczące się bloki i wynik strukturalny oraz podaje liczbę pominiętych
+części. Zanim SDK odczyta całą odpowiedź, transport przerywa pobieranie, gdy
+przekroczy 8 000 000 bajtów. Adaptery Codex, Grok i Claude przekazują zachowane
+obrazy jako bloki MCP. Tekstowy wynik na osi narzędzi nie zawiera tych bloków
+zakodowanych w base64.
 
 ### Pobieranie plików ze Slacka
 

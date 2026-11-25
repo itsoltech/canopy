@@ -9,9 +9,17 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
   const events: ThreadEventInit[] = [];
 
   const imageEnvelope = {
-    content: [{ type: "image", data: "AA==", mimeType: "image/png" }],
+    content: [
+      {
+        type: "image",
+        mimeType: "image/png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      },
+    ],
     structuredContent: { references: [{ id: "reference-1" }] },
   };
+
+  const imageSummary = JSON.stringify({ ...imageEnvelope, content: [] });
 
   const bus = grokBus({
     threadId: "thread",
@@ -37,7 +45,7 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
 
       return call.argumentsJson === '{"id":"with-image"}'
         ? create(AgentToolResultSchema, {
-            content: JSON.stringify(imageEnvelope),
+            content: imageSummary,
             resultJson: JSON.stringify(imageEnvelope),
           })
         : create(AgentToolResultSchema, { content: '{"issue":"OK"}' });
@@ -92,7 +100,12 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
       }),
     });
 
-    expect(await imageResponse.json()).toMatchObject({ result: imageEnvelope });
+    expect(await imageResponse.json()).toMatchObject({
+      result: {
+        content: [{ type: "text", text: imageSummary }, ...imageEnvelope.content],
+        structuredContent: imageEnvelope.structuredContent,
+      },
+    });
 
     const denied = await fetch(bus.server.url, {
       ...request,

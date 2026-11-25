@@ -8,7 +8,8 @@ import {
   type ui,
 } from "@canopy/contracts";
 import { isJsonObject } from "../bots/json.ts";
-import type { JsonObject } from "@canopy/domain";
+import { connectorResultFields } from "../bots/mcp-result.ts";
+import type { JsonObject, JsonValue as ReadonlyJsonValue } from "@canopy/domain";
 import { Effect } from "effect";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
@@ -24,7 +25,7 @@ import { canonicalJson } from "../store/instance-config.ts";
 import { OAuthNetworkFailure } from "./oauth-network.ts";
 
 /** MCP tool results report failure in-band. */
-export const failed = (result: JsonValue) => isJsonObject(result) && Boolean(result["isError"]);
+export const failed = (result: ReadonlyJsonValue) => isJsonObject(result) && Boolean(result["isError"]);
 
 export interface PermissionContext {
   runtime: CoreRuntime;
@@ -157,8 +158,7 @@ export async function handleConnectorCall(
     return create(AgentToolResultSchema, {
       callId: request.callId,
       isError,
-      content: JSON.stringify(result),
-      resultJson: JSON.stringify(result),
+      ...connectorResultFields(result),
       attachments: slackDownloadAttachments(result, request.toolName),
     });
   } catch (error) {
