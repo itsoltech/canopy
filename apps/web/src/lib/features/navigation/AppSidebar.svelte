@@ -143,8 +143,8 @@
       <div class="sidebar-foreground sidebar-inset flex items-center pb-2">
         <label
           class={[
-            "flex min-w-0 flex-1 items-center rounded-lg py-2 text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400",
-            section === "threads" ? "gap-1 pl-(--sidebar-row-padding)" : "sidebar-row-padding gap-1.5",
+            "flex min-w-0 flex-1 items-center gap-1 rounded-lg py-2 ps-(--sidebar-row-padding) text-zinc-500 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 sm:py-1.5 dark:text-zinc-400",
+            section === "bots" && "pe-(--sidebar-row-padding)",
           ]}
         >
           <Icon name="magnifying-glass" class="fill-zinc-400 dark:fill-zinc-500" />
