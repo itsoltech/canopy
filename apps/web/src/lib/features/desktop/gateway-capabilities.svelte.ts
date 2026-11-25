@@ -21,6 +21,7 @@ export class GatewayCapabilities {
   state = $state("ready");
   message = $state("");
   methods = $state<string[]>();
+  gatewayRole = $state("");
   linkedComputers = $state(false);
   offerOnboarding = $state<boolean>();
   archiveWorkerFilter = $state(false);
@@ -93,6 +94,7 @@ export class GatewayCapabilities {
 
       if (this.state !== "unavailable") {
         this.methods = value["methods"].filter(isString);
+        this.gatewayRole = isString(value["gatewayRole"]) ? value["gatewayRole"] : "";
         this.linkedComputers = value["linkedComputers"] === true;
         this.offerOnboarding = value["offerOnboarding"] === true;
         this.archiveWorkerFilter = value["archiveWorkerFilter"] === true;

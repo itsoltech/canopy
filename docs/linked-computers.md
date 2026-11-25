@@ -193,7 +193,8 @@ Nie jest to ustawienie użytkownika. `GetClientCapabilities` zwraca `gateway_rol
 i `linked_computers`; brak capability oznacza brak funkcji. Web ukrywa wejścia linkowania,
 gdy serwer jej nie oferuje. W trybie „Connect to a Canopy gateway” sekcja Linked computers
 pokazuje wyłącznie wskazówkę, by zarządzać połączeniami na komputerze działającym w trybie
-„Run Canopy on this computer”.
+„Run Canopy on this computer”. Gdy aplikacja rozpozna gateway serwerowy, podaje ten tryb
+jako warunek dostępności funkcji.
 Na gatewayu serwerowym RPC linkowania zwracają `FailedPrecondition` z komunikatem
 „Linked computers are available only in the Canopy desktop app”. Network access
 nadal obsługuje telefony, sparowane klienty desktopowe i workery, ale odrzuca łącza komputerów.

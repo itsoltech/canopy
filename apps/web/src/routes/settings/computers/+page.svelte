@@ -12,7 +12,9 @@
 {#if capabilities?.remoteDesktop}
   <SettingsHeading
     title="Linked computers"
-    description="Manage linked computers on the computer running your gateway (“Run Canopy on this computer”)."
+    description={capabilities.gatewayRole === "server"
+      ? "Linked computers require Canopy Desktop with “Run Canopy on this computer”."
+      : "Manage linked computers on the computer running your gateway (“Run Canopy on this computer”)."}
   />
 {:else}
   <LocalComputers />

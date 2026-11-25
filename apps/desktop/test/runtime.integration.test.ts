@@ -109,6 +109,7 @@ test.skipIf(!existsSync(paths.web))(
             minProtocol: 1,
             maxProtocol: 1,
             methods: ui.GatewayService.methods.map((m) => m.name),
+            gatewayRole: "server",
           }),
           getOverview: () => ({}),
           getSettings: () => ({}),
@@ -159,6 +160,13 @@ test.skipIf(!existsSync(paths.web))(
       await desktop.configure(selected);
       expect(desktop.pids).toEqual(pids);
       expect(statSync(join(directory, "desktop.json")).mtimeMs).toBe(saved);
+      expect(await (await webFetch(`${desktop.origin}/api/gateway-capabilities`)).json()).toMatchObject({
+        state: "ready",
+        gatewayRole: "server",
+        linkedComputers: false,
+        localDesktop: false,
+        remoteDesktop: true,
+      });
       expect((await fetch(`${desktop.origin}/api/overview`)).status).toBe(403);
       const overview = await webFetch(`${desktop.origin}/api/overview`);
       expect(overview.ok).toBe(true);
