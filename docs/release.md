@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
+Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis cache Bun.
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
 Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
