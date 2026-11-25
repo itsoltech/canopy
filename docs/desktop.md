@@ -2,6 +2,7 @@
 
 Status (2026-11-25): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows przylega do górnej krawędzi i rozwija listę po najechaniu kursorem.
+W rozwiniętej liście wątki projektowe mają logo lub inicjały projektu.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
@@ -448,10 +449,14 @@ zamknięciu głównego okna.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
-Okno pokazuje numerowane etykiety i stan. Dostaje wyłącznie identyfikatory
-i numery wierszy, typ i stan. Trasy rozmów zostają w procesie głównym. Przy utracie
-połączenia lub zmianie gatewaya Canopy czyści dostępne pozycje. Powiadomienia
-systemowe i ich preferencje działają niezależnie.
+W rozwiniętej liście obok numerowanej etykiety wątku pojawia się logo projektu.
+Jeśli projekt nie ma obrazu, nakładka pokazuje jego inicjały w kolorach z listy
+wątków. Boty i wątki bez projektu mają samą etykietę i stan. Okno dostaje
+identyfikator i numer wiersza, typ, stan oraz opcjonalny znak projektu.
+Logo trafia do nakładki jako miniatura 36 × 36 pikseli. Pełne nazwy projektów,
+tytuły i treść rozmów pozostają poza nakładką. Trasy rozmów zostają w procesie
+głównym. Przy utracie połączenia lub zmianie gatewaya Canopy czyści dostępne
+pozycje. Powiadomienia systemowe i ich preferencje działają niezależnie.
 
 Na macOS nieaktywujący panel Electron sięga do górnej krawędzi ekranu. AppKit
 podaje wymiary fizycznego wycięcia, dzięki czemu jego środek pozostaje pusty.

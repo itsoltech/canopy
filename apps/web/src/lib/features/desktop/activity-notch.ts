@@ -4,7 +4,12 @@ import { sharesThreads } from "@canopy/domain/computer-presence";
 import { REMOTE_BOTS } from "@canopy/domain/computers";
 import { activityOf, unseenResult, workState } from "@canopy/domain/thread-activity";
 import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
-import { isDesktopActivityRoute, maxActivityNotchItems, type ActivityNotchItem } from "@canopy/ui/desktop";
+import {
+  isDesktopActivityRoute,
+  maxActivityNotchItems,
+  type ActivityNotchItem,
+  type ActivityNotchProjectMark,
+} from "@canopy/ui/desktop";
 
 type Activity = {
   state: ActivityNotchItem["state"];
@@ -66,6 +71,7 @@ export function activityNotchSnapshot({
   computers,
   staleBotHomes,
   botExecuting,
+  markForProject,
   now,
 }: {
   threads: ReadonlyMap<string, ui.Thread> | undefined;
@@ -73,14 +79,15 @@ export function activityNotchSnapshot({
   computers: ReadonlyMap<string, ui.LinkedComputer>;
   staleBotHomes: ReadonlySet<string>;
   botExecuting: (id: string) => boolean;
+  markForProject: (id: string) => ActivityNotchProjectMark | undefined;
   now: number;
 }) {
-  const activities: (Activity & { path: string })[] = [];
+  const activities: (Activity & { path: string; projectId: string | undefined })[] = [];
   let expiresAt = Infinity;
 
-  function add(path: string, activity: Activity | undefined) {
+  function add(path: string, activity: Activity | undefined, projectId?: string) {
     if (!activity || !isDesktopActivityRoute(path)) return;
-    activities.push({ path, ...activity });
+    activities.push({ path, projectId, ...activity });
     expiresAt = Math.min(expiresAt, activity.expiresAt ?? Infinity);
   }
 
@@ -101,7 +108,7 @@ export function activityNotchSnapshot({
         isThreadSnoozed(thread, (id) => threads.get(id))
       )
         continue;
-      add(`/threads/${thread.id}`, threadActivity(thread));
+      add(`/threads/${thread.id}`, threadActivity(thread), thread.projectId);
     }
 
   for (const bot of bots) {
@@ -114,5 +121,11 @@ export function activityNotchSnapshot({
 
   activities.sort((a, b) => priority[a.state] - priority[b.state] || b.at - a.at || a.path.localeCompare(b.path));
 
-  return { items: activities.slice(0, maxActivityNotchItems).map(({ path, state }) => ({ path, state })), expiresAt };
+  const items = activities.slice(0, maxActivityNotchItems).map(({ path, state, projectId }) => {
+    const projectMark = projectId ? markForProject(projectId) : undefined;
+
+    return projectMark ? { path, state, projectMark } : { path, state };
+  });
+
+  return { items, expiresAt };
 }

@@ -213,7 +213,7 @@
     <DeviceChoiceRow
       preference="activityNotch"
       title="Activity notch"
-      description="Show thread and bot statuses at the top of your screen while Canopy is in the background."
+      description="Show activity at the top of your screen while Canopy is in the background. Expand to see project logos or initials."
       options={[
         { value: "on", label: "On" },
         { value: "off", label: "Off" },

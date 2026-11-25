@@ -8,7 +8,7 @@ const tempDirectory = tempDirs();
 const supported = process.platform === "darwin" || process.platform === "win32";
 
 test.skipIf(!supported || process.env["CANOPY_LIVE"] !== "1")(
-  "activity notch anchors and resizes an inactive Electron window with redacted IPC and a source-bound lifetime",
+  "activity notch anchors and resizes an inactive, source-bound Electron window and renders redacted project marks",
   async () => {
     const directory = tempDirectory("canopy-activity-notch-");
     const dist = join(directory, "dist");

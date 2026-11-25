@@ -1,19 +1,38 @@
 import { ipcMain, screen, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import {
+  activityNotchLogoSize,
   isDesktopActivityRoute,
   maxActivityNotchItems,
   type ActivityNotchItem,
+  type ActivityNotchProjectMark,
   type DesktopStatus,
 } from "@canopy/ui/desktop";
 import { createActivityNotchWindow, positionActivityNotchWindow } from "./activity-notch-window.ts";
 import { sendWindowMessage, windowContents } from "./window-message.ts";
+
+// The 36 × 36 RGBA buffer is divisible by three, so its base64 has no padding.
+const logoLength = Math.ceil((activityNotchLogoSize ** 2 * 4) / 3) * 4;
+
+const pixels = Schema.String.check(
+  Schema.isBetweenLength(logoLength, logoLength),
+  Schema.isPattern(/^[A-Za-z0-9+/]+$/),
+);
+
+// An invalid thumbnail falls back to initials. Invalid initials or colors leave the row unmarked.
+const projectMark = Schema.Struct({
+  initials: Schema.String.check(Schema.isPattern(/^(?:[\p{L}\p{M}\p{N}]{1,4}|\?)$/u)),
+  foreground: Schema.String.check(Schema.isPattern(/^#[\da-f]{6}$/i)),
+  background: Schema.String.check(Schema.isPattern(/^#[\da-f]{6}(?:[\da-f]{2})?$/i)),
+  pixels: Schema.optionalKey(pixels.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
+});
 
 const decodeItems = Schema.decodeUnknownSync(
   Schema.Array(
     Schema.Struct({
       path: Schema.String,
       state: Schema.Literals(["working", "approval", "answer", "completed", "failed"]),
+      projectMark: Schema.optionalKey(projectMark.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
     }),
   ).check(Schema.isMaxLength(maxActivityNotchItems)),
 );
@@ -25,10 +44,20 @@ export interface ActivityNotchRow {
   kind: "Thread" | "Bot";
   number: number;
   state: ActivityNotchItem["state"];
+  projectMark?: ActivityNotchProjectMark | undefined;
 }
 
 interface Entry extends ActivityNotchRow {
   path: string;
+}
+
+function sameProjectMark(left?: ActivityNotchProjectMark, right?: ActivityNotchProjectMark) {
+  return (
+    left?.initials === right?.initials &&
+    left?.foreground === right?.foreground &&
+    left?.background === right?.background &&
+    left?.pixels === right?.pixels
+  );
 }
 
 function applicationOrigin(url: string): string | undefined {
@@ -135,11 +164,11 @@ export class ActivityNotch {
   }
 
   #update(items: readonly ActivityNotchItem[]) {
-    const byPath = new Map<string, ActivityNotchItem["state"]>();
+    const byPath = new Map<string, ActivityNotchItem>();
 
-    for (const { path, state } of items) {
-      if (!isDesktopActivityRoute(path)) throw new Error("Invalid activity notch route");
-      byPath.set(path, state);
+    for (const item of items) {
+      if (!isDesktopActivityRoute(item.path)) throw new Error("Invalid activity notch route");
+      byPath.set(item.path, item);
     }
 
     if (!byPath.size) {
@@ -150,18 +179,27 @@ export class ActivityNotch {
 
     const previous = new Map(this.#entries.map((entry) => [entry.path, entry]));
 
-    const entries = Array.from(byPath, ([path, state]): Entry => {
+    const entries = Array.from(byPath.values(), ({ path, state, projectMark }): Entry => {
       const before = previous.get(path);
       const kind = path.startsWith("/threads/") ? "Thread" : "Bot";
 
-      return before ? { ...before, state } : { path, state, kind, id: ++this.#nextId, number: ++this.#numbers[kind] };
+      return {
+        path,
+        state,
+        kind,
+        id: before?.id ?? ++this.#nextId,
+        number: before?.number ?? ++this.#numbers[kind],
+        ...(kind === "Thread" && projectMark && { projectMark }),
+      };
     });
 
     if (
       entries.length === this.#entries.length &&
-      entries.every(
-        (entry, index) => entry.id === this.#entries[index]?.id && entry.state === this.#entries[index]?.state,
-      )
+      entries.every((entry, index) => {
+        const old = this.#entries[index];
+
+        return old?.id === entry.id && old.state === entry.state && sameProjectMark(old.projectMark, entry.projectMark);
+      })
     )
       return;
 
@@ -180,7 +218,15 @@ export class ActivityNotch {
 
   #sendRows() {
     if (!this.#loaded) return;
-    const rows: ActivityNotchRow[] = this.#entries.map(({ id, kind, number, state }) => ({ id, kind, number, state }));
+
+    const rows: ActivityNotchRow[] = this.#entries.map(({ id, kind, number, state, projectMark }) => ({
+      id,
+      kind,
+      number,
+      state,
+      ...(projectMark && { projectMark }),
+    }));
+
     sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows));
   }
 

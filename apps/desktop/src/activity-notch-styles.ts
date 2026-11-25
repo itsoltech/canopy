@@ -17,6 +17,7 @@ export const activityNotchStyles = `
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
+    --project-mark-size: 18px;
     --bottom-inset: ${activityNotchBottomInset}px;
     --type-compact: 0.8125rem;
     --type-meta: 0.71875rem;
@@ -137,7 +138,7 @@ export const activityNotchStyles = `
   }
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: [label] minmax(0, 1fr) [status] auto;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -148,12 +149,33 @@ export const activityNotchStyles = `
     font-variant-numeric: tabular-nums;
   }
   .row:hover { background: var(--hover); }
+  .rows:has(.project-mark:not([hidden])) .row {
+    grid-template-columns: [mark] var(--project-mark-size) [label] minmax(0, 1fr) [status] auto;
+  }
+  .project-mark:not([hidden]) {
+    grid-column: mark;
+    display: grid;
+    place-items: center;
+    width: var(--project-mark-size);
+    height: var(--project-mark-size);
+    overflow: hidden;
+    border-radius: 0.25rem;
+    font: 700 0.5625rem / 1 ui-monospace, monospace;
+    letter-spacing: -0.025em;
+  }
+  .project-mark canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
   .truncate {
+    grid-column: label;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .status {
+    grid-column: status;
     display: flex;
     align-items: center;
     gap: 6px;

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { motion } from "@canopy/ui";
+import { activityNotchLogoSize } from "@canopy/ui/desktop";
 import { icons } from "@canopy/ui/icons";
 import { activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
@@ -43,6 +44,9 @@ const script = `
   const total = document.getElementById("activity-count");
   const list = document.querySelector(".rows");
   const statuses = ${JSON.stringify(statuses)};
+  const logoSize = ${activityNotchLogoSize};
+  const logoBytes = logoSize * logoSize * 4;
+  const encodedLogoLength = Math.ceil(logoBytes / 3) * 4;
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
   let collapseTimer;
@@ -69,16 +73,59 @@ const script = `
   function createRow(id) {
     const item = document.createElement("li");
     const button = document.createElement("button");
+    const badge = document.createElement("span");
     const label = document.createElement("span");
     const status = document.createElement("span");
     button.type = "button";
     button.className = "row";
+    badge.className = "project-mark";
+    badge.hidden = true;
+    badge.setAttribute("aria-hidden", "true");
     label.className = "truncate";
     status.className = "status";
-    button.append(label, status);
+    button.append(badge, label, status);
     item.append(button);
     button.addEventListener("click", () => bridge.open(id));
-    return { item, button, label, status };
+    return { item, button, badge, label, status };
+  }
+
+  function projectLogo(pixels) {
+    if (pixels?.length !== encodedLogoLength) return;
+
+    let decoded;
+    try {
+      decoded = atob(pixels);
+    } catch {
+      return;
+    }
+    if (decoded.length !== logoBytes) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = logoSize;
+    canvas.height = logoSize;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const rgba = Uint8ClampedArray.from(decoded, (byte) => byte.charCodeAt(0));
+    context.putImageData(new ImageData(rgba, logoSize, logoSize), 0, 0);
+    return canvas;
+  }
+
+  function updateProjectMark(view, mark) {
+    const previous = view.projectMark;
+    if (
+      previous?.initials === mark?.initials &&
+      previous?.foreground === mark?.foreground &&
+      previous?.background === mark?.background &&
+      previous?.pixels === mark?.pixels
+    ) return;
+
+    const logo = projectLogo(mark?.pixels);
+    view.badge.replaceChildren(logo ?? mark?.initials ?? "");
+    view.badge.style.color = mark?.foreground ?? "";
+    view.badge.style.backgroundColor = logo ? "" : mark?.background ?? "";
+    view.badge.hidden = !mark;
+    view.projectMark = mark;
   }
 
   function renderRows(rows) {
@@ -93,16 +140,22 @@ const script = `
     }
 
     let nextItem = list.firstElementChild;
-    for (const { id, kind, number, state } of rows) {
+    for (const { id, kind, number, state, projectMark } of rows) {
       const view = rowViews.get(id) ?? createRow(id);
       rowViews.set(id, view);
+      const mark = kind === "Thread" ? projectMark : undefined;
       const label = kind + " " + numbers.format(number);
+      const status = statuses[state].label;
+      updateProjectMark(view, mark);
       if (view.label.textContent !== label || view.status.dataset.state !== state) {
-        const status = statuses[state].label;
         view.label.textContent = label;
         view.status.textContent = status;
         view.status.dataset.state = state;
-        view.button.setAttribute("aria-label", "Open " + label + ", " + status);
+      }
+      const project = mark ? ", project " + mark.initials : "";
+      const accessibleLabel = "Open " + label + project + ", " + status;
+      if (view.button.getAttribute("aria-label") !== accessibleLabel) {
+        view.button.setAttribute("aria-label", accessibleLabel);
       }
       if (view.item !== nextItem) list.insertBefore(view.item, nextItem);
       nextItem = view.item.nextElementSibling;

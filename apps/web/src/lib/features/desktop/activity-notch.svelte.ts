@@ -3,6 +3,7 @@ import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
+import { ActivityNotchProjectMarks } from "./activity-notch-project-marks.ts";
 import { activityNotchSnapshot } from "./activity-notch.ts";
 import type { GatewayCapabilities } from "./gateway-capabilities.svelte.ts";
 
@@ -17,6 +18,8 @@ export function watchActivityNotch(
   let lastSnapshot: string | undefined;
   let active = $state(true);
   let timeRevision = $state(0);
+  let imageRevision = $state(0);
+  const projectMarks = new ActivityNotchProjectMarks(() => imageRevision++);
 
   const publish = (items: readonly ActivityNotchItem[]) => {
     const key = JSON.stringify(items);
@@ -39,6 +42,7 @@ export function watchActivityNotch(
         gateway.incompatible ||
         !settings.loaded
       ) {
+        projectMarks.clear();
         publish([]);
 
         return;
@@ -50,8 +54,10 @@ export function watchActivityNotch(
         settings.moduleEnabled("bots") && gateway.supportsMethod("ListBots") && botList.synchronized && !botList.error;
 
       void timeRevision;
+      void imageRevision;
 
       const now = Date.now();
+      const visibleImages = new Set<string>();
 
       const { items, expiresAt } = activityNotchSnapshot({
         threads: threads ? overview.threads : undefined,
@@ -61,9 +67,11 @@ export function watchActivityNotch(
           bots ? [...botList.unavailableComputers, ...botList.refreshingComputers].map((home) => home.nodeId) : [],
         ),
         botExecuting: (id) => botList.executing(id),
+        markForProject: (id) => projectMarks.mark(overview.project(id), visibleImages),
         now,
       });
 
+      projectMarks.retain(visibleImages);
       publish(items);
 
       if (!Number.isFinite(expiresAt)) return;
@@ -76,6 +84,7 @@ export function watchActivityNotch(
 
   const hide = () => {
     active = false;
+    projectMarks.clear();
     publish([]);
   };
 
@@ -93,6 +102,7 @@ export function watchActivityNotch(
 
   return () => {
     stop();
+    projectMarks.clear();
     window.removeEventListener("pagehide", hide);
     window.removeEventListener("pageshow", show);
     document.removeEventListener("visibilitychange", refreshTime);
