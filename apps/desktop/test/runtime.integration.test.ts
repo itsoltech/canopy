@@ -223,6 +223,12 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(statSync(join(data, "desktop.json")).mtimeMs).toBe(configBeforeSave);
       const api = local.client();
       expect(await api.getClientCapabilities({})).toMatchObject({ gatewayRole: "desktop", linkedComputers: true });
+      expect(await (await webFetch(`${local.origin}/api/gateway-capabilities`)).json()).toMatchObject({
+        state: "ready",
+        linkedComputers: true,
+        localDesktop: true,
+        remoteDesktop: false,
+      });
       const online = (await api.getOverview({})).workers;
       expect(online.filter((worker) => worker.online)).toHaveLength(1);
       const workerId = online[0]!.id;
@@ -309,6 +315,12 @@ test.skipIf(!existsSync(paths.gateway))(
       expect(readFileSync(workerPath, "utf8") === migratedWorker).toBe(true);
       expect(remote.status.webUrl).toBe(remote.origin);
       expect(remote.status.webUrl).not.toBe(local.status.webUrl);
+      expect(await (await webFetch(`${remote.origin}/api/gateway-capabilities`)).json()).toMatchObject({
+        state: "ready",
+        linkedComputers: true,
+        localDesktop: false,
+        remoteDesktop: true,
+      });
       expect((await webFetch(`${remote.origin}/api/overview`)).ok).toBe(true);
       expect(
         (await webFetch(`${remote.origin}/api/overview`, { headers: { origin: "https://attacker.invalid" } })).status,
@@ -431,6 +443,11 @@ test.skipIf(!existsSync(paths.gateway))(
       expect((await webFetch(`${remote.origin}/desktop`)).ok).toBe(true);
       expect((await webFetch(remote.origin)).ok).toBe(true);
       expect((await webFetch(`${remote.origin}/api/overview`)).status).toBe(503);
+      expect(await (await webFetch(`${remote.origin}/api/gateway-capabilities`)).json()).toMatchObject({
+        state: "unavailable",
+        localDesktop: false,
+        remoteDesktop: true,
+      });
       remote.pids.forEach((pid) => owned.add(pid));
     } finally {
       registry.offline(false);

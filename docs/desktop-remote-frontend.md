@@ -21,6 +21,9 @@ Opis implementacji nie określa dostępności w nightly/beta/stable; tę podają
 Device access pokazuje datę każdego parowania desktopu i rozróżnia wpisy,
 gdy platforma i wyświetlana data są identyczne (2026-11-24).
 
+Settings → Linked computers kieruje do aplikacji na komputerze uruchamiającym gateway.
+Wskazówka działa także bez połączenia z gatewayem (2026-11-25).
+
 ## Decyzja
 
 Desktop zawsze ładuje dołączony frontend przez swój BFF na `127.0.0.1`.

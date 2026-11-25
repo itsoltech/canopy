@@ -1,5 +1,8 @@
 # Połączone komputery
 
+Status (2026-11-25): w zdalnym trybie desktopu Settings → Linked computers wskazuje komputer
+uruchamiający gateway jako miejsce zarządzania połączeniami, także podczas awarii gatewaya.
+
 Status (2026-11-24): w web i desktopie miniatury i otwarte podglądy obrazów
 pozostają stabilne po aktualizacji metadanych komputera z niezmienionym stanem połączenia.
 
@@ -187,9 +190,11 @@ konfiguracji, przenoszenia ani relay. Łączenie wielu gatewayów serwerowych ni
 Rolę gatewaya ustala sposób uruchomienia: domyślnie `server`, a kontroler desktopu
 oznacza własny lokalny sidecar jako `desktop` wewnętrznym znacznikiem startowym.
 Nie jest to ustawienie użytkownika. `GetClientCapabilities` zwraca `gateway_role`
-i `linked_computers`; brak capability oznacza brak funkcji. Web i lokalny frontend
-desktopu w trybie remote ukrywają wszystkie wejścia linkowania, gdy serwer jej nie oferuje.
-RPC linkowania zwracają wtedy `FailedPrecondition` z komunikatem
+i `linked_computers`; brak capability oznacza brak funkcji. Web ukrywa wejścia linkowania,
+gdy serwer jej nie oferuje. W trybie „Connect to a Canopy gateway” sekcja Linked computers
+pokazuje wyłącznie wskazówkę, by zarządzać połączeniami na komputerze działającym w trybie
+„Run Canopy on this computer”.
+Na gatewayu serwerowym RPC linkowania zwracają `FailedPrecondition` z komunikatem
 „Linked computers are available only in the Canopy desktop app”. Network access
 nadal obsługuje telefony, sparowane klienty desktopowe i workery, ale odrzuca łącza komputerów.
 
