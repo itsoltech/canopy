@@ -1,5 +1,9 @@
 # Konfiguracja workerów
 
+Aktualizacja (2026-11-25): w przeglądarce i aplikacji desktopowej **Settings → Workers → Agent CLIs**
+grupuje aktualizacje CLI według dostawcy. Wersje Canopy na workerach sprawdza się
+w **Settings → App updates → Status**.
+
 Aktualizacja (2026-11-24): worker obsługuje natywne instancje Antigravity i wykrywa CLI jako `agy`. Logowanie, katalogi i obsługiwane ustawienia opisuje [adapter Antigravity](antigravity-adapter.md).
 
 Aktualizacja (2026-11-24): bot Codexa odczytuje login wybranej instancji przez
@@ -67,10 +71,13 @@ capability i ograniczeń platform są w [provider-accounts.md](provider-accounts
 
 CLI **Claude Code (`claude`), Codex (`codex`) i Grok (`grok`)** muszą być już
 zainstalowane na komputerze workera. Dotyczy to desktopu, samodzielnych binarek
-i Dockera. Canopy ich nie zawiera ani nie instaluje automatycznie. Na żądanie
-właściciela instaluje i aktualizuje obsługiwane CLI przez pojedyncze przyciski lub
-Update all danego dostawcy, również na połączonych komputerach ([provider-cli.md](provider-cli.md)). Użytkownik
-zapewnia wersję, login oraz PATH usługi albo ścieżkę pliku wykonywalnego instancji.
+i Dockera. Canopy ich nie zawiera ani nie instaluje automatycznie. W zakładce
+**Agent CLIs** wybranego workera właściciel może zlecić instalację lub aktualizację
+obsługiwanego CLI, także na połączonym komputerze ze wspólną konfiguracją.
+**Update all** przy dostawcy w **Workers → Agent CLIs** aktualizuje jego CLI
+na workerach tego gatewaya. [Obsługa CLI](provider-cli.md)
+
+Użytkownik zapewnia wersję, login oraz PATH usługi albo ścieżkę pliku wykonywalnego instancji.
 Worker sam dobiera PATH z powłoki logowania użytkownika (`$SHELL -l -i -c`, raz na start) i szuka CLI także
 w miejscach Bun, Volta, npm, pnpm, Yarn, nvm/fnm, mise/asdf i Homebrew; kolejność, pierwszeństwo zmiennych
 i wybór działającej kopii opisuje [provider-cli.md](provider-cli.md#wykrywanie-na-workerze).

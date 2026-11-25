@@ -61,8 +61,13 @@
 </script>
 
 {#if !updates.gatewayTransition && (retry || running || starting || (snapshot && bulkUpdatesAvailable(snapshot)))}
-  <Button size="sm" {variant} loading={running || starting} disabled={!!updates.pending} onclick={act} class={className}
-    >{label}</Button
+  <Button
+    size="sm"
+    {variant}
+    loading={running || starting}
+    disabled={!!updates.pending || !updates.writable}
+    onclick={act}
+    class={className}>{label}</Button
   >
 {/if}
 {#if local}<AppUpdateConfirmation bind:open={confirming} computer={local} {updates} {request} />{/if}

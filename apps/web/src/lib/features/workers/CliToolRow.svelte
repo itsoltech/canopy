@@ -9,6 +9,8 @@
   import CliStateBadge from "./CliStateBadge.svelte";
   import InlineCommand from "./InlineCommand.svelte";
   import { cliActions, cliLabel, methodLabel, sentence, versionProblem } from "./cli-tools.svelte.ts";
+  import { cliManagedExternally } from "@canopy/domain/release/update-actions";
+  import { cliExternalInstructions } from "./cli-update-instructions.ts";
 
   /** One provider CLI on a worker: version and install method, update state, and the one action allowed. */
   let {
@@ -22,6 +24,7 @@
   const tool = $derived(item.tool!);
   const key = $derived(`${workerId}/${tool.provider}`);
   const installing = $derived(tool.install?.state === "running");
+  const external = $derived(cliManagedExternally(item));
 
   const installed = $derived(
     tool.method !== CliInstallMethod.NOT_INSTALLED && tool.method !== CliInstallMethod.UNSPECIFIED,
@@ -61,7 +64,7 @@
           Couldn't check for updates: {item.latest.error}.
         </p>{/if}
     </div>
-    {#if item.action}
+    {#if item.action && !external}
       <div class="flex shrink-0 items-center gap-3">
         {#if item.blockedReason && !installing}<p class="text-sm/5 text-zinc-500 dark:text-zinc-400">
             {item.blockedReason}
@@ -84,8 +87,10 @@
       Managed by {item.managedBy}{manual ? " — update it there:" : "."}{#if !manual && tool.detail}
         {sentence(tool.detail)}{/if}
     </p>
-  {:else if !item.action && tool.detail && !installing}
-    <p class="text-sm/5 text-pretty break-words text-zinc-500 dark:text-zinc-400">{sentence(tool.detail)}</p>
+  {:else if !manual && !installing && (external || (!item.action && tool.detail))}
+    <p class="text-sm/5 text-pretty break-words text-zinc-500 dark:text-zinc-400">
+      {external ? cliExternalInstructions(item) : sentence(tool.detail)}
+    </p>
   {/if}
   {#if manual}<InlineCommand text={manual} />{/if}
   <CliAlternatives alternatives={tool.alternatives} />

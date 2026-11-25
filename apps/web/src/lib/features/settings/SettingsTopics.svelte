@@ -116,12 +116,16 @@
     flex: auto;
   }
 
+  .topic-tabs button[aria-selected="true"] {
+    color: var(--color-ink);
+  }
+
   .topic-pill {
     display: none;
   }
 
   @container topic-picker (max-width: 26rem) {
-    .topic-tabs:has(button:nth-of-type(4)) {
+    .topic-tabs:has(button:nth-of-type(4):last-child) {
       display: grid;
       width: 100%;
       grid-template-columns: repeat(2, minmax(0, 1fr));

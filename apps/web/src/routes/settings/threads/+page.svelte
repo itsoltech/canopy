@@ -7,6 +7,7 @@
   import { useSettingsRoute } from "#lib/features/settings/settings-route.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import ThreadDefaultsFields from "#lib/features/settings/ThreadDefaultsFields.svelte";
+  import ThreadListSettings from "#lib/features/settings/ThreadListSettings.svelte";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -32,9 +33,10 @@
   defaultTopic={route.url.hash === "#sandbox-profiles" ? "permissions" : undefined}
   topics={[
     { id: "new-threads", label: "New threads", content: newThreads },
+    { id: "thread-list", label: "Thread list", keywords: "sidebar grouping sorting worktree", content: threadList },
     { id: "conversation", label: "Conversation", content: conversation },
     { id: "permissions", label: "Sandbox and subagents", content: permissions },
-    { id: "archiving", label: "Archiving", keywords: "retention cleanup", content: archiving },
+    { id: "archiving", label: "Archiving", keywords: "archive retention cleanup", content: archiving },
   ]}
 />
 
@@ -63,6 +65,10 @@
       onchange={(next) => settings.updateThreadDefaults(next)}
     />
   </SettingsGroup>
+{/snippet}
+
+{#snippet threadList()}
+  <ThreadListSettings />
 {/snippet}
 
 {#snippet conversation()}

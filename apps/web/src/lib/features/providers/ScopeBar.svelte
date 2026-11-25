@@ -3,6 +3,8 @@
   import type { ClassValue } from "svelte/elements";
   import Select from "#lib/shared/ui/Select.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { workerRecords } from "#lib/features/workers/worker-records.svelte.ts";
 
@@ -19,6 +21,7 @@
 
   const selected = $derived(workers.find((w) => w.id === scope));
   const records = workerRecords(useOverview());
+  const capabilities = useGatewayCapabilities();
 </script>
 
 <div
@@ -38,5 +41,14 @@
     <span class="flex items-center gap-1.5 text-sm/5 text-zinc-500 dark:text-zinc-400">
       <StatusDot tone={selected.online ? "emerald" : "neutral"} />{selected.online ? "Online" : "Offline"}
     </span>
+  {/if}
+  {#if (!scope || selected) && (capabilities?.supports("/settings/workers") ?? true)}
+    <ButtonLink
+      size="sm"
+      variant="text"
+      href={selected
+        ? `/settings/workers/${encodeURIComponent(selected.id)}#topic-agent-clis`
+        : "/settings/workers#topic-agent-clis"}>Manage agent CLIs</ButtonLink
+    >
   {/if}
 </div>

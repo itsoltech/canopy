@@ -4,8 +4,8 @@ Status (2026-11-19): **v1 wdrożone**: metryki RPC, procesu, DB, workerów i kli
 trwałe agregaty, findings, raport, zbieranie logów i czasowy tracing.
 Kolektor chroni pomiary procesu, kolejek i czasu do ACK pod obciążeniem. Raport podaje przyczyny strat w wybranym oknie i pomija statystyki bez pomiaru.
 Limit katalogu 640 deskryptorów obejmuje także RPC statystyk użycia i postępu przygotowania wątku.
-Settings → Diagnostics jest dostępne w web/desktop/mobile i pokazuje lokalny
-komputer oraz znane połączone komputery, ich gatewaye, workery i łącza.
+W przeglądarce, w aplikacji desktopowej i na telefonie **Settings → Diagnostics**
+w grupie **System** pokazuje lokalny komputer oraz znane połączone komputery, ich gatewaye, workery i łącza.
 Telefon korzysta ze sparowanego gatewaya. Brak dostępu, starsza wersja i offline
 są odrębnymi stanami. Budżety wydajności poniżej są celami i procedurą pomiaru,
 nie deklaracją zmierzonego narzutu obecnej wersji. Na `dev` (2026-11-15) wysyłka
@@ -1073,9 +1073,9 @@ reset i dołączenie do wątku są audytowane osobno. Nie logujemy każdego odcz
 
 ## 9. UI web/desktop i mobile
 
-**Settings → Diagnostics**, w grupie General, wspólny rejestr
-`packages/ui/src/settings.ts`; dostępne na serwerze i desktopie, a linked sekcja
-zależna od capability roli gatewaya. Nie tworzymy osobnego ekranu na każdym komputerze.
+Wspólny rejestr `packages/ui/src/settings.ts` umieszcza **Diagnostics** w grupie
+**System**. Sekcja jest dostępna na serwerze i desktopie. Widok połączonych
+komputerów zależy od możliwości ogłoszonych przez gateway.
 Mobile ma tę samą funkcjonalność przez `src/app/settings/[section].tsx`, natywny
 stos Back oraz wspólny QueryCache parowania. Zmiana zakresu, sortowania i rozwinięcia
 jest lokalnym stanem widoku, nie synchronizowaną preferencją konta.
@@ -1158,7 +1158,7 @@ pomiarów wydajności ani listą oczekujących etapów.
 
 | Obszar | Przyjęta decyzja |
 |---|---|
-| Nazwa | **Diagnostics**, w General; obejmuje także sieć, świeżość i logi. |
+| Nazwa | **Diagnostics** (wówczas w grupie General) obejmuje także sieć, świeżość danych i logi. |
 | Historia po restarcie | **Trwała**: rzadkie histogramy/liczniki i ostatnie findings, batch najwyżej raz/min/proces w domowym gatewayu. Minuty 2 h, godziny 30 dni, kwoty i pruning z §5; worker bez DB. Restore ostatniej godziny w tle po uruchomieniu listenera, 24 h z godzin w DB na żądanie. Okna kontynuują historię z oznaczoną faktyczną luką. Koszt zapisu w budżecie narzutu. |
 | Dokładność percentyli a pamięć | Stałe 128 kubełków (~19% kwantyzacji) i jawny max/pokrycie; jeśli to za mało do decyzji o optymalizacji, zwiększyć precyzję dopiero po pomiarze budżetu 64/16 MiB. |
 | Dane partnerów/onward | Bezpośredni partner tego samego właściciela ma odczyt diagnostyki; logi tylko na jawną akcję ownera. Onward wymaga osobnych, odwoływalnych grants read/logs od domu. Brak grant nie ukrywa karty komputera. |

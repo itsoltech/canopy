@@ -438,8 +438,9 @@ Przy pierwszym starcie binarka rozpakowuje bibliotekę sharp/libvips do `~/.cach
 starszych wydań wymagają osobnego BFF.
 
 Binarka `canopy-gateway-<os>-<arch>` zawiera też web (BFF i SPA) w tej samej wersji. Jedna usługa
-systemd uruchamia supervisor i jeden proces z gatewayem i web, bez Dockera. Przycisk Update w Settings → App updates
-podmienia całość; logowanie na serwer nie jest potrzebne. PostgreSQL działa jako osobna usługa.
+systemd uruchamia supervisor i jeden proces z gatewayem i web, bez Dockera. W przeglądarce lub
+aplikacji desktopowej **Update gateway** w **Settings → App updates → Status** podmienia całość bez logowania na serwer.
+PostgreSQL działa jako osobna usługa.
 
 ```text
 systemd ─ canopy-gateway      supervisor (ok. 55 MB): rollback, execve po aktualizacji
@@ -459,7 +460,7 @@ Przy pierwszym starcie danej wersji binarka rozpakowuje swój build web (ok. 30 
 do `CANOPY_WEB_DIR` i zostawia tam trzy ostatnie wersje: otwarte karty starszej wersji dalej
 pobierają swoje chunki po aktualizacji, a rollback używa zachowanego katalogu. Gateway potwierdza
 start nowej wersji dopiero, gdy jej web odpowiada na `/api/health` (ta sama wersja, ten sam proces).
-Web nowej wersji, który nie wstaje, cofa aktualizację, a wynik w Settings → App updates podaje
+Web nowej wersji, który nie wstaje, cofa aktualizację, a wynik w **App updates → Status** podaje
 powód, np. „Port 3000 is in use by another process…”. Poza aktualizacją problem z web (zajęty
 port, awaria) nie zatrzymuje gatewaya, workerów ani botów: gateway działa bez UI, loguje konkretny
 błąd, pokazuje go przy gatewayu w Settings → App updates (np. z desktopu albo telefonu),
@@ -954,11 +955,12 @@ CLI nie wykonuje automatycznych prób ani reclaimu podczas startu gatewaya.
 
 - **Docker**: tag kanału (`stable`/`latest`, `beta`, `nightly`, `v1`) wskazuje nowy obraz po wydaniu:
   `docker compose pull && docker compose up -d`. Obraz `canopy-gateway` niesie też web, więc to jedna
-  aktualizacja; kontener nigdy nie aktualizuje się sam (`CANOPY_INSTALL_KIND=docker`, Settings → App
-  updates pokazuje „Pull the new image tag and recreate this container” zamiast przycisku Update). Gateway migruje bazę przy starcie;
-  migracje są tylko w przód — przed aktualizacją wersji `X.Y` zrób kopię bazy (`pg_dump`).
+  aktualizacja; kontener nigdy nie aktualizuje się sam (`CANOPY_INSTALL_KIND=docker`).
+  **Settings → App updates → Status** pokazuje „Pull the new image tag and recreate this container”.
+  Gateway migruje bazę przy starcie.
+  Migracje są tylko w przód — przed aktualizacją wersji `X.Y` zrób kopię bazy (`pg_dump`).
   Powrót do starszej wersji po migracji wymaga przywrócenia kopii.
-- **Binaria**: przycisk Update w Settings → App updates (albo Update all). Gateway pobiera
+- **Binaria**: w **Settings → App updates → Status** wybierz **Update gateway** lub **Update all**. Gateway pobiera
   binarkę z `manifest.json` kanału, sprawdza SHA-256, zostawia `.bak` i atomowo podmienia plik,
   czeka na koniec aktywnych tur i restartuje się. Ta sama binarka niesie web, więc jedna
   aktualizacja podmienia oba; nowy gateway uruchamia web nowej wersji, a otwarte karty pokazują

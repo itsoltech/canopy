@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-25), w tym kolejkowania tur od przyjęcia aktualizacji
+Status: opis zaimplementowanego kodu (2026-11-25), w tym wspólnej sekcji App updates
+w web, Electronie i na telefonie, kolejkowania tur od przyjęcia aktualizacji
 gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
 desktopu, kompaktowego powiadomienia po aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
 pobierania i ponownego łączenia workera,
@@ -90,8 +91,8 @@ sprawdzenia wydań. W spoczynku strzałka wersji wymaga nowszego dostępnego wyd
 
 ## Wskaźnik w pasku bocznym
 
-Aplikacja iOS/Android ma ten sam punkt wejścia: trzecią ikonę stopki paska bocznego.
-Kropka oznacza dostępne aktualizacje lub trwającą operację. Dolny panel pokazuje
+Na iOS i Androidzie trzecia ikona stopki paska bocznego otwiera Settings → App updates.
+Sygnalizuje dostępne aktualizacje, trwającą operację lub błąd. W ustawieniach widać
 gateway albo aplikację komputera, połączone komputery, przypisane do nich workery
 oraz stan OTA telefonu. `Update all` aktualizuje Canopy na dostępnych komputerach.
 Instalację i aktualizację CLI użytkownik zleca osobno w ustawieniach. Indywidualne akcje korzystają
@@ -130,16 +131,11 @@ Klienci ignorują odczyt rozpoczęty przed nowszą akcją, aby stary cache nie
 przywracał odrzuconego błędu.
 Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
 
-Ikona Updates w stopce pokazuje aktualizacje
-własnej aplikacji desktopowej: stan spokojny, sprawdzanie, pobieranie z procentem
-oraz gotowość do restartu. Hover i klik otwierają ten sam przewijany popover;
-na telefonie jest to dolny panel. Updates dzieli miejsce w stopce z panelami Usage, Workers i Provider usage.
-Przejście kursorem na sąsiedni wyzwalacz od razu zastępuje panel otwarty najechaniem.
-Po wyjściu kursora poza wyzwalacz i panel zamknięcie ma 250 ms zwłoki, aby dało się
-przejść do treści przez odstęp. Aktywacja przycisku przypina jego panel i ma
-pierwszeństwo przed najechaniem. Animacja respektuje ograniczenie ruchu.
-Klient podłączony do gatewaya desktopowego pokazuje aplikację z jej raportu;
-gateway serwerowy nadal ma wyłącznie wiersz gatewaya.
+W web i Electronie ikona Updates w stopce wskazuje dostępność, postęp pobierania,
+gotowość do restartu lub błąd. Najechanie albo kliknięcie otwiera podsumowanie.
+Odnośnik prowadzi do Status w Settings → App updates. Nieobejrzane notatki można
+otworzyć bezpośrednio z podsumowania. Pozostałe panele stopki (Usage, Workers
+i Provider usage) współdzielą z nim obsługę najechania, przypinania i zamknięcia.
 
 Telefon, web i zdalny tryb Electron pokazują nazwę podłączonego komputera oraz te same
 akcje i stany aplikacji co dla partnerów. `UpdatesSnapshot.app_update_supported`
@@ -163,60 +159,34 @@ przebiegu wymaga `confirm_restart=true` i tego samego potwierdzenia oraz ochrony
 szkiców co pojedyncza akcja. Po restarcie domu gateway wznawia zapisany przebieg
 i potwierdza wynik aktualizacji. Dołączony gateway i worker aktualizują się razem z aplikacją.
 Serwerowy gateway zachowuje własny updater.
-Na telefonie potwierdzenie otwiera się nad arkuszem Updates, który zostaje otwarty;
-do odpowiedzi gatewaya arkusz pokazuje „Starting update…”, a potem postęp, wynik albo błąd.
+Na telefonie potwierdzenie otwiera się nad ustawieniami aktualizacji. Po zatwierdzeniu
+widok pokazuje przyjęcie żądania, postęp, wynik lub błąd.
 
-### Popover aktualizacji
+### App updates
 
-Popover ma 352 px szerokości i wysokość zależną od zawartości (maksymalnie
-70% okna / 512 px); przewija się lista między nagłówkiem a stopką.
+W web i Electronie pełny panel ma adres `/settings/app-updates#topic-status`.
+**Check for updates** sprawdza instalacje dostępne przez gateway oraz aplikację na
+tym komputerze, jeżeli działa tu Electron. Przy niezgodności gatewaya lokalny
+updater nadal korzysta z mostka Electron. Serwer wymaga `GetUpdates` do odczytu
+i `ManageUpdates` do akcji. Aktualizacja binarnego gatewaya i zmiana jego kanału
+wymagają ponadto uprawnień administratora. Po utracie połączenia ostatnie dane
+pozostają widoczne.
 
-**Jedno podsumowanie.** Nagłówek ma tytuł, jedną linię stanu i Check now. Linia mówi,
-co użytkownik właśnie uruchomił („Starting update…”), a w trakcie przebiegu podaje
-jeden licznik „Updating · N of M done” (M obejmuje wszystkie zaplanowane kroki, także
-oczekujące; „· K failed” tylko przy błędach). Po przebiegu: „K update(s) failed ·
-N updated” albo przez godzinę „All N updates finished”; w spoczynku „N updates
-available” lub „Up to date · Checked 5:39 PM”. Dolna linia nagłówka jest paskiem
-postępu przebiegu (2 px), więc nie zajmuje miejsca. Popover nie ma osobnego bloku
-postępu, listy aktywnych kroków ani „Update results”; historia kroków z powodami jest
-w Settings → Workers → Updates. Licznik i słownictwo pochodzą z
-`@canopy/domain/release/update-status`, wspólnego dla web i telefonu.
+Nagłówek Status i podsumowanie w stopce pokazują ten sam wynik. Przyjęcie operacji
+daje „Starting update…”, a rozpoczęty przebieg ma licznik „Updating · N of M done”
+z liczbą błędów, jeśli wystąpiły. Po przebiegu widoczny jest wynik, a w spoczynku
+liczba dostępnych aktualizacji lub czas ostatniego sprawdzenia. Licznik i słownictwo
+pochodzą z `@canopy/domain/release/update-status`, wspólnego dla web i telefonu.
 
-**Wiersze.** Każdy wiersz ma zawsze dwie linie: nazwę z odznaką oraz wersje albo
-zdanie, które mówi więcej (np. „Restarting to update…”). Odznaka ma slot o minimalnej
-szerokości, w którym mieści się każde wspólne słowo (rzadkie długie słowo brzegowe go
-poszerza zamiast nachodzić na nazwę), pasek
-postępu leży w dolnym paddingu, a akcja ma stałą kolumnę, więc zmiana stanu tylko
-podmienia tekst (`t-swap`). Rozwija się wyłącznie błąd, na kliknięcie; tam jest też
-Dismiss. Słownictwo: Up to date (cichy tekst, bez pigułki), Available, Downloaded
-(dawne „Ready”: pobrane, czeka na restart), Queued, Starting, Updating, Waiting
-(„Restarts after its current turns end.”), Restarting, Updated i Failed. Zieleń jest
-tylko dla Updated (przez godzinę po kroku; `UpdateStep.finished_at`). Bieżący etap
-ma pierwszeństwo nad wynikiem wcześniejszego kroku. Stany brzegowe
-zachowują własne słowa w neutralnej odznace: Offline, Manual update, Checks paused,
-Managed externally, Unavailable. Sprawdzanie feedu nie zmienia odznak wierszy; widać je
-w nagłówku.
-
-Desktop w trybie zdalnym pokazuje własną aplikację i jej worker jako jeden wiersz
-z nazwą komputera, również w Settings → Workers → Updates. Dopasowanie korzysta
-wyłącznie z id zapisanego podczas rejestracji workera, przekazanego przez lokalny
-bridge `DesktopStatus.workerId`; nazwa ani wersja nie identyfikują komputera.
-Wiersz zachowuje lokalny postęp pobierania i restart pobranej aplikacji oraz stan
-kroku `desktop` z gatewaya, ponowienie, odrzucenie błędu i wymuszony restart.
-Gateway i pozostałe workery mają własne wiersze. Starszy bridge bez identyfikatora
-workera pokazuje osobno aplikację i worker.
-
-**Ikony.** Jedna ikona ma jedno znaczenie: ⟳ (`arrow-path`) to tylko Check now;
-`arrow-down-tray` to Update, `power` to Restart to update, `repeat` to Retry,
-a `information-circle` pokazuje szczegóły. Każda ma podpowiedź i
-`aria-label` z dokładną akcją („Update Studio”, „Restart to update”,
-„Retry”). Wiersz ma najwyżej jedną akcję; bez akcji kolumna zostaje pusta. Podczas aktualizacji workera lub
-restartu jego komputera akcja instalacji CLI w ustawieniach jest niedostępna.
-
-**Stopka.** Odnośnik Settings, „What's new” tylko przy nieobejrzanych notatkach
-i po prawej jedna nazwana akcja główna: Update all, Restart to update (sama pobrana
-aplikacja bez przebiegu), Retry failed albo wyłączone
-„Starting…” / „Updating…” ze spinnerem.
+Każda instalacja ma jeden wiersz z wersją, stanem, dostępną akcją i szczegółami.
+W trybie zdalnym desktop łączy własną aplikację z wierszem workera na podstawie
+identyfikatora rejestracji z lokalnego mostka `DesktopStatus.workerId`. Starszy
+mostek bez identyfikatora pokazuje obie pozycje. Wiersz zachowuje lokalny postęp
+pobierania i restart gotowej paczki oraz stan żądania z gatewaya, błąd
+i wymuszony restart po potwierdzeniu. Pozostałe workery są pogrupowane według domu.
+Przy błędzie pojedynczej instalacji można ją ponowić. Po zatrzymaniu Update all
+można ponowić wszystkie błędne kroki lub wybrać jeden w rozwijanych wynikach.
+Odrzucenie błędu pojedynczej instalacji i odrzucenie przebiegu mają osobny zakres.
 
 **Natychmiastowa odpowiedź.** Klient pokazuje stan od razu, zanim gateway odpowie:
 Update all oznacza wszystkie kroki planu jako Queued (`plannedUpdateRun`, ten sam plan
@@ -231,24 +201,10 @@ ma odznakę Restarting i linię „Restarting to update…”. Gateway nie dodaj
 „…is unavailable. Trying again automatically.”. Dopiero po 3 minutach linia zmienia
 się na „Still restarting after N min. Check that computer.”.
 
-Wiersze komputerów poprzedzają workery pogrupowane według komputera.
-Galeria `/dev/updates` pokazuje centrum i stany na danych testowych,
-a `?view=settings` obie sekcje ustawień. Parametr `?run=failed` dodaje zatrzymany
-przebieg z akcjami ponowienia i odrzucenia. Długie nazwy i wersje mają skrót z pełną
-treścią w podpowiedzi. Popover nie pokazuje notatek wydań; są w Settings → Workers /
-App updates razem z pełnymi ustawieniami, wymuszeniem restartu i szczegółami instalatorów.
-
-Ikona w pasku bocznym pokazuje `arrow-down-tray`: wyciszoną w spoczynku, z kropką,
-gdy coś czeka (aktualizacja albo pobrana aplikacja), z pierścieniem postępu w trakcie
-oraz `exclamation-circle` po błędzie. Nigdy nie pokazuje zielonego znacznika ani
-obracającej się ⟳.
-
-Arkusz Updates na telefonie ma te same elementy: nagłówek z linią stanu i paskiem,
-dwuliniowe wiersze z ikoną akcji, stopkę z Settings, warunkowym What's new i akcją
-główną. Telefon nie ma podpowiedzi, więc powód stanu brzegowego trafia do drugiej linii.
-Wiersz workera instalowanego z aplikacją desktopową pokazuje wersję, dostępność
-i połączenie jej kanału sterowania. Pobrana aktualizacja aplikacji pozostaje
-dostępna także po sprawdzeniu, które pominęło wersję docelową.
+Galeria `/dev/updates` pokazuje podsumowanie i przykładowe stany komputerów.
+`?view=settings` pokazuje panel Status i osobne CLI workerów na danych testowych.
+`?run=failed` dodaje zatrzymany przebieg z ponowieniem i odrzuceniem.
+Długie nazwy i wersje mają pełną treść w podpowiedzi.
 
 Aktualizacja binarnego workera przechodzi przez Queued, Preparing (sprawdzenie
 wydania), opcjonalnie Waiting (kończenie aktywnych tur i pracy w tle), Downloading
@@ -259,25 +215,24 @@ Poza oczekiwanym restartem rozłączenie kanału aktualizacji pokazuje Offline.
 Cel workera pochodzi z aktualnego polecenia, także gdy zmieniła się wersja gatewaya.
 `canopy.update.v1` nadal przesyła stan w istniejącym polu tekstowym.
 
-Settings → Workers → Updates pokazuje stan komputerów i workerów oraz osobne
-akcje instalacji i aktualizacji Agent CLIs. Gateway serwerowy ma pod swoim wierszem pole kanału.
-Settings → App updates zachowuje ustawienia tej aplikacji i dodaje grupę „Linked
-computers”: wiersz na komputer z nazwą, wersją → docelową, kanałem i stanem, przyciskami
-Check now (akcja `computer_check`, sprawdzenie feedu tamtej aplikacji) i Update albo tekstem
-„Update on that computer” dla aplikacji za starej. Oba przyciski są zawsze widoczne i tylko
-się wyłączają, więc zmiana stanu niczego nie przesuwa. Kanał i częstotliwość sprawdzania
-partnera są tu tylko do odczytu: każdy komputer zmienia je u siebie. Nagłówek
-pokazuje stan i czas sprawdzenia; Update all pojawia się tylko przy dostępnych
-aktualizacjach. Aktualne workery nie mają przycisku aktualizacji. Kanał zapisuje
-się po wyborze; przejście na starszy kanał lub starszą przypiętą wersję wymaga
-potwierdzenia. Wyniki przebiegu można rozwinąć tylko, gdy istnieją kroki.
-Brak notatek wydania (także pusty wynik lub niedostępne źródło) ukrywa
-„What’s new”; interfejs nie pokazuje pustych akordeonów ani objaśnień tego braku.
+Wiersz partnera w Status pokazuje wersję, cel, kanał, ostatnie sprawdzenie i stan.
+Check now (`computer_check`) pyta wybrany komputer o jego feed.
+Komputer offline, bez kanału aplikacji lub bez obsługi zdalnej aktualizacji pokazuje
+powód ograniczenia. Kanał i częstotliwość sprawdzania zmienia się na tamtym komputerze.
+Przejścia z Workers oraz dawny adres `/settings/workers#topic-updates` prowadzą
+do Status. Agent CLI instaluje się w szczegółach jego workera.
+[CLI dostawców](provider-cli.md)
+
+**Update preferences** grupuje lokalny kanał i częstotliwość sprawdzania aplikacji
+oraz, dla osobnego gatewaya, jego kanał i pin wersji. Zmiana na starszy kanał
+lub starszą przypiętą wersję gatewaya wymaga potwierdzenia. **Releases** zawiera
+historię zmian oraz dostępne notatki wydania. Pusty zakres notatek aktualizacji
+ukrywa jego rozwinięcie.
 
 Proces main, gateway i web BFF czytają statyczny indeks wydań z CDN GitHub Pages,
 bez tokena i bez limitu REST API. Każdy proces współdzieli cache 15 min oraz trwające
 żądania między oknami, kartami i sprawdzeniami z połączonych komputerów.
-Ręczne **Check now** w popoverze i ustawieniach oraz **Check for updates**
+Ręczne **Check for updates** i **Check now** przy połączonym komputerze
 w Settings → App updates pomijają ten cache i odświeżają metadane w sieci;
 dotyczy to także sprawdzeń aplikacji zleconych z innego komputera i zmiany kanału.
 Timery nadal korzystają z cache, a trwające żądania i pobierania pozostają współdzielone.
@@ -291,8 +246,8 @@ Jeśli nowsza wersja jest już w GitHub Releases, ale nie ma paczki platformy,
 updater wyjaśnia, że publikacja może jeszcze trwać lub wymagać ponowienia;
 nie twierdzi, że aplikacja jest aktualna.
 
-Gotowa paczka własnej aplikacji nie zatrzymuje sprawdzania: **Check now** w popoverze,
-**Check for updates** w Settings → App updates oraz timer nadal szukają nowszych wydań.
+Po pobraniu paczki **Check for updates** w Settings → App updates oraz timer
+nadal szukają nowszych wydań.
 Timer zachowuje wybraną częstotliwość; Never wyłącza tylko automatyczne sprawdzanie
 i pobieranie. Ten sam lub starszy cel z feedu nie zastępuje gotowej paczki.
 Podczas pobierania nowszego buildu wiersz pokazuje jego wersję i procent zamiast Ready;
@@ -328,8 +283,8 @@ Jeśli timeout zdążył zakończyć próbę przed obsługą wznowienia, automat
 sprawdzanie ponawia ją raz. Never wyłącza to ponowienie. Zdrowa próba nie jest
 przerywana; po obsłudze wznowienia wraca zwykły harmonogram.
 
-Wersja serwerowa UI pokazuje centrum bez własnej aplikacji. Odnośniki prowadzą
-do Settings → Workers oraz App updates. Notatki wydań Canopy są dostępne w ustawieniach.
+Wersja serwerowa UI pokazuje w App updates instalacje Canopy zarządzane przez
+podłączony gateway. Notatki wydań są w temacie Releases.
 
 **Update all** zapisuje przebieg w prywatnym `user_settings.settings.updateRun`.
 Orchestrator gatewaya utrzymuje maksymalnie **4 aktywne pozycje**, łącznie dla
@@ -349,7 +304,7 @@ a przy zapowiedzianym restarcie do pięciu minut. Po potwierdzeniu wersji pozost
 kanały mają do minuty na powrót. Zgłoszone uśpienie lub wyłączenie komputera pomija
 jego kroki od razu.
 
-Popover i arkusz mobilny pokazują jeden wspólny licznik „Updating · N of M done”
+Web, Electron i telefon pokazują jeden wspólny licznik „Updating · N of M done”
 (`updateRunSummary`); postęp obejmuje sukcesy oraz zakończone błędy/blokady, pomija
 kroki `skipped`. `begin()` planuje, zapisuje i uruchamia pierwsze kroki przed odpowiedzią,
 więc pierwsza odpowiedź na Update all ma już kroki `running`; odpowiedź wykorzystuje
@@ -373,8 +328,8 @@ przebiegu i indeksu kroku, zachowuje sukcesy i ponawia także zablokowane zależ
 przebieg bez drugiej kolejki. Odczyt postępu nie czeka na odpowiedź instalatora.
 Automatyczna aktualizacja po Hello workera i równoległe Update all współdzielą
 jedno trwałe polecenie; jego wynik nie ginie przez zastąpienie identyfikatora.
-Zmiany przebiegu ogłaszają `updates_changed`; panel i popover współdzielą wyniki,
-bieżącą pozycję, postęp, pominięcia i zakończenie. Dla dostępnego celu limit
+Zmiany przebiegu ogłaszają `updates_changed`. App updates pokazuje postęp,
+pominięcia oraz wynik każdego kroku. Wskaźnik w stopce korzysta z tego samego stanu. Dla dostępnego celu limit
 oczekiwania na potwierdzenie wyniku wynosi 35 minut.
 Web i telefon wysyłają akcje `canopy_update_all`, `canopy_retry_failed` i `canopy_retry_step`.
 Starszy gateway odrzuca te akcje. Pojedynczą aktualizację Canopy można nadal zlecić osobno.
@@ -392,7 +347,7 @@ zewnętrzne aktualizacje zachowują wersje i instrukcję pod ikoną informacji,
 ze stanem „Managed externally” i podsumowaniem „Updates available outside Canopy”.
 Na telefonie nowsza wersja wymagająca osobnej instalacji ma stan „Manual update”.
 Na telefonie odrzucenie pustego planu uruchamia ponowny odczyt.
-Jeśli odczyt potwierdza pusty plan, arkusz pokazuje aktualny stan bez błędu połączenia.
+Jeśli odczyt potwierdza pusty plan, App updates pokazuje aktualny stan bez błędu połączenia.
 Stary błąd spowodowany wyłącznie zewnętrznym gatewayem nie jest pokazywany,
 gdy bieżący snapshot nie zawiera aktualizacji obsługiwanych przez Canopy.
 
@@ -401,7 +356,7 @@ bez tokenów, z cache 60 sekund. Błąd pobierania ma przycisk Retry i nie bloku
 samej aktualizacji. Rozpoczęty krok zachowuje wersję początkową i docelową,
 żeby zmiana najnowszego wydania nie zmieniła historii wybranej aktualizacji.
 
-Workers → Updates oferuje **Update Canopy app** dla `installKind=desktop`.
+Settings → App updates oferuje **Update Canopy app** dla `installKind=desktop`.
 Aktualizuje całą aplikację: Electron, dołączony runtime i worker. Desktop w trybie
 zdalnym musi być sparowany z gatewayem i obsługiwać kanał sterowania z
 [etapu 2 lokalnego frontendu](desktop-remote-frontend.md#wynik-etapu-2).
@@ -415,11 +370,10 @@ oznacza je addytywnymi polami `UpdatesSnapshot.gateway_bundled` i `WorkerUpdate.
 O tym decyduje gateway: rola `desktop` oraz capability `desktop_bundled` z WorkerLink Hello
 (zapisana w `workers.capabilities`). UI nie zgaduje po nazwie ani `installKind`.
 
-Popover, licznik „Up to date · N”, podsumowanie w nagłówku i Settings → Workers → Updates
-pomijają oba elementy. Pozycja „This Canopy app” je reprezentuje; jej podpowiedź mówi
-„Includes this computer’s gateway and worker.”. Settings → Workers → Updates pokazuje zamiast
-gatewaya i kanału jedno zdanie z odnośnikiem do App updates. CLI agentów tego workera mają osobne akcje
-w ustawieniach. Update all obejmuje również zewnętrzne workery podłączone do gatewaya desktopu.
+App updates reprezentuje oba elementy jednym wierszem aplikacji. Informacja pod
+wersją wyjaśnia, że aktualizacja obejmuje jej gateway i worker. Update all obejmuje
+także zewnętrzne workery podłączone do gatewaya desktopu. CLI agentów tego workera
+mają osobne akcje w ustawieniach workera.
 
 Dołączony gateway nie ma własnego kanału: zgłasza kanał swojego buildu (`releaseChannel`
 wersji, np. nightly), ignoruje zapisany `updateChannel` i odrzuca akcję `channel`. Wcześniej
@@ -432,12 +386,12 @@ dołączonego, nawet gdy worker zgłasza `desktop_bundled`.
 
 Wiersze (`UpdateItem`) mają stałą kolumnę akcji, także bez akcji, więc odznaki tworzą jedną
 kolumnę, a pojawiająca się akcja ich nie przesuwa. Ikona, odznaka i akcja są wyrównane do linii
-nazwy; długa nazwa skraca się przed odznaką. Ton odznaki wynika ze stanu (`updateTone`): błąd
-rose, praca w toku amber, „Up to date” emerald jak inne ustalone statusy, reszta neutralna.
+nazwy. Długa nazwa skraca się przed odznaką. „Up to date” ma postać wyciszonego tekstu,
+a zielone „Updated” oznacza pomyślnie zakończony krok z ostatniej godziny.
 
 ## Zdalna aktualizacja aplikacji desktopowej
 
-Właściciel gatewaya wysyła żądanie przez Workers; nie wymaga ono administracyjnej
+Właściciel gatewaya wysyła żądanie z App updates; nie wymaga ono administracyjnej
 roli potrzebnej do aktualizacji samego gatewaya. Gateway przekazuje wyłącznie id
 żądania i ewentualne force. `DesktopControlService` korzysta z tego samego pinned
 TLS Network access i odwoływalnego poświadczenia desktopu co jego UI.
@@ -454,7 +408,7 @@ obowiązujące; brak podpisanego buildu wyłącza funkcję.
 
 Desktop pokazuje powiadomienie o żądaniu. Po pobraniu ustawia barierę przyjmowania
 pracy przez własnego workera i czeka na zakończenie tur, generacji i zadań w tle.
-Workers pokazuje „Will restart after the current turns”; **Restart now…** otwiera
+App updates pokazuje „Restarts after its current turns end.”; **Restart now…** otwiera
 potwierdzenie przerwania pracy. Force wymaga id tego samego oczekującego żądania.
 Restart instaluje cały bundle, uruchamia aplikację i odtwarza połączenie.
 Na Windows aktualizacja lokalna oraz zlecona przez gateway lub połączony komputer
@@ -497,7 +451,7 @@ Jeśli aplikacja zdążyła zapisać końcowy błąd, po restarcie zachowuje jeg
 Ustalenie, co wywołało zamknięcie aplikacji, wymaga
 dodatkowych zdarzeń z [lokalnego logu desktopu](desktop.md#automatyczne-aktualizacje-desktopu).
 
-**Check now** na gatewayu wysyła też `DesktopUpdateCommand.check` do każdej sparowanej,
+**Check for updates** na gatewayu wysyła też `DesktopUpdateCommand.check` do każdej sparowanej,
 podłączonej aplikacji (bez trwającego żądania, z włączonym updaterem; najwyżej raz na 10 s
 na aplikację) i nie czeka na wynik: raporty przychodzą jako `desktop_update`. Wcześniej
 sprawdzał tylko feed gatewaya, więc pozostałe aplikacje pokazywały „Up to date” do
@@ -519,7 +473,7 @@ po aktualizacji tej aplikacji inną drogą wyglądałby jak downgrade.
 Tryb lokalny nie otwiera tego strumienia; połączone komputery używają osobnego kanału
 aplikacji z dołączonym gatewayem ([niżej](#połączone-komputery)).
 
-W popoverze i Settings → Workers → Updates zdalny desktop pokazuje akcję
+W Settings → App updates zdalny desktop pokazuje akcję
 „Update Canopy app”, gdy własny updater zgłosi nowszą wersję. Dostępność zależy
 od potwierdzonego kanału desktopu, nie od osobnego strumienia UpdateService workera
 ani wersji gatewaya. Aktualny worker ma krótką informację, że aktualizuje się z aplikacją
@@ -541,13 +495,13 @@ uruchamiania usług. Wersja aplikacji nie jest numerem protokołu.
 Lokalny status nigdy nie czeka na partnera. Jego ostatni snapshot pozostaje widoczny,
 a zwykłe odświeżenie w tle ma limit 10 s. Loading/Waiting i „Waiting for {name}.
 Local updates are ready.” nie oznaczają awarii łącza. Dopiero utrata liveness daje
-Unavailable i „{name} is unavailable. Trying again automatically.”. Check now
+Unavailable i „{name} is unavailable. Trying again automatically.”. Check for updates
 sprawdza lokalnie i osobno planuje idempotentne sprawdzenia partnerów (120 s),
 bez czekania na nie. Jawna instalacja u partnera ma limit 15 min; nie jest ponawiana
 automatycznie. Czasy, limity współbieżności i circuit breaker opisuje
 [zsumowany widok](linked-computers.md#zsumowany-widok).
 
-Check now z telefonu i przeglądarki wysyła również `DesktopUpdateCommand.check`
+Check for updates z telefonu i przeglądarki wysyła również `DesktopUpdateCommand.check`
 do aplikacji tego komputera przez istniejący kanał `WatchAppControl`. Nie instaluje
 ani nie restartuje aplikacji. Gateway scala równoległe żądania i wysyła najwyżej
 jedno na 10 s; aktywne sprawdzanie, pobieranie lub żądanie aktualizacji ma pierwszeństwo.
@@ -585,7 +539,7 @@ a sam postęp aplikacja raportuje najwyżej raz na sekundę (ostatnią wartość
 zdalnym zeruje je przed zapisem do `desktop_updates`. Starsza aplikacja ich nie wysyła: wiersz wygląda
 wtedy jak wcześniej (wersja docelowa z `available_version`). `target_version` zakończonego żądania nie
 jest już celem wiersza; liczy się tylko wersja nowsza od bieżącej. Centrum aktualizacji web to jeden
-współdzielony stan na kartę (wskaźnik w pasku bocznym, Workers i App updates); czyta co 2 s tylko,
+współdzielony stan na kartę (wskaźnik w pasku bocznym i App updates); czyta co 2 s tylko,
 gdy któryś komputer pobiera aktualizację, poza tym po zdarzeniach opisanych wyżej.
 Nowe pola `DesktopUpdateCommand`: `requested_by` (nazwa komputera w powiadomieniu „MacBook
 requested an app update…”) i `check` (samo sprawdzenie feedu, bez instalacji).
@@ -615,7 +569,7 @@ aktualizować stąd („Update Laptop on that computer.” dla partnera bez capa
 pośredniego). Dla bezpośrednich partnerów z capability A dołącza ich snapshot (limit 3 s; partner,
 który nie odpowie, jest pokazywany bez niego). Id workerów są kwalifikowane węzłem domu, więc
 akcje na workerach i CLI B trasują się jak inne wywołania. CLI partnera aktualizuje istniejące
-trasowane `InstallCli` (wymaga wspólnej konfiguracji). Check now na A prosi aplikacje partnerów
+trasowane `InstallCli` (wymaga wspólnej konfiguracji). Check for updates na A prosi aplikacje partnerów
 o sprawdzenie ich feedów. Podczas restartu B jego obecność to `updating` (ogłoszona przed
 zamknięciem), więc UI pokazuje „Restarting”, a nie błąd; po powrocie snapshot ma nową wersję.
 
@@ -697,7 +651,8 @@ z `app.getVersion()`, web wersji swojego buildu, mobile wersji bundla JS
 (`CANOPY_VERSION`), więc OTA i aktualizacja sklepowa trafiają w ten sam przepływ.
 Aktualizacja połączonego komputera nie wywołuje własnego powiadomienia.
 
-Settings → App updates i stopka Updates dają „What's new” także później.
+Settings → App updates udostępnia „What's new” także później. W web i Electronie
+podsumowanie w stopce prowadzi do nieobejrzanych notatek.
 Widok zawiera zgrupowany ostatni zakres albo bieżące i 9 wcześniejszych wydań
 tego samego kanału; nie podaje wersji nowszych niż uruchomiony build.
 Wpisy mają scope i link PR-a. Puste dane, brak bieżącego wydania, ucięta
@@ -798,7 +753,7 @@ jeżeli ma korzystać z tego samego źródła zamiast domyślnego API GitHuba.
 **`latest` oznacza teraz stable**, a stare zapisane `updateChannel: "latest"` gateway przy
 starcie zapisuje jako `stable`. Zmienna środowiskowa `latest` i żądania starszych klientów
 także są normalizowane do stable. Nie publikujemy już rolling GitHub release/tagu `latest`
-ani buildów `X.Y.Z-main.<sha7>`. Settings → Workers → Updates pozwala wybrać trzy kanały
+ani buildów `X.Y.Z-main.<sha7>`. Settings → App updates → Update preferences pozwala wybrać trzy kanały
 lub wpisać stabilny pin. Nightly z dev, beta z next i stable z main opisuje [release.md](release.md).
 Nightly powstaje w cyklu godzinowym, o minucie 40 UTC, tylko dla zmian releasowalnych
 (lub po ręcznym dispatchu). Push do `dev` nie publikuje aktualizacji; cron, kolejka i buildy mogą
@@ -879,7 +834,7 @@ executable ani jego `.bak`, `.next` lub rekordu aktualizacji obok binarki.
 
 ## Wymiana, restart i rollback
 
-1. Administrator aktualizuje gateway w **Settings → Workers → Updates**.
+1. Administrator aktualizuje gateway w **Settings → App updates**.
    Gateway sprawdza kanał co 15 minut; akcje zarządzania wymagają roli `admin`.
    Kanał zapisuje się w istniejącym `user_settings.settings.updateChannel`.
 2. Od przyjęcia aktualizacji gateway zapisuje nowe tury i polecenia rozpoczęcia

@@ -8,7 +8,7 @@
   import { useSettings } from "./settings-state.svelte.ts";
   import PreferenceRow from "./PreferenceRow.svelte";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
-  import { devicePreferences as device } from "./device-preferences.svelte.ts";
+  import { devicePreferences as device, notificationDeviceKeys } from "./device-preferences.svelte.ts";
   import { enableNotificationSound } from "#lib/features/notifications/notification-sound.ts";
 
   const resetKey = "claudeLimitResetNotifications";
@@ -162,7 +162,18 @@
   </div>
 {/snippet}
 
-<SettingsGroup title="Notifications" description="This device · Only while a Canopy window is open.">
+<SettingsGroup title="This device" description="Keep a Canopy window open to receive alerts.">
+  {#snippet actions()}
+    <Button
+      size="sm"
+      icon="arrow-path"
+      disabled={Boolean(pending)}
+      onclick={() => {
+        attempted = undefined;
+        device.reset(notificationDeviceKeys);
+      }}>Restore device defaults</Button
+    >
+  {/snippet}
   {#each rows as row (row.key)}
     {@const value = device.values[row.key]}
     <PreferenceRow

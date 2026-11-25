@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { MediaQuery } from "svelte/reactivity";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -41,8 +40,7 @@
   });
 
   let query = $state("");
-  const wide = new MediaQuery("(min-width: 64rem)");
-  const searchQuery = $derived(wide.current && !focused ? query.trim() : "");
+  const searchQuery = $derived(focused ? "" : query.trim());
   let matchedPanel = $state<string>();
 
   provideSettingsSearch({
@@ -105,7 +103,7 @@
   <div class="flex h-full">
     {#if !focused}
       <div
-        class="w-(--settings-nav-width) shrink-0 scroll-stable overflow-y-auto border-r border-zinc-950/5 bg-zinc-50 p-3 max-lg:hidden dark:border-white/8 dark:bg-white/2"
+        class="w-(--settings-nav-width) shrink-0 border-r border-zinc-950/5 bg-zinc-50 max-lg:hidden dark:border-white/8 dark:bg-white/2"
       >
         <SettingsNav bind:query />
       </div>
@@ -115,7 +113,7 @@
         <div class="border-b border-divider" data-window-drag>
           <div class="mx-auto flex min-h-12 max-w-(--settings-content-width) items-center px-4 sm:px-6">
             <Button variant="ghost" icon="arrow-left" data-autofocus onclick={onclose}>Back</Button>
-            <SettingsBreadcrumb focused />
+            <SettingsBreadcrumb focused bind:query />
           </div>
         </div>
       {:else}
@@ -123,7 +121,7 @@
           class="flex min-h-11 shrink-0 items-center gap-2 border-b border-zinc-950/5 pr-2 pl-4 dark:border-white/8"
           data-window-drag
         >
-          <SettingsBreadcrumb class="flex-1" />
+          <SettingsBreadcrumb class="flex-1" bind:query />
           <IconButton icon="x-mark" label="Close settings" onclick={onclose} />
         </div>
       {/if}

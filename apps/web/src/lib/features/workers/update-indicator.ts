@@ -73,7 +73,7 @@ export function updateIndicator(
             computers.find((c) => c.view.progress !== undefined)?.view.progress),
     };
 
-  if (app?.phase === "downloaded")
+  if (app?.phase === "downloaded" || app?.stagedVersion)
     return { phase: "ready", message: "Canopy update ready. Restart to install it.", progress: 100 };
 
   const paused = [

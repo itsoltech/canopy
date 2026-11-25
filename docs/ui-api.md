@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-25): wspólny katalog web, desktopu i mobile prowadzi do listy
+wątków w Threads, alertów użytkownika w Notifications i aktualizacji Canopy
+w App updates. [Mapa ustawień](settings-map.md)
+
 Aktualizacja (2026-11-25). Automatyczny mini Preview w web i desktopie śledzi
 trwające wywołania automatyzacji. W Desktop pokazuje zrzut zwrócony agentowi
 lub bieżący obraz potwierdzonego okna z limitem 12 klatek na sekundę.
@@ -115,8 +119,11 @@ a **Threads → Archiving** grupuje archiwizację po scaleniu PR i retencję his
 Przy jednym dostępnym temacie formularz otwiera się od razu. Przełączenie
 zakładki zachowuje niezapisane pola. Fragment adresu (np. `/settings/threads#topic-archiving`)
 otwiera temat także po odświeżeniu. Back zamyka nakładkę jednym krokiem.
-Wyszukiwarka filtruje sekcje, wybiera temat z dopasowaniem i podświetla słowa
-w otwartej sekcji z pominięciem treści dialogów.
+W szerokim układzie wyszukiwarka pozostaje nad przewijaną listą sekcji, a w wąskim
+układzie jest w menu wyboru sekcji. Oba pola filtrują sekcje, wybierają temat
+z dopasowaniem i podświetlają słowa w otwartym formularzu.
+Dawne linki do zakładek Thread list i Notifications w General oraz Updates w Workers
+prowadzą do aktualnych sekcji i zachowują możliwość zamknięcia nakładki jednym krokiem.
 Boczne menu ustawień web/desktop pokazuje ikony obok etykiet sekcji. Web, desktop
 i mobile używają logo GitHuba w sekcji GitHub, wtyczki w Connectors i strzałek
 w przeciwnych kierunkach w Proxies.
@@ -432,7 +439,7 @@ Jeśli strona Settings została otwarta bezpośrednio podczas przerwy w połącz
 zamknięcie prowadzi do strony głównej.
 Ikona Usage otwiera podsumowanie tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC.
 Panel pobiera dane przy otwarciu. „Open usage report” otwiera pełny raport nad bieżącą stroną.
-Najechanie na Usage, Workers, Updates lub Provider usage pokazuje jeden panel naraz.
+Najechanie na Usage, Workers, Updates lub Provider usage pokazuje jeden panel naraz. Panel Updates pokazuje stan i odnośnik do App updates.
 Aktywacja przycisku przypina panel, a na telefonie otwiera dolny arkusz.
 Dotknięcie przyciemnionego tła zamyka arkusz i pozostawia nawigację w miejscu.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
@@ -722,7 +729,7 @@ przy zgodnym protokole nie jest błędem. [Projekt i migracja](desktop-remote-fr
 
 ## Diagnostics
 
-Settings → Diagnostics w General pokazuje lokalny gateway i wszystkie połączone
+Settings → Diagnostics w grupie System pokazuje lokalny gateway i wszystkie połączone
 komputery; web, desktop i mobile korzystają z tego samego kontraktu.
 `GetDiagnostics` zwraca overview, a `GetComputerDiagnostics` stronicowane szczegóły
 RPC (maks. 32 metody), sortowane i filtrowane na domu. Zakresy to 1 min, 15 min,
@@ -1446,7 +1453,7 @@ Pełne zasady tokenu, usług i zachowania historii: [worker-config.md](worker-co
 `Worker.cli_tools` (**800**) i `Worker.arch` (**801**) pokazują CLI workera z najnowszą wersją, akcją i powodem
 blokady. `InstallCli` (jeden worker albo `all_workers` dla dostawcy) i `CheckCliUpdates` są właścicielskie i
 egzekwowane w gatewayu; BFF: `POST /api/workers/cli/install`, `POST /api/workers/cli/check`. W web i desktopie „Agent CLIs” to zakładka na stronie wybranego workera.
-Settings → Workers → Updates zawiera „Agent CLI updates” z „Update all”. Kropka przy Workers sygnalizuje dostępne aktualizacje. Zasady:
+Settings → Workers → Agent CLIs zawiera zbiorczą akcję aktualizacji CLI. Kropka przy Workers sygnalizuje dostępne aktualizacje CLI. Zasady:
 [provider-cli.md](provider-cli.md).
 
 Opcjonalne `InstallCliRequest.install_id` (**5**) jest UUID próby przekazywanym do workera;

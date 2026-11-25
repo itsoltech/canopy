@@ -552,7 +552,7 @@ aplikacji (`Worker.desktop_bundled`). Inaczej folder otworzyłby się na innej m
 
 ## Przepływy UI
 
-### Settings → Worktrees (sekcja Code)
+### Settings → Worktrees (grupa Workspace)
 
 Nagłówek: „Applying settings for **[All projects | projekt]** across **[All computers | komputer]**”
 (dwa własne pickery z kitu). W web/desktop zakładka **New worktrees** grupuje ustawienia Creation, Branches i New threads.

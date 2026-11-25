@@ -7,28 +7,36 @@ import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 
 export function UpdateDetails({ text }: { text: string }) {
   const c = useColors();
-  const [copied, setCopied] = useState("");
 
   return (
     <SettingsDisclosure title="Show details">
       <Text selectable style={[styles.overlayMeta, { color: c.muted }]}>
         {text}
       </Text>
-      <View style={[styles.row, { flexWrap: "wrap" }]}>
-        <Button
-          title="Copy details"
-          size="sm"
-          variant="ghost"
-          onPress={() => {
-            void Clipboard.setStringAsync(text)
-              .then(() => setCopied("Copied"))
-              .catch(() => setCopied("Could not copy. Select the text to copy it."));
-          }}
-        />
-        <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-          {copied}
-        </Text>
-      </View>
+      <CopyUpdateDetails text={text} />
     </SettingsDisclosure>
+  );
+}
+
+export function CopyUpdateDetails({ text }: { text: string }) {
+  const c = useColors();
+  const [copied, setCopied] = useState("");
+
+  return (
+    <View style={[styles.row, { flexWrap: "wrap" }]}>
+      <Button
+        title="Copy details"
+        size="sm"
+        variant="ghost"
+        onPress={() => {
+          void Clipboard.setStringAsync(text)
+            .then(() => setCopied("Copied"))
+            .catch(() => setCopied("Could not copy. Select the text to copy it."));
+        }}
+      />
+      <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
+        {copied}
+      </Text>
+    </View>
   );
 }

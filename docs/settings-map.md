@@ -1,5 +1,10 @@
 # Mapa ustawień Canopy
 
+Status (2026-11-25): web, desktop i mobile grupują sekcje według zadań.
+Preferencje listy wątków są w **Threads**, alerty użytkownika w **Notifications**,
+a aktualizacje Canopy w **App updates**. Zmiana nawigacji zachowuje zapisane
+wartości i ich dotychczasowe zakresy. Dostępność wydań opisuje [release.md](release.md).
+
 Status (2026-11-21): mapa zaimplementowanych ustawień. Lokalny Desktop zawiera
 ustawienia relaya mobilnych powiadomień z automatyczną aktywacją relaya Canopy.
 Panel webowy serwera również pozwala konfigurować własny relay.
@@ -22,22 +27,37 @@ Dostępność wydań według [release.md](release.md).
 Status (2026-11-23): natywne Settings zawiera sekcję Agent tools i sprawdza obsługę sekcji przez sparowany gateway.
 
 Status (2026-11-24): ścieżki w tabelach uwzględniają zakładki wewnątrz sekcji web/desktop. Natywne Settings zachowuje własny układ.
-General → Notifications w web/desktop zawiera przełącznik odnowienia limitu Claude.
+Powiadomienia w web/desktop obejmują odnowienie limitu Claude.
 Domyślny font interfejsu web i desktop jest widoczny jako Inter.
 W trybach lokalnym i zdalnym Desktop ma sekcję **Accessibility** z ustawieniami
 fokusu, kontrastu, rozmiaru interfejsu, kolorów diffów i animacji maskotek.
 
 ## Nawigacja
 
-General obejmuje **App updates**, **General**, **Appearance**, **Keybindings**,
-**Threads**, **Memory**, **Text generation**, **Scheduled tasks**, **Diagnostics** i **Open-source licenses**.
-Code obejmuje **Projects**, **Worktrees**, **Diffs**, **Agent environment**,
-**Agent tools** i **Import**.
-Connections obejmuje **Providers**, **GitHub**, **Connectors**, **Proxies**,
-**Workers**, **Network access**, **Devices** i **Linked computers**.
-Powłoka Electron dodaje **Accessibility** w grupie General, zaraz po Appearance,
-oraz **Desktop** w Connections. Widoczność sekcji zależy od aktywnych modułów,
-klienta i możliwości gatewaya.
+Grupy porządkują nawigację, a wybór nazwy sekcji otwiera jej ustawienia.
+
+| Grupa | Sekcje w kolejności widocznej w menu |
+| --- | --- |
+| Preferences | General, Appearance, Accessibility, Notifications, Keybindings |
+| Workspace | Threads, Projects, Worktrees, Diffs, Scheduled tasks, Import |
+| Agents | Providers, Agent environment, Agent tools, Memory, Text generation |
+| Connections | Connectors, GitHub, Proxies, Network access, Devices, Linked computers |
+| System | App updates, Desktop, Workers, Diagnostics, Open-source licenses |
+
+Accessibility i Desktop są widoczne tylko w powłoce desktopowej. Klient pokazuje
+sekcje dostępne dla aktywnych modułów i możliwości gatewaya.
+W **Threads → Thread list** można ustawić kolejność i grupowanie listy oraz potwierdzenia
+jej akcji. W aplikacji mobilnej przy włączonym wyłącznie module Bots potwierdzenia
+odpinania i archiwizacji botów są dostępne w General. Alerty dla użytkownika należą do **Notifications**. Osobna opcja
+„Notify agent about pull requests” w **Threads** wybiera, czy agent otrzymuje
+zdarzenia z GitHuba w powiązanym wątku.
+
+**App updates** skupia sprawdzanie wersji, instalację i postęp aktualizacji Canopy,
+w tym gatewaya, workerów i połączonych komputerów. W web/desktop służy do tego
+zakładka **Status**. **Releases** pokazuje notatki o wydaniach, a **Update preferences**
+pojawia się, gdy klient ma ustawienia aplikacji lub kanału gatewaya. Wskaźnik aktualizacji
+w pasku bocznym prowadzi do tej sekcji. **Workers → Agent CLIs** służy do sprawdzania
+i aktualizowania narzędzi dostawców na workerach.
 
 Wyszukiwarka sekcji w web/desktop i mobile dopasowuje każde słowo zapytania
 do nazwy lub słów kluczowych, niezależnie od kolejności, wielkości liter,
@@ -51,7 +71,7 @@ W Desktop słowa `focus indicators`, `contrast` i `interface size` wskazują
 Accessibility. `animated mascots` wskazuje tę sekcję przy włączonych botach,
 a `diff colors` i `blue orange` przy włączonych wątkach.
 
-**General → Diagnostics**: karty wszystkich komputerów, metryki RPC i RTT, findings
+**System → Diagnostics**: karty wszystkich komputerów, metryki RPC i RTT, findings
 oraz osobne granty odczytu przez relay; [diagnostics.md](diagnostics.md).
 W web/desktop **Overview** pokazuje stan komputerów, **Performance** metryki wybranego
 komputera, **Calls and tracing** wywołania RPC i tracing, a **Reports and logs** udostępnia raporty i zbieranie logów.
@@ -120,15 +140,15 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | --- | --- | --- | --- | --- |
 | General / Modules | First tab; Threads; Bots | konto | Threads, następnie Bots | Pierwszy moduł otwiera się przy starcie. Wyłączenie modułu zatrzymuje jego pracę, ukrywa widoki i rozłącza boty z wątkami. Ponowne włączenie przywraca historię i obsługę wcześniej aktywnych automatyzacji. |
 | Keybindings | Skróty komend, kompozytora, cytowania i modeli | urządzenie | przypisania rejestru | Wyszukiwanie, edycja, nagrywanie i dodatkowe przypisania z kontrolą konfliktów kontekstu |
-| General / Notifications | Thread notifications | urządzenie | Off | Alert systemowy, gdy wątek kończy turę, ma błąd, zatrzymuje go system albo czeka na zgodę/odpowiedź; tytuł wątku, projekt/komputer i krótki podgląd; tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); z dźwiękiem oglądany wątek gra tylko dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC ([notifications.md](notifications.md)) |
-| General / Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
-| General / Notifications | Claude usage limit resets | urządzenie | Off | Cichy alert o potwierdzonym odnowieniu wyczerpanego limitu bezpośredniego konta Claude lub konta z CLIProxyAPI, gdy okno Canopy jest otwarte |
-| General / Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota albo resecie limitu Claude przy fokusie aplikacji |
+| Notifications | Thread notifications | urządzenie | Off | Alert systemowy, gdy wątek kończy turę, ma błąd, zatrzymuje go system albo czeka na zgodę/odpowiedź; tytuł wątku, projekt/komputer i krótki podgląd; tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); z dźwiękiem oglądany wątek gra tylko dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC ([notifications.md](notifications.md)) |
+| Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
+| Notifications | Claude usage limit resets | urządzenie | Off | Cichy alert o potwierdzonym odnowieniu wyczerpanego limitu bezpośredniego konta Claude lub konta z CLIProxyAPI, gdy okno Canopy jest otwarte |
+| Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota albo resecie limitu Claude przy fokusie aplikacji |
 | Sidebar | Project filter | urządzenie/gateway | All projects | Filtr listy aktywnej i archiwum, niezależny od pozostałych urządzeń |
-| General / Thread list / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
-| General / Thread list / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
-| General / Thread list / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
-| General / Thread list / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
+| Threads / Thread list / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
+| Threads / Thread list / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
+| Threads / Thread list / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
+| Threads / Thread list / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
 | General / Device / Time | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
 | General / Device / Time | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |
 | Threads / Conversation / Thread details | Keep finished subagents in the list | urządzenie | Off | Off grupuje zakończonych pod rozwijanym N finished; On pokazuje ostatnie 10 minut i starszych pod Previous subagents. Reset przywraca Off; sidebar zawsze ukrywa subagentów |
@@ -153,7 +173,7 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Diffs / Viewer | Diff colors | urządzenie | Red & green | Także Blue & orange; znaki +/− pozostają |
 | General / Device / Desktop app | Quit shortcut | urządzenie, store Electron | Press twice | Tylko desktop: sposób reagowania na skrót zamykania (dwukrotne naciśnięcie, przytrzymanie, natychmiast); reset pojedynczy i całej strony General |
 | App updates / Update preferences | Update check frequency | urządzenie/store Electron | Every 6 hours | Rzeczywisty timer procesu main; Hourly / 6h / Daily / Weekly / Never. Never wyłącza automatyczne sprawdzanie i pobieranie, ręczne sprawdzanie działa; ostatni/następny termin i trwałość po restarcie |
-| Workers / Updates / CLI update schedule | Agent CLI update check frequency | konto/DB | Every 6 hours | Pobieranie najnowszych wersji Claude Code, Codex i Grok przez gateway; te same interwały i Never; nigdy nie instaluje CLI |
+| Workers / Agent CLIs / CLI update schedule | Agent CLI update check frequency | konto/DB | Every 6 hours | Pobieranie najnowszych wersji Claude Code, Codex i Grok przez gateway; te same interwały i Never; nigdy nie instaluje CLI |
 | Workers / wybrany worker / Agent CLIs | Update checks | konto, nadpisanie workera | Use account | Efektywna częstotliwość w WorkerConfig, raporty workera i oddzielny trwały stan dostępności aktualizacji; Last checked / Next check; ręczny Check for updates działa również przy Never |
 
 ## Istniejące ustawienia zachowane kontekstowo
@@ -176,17 +196,17 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Worktrees / Cleanup rules | Inactive for days; Keep worktrees with local changes; Delete safe local branches | konto/zakres: 0 (Off); On; Off | Reguły Archived/Deleted threads zezwalają odrzucić lokalne pliki po zamknięciu wszystkich współdzielących wątków; opcjonalne sprzątanie lokalnej gałęzi wymaga potwierdzonego merge oraz archiwizacji wątków zgodnie z [regułami worktree](worktrees.md#sprzątanie-etap-2). Pozostałe reguły chronią zwykłe lokalne zmiany; pliki ignorowane przez Git nie blokują sprzątania. Keep worktrees with local changes pozostaje „Soon” i zmienia tylko etykietę dla pozostałych reguł |
 | Agent tools | Agent Browser, Agent Desktop, Agent Device; Session defaults | dostęp per worker; wartości początkowe na koncie | Włączanie dostępu, instalacja, gotowość i ustawienia nowych sesji na web, desktop i mobile |
 | Agent environment | Instruction fragments; files; skills; sources; plugins; tags; machine targeting; synchronization | konto/zasoby: brak | Konfiguracja środowiska agentów na wybranych workerach |
-| Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login/install/updates | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway |
+| Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway. W web/desktop odnośnik Manage agent CLIs otwiera ustawienia CLI dla wybranego zakresu workerów. |
 | Connectors | Accounts; OAuth apps; grants; access targets; test/disconnect | konto/zasoby: brak | Uprawnienia zewnętrznych MCP |
 | Proxies | Name; endpoint; API key; provider transport options | konto/zasoby: brak | Współdzielone połączenia dostawców |
-| Workers | Enrollments; public gateway URL; SSH install; name/tags; CLI updates; Updates (ten komputer, połączone komputery, workery i Agent CLIs według komputera) | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
+| Workers | Enrollments; public gateway URL; SSH install; name/tags; Agent CLIs | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
 | Network access | Enabled; port; hostnames; routes; TLS fingerprint | komputer gatewaya: Off, automatyczny port | Osiągalność gatewaya i przypięty TLS; adres nasłuchu ustawia wyłącznie konfiguracja gatewaya |
 | Network access / Attachments | Per file; per message; file count | konto: 20 MiB, 50 MiB, 10 | Limity uploadu egzekwowane przez gateway |
 | Network access / Push relay | Canopy relay; Relay address; Relay token; prywatne CA | web serwerowy: konfiguracja wdrożenia. Lokalny Desktop: relay Canopy | Relay Canopy aktywuje się po włączeniu push na sparowanym telefonie i weryfikacji aplikacji. Wybór zapisany w panelu ma pierwszeństwo i działa bez restartu. |
 | Devices | Pairing code / QR; device list; revoke | konto/zasoby: brak | Dostęp telefonów i klientów desktopowych |
 | Linked computers | Identity; link/pair; rename; onward sharing; unlink; per-item sharing/conflicts | komputer gatewaya: brak linków, lokalne | Wzajemny dostęp i jawne udostępnianie konfiguracji |
 | Desktop | Local/remote mode; worker status; detected CLIs; change mode | urządzenie/store: wybór przy konfiguracji | Wyłącznie topologia uruchomienia i status lokalnych usług; bez ogólnych preferencji zachowania |
-| App updates | Installed version; channel; check frequency; check now; download/restart status; release notes; Linked computers (version, target, channel, status, Check now, Update) | urządzenie/store: kanał builda, 6 h; partnerzy: tylko odczyt | Wyłącznie aktualizacje powłoki i runtime; kanał i częstotliwość połączonego komputera zmienia się na nim samym |
+| App updates | Status; Update preferences; Releases | aplikacja: kanał buildu, sprawdzanie co 6 h na desktopie; gateway: ustawienia administratora | Sprawdzanie, instalacja i postęp aktualizacji dostępnych dla tego klienta. Kanał i częstotliwość sprawdzania aplikacji połączonego komputera ustawia się na tym komputerze. |
 
 Stan widoku jest lokalny dla urządzenia i gatewaya: filtr projektów, grupowanie,
 zwinięcie projektów i worktree,
@@ -211,7 +231,7 @@ Potwierdzenia, domyślne nowego wątku i tryb Steer/Queue nadal opisują zachowa
 Przypięcia wątków/botów organizują zasoby i także pozostają na koncie. Nowe klienty
 zmieniają w sekcji `sidebar` wyłącznie przypięcia, zachowując stare pola dla migracji.
 Gateway nadal przyjmuje zapisy starych klientów; nie usuwa pól proto ani danych DB.
-Pamięć ostatniej sekcji Settings, tras, przewijania, rozwinięcia Updates oraz ręczne
+Pamięć ostatniej sekcji Settings, tras, przewijania oraz ręczne
 foldy już żyją w pamięci klienta lub preferencjach urządzenia. Gęstość, typografia
 i domyślne rozwinięcie aktywności tur także pozostają lokalne. Filtr mobile używa
 tego samego modelu co web; wyszukiwanie jest przejściowym stanem listy. Obecny
@@ -225,7 +245,7 @@ nie zmiana przypisania klawiszy.
 Audyt Desktop: tryb local/remote, status workera i wykryte CLI opisują miejsce
 uruchomienia usług i pozostają na tej stronie; ogólnych preferencji tam nie dodajemy.
 App updates nie zawiera skrótów ani innych ustawień niezwiązanych z aktualizacjami.
-W Workers → Updates sekcja CLI update schedule określa częstotliwość sprawdzania wersji CLI.
+W Workers → Agent CLIs sekcja CLI update schedule określa częstotliwość sprawdzania wersji CLI.
 
 ## Pominięcia
 

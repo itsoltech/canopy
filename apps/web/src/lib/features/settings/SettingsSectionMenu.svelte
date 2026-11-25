@@ -2,13 +2,13 @@
   import HabitReviewBadge from "#lib/features/memory/HabitReviewBadge.svelte";
   import { habitsSettingsHref, memorySettingsPath } from "#lib/features/memory/habit-suggestions.svelte.ts";
   import { habitSuggestionCount } from "#lib/features/memory/habits-format.ts";
-  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import { goto } from "$app/navigation";
+  import Combobox from "#lib/shared/ui/Combobox.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import MenuGroup from "#lib/shared/ui/MenuGroup.svelte";
-  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import Popover from "#lib/shared/ui/Popover.svelte";
   import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
-  import { settingsGroups } from "./sections.ts";
+  import { matchesSettingsSection } from "./sections.ts";
   import { useSettingsSections } from "./settings-sections.svelte.ts";
 
   /**
@@ -16,6 +16,8 @@
    * where you are and lists every section by group, the open one checked. A dot marks sections that need attention.
    */
   const sections = useSettingsSections();
+  let { query = $bindable() }: { query: string } = $props();
+  let open = $state(false);
   const current = $derived(sections.current);
   const waiting = $derived(sections.all.some((s) => sections.hinted(s.href)));
   const habitCount = $derived(sections.habitCount);
@@ -24,14 +26,25 @@
     [
       `Settings section: ${current?.label ?? "Settings"}`,
       habitCount && habitSuggestionCount(habitCount),
-      waiting && "updates available",
+      waiting && "agent CLI updates available",
     ]
       .filter(Boolean)
       .join(", "),
   );
 </script>
 
-<DropdownMenu label="Settings sections" sheet>
+<Popover
+  bind:open
+  label="Settings sections"
+  sheet
+  class="w-[min(22rem,calc(100vw-1rem))]"
+  triggerKeydown={(event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      open = true;
+    }
+  }}
+>
   {#snippet trigger(props)}
     <button
       type="button"
@@ -47,24 +60,37 @@
       <TouchTarget />
     </button>
   {/snippet}
-  {#each settingsGroups as group (group)}
-    {@const items = sections.all.filter((s) => s.group === group)}
-    {#if items.length > 0}
-      <MenuGroup label={group}>
-        {#each items as section (section.href)}
-          {@const reviewHabits = section.href === memorySettingsPath && habitCount}
-          <MenuItem
-            href={reviewHabits ? habitsSettingsHref : section.href}
-            current={sections.isActive(section.href)}
-            description={sections.hinted(section.href) ? "Updates available" : undefined}
-          >
-            {section.label}
-            {#if reviewHabits}
-              <HabitReviewBadge count={habitCount} class="ml-1.5 align-middle" />
-            {/if}
-          </MenuItem>
-        {/each}
-      </MenuGroup>
-    {/if}
-  {/each}
-</DropdownMenu>
+  <Combobox
+    inline
+    autofocus
+    label="Search settings"
+    placeholder="Search settings"
+    items={sections.all}
+    key={(section) => section.href}
+    text={(section) => section.label}
+    groupOf={(section) => section.group}
+    filter={matchesSettingsSection}
+    value={current?.href}
+    bind:query
+    onselect={(section) => {
+      open = false;
+      void goto(section.href === memorySettingsPath && habitCount && !query.trim() ? habitsSettingsHref : section.href);
+    }}
+    class="max-h-[min(24rem,var(--float-available-height,24rem))] in-data-sheet:max-h-[70dvh]"
+  >
+    {#snippet empty(term)}
+      <p class="wrap-anywhere">No setting matches “{term}”.</p>
+    {/snippet}
+    {#snippet option(section, state)}
+      <span class="flex min-w-0 items-center gap-2">
+        <Icon name={section.icon} tone="inherit" />
+        <span class="min-w-0 flex-1 truncate">{section.label}</span>
+        {#if section.href === memorySettingsPath && habitCount}<HabitReviewBadge count={habitCount} />{/if}
+        {#if sections.hinted(section.href)}
+          <StatusDot tone="amber" /><span class="sr-only">Agent CLI updates available</span>
+        {/if}
+        {#if state.selected}<Icon name="check" class="text-brand-600 dark:text-brand-400" />{/if}
+      </span>
+    {/snippet}
+  </Combobox>
+</Popover>

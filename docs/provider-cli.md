@@ -3,7 +3,8 @@
 Aktualizacja (2026-11-24): worker wykrywa Google Antigravity CLI jako `agy`.
 Instalację i pierwsze logowanie opisuje [adapter Antigravity](antigravity-adapter.md).
 
-Status: opis zaimplementowanego kodu (2026-11-21), w tym ponawiania aktualizacji pakietu Groka
+Status: opis zaimplementowanego kodu (2026-11-25), w tym zarządzania CLI w Agent CLIs
+na workerze i skrótów z Providers z zachowaniem zakresu, ponawiania aktualizacji pakietu Groka
 w mise, gdy launcher nadal używa poprzedniej binarki, osobnego zarządzania CLI w ustawieniach,
 aktualizacji globalnych instalacji mise oraz uruchamiania skryptów CLI
 z katalogów ze spacjami na Windows oraz aktualizacji natywnych instalacji Claude Code
@@ -23,8 +24,12 @@ workera albo wybrać „Update all” dla dostawcy. Antigravity (`agy`) instaluj
 ręcznie z dystrybucji Google i aktualizuje poleceniem `agy update`.
 
 Licznik, „Update all” i ponowienie w panelu aktualizacji Canopy obejmują wyłącznie aplikacje,
-gateway i workery Canopy. Instalacje i aktualizacje CLI uruchamia się w ustawieniach workera
-lub dostawcy. Dotyczy to także CLI na połączonych komputerach. W ustawieniach widać wersję,
+gateway i workery Canopy. W web i Electronie Settings → Workers → Agent CLIs zawiera akcję zbiorczą dla
+każdego dostawcy na workerach tego gatewaya, częstotliwość sprawdzania na koncie
+i skróty do poszczególnych workerów. W Settings → Providers odnośnik Manage agent CLIs
+prowadzi do tego tematu lub do wybranego workera, zgodnie z zakresem.
+Instalacja i aktualizacja pojedynczego CLI są w Agent CLIs danego workera,
+także na połączonym komputerze ze współdzieloną konfiguracją. W ustawieniach widać wersję,
 sposób instalacji, przyczynę odmowy i wynik instalatora.
 
 Kod: `apps/worker/src/cli-tools/*` (wykrywanie, przepisy, instalator), `apps/gateway/src/core/cli-tools.ts`
@@ -176,7 +181,7 @@ Bez ciągłego odpytywania.
 | Codex | `https://registry.npmjs.org/-/package/@openai/codex/dist-tags` → `latest` |
 | Grok | `https://x.ai/cli/stable` (kanał stable oficjalnego instalatora) |
 
-Settings → Workers ustawia częstotliwość konta (`UserSettings.cli_updates.interval_minutes`),
+Settings → Workers → Agent CLIs ustawia częstotliwość konta w web i Electronie (`UserSettings.cli_updates.interval_minutes`),
 a Agent CLIs przy workerze opcjonalne nadpisanie (`SetWorkerCliUpdateSettings`, kontrola wersji konfiguracji).
 Wybory: 60, 360 (domyślnie), 1440, 10080 minut lub 0 (Never). Gateway dostarcza efektywną wartość
 w konfiguracji workera. Najnowszych wersji szuka gateway: osobny trwały snapshot i ostatni termin

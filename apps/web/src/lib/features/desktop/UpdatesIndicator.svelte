@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import SidebarFooterPopover from "#lib/features/navigation/SidebarFooterPopover.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -20,7 +20,7 @@
     updateIndicator(
       status,
       center.snapshot,
-      updates.error || center.error,
+      updates.error || (center.readable ? center.error : ""),
       center.pending,
       updates.remote,
       center.gatewayTransition,
@@ -28,7 +28,13 @@
   );
 
   const phase = $derived(summary.phase);
-  const busy = $derived(phase === "checking" || phase === "downloading" || center.run?.state === "running");
+
+  const busy = $derived(
+    (phase === "checking" && (center.readable || !!status)) ||
+      phase === "downloading" ||
+      center.run?.state === "running",
+  );
+
   const failed = $derived(phase === "error" || !!updates.error);
   const headline = $derived(updatesHeadline(center, updates, phase === "checking"));
 
@@ -36,14 +42,10 @@
   const attention = $derived(!busy && !failed && (phase === "available" || phase === "ready"));
   const label = $derived(`Updates: ${headline.text}`);
 
-  onMount(() => {
-    const off = updates.connect();
-    const stop = center.poll();
+  onMount(() => updates.connect());
 
-    return () => {
-      off?.();
-      stop();
-    };
+  $effect(() => {
+    if (center.readable) return untrack(() => center.poll());
   });
 </script>
 
@@ -52,7 +54,7 @@
   label="Updates"
   class={className}
   maxHeight="min(70dvh,32rem)"
-  panelClass="w-[min(22rem,calc(100vw-1rem))]"
+  panelClass="w-[min(18rem,calc(100vw-1rem))]"
 >
   {#snippet trigger(props)}
     <div class="relative">
@@ -73,5 +75,5 @@
         ></span>{/if}
     </div>
   {/snippet}
-  <CompactUpdates updates={center} app={updates} onnotes={panel.close} />
+  <CompactUpdates updates={center} app={updates} onclose={panel.close} />
 </SidebarFooterPopover>

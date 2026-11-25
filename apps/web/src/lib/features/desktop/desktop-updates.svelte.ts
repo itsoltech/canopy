@@ -37,7 +37,7 @@ export class DesktopUpdatesState {
       .updates()
       .then(receive)
       .catch(() => {
-        if (active) this.error = "Could not load app update status. Open App updates in Settings.";
+        if (active) this.error = "Could not read app update status. Check for updates to try again.";
       });
 
     return () => {

@@ -8,7 +8,7 @@ import { StatusDot } from "../../ui/Badge";
 import { IconButton } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { styles, useColors } from "../../ui/theme";
-import { UpdateCenterButton } from "../updates/UpdateCenter";
+import { AppUpdatesButton } from "../updates/AppUpdatesButton";
 import { habitSuggestionLabel, usePendingHabitReviews } from "../settings/memory-habits";
 import { SidebarUsage } from "./SidebarUsage";
 
@@ -61,7 +61,7 @@ export function SidebarFooter({ workers, stream }: { workers: ui.Worker[]; strea
           </Text>
         )}
       </Pressable>
-      <UpdateCenterButton />
+      <AppUpdatesButton />
       <SidebarUsage workers={workers} />
       <View
         onLayout={(event) => setConnectionCompact(event.nativeEvent.layout.width < 128)}

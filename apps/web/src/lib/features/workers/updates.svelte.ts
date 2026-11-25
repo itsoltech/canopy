@@ -10,6 +10,7 @@ import {
   updateGatewayMessage,
 } from "@canopy/domain/release/update-actions";
 import { workerUpdateSignature } from "@canopy/domain/update-checks";
+import type { GatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 import { hasUnsentWork } from "./unsent-work.ts";
 import { plannedUpdateRun } from "@canopy/domain/release/update-plan";
 import {
@@ -17,7 +18,6 @@ import {
   furthestStatus,
   gatewayUpdateLifecycle,
   runStatuses,
-  updateBadge,
   updateInProgress,
   updateTargetKey,
   type UpdateStatus,
@@ -46,7 +46,22 @@ type UpdateEvents = {
 };
 
 export class UpdatesState {
-  snapshot = $state<ui.UpdatesSnapshot>();
+  #snapshot = $state<ui.UpdatesSnapshot>();
+  #capabilities = $state.raw<GatewayCapabilities>();
+  get readable() {
+    return !this.#capabilities?.incompatible && (this.#capabilities?.supportsMethod("GetUpdates") ?? true);
+  }
+  get writable() {
+    const gateway = this.#capabilities;
+
+    return this.readable && (!gateway || (gateway.state === "ready" && gateway.supportsMethod("ManageUpdates")));
+  }
+  get snapshot() {
+    return this.readable ? this.#snapshot : undefined;
+  }
+  set snapshot(value: ui.UpdatesSnapshot | undefined) {
+    this.#snapshot = value;
+  }
   error = $state("");
   pending = $state("");
   optimistic = $state<Optimistic>();
@@ -67,11 +82,11 @@ export class UpdatesState {
     return furthestStatus(furthestStatus(own, this.#statuses.get(key)), this.optimistic?.rows.get(key));
   }
   get gatewayTransition(): boolean {
-    return this.#recovering || gatewayUpdateLifecycle(this.snapshot?.gatewayState);
+    return this.readable && (this.#recovering || gatewayUpdateLifecycle(this.snapshot?.gatewayState));
   }
   /** An action is pending, Update all is running, or the gateway cannot take update requests. */
   get active(): boolean {
-    return !!this.pending || this.run?.state === "running" || this.gatewayTransition;
+    return !this.writable || !!this.pending || this.run?.state === "running" || this.gatewayTransition;
   }
   /** Only this target's pending action or active plan step reserves its controls. */
   targetBusy(key: string): boolean {
@@ -102,12 +117,14 @@ export class UpdatesState {
   failedStep(key: string): number {
     const run = this.snapshot?.run;
 
-    if (!run || run.state === "running") return -1;
+    if (!run || !["failed", "blocked"].includes(run.state)) return -1;
 
     return run.steps.findIndex((step) => ["failed", "blocked"].includes(step.state) && updateTargetKey(step) === key);
   }
   /** Reads keep going while an action is pending; one that started before the action's answer is dropped. */
   reload(): Promise<void> {
+    if (!this.readable) return Promise.resolve();
+
     return (this.#loading ??= this.#read().finally(() => {
       this.#loading = undefined;
     }));
@@ -144,12 +161,19 @@ export class UpdatesState {
     };
   }
   /** Reads again soon after the overview stream reports a change the update center shows. Returns the stop. */
-  follow(events: UpdateEvents): () => void {
+  follow(events: UpdateEvents, capabilities: GatewayCapabilities): () => void {
+    this.#capabilities = capabilities;
     this.#events = events;
     const workers = new Map<string, string>();
 
     return events.subscribe((update) => {
       const change = update.change;
+
+      if (change.case === "desktopUpdate") {
+        const worker = this.snapshot?.workers.find((item) => item.workerId === change.value.workerId);
+
+        if (worker) worker.desktop = change.value;
+      }
 
       if (change.case === "worker") {
         const signature = workerUpdateSignature(change.value);
@@ -225,7 +249,7 @@ export class UpdatesState {
   }
   /** `target`: the row the action belongs to (`updateTargetKey`), shown as Starting until the answer arrives. */
   async manage(input: ManageInput, target = ""): Promise<void> {
-    if (this.pending || this.gatewayTransition) return;
+    if (!this.writable || this.pending || this.gatewayTransition) return;
 
     if (input.confirmRestart && hasUnsentWork()) {
       this.error = "Send or discard your drafts and files before updating this computer.";
@@ -299,13 +323,4 @@ export function updateBusy(state: string): boolean {
   const status = binaryUpdateStatus(state);
 
   return status === "queued" || updateInProgress(status ?? "");
-}
-
-export function updateStateLabel(state: string, compatible: boolean): string {
-  const status = binaryUpdateStatus(state);
-
-  return status
-    ? updateBadge(status).label
-    : ({ succeeded: "Up to date", managed_externally: "Managed externally", ahead: "Newer than gateway" }[state] ??
-        (compatible ? "Compatible" : "Update required"));
 }

@@ -5,8 +5,9 @@
   import { create } from "@bufbuild/protobuf";
   import { CliInstallStatusSchema, Provider, ui } from "@canopy/contracts";
   import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
-  import AppUpdates from "#lib/features/desktop/AppUpdates.svelte";
-  import LinkedAppUpdates from "#lib/features/desktop/LinkedAppUpdates.svelte";
+  import AppUpdatePreferences from "#lib/features/desktop/AppUpdatePreferences.svelte";
+  import WorkerCliTools from "../WorkerCliTools.svelte";
+  import { homes } from "@canopy/domain/release/computer-update";
   import CompactComputerUpdate from "../CompactComputerUpdate.svelte";
   import UpdatesPanel from "../UpdatesPanel.svelte";
   import { UpdatesState } from "../updates.svelte.ts";
@@ -192,22 +193,8 @@
 
   const states = new UpdatesState();
   const settings = page.url.searchParams.get("view") === "settings";
-  const linked = new UpdatesState();
 
-  linked.snapshot = create(ui.UpdatesSnapshotSchema, {
-    computers: [...fixtureSnapshot().computers, ...computerStates()],
-  });
-
-  // App updates reads this computer's app through the desktop bridge; the gallery answers with the fixture.
-  if (settings && !window.canopyDesktop)
-    Object.assign(window, {
-      canopyDesktop: {
-        updates: async () => status,
-        onUpdates: () => () => {},
-        status: async () => ({ mode: "local" }),
-        onStatus: () => () => {},
-      },
-    });
+  if (settings && !gateway && !params.has("remote")) updates.snapshot.computers.push(...computerStates());
 
   $effect(() => {
     document.documentElement.classList.toggle("dark", page.url.searchParams.get("dark") === "1");
@@ -217,8 +204,22 @@
 {#if settings}
   <div class="settings-density bg-white dark:bg-zinc-950">
     <div class="settings-content mx-auto grid max-w-3xl grid-cols-1 gap-8 px-4 py-4 sm:px-6" id="settings">
-      <div id="workers-updates"><UpdatesPanel fixture={{ updates, app }} /></div>
-      <div id="app-updates" class="grid gap-8"><AppUpdates /><LinkedAppUpdates updates={linked} /></div>
+      <div id="app-updates" class="settings-stack min-w-0">
+        <UpdatesPanel {updates} {app} />
+        <AppUpdatePreferences {app} />
+      </div>
+      {#if updates.snapshot && homes(updates.snapshot).some((group) => group.home.cliWorkers.length)}
+        <div id="workers-updates" class="settings-stack min-w-0">
+          {#each homes(updates.snapshot) as group (group.nodeId)}
+            {#each group.home.cliWorkers as worker (worker.id)}
+              <section aria-label={worker.name}>
+                <h2 class="break-anywhere px-4 text-base font-medium">{worker.name}</h2>
+                <WorkerCliTools worker={{ ...worker, nodeId: group.nodeId }} {updates} />
+              </section>
+            {/each}
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
 {:else}<div class="flex flex-wrap items-start gap-6 p-4">

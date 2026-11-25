@@ -69,19 +69,13 @@
     class={className}
   >
     {#snippet action()}
-      {#if !updates.gatewayTransition && !external && status === "failed" && (step >= 0 || snapshot.gatewayUpdateAvailable)}
+      {#if !updates.gatewayTransition && !external && status === "failed" && step < 0 && snapshot.gatewayUpdateAvailable}
         <IconButton
           size="sm"
           icon="repeat"
           label="Retry"
           disabled={updates.active || !snapshot.admin}
-          onclick={() => {
-            const run = snapshot.run;
-
-            if (step >= 0 && run)
-              void updates.manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key);
-            else void updates.manage({ action: "gateway" }, key);
-          }}
+          onclick={() => void updates.manage({ action: "gateway" }, key)}
         />
       {:else if !updates.gatewayTransition && !external && status === "available"}
         <IconButton

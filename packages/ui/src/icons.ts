@@ -180,6 +180,8 @@ export const icons = {
   play: ["M7 4v16l13-8z"],
   // flag
   flag: ["M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1-7 0a5 5 0 0 0-7 0zm0 16v-7"],
+  // bell
+  bell: ["M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6M9 17v1a3 3 0 0 0 6 0v-1"],
   // clock
   clock: ["M3 12a9 9 0 1 0 18 0a9 9 0 0 0-18 0", "M12 7v5l3 3"],
   // wifi

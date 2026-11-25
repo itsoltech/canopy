@@ -9,7 +9,8 @@ import { ContentInsets, PaneInsets, ScreenFrame, usePaneInsets } from "../../ui/
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { ConnectionBanner } from "../navigation/ConnectionStatus";
 import { SettingsCatalog, useSettingsCatalog } from "./section-catalog";
-import { SettingsNavigation, useWorkerUpdateHint } from "./SettingsNavigation";
+import { useAppUpdateHint } from "../updates/AppUpdatesButton";
+import { SettingsNavigation, useCliUpdateHint } from "./SettingsNavigation";
 import { SettingsSearch } from "./SettingsSearch";
 import { SettingsOffsets } from "./SettingsScroll";
 import { habitSuggestionLabel, usePendingHabitReviews } from "./memory-habits";
@@ -39,7 +40,8 @@ export function SettingsLayout({
   const [menu, setMenu] = useState(false);
   const section = selected || "general";
   const current = catalog.sections.find((entry) => entry.href === `/settings/${section}`);
-  const updates = useWorkerUpdateHint() && catalog.available.some((entry) => entry.href === "/settings/workers");
+  const appUpdateHint = useAppUpdateHint();
+  const cliUpdates = useCliUpdateHint() && catalog.available.some((entry) => entry.href === "/settings/workers");
   const pendingHabits = usePendingHabitReviews();
   const memoryAvailable = catalog.available.some((entry) => entry.href === "/settings/memory");
 
@@ -59,7 +61,8 @@ export function SettingsLayout({
       query={query}
       onQuery={setQuery}
       compact={!wide}
-      updates={updates}
+      appUpdateHint={appUpdateHint}
+      cliUpdates={cliUpdates}
       pendingHabits={pendingHabits}
     />
   );
@@ -92,7 +95,8 @@ export function SettingsLayout({
                   <SettingsHeader
                     wide={wide}
                     label={current?.label ?? "Settings"}
-                    updates={updates}
+                    appUpdateHint={appUpdateHint}
+                    cliUpdates={cliUpdates}
                     pendingHabits={section !== "memory" && memoryAvailable ? pendingHabits : 0}
                     menu={menu}
                     openMenu={() => setMenu(true)}
@@ -122,7 +126,8 @@ export function SettingsLayout({
 function SettingsHeader({
   wide,
   label,
-  updates,
+  appUpdateHint,
+  cliUpdates,
   pendingHabits,
   menu,
   openMenu,
@@ -132,7 +137,8 @@ function SettingsHeader({
 }: {
   wide: boolean;
   label: string;
-  updates: boolean;
+  appUpdateHint: string;
+  cliUpdates: boolean;
   pendingHabits: number;
   menu: boolean;
   openMenu: () => void;
@@ -145,7 +151,8 @@ function SettingsHeader({
 
   const hint = [
     "Choose a section.",
-    updates && "Worker updates available.",
+    appUpdateHint && `${appUpdateHint}.`,
+    cliUpdates && "Agent CLI updates available.",
     pendingHabits > 0 && `${habitSuggestionLabel(pendingHabits)} to review.`,
   ]
     .filter(Boolean)
@@ -193,7 +200,7 @@ function SettingsHeader({
                 {label}
               </Text>
               <Icon name="chevron-up-down" color={c.icon} />
-              {(updates || pendingHabits > 0) && <StatusDot tone="amber" />}
+              {(!!appUpdateHint || cliUpdates || pendingHabits > 0) && <StatusDot tone="amber" />}
             </Pressable>
           </View>
         )}

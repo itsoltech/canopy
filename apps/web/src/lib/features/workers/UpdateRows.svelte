@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
   import { homeAppComputer } from "@canopy/domain/release/update-actions";
   import CompactAppUpdate from "#lib/features/desktop/CompactAppUpdate.svelte";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
@@ -12,15 +11,9 @@
   import type { UpdatesState } from "./updates.svelte.ts";
 
   /**
-   * The updates center's rows, in the popover and in Settings → Workers → Updates (docs/updates.md): this computer,
-   * linked computers and workers grouped by computer. `gateway` follows a server's gateway row.
+   * Each Canopy installation has one row in App updates. A local desktop and its enrolled worker share a row.
    */
-  let {
-    updates,
-    app,
-    allowForce = false,
-    gateway,
-  }: { updates: UpdatesState; app: DesktopUpdatesState; allowForce?: boolean; gateway?: Snippet } = $props();
+  let { updates, app }: { updates: UpdatesState; app: DesktopUpdatesState } = $props();
 
   const snapshot = $derived(updates.snapshot);
 
@@ -52,12 +45,14 @@
     updates={app}
     center={updates}
     worker={ownWorker}
-    {allowForce}
     bundled={bundled && !app.remote}
   />{/if}
 {#if local}<CompactComputerUpdate computer={local} {updates} local />{/if}
 {#if snapshot}
-  {#if !bundled}<CompactGatewayUpdate {updates} />{@render gateway?.()}{/if}
+  {#if !bundled}<CompactGatewayUpdate {updates} />{/if}
+  {#if snapshot.computers.length}<p class="mt-2 text-xs/5 text-muted">
+      Change each linked computer’s channel and check frequency on that computer.
+    </p>{/if}
   {#each snapshot.computers as computer (computer.nodeId)}<CompactComputerUpdate {computer} {updates} />{/each}
   {#if workerGroups.length}<UpdateGroupLabel class="border-t border-divider">Workers</UpdateGroupLabel>{/if}
   {#each workerGroups as group (group.nodeId)}
@@ -65,7 +60,7 @@
         >{group.name}</UpdateGroupLabel
       >{/if}
     {#each group.workers as worker (worker.workerId)}
-      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} {allowForce} />
+      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} />
     {/each}
   {/each}
 {/if}

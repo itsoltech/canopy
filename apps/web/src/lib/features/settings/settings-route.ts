@@ -1,5 +1,6 @@
 import type { page, ReadonlyURL } from "$app/state";
 import { getContext, setContext } from "svelte";
+import { settingsSectionEnabled } from "@canopy/ui/settings";
 
 /**
  * The settings page being shown, whichever way it is shown: as its own route (a direct load, before
@@ -40,6 +41,27 @@ export const useSettingsRoute = <Form = SettingsForm>() => getContext<SettingsRo
 /** A route under Settings (`/settings` itself redirects to its first section). */
 export const isSettingsRoute = (id: string | null | undefined): boolean =>
   id === "/settings" || Boolean(id?.startsWith("/settings/"));
+
+const movedTopics = new Map([
+  ["/settings/general#topic-thread-list", "/settings/threads#topic-thread-list"],
+  ["/settings/general#topic-notifications", "/settings/notifications"],
+  ["/settings/workers#topic-updates", "/settings/app-updates#topic-status"],
+  ["/settings/app-updates#topic-computers", "/settings/app-updates#topic-status"],
+]);
+
+/** Resolve bookmarked topics and disabled modules for both direct loads and links into the overlay. */
+export function settingsRedirect(url: ReadonlyURL, modules: readonly string[]): string | undefined {
+  const moved = movedTopics.get(url.pathname + url.hash);
+
+  if (moved) {
+    const target = new URL(moved, url.href);
+    target.search = url.search;
+
+    return settingsSectionEnabled(target.pathname, modules) ? target.href : "/settings/general";
+  }
+
+  if (!settingsSectionEnabled(url.pathname, modules)) return "/settings/general";
+}
 
 /** What identifies a settings page shown in the overlay: its path and query. */
 export const overlayKey = (url: { readonly pathname: string; readonly search: string } | string): string => {

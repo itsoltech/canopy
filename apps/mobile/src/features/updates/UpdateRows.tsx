@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { homeAppComputer } from "@canopy/domain/release/update-actions";
 import { isRateLimitMessage } from "@canopy/domain/release/http";
-import { computerUpdate } from "@canopy/domain/release/computer-update";
 import { currentRemoteUpdate, newerAppVersion } from "@canopy/domain/release/remote-update-state";
 import { appRowTarget, appUpdateAvailable } from "@canopy/domain/release/update-plan";
 import {
@@ -16,16 +14,13 @@ import {
   workerUpdateTarget,
   type UpdateStatus,
 } from "@canopy/domain/release/update-status";
-import { presenceTime } from "../computers/presence";
+import { ComputerUpdateRow } from "./ComputerUpdateRow";
 import { styles, useColors } from "../../ui/theme";
 import { Button } from "../../ui/Button";
+import { SettingsGroupHeader } from "../settings/SettingsGroup";
 import { UpdateRow } from "./UpdateRow";
-import { computerAction, updateHomes, workerAction, type UpdateRequest } from "./model";
+import { updateHomes, workerAction, type UpdateRequest } from "./model";
 import { useUpdates } from "./state";
-
-type Manage = (request: UpdateRequest, target?: string) => void;
-
-type Props = { snapshot: ui.UpdatesSnapshot; pending: boolean; manage: Manage };
 
 const PHASE = new Map<string, UpdateStatus>([
   ["queued", "queued"],
@@ -37,18 +32,24 @@ const PHASE = new Map<string, UpdateStatus>([
 
 const WAITING = "Restarts after its current turns end.";
 
-/** Web: UpdateRows. This computer, linked computers, then workers grouped by computer. */
-export function UpdateRows({ snapshot, pending, manage }: Props) {
+/** Each installation has one row. A bundled gateway and worker update with their desktop app. */
+export function UpdateRows({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
   const home = homeAppComputer(snapshot);
 
   return (
     <View>
-      {home ? <ComputerRow computer={home} pending={pending} manage={manage} /> : <GatewayRow snapshot={snapshot} />}
+      {home ? <ComputerUpdateRow computer={home} /> : <GatewayRow snapshot={snapshot} />}
+      {!!snapshot.computers.length && (
+        <SettingsGroupHeader
+          title="Linked computers"
+          description="Change each computer’s release channel and check frequency on that computer."
+        />
+      )}
       {snapshot.computers.map((computer) => (
-        <ComputerRow key={computer.nodeId} computer={computer} pending={pending} manage={manage} />
+        <ComputerUpdateRow key={computer.nodeId} computer={computer} />
       ))}
       {updateHomes(snapshot).map(({ nodeId, name, home }) => (
-        <WorkerRows key={nodeId} home={home} name={name} nodeId={nodeId} pending={pending} manage={manage} />
+        <WorkerRows key={nodeId} home={home} name={name} nodeId={nodeId} />
       ))}
     </View>
   );
@@ -92,23 +93,22 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
       }
       error={
         status === "failed"
-          ? snapshot.departure?.reason ||
+          ? run?.steps[step]?.reason ||
+            snapshot.departure?.reason ||
             snapshot.gatewayReason ||
-            run?.steps[step]?.reason ||
             "The gateway update failed."
-          : undefined
+          : status === "Not checked"
+            ? snapshot.checkError || undefined
+            : undefined
       }
       busy={updateInProgress(status)}
       action={
-        binary && status === "failed" && (step >= 0 || snapshot.gatewayUpdateAvailable)
+        binary && status === "failed" && step < 0 && snapshot.gatewayUpdateAvailable
           ? {
               icon: "repeat",
               label: "Retry",
               disabled: active || !snapshot.admin,
-              run: () =>
-                step >= 0 && run
-                  ? manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key)
-                  : manage({ action: "gateway" }, key),
+              run: () => void manage({ action: "gateway" }, key),
             }
           : binary && status === "available"
             ? {
@@ -118,89 +118,6 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
                 run: () => manage({ action: "gateway" }, key),
               }
             : undefined
-      }
-    />
-  );
-}
-
-function ComputerRow({ computer, pending, manage }: { computer: ui.ComputerUpdate; pending: boolean; manage: Manage }) {
-  const { rowStatus, failedStep, active, snapshot } = useUpdates();
-  const [now, setNow] = useState(Date.now);
-  const restarting = ["updating", "restarting"].includes(computer.presence);
-
-  // An announced restart warns only when overdue: the row rechecks the time while it lasts.
-  useEffect(() => {
-    if (!restarting) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 15_000);
-
-    return () => clearInterval(timer);
-  }, [restarting]);
-
-  const local = !computer.nodeId;
-  const view = computerUpdate(computer, presenceTime, now);
-  const reported = computer.updates?.app;
-  const app = reported && currentRemoteUpdate(reported);
-  const key = local ? updateTargetKey({ kind: "app" }) : updateTargetKey({ kind: "computer", nodeId: computer.nodeId });
-  const status = rowStatus(key, view.status);
-  const step = failedStep(key);
-  const run = snapshot?.run;
-  const request = computerAction(computer);
-  const failed = status === "failed";
-  const inProgress = updateInProgress(status);
-
-  // Phones have no tooltips: a late peer read or an edge state's reason takes the second line.
-  const line =
-    view.line ||
-    (computer.reason && computer.readState && computer.readState !== "fresh" ? computer.reason : "") ||
-    (isUpdateStatus(status) ? "" : view.detail);
-
-  return (
-    <UpdateRow
-      name={local ? "This computer" : computer.name}
-      version={app?.version || computer.version}
-      target={view.target}
-      status={status}
-      line={line}
-      lineTone={view.overdue ? "amber" : undefined}
-      error={failed ? view.detail || run?.steps[step]?.reason || "The update did not finish." : undefined}
-      busy={inProgress}
-      progress={view.progress}
-      action={
-        failed && (step >= 0 || app?.phase === "failed")
-          ? {
-              icon: "repeat",
-              label: "Retry",
-              disabled: active || computer.presence !== "connected",
-              run: () =>
-                step >= 0 && run
-                  ? manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key)
-                  : manage(local ? { action: "app" } : { action: "computer", nodeId: computer.nodeId }, key),
-            }
-          : request && !inProgress
-            ? {
-                icon: local && status === "downloaded" ? "power" : "arrow-down-tray",
-                label: local && status === "downloaded" ? "Restart to update" : `Update ${computer.name}`,
-                disabled: active || pending,
-                run: () => manage(request, key),
-              }
-            : undefined
-      }
-      errorActions={
-        app?.phase === "failed" && (
-          <Button
-            title="Dismiss"
-            size="sm"
-            disabled={pending}
-            onPress={() =>
-              manage({
-                action: local ? "app_dismiss" : "computer_dismiss",
-                nodeId: computer.nodeId,
-                desktopRequestId: app.requestId,
-              })
-            }
-          />
-        )
       }
     />
   );
@@ -245,21 +162,13 @@ function workerStatus(
     : "Update required";
 }
 
-function WorkerRows({
-  home,
-  name,
-  nodeId,
-  pending,
-  manage,
-}: {
-  home: ui.UpdatesSnapshot;
-  name: string;
-  nodeId: string;
-  pending: boolean;
-  manage: Manage;
-}) {
+function WorkerRows({ home, name, nodeId }: { home: ui.UpdatesSnapshot; name: string; nodeId: string }) {
   const c = useColors();
-  const { rowStatus, failedStep, active, snapshot } = useUpdates();
+  const { rowStatus, failedStep, active, snapshot, manage } = useUpdates();
+
+  const homeOnline =
+    !nodeId || snapshot?.computers.some((computer) => computer.nodeId === nodeId && computer.presence === "connected");
+
   const workers = home.workers.filter((worker) => !worker.bundled);
 
   if (!workers.length) return null;
@@ -271,14 +180,14 @@ function WorkerRows({
       </Text>
       {workers.map((worker) => {
         const app = worker.desktop && currentRemoteUpdate(worker.desktop);
-        const connected = app?.connected ?? worker.connected;
+        const connected = homeOnline && (app?.connected ?? worker.connected);
         const request = workerAction(worker, home, !!nodeId);
 
         const key = app
           ? updateTargetKey({ kind: "desktop", workerId: worker.workerId })
           : updateTargetKey({ kind: "worker", nodeId, workerId: worker.workerId });
 
-        const status = rowStatus(key, workerStatus(worker, app, home.gatewayVersion, request));
+        const status = homeOnline ? rowStatus(key, workerStatus(worker, app, home.gatewayVersion, request)) : "Offline";
         const step = failedStep(key);
         const run = snapshot?.run;
         const reason = app ? app.disabledReason || app.reason : worker.reason.replace(/^Managed externally\.\s*/, "");
@@ -301,30 +210,19 @@ function WorkerRows({
                     : undefined
                 : reason
             }
-            error={status === "failed" ? reason || run?.steps[step]?.reason || "The update did not finish." : undefined}
+            error={status === "failed" ? run?.steps[step]?.reason || reason || "The update did not finish." : undefined}
             busy={updateInProgress(status)}
             progress={app?.phase === "downloading" ? app.progress : undefined}
             style={!connected && !updateInProgress(status) ? { opacity: 0.5 } : undefined}
             action={
-              status === "failed" && (step >= 0 || request)
+              request && step < 0 && !updateInProgress(status)
                 ? {
-                    icon: "repeat",
-                    label: "Retry",
-                    disabled: active || !connected || !!app?.disabledReason,
-                    run: () => {
-                      if (step >= 0 && run)
-                        manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key);
-                      else if (request) manage(request, key);
-                    },
+                    icon: status === "failed" ? "repeat" : "arrow-down-tray",
+                    label: status === "failed" ? `Retry updating ${worker.name}` : `Update ${worker.name}`,
+                    disabled: active || !connected,
+                    run: () => void manage(request, key),
                   }
-                : request && !updateInProgress(status)
-                  ? {
-                      icon: "arrow-down-tray",
-                      label: `Update ${worker.name}`,
-                      disabled: active || pending,
-                      run: () => manage(request, key),
-                    }
-                  : undefined
+                : undefined
             }
             errorActions={
               app?.phase === "failed" &&
@@ -332,7 +230,7 @@ function WorkerRows({
                 <Button
                   title="Dismiss"
                   size="sm"
-                  disabled={pending}
+                  disabled={active}
                   onPress={() =>
                     manage({ action: "desktop_dismiss", workerId: worker.workerId, desktopRequestId: app.requestId })
                   }

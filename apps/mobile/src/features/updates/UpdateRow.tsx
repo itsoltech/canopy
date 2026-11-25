@@ -8,7 +8,7 @@ import { IconButton } from "../../ui/Button";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { useMotion } from "../../ui/motion";
 import { styles, useColors } from "../../ui/theme";
-import { UpdateDetails } from "./UpdateDetails";
+import { CopyUpdateDetails } from "./UpdateDetails";
 
 /** One status word (web: UpdateBadge): settled is quiet text, attention gets a pill; a new word rises in. */
 export function UpdateBadge({ status }: { status: UpdateStatus | string }) {
@@ -37,17 +37,13 @@ export interface UpdateRowAction {
   run: () => void;
 }
 
-/**
- * One update row (web: UpdateItem): always two lines. A state change swaps the badge and the second line; the bar
- * sits in the bottom padding and the action keeps its slot, so nothing moves. Only an error expands, on request.
- */
+/** The action keeps its slot as status changes. Installer instructions wrap on narrow phones. */
 export function UpdateRow({
   name,
   version,
   target,
   status,
   line,
-  lineTone,
   error,
   busy = false,
   progress,
@@ -60,7 +56,6 @@ export function UpdateRow({
   target?: string | undefined;
   status: UpdateStatus | string;
   line?: string | undefined;
-  lineTone?: "amber" | undefined;
   error?: string | undefined;
   busy?: boolean;
   progress?: number | undefined;
@@ -72,16 +67,15 @@ export function UpdateRow({
   const m = useMotion();
   const [expanded, setExpanded] = useState(false);
 
-  const second =
-    line ||
-    (target && target !== version ? `${version || "Version unknown"} → ${target}` : version || "Version unknown");
+  const installed = version || "Version unknown";
+  const versions = target && target !== version ? `${installed} → ${target}` : installed;
 
   return (
     <View style={[{ paddingVertical: 10 }, style]}>
       <View style={[styles.row, { gap: 8 }]}>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <View style={[styles.row, { gap: 8 }]}>
-            <Text numberOfLines={1} accessibilityLabel={name} style={[styles.overlay, { color: c.strong, flex: 1 }]}>
+            <Text numberOfLines={2} accessibilityLabel={name} style={[styles.overlay, { color: c.strong, flex: 1 }]}>
               {name}
             </Text>
             {/* Every shared word fits the slot, so state changes never move the name; a rare long edge word widens it. */}
@@ -89,31 +83,29 @@ export function UpdateRow({
               <UpdateBadge status={status} />
             </View>
           </View>
+          <Text selectable style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+            {versions}
+          </Text>
           {error ? (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded }}
-              accessibilityHint="Shows the full error"
+              accessibilityHint={expanded ? "Collapses the error" : "Shows the full error and its actions"}
               onPress={() => setExpanded((value) => !value)}
             >
-              <Text numberOfLines={1} style={[styles.overlayMeta, { color: c.danger }]}>
+              <Text
+                numberOfLines={expanded ? undefined : 2}
+                selectable={expanded}
+                style={[styles.overlayMeta, { color: c.danger }]}
+              >
                 {error}
               </Text>
             </Pressable>
-          ) : (
-            <Reanimated.View key={second} entering={m.swap.entering}>
-              <Text
-                numberOfLines={1}
-                selectable={!line}
-                style={[
-                  styles.overlayMeta,
-                  { color: lineTone === "amber" ? c.warning : c.muted, fontVariant: ["tabular-nums"] },
-                ]}
-              >
-                {second}
-              </Text>
+          ) : line ? (
+            <Reanimated.View key={line} entering={m.swap.entering}>
+              <Text style={[styles.overlayMeta, { color: c.muted }]}>{line}</Text>
             </Reanimated.View>
-          )}
+          ) : null}
         </View>
         <View style={{ width: 44, alignItems: "flex-end" }}>
           {action && (
@@ -140,7 +132,7 @@ export function UpdateRow({
       )}
       {error && expanded && (
         <View style={{ gap: 6, paddingTop: 6 }}>
-          <UpdateDetails text={error} />
+          <CopyUpdateDetails text={error} />
           {errorActions}
         </View>
       )}

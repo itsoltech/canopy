@@ -1,81 +1,38 @@
 <script lang="ts">
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { applicationName } from "#lib/application-name.ts";
-  import { ui } from "@canopy/contracts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
-  import { devicePreferences as device, generalDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
   import ModuleSettings from "#lib/features/settings/ModuleSettings.svelte";
-  import NotificationSettings from "#lib/features/settings/NotificationSettings.svelte";
   import QuitShortcutSettings from "#lib/features/desktop/QuitShortcutSettings.svelte";
-  import PreferenceRow from "#lib/features/settings/PreferenceRow.svelte";
   import DeviceChoiceRow from "#lib/features/settings/DeviceChoiceRow.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
-  import Select from "#lib/shared/ui/Select.svelte";
-  import Switch from "#lib/shared/ui/Switch.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
   import AccountConfigNotices from "#lib/features/computers/AccountConfigNotices.svelte";
+  import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
 
   const settings = useSettings();
   let desktopSettings = $state<{ resetDefaults(): Promise<void> }>();
 
-  const groupBy = $derived(
-    !settings.sidebar.groupByProject ? "none" : device.view.groupByWorktree ? "project-worktree" : "project",
-  );
-
-  function setGrouping(value: string) {
-    device.setView({ groupByProject: value !== "none", groupByWorktree: value === "project-worktree" });
-  }
-
   async function restoreDeviceDefaults() {
-    device.reset(generalDeviceKeys);
+    device.reset(["timeFormat"]);
     await desktopSettings?.resetDefaults();
   }
-
-  const confirmations = [
-    {
-      key: "confirmUnpin",
-      title: "Confirm unpin",
-      description: "Ask before removing a thread from Pinned.",
-      fallback: false,
-    },
-    {
-      key: "confirmArchive",
-      title: "Confirm archive",
-      description: "Ask before archiving a thread and its side threads.",
-      fallback: false,
-    },
-    {
-      key: "confirmDelete",
-      title: "Confirm delete",
-      description: "Ask before deleting a thread and its side threads.",
-      fallback: true,
-    },
-  ] as const;
 </script>
 
 <svelte:head><title>General · Settings · {applicationName}</title></svelte:head>
-<div class="settings-stack">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <p class="text-sm/5 text-zinc-500">
-      Account preferences follow your configuration group. “This device” stays here.
-    </p>
-    <Button size="sm" icon="arrow-path" onclick={restoreDeviceDefaults}>Restore device defaults</Button>
-  </div>
-  <SettingsTopics
-    label="General settings"
-    topics={[
-      { id: "modules", label: "Modules", content: modules, hidden: !settings.user.modules },
-      { id: "notifications", label: "Notifications", content: notifications },
-      { id: "thread-list", label: "Thread list", content: threadList, hidden: !settings.moduleEnabled("threads") },
-      { id: "device", label: "Device", content: deviceSettings },
-    ]}
-  />
-  <AccountConfigNotices section="sidebar" />
-  {#if !settings.moduleEnabled("threads")}<AccountConfigNotices section="general" />{/if}
-  {#if !settings.user.modules}<AccountConfigNotices section="modules" />{/if}
-</div>
+
+<SettingsTopics
+  label="General settings"
+  topics={[
+    { id: "modules", label: "Modules", content: modules, hidden: !settings.user.modules },
+    { id: "device", label: "Device", content: deviceSettings },
+  ]}
+/>
+<AccountConfigNotices section={settings.moduleEnabled("threads") ? "sidebar.pinnedBotIds" : "sidebar"} />
+{#if !settings.moduleEnabled("threads")}<AccountConfigNotices section="general" />{/if}
+{#if !settings.user.modules}<AccountConfigNotices section="modules" />{/if}
 
 {#snippet modules()}
   <ModuleSettings />
@@ -83,6 +40,12 @@
 {/snippet}
 
 {#snippet deviceSettings()}
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <p class="text-sm/5 text-zinc-500">
+      Account preferences follow your configuration group. “This device” stays here.
+    </p>
+    <Button size="sm" icon="arrow-path" onclick={restoreDeviceDefaults}>Restore device defaults</Button>
+  </div>
   <QuitShortcutSettings bind:this={desktopSettings} />
   <SettingsGroup title="Time" description="This device unless marked Account">
     <DeviceChoiceRow
@@ -100,79 +63,4 @@
     </SettingsRow>
   </SettingsGroup>
   <AccountConfigNotices section="timezone" />
-{/snippet}
-
-{#snippet notifications()}
-  <NotificationSettings />
-{/snippet}
-
-{#snippet threadList()}
-  <SettingsGroup title="Sidebar" description="This device">
-    <PreferenceRow title="Group by" changed={groupBy !== "none"} onreset={() => setGrouping("none")}>
-      {#snippet control()}<div class="w-48">
-          <Select
-            aria-label="Group by"
-            value={groupBy}
-            options={[
-              { value: "none", label: "None" },
-              { value: "project", label: "Project" },
-              { value: "project-worktree", label: "Project & worktree" },
-            ]}
-            onchange={setGrouping}
-          />
-        </div>{/snippet}
-    </PreferenceRow>
-    <PreferenceRow
-      title="Project order"
-      description="Sort project groups by activity, name or creation time."
-      changed={settings.sidebar.projectOrder !== ui.ProjectOrder.ACTIVITY}
-      onreset={() => settings.updateSidebar({ projectOrder: ui.ProjectOrder.ACTIVITY })}
-    >
-      {#snippet control()}<div class="w-48">
-          <Select
-            aria-label="Project order"
-            value={String(settings.sidebar.projectOrder)}
-            options={[
-              { value: "0", label: "Latest activity" },
-              { value: "1", label: "Name" },
-              { value: "2", label: "Newest project" },
-            ]}
-            onchange={(value) => settings.updateSidebar({ projectOrder: Number(value) })}
-            disabled={!settings.sidebar.groupByProject}
-          />
-        </div>{/snippet}
-    </PreferenceRow>
-    <PreferenceRow
-      title="Working section"
-      description="Group running and monitoring threads in a collapsible section."
-      changed={settings.sidebar.workingSection}
-      onreset={() => settings.updateSidebar({ workingSection: false })}
-    >
-      {#snippet control()}<Switch
-          name="workingSection"
-          label="Working section"
-          checked={settings.sidebar.workingSection}
-          onchange={(workingSection) => settings.updateSidebar({ workingSection })}
-        />{/snippet}
-    </PreferenceRow>
-  </SettingsGroup>
-  <SettingsGroup title="Confirmations" description="Account">
-    {#each confirmations as preference (preference.key)}
-      {@const value = settings.general[preference.key] ?? preference.fallback}
-      <PreferenceRow
-        title={preference.title}
-        description={preference.description}
-        changed={value !== preference.fallback}
-        onreset={() => settings.updateGeneral({ [preference.key]: preference.fallback })}
-      >
-        {#snippet control()}<Switch
-            name={preference.key}
-            label={preference.title}
-            checked={value}
-            onchange={(checked) => settings.updateGeneral({ [preference.key]: checked })}
-          />{/snippet}
-      </PreferenceRow>
-    {/each}
-  </SettingsGroup>
-  <AccountConfigNotices section="general" />
 {/snippet}

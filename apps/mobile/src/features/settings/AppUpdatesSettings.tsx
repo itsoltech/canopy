@@ -1,91 +1,121 @@
-import { Text } from "react-native";
-import type { ui } from "@canopy/contracts";
-import { updateCheckLabel } from "@canopy/domain/computer-presence";
-import { computerUpdate } from "@canopy/domain/release/computer-update";
-import { currentRemoteUpdate } from "@canopy/domain/release/remote-update-state";
-import { gatewayUpdateLifecycle, updateTargetKey } from "@canopy/domain/release/update-status";
+import { Text, View } from "react-native";
+import * as Updates from "expo-updates";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
 import { Button } from "../../ui/components";
+import { ProgressBar } from "../../ui/ProgressBar";
 import { styles, useColors } from "../../ui/theme";
-import { computerAction } from "../updates/model";
+import { updatesHeadline } from "../updates/headline";
+import { bulkUpdatesAvailable } from "../updates/model";
+import { usePhoneUpdates } from "../updates/phone";
 import { useUpdates } from "../updates/state";
-import { UpdateBadge } from "../updates/UpdateRow";
-import { UpdateFeedback } from "../updates/UpdateSummary";
-import { WhatsNewSettings } from "../updates/WhatsNew";
+import { UpdateFeedback, UpdateRun } from "../updates/UpdateSummary";
+import { UpdateRows } from "../updates/UpdateRows";
 import { AppUpdateStatus } from "./AppUpdateStatus";
-import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { confirmAction } from "./resource";
+import { SettingsActions, SettingsGroup, SettingChoice } from "./SettingsGroup";
 
 export function AppUpdatesSettings() {
-  const { snapshot } = useUpdates();
+  const { snapshot, pending, optimistic, run, active, manage } = useUpdates();
+  const phone = usePhoneUpdates();
+  const c = useColors();
+  const checkingPhone = phone.pending === "check" || phone.status.isChecking;
+  const gatewayChecking = pending === "check" || !!snapshot?.checking;
+  const canCheckGateway = !pending && !gatewayChecking && !gatewayUpdateLifecycle(snapshot?.gatewayState);
+  const canCheckPhone = Updates.isEnabled && !phone.busy;
+  const stopped = run?.state === "failed" || run?.state === "blocked";
+
+  const headline = updatesHeadline({
+    snapshot,
+    run,
+    starting: !!optimistic && !!pending,
+    checking: checkingPhone || gatewayChecking,
+    phoneUpdate: phone.status.isUpdateAvailable || phone.status.isUpdatePending,
+    phoneUpdating:
+      phone.pending === "fetch" || phone.pending === "apply" || phone.status.isDownloading || phone.status.isRestarting,
+  });
 
   return (
     <>
-      <AppUpdateStatus title="App updates" />
-      <WhatsNewSettings />
-      <UpdateFeedback />
-      {!!snapshot?.computers.length && (
-        <SettingsGroup
-          title="Linked computers"
-          description="Each computer keeps its own channel and check frequency. Change them on that computer."
-        >
-          {snapshot.computers.map((computer) => (
-            <LinkedAppUpdate key={computer.nodeId} computer={computer} />
-          ))}
+      <SettingsGroup
+        title="Canopy versions"
+        actions={
+          <SettingsActions>
+            <Button
+              title="Check for updates"
+              size="sm"
+              disabled={!canCheckPhone && !canCheckGateway}
+              busy={(checkingPhone || gatewayChecking) && !canCheckPhone && !canCheckGateway}
+              onPress={() => {
+                if (canCheckPhone) void phone.check();
+
+                if (canCheckGateway) void manage({ action: "check" });
+              }}
+            />
+            {stopped ? (
+              <Button
+                title="Retry failed"
+                size="sm"
+                variant="primary"
+                disabled={active}
+                onPress={() => void manage({ action: "retry_failed", desktopRequestId: run.id })}
+              />
+            ) : (
+              snapshot &&
+              bulkUpdatesAvailable(snapshot) && (
+                <Button
+                  title="Update all"
+                  size="sm"
+                  variant="primary"
+                  disabled={active}
+                  onPress={() => void manage({ action: "update_all" })}
+                />
+              )
+            )}
+          </SettingsActions>
+        }
+      >
+        <View style={{ gap: 6 }}>
+          {!!headline.text && (
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.workMeta,
+                { color: headline.tone === "rose" ? c.danger : headline.tone === "ink" ? c.text : c.muted },
+              ]}
+            >
+              {headline.text}
+            </Text>
+          )}
+          {headline.progress !== undefined && (
+            <ProgressBar done={BigInt(Math.round(headline.progress))} total={100n} label="Update progress" />
+          )}
+          <UpdateFeedback />
+        </View>
+        <AppUpdateStatus />
+        {snapshot && <UpdateRows snapshot={snapshot} />}
+      </SettingsGroup>
+      {snapshot?.run && snapshot.run.state !== "dismissed" && <UpdateRun run={snapshot.run} />}
+      {snapshot && !snapshot.gatewayBundled && (
+        <SettingsGroup title="Update preferences">
+          <SettingChoice
+            title="Gateway release channel"
+            value={snapshot.channel}
+            disabled={active || !snapshot.admin}
+            options={[
+              { value: "stable", label: "Stable" },
+              { value: "beta", label: "Beta" },
+              { value: "nightly", label: "Nightly" },
+            ]}
+            onChange={(channel) =>
+              confirmAction(
+                "Change release channel",
+                "A channel may contain an older version. Review the available version before installing.",
+                () => void manage({ action: "channel", channel }),
+              )
+            }
+          />
         </SettingsGroup>
       )}
     </>
-  );
-}
-
-function LinkedAppUpdate({ computer }: { computer: ui.ComputerUpdate }) {
-  const { active, pending, manage, rowStatus, snapshot } = useUpdates();
-  const c = useColors();
-  const view = computerUpdate(computer);
-  const app = computer.updates?.app && currentRemoteUpdate(computer.updates.app);
-  const version = app?.version || computer.version || "Version unknown";
-  const channel = app?.channel.replace(/^./, (letter) => letter.toUpperCase());
-  const versions = [version, view.target !== version && view.target].filter(Boolean).join(" → ");
-  const request = computerAction(computer);
-  const key = updateTargetKey({ kind: "computer", nodeId: computer.nodeId });
-
-  const disabled =
-    !!pending || gatewayUpdateLifecycle(snapshot?.gatewayState) || computer.presence !== "connected" || !app?.connected;
-
-  const detail = computer.remoteUpdate || computer.presence !== "connected" ? view.line || view.detail : "";
-
-  return (
-    <SettingsRow title={computer.name} description={[versions, channel].filter(Boolean).join(" · ")}>
-      <UpdateBadge status={rowStatus(key, view.status)} />
-      <Text style={[styles.workMeta, { color: c.muted }]}>{updateCheckLabel(app?.lastCheckedAtMs)}</Text>
-      {!!detail && <Text style={[styles.workMeta, { color: view.failed ? c.danger : c.muted }]}>{detail}</Text>}
-      {computer.remoteUpdate ? (
-        <SettingsActions>
-          {app?.phase === "failed" && (
-            <Button
-              title="Dismiss"
-              size="sm"
-              disabled={disabled}
-              onPress={() =>
-                void manage({ action: "computer_dismiss", nodeId: computer.nodeId, desktopRequestId: app.requestId })
-              }
-            />
-          )}
-          <Button
-            title="Check now"
-            size="sm"
-            disabled={disabled}
-            onPress={() => void manage({ action: "computer_check", nodeId: computer.nodeId })}
-          />
-          <Button
-            title={app?.phase === "failed" ? "Request again" : "Update"}
-            size="sm"
-            variant={request ? "primary" : "secondary"}
-            disabled={disabled || active || !request}
-            onPress={() => request && void manage(request, key)}
-          />
-        </SettingsActions>
-      ) : (
-        <Text style={[styles.workMeta, { color: c.muted }]}>Update on that computer</Text>
-      )}
-    </SettingsRow>
   );
 }

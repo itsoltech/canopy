@@ -11,7 +11,7 @@ import { useSectionAvailability } from "./section-catalog";
 import { SettingsScroll } from "./SettingsScroll";
 import { habitSuggestionLabel } from "./memory-habits";
 
-export function useWorkerUpdateHint() {
+export function useCliUpdateHint() {
   return useOverview().workers.some((worker) => worker.cliTools.some((tool) => tool.action === "update"));
 }
 
@@ -21,7 +21,8 @@ export function SettingsNavigation({
   query,
   onQuery,
   compact,
-  updates,
+  appUpdateHint,
+  cliUpdates,
   pendingHabits,
 }: {
   section: string;
@@ -29,7 +30,8 @@ export function SettingsNavigation({
   query: string;
   onQuery: (query: string) => void;
   compact: boolean;
-  updates: boolean;
+  appUpdateHint: string;
+  cliUpdates: boolean;
   pendingHabits: number;
 }) {
   const c = useColors();
@@ -62,9 +64,16 @@ export function SettingsNavigation({
             {entries.map((entry) => {
               const slug = entry.href.slice("/settings/".length);
               const active = section === slug;
-              const hinted = slug === "workers" && updates;
+
+              const updateHint =
+                slug === "app-updates"
+                  ? appUpdateHint
+                  : slug === "workers" && cliUpdates
+                    ? "Agent CLI updates available"
+                    : "";
+
               const pending = slug === "memory" ? pendingHabits : 0;
-              const status = pending ? `${habitSuggestionLabel(pending)} to review` : hinted ? "Updates available" : "";
+              const status = pending ? `${habitSuggestionLabel(pending)} to review` : updateHint;
 
               return (
                 <Pressable
@@ -88,7 +97,7 @@ export function SettingsNavigation({
                   <Text numberOfLines={1} style={[type.chrome, { flex: 1, color: active ? c.text : c.soft }]}>
                     {entry.label}
                   </Text>
-                  {hinted && <StatusDot tone="amber" />}
+                  {!!updateHint && <StatusDot tone="amber" />}
                   {pending > 0 && <Badge tone="amber">{pending.toLocaleString()} to review</Badge>}
                   {compact && active && <Icon name="check" color={c.icon} />}
                 </Pressable>

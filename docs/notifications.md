@@ -1,5 +1,8 @@
 # Powiadomienia
 
+Aktualizacja (2026-11-25): ustawienia alertów użytkownika w webie, na desktopie
+i w aplikacji mobilnej są w Settings → Notifications.
+
 Aktualizacja (2026-11-25): licznik na pasku zadań Windows wyświetla niższe cyfry
 o wygładzonych krawędziach i zostawia więcej miejsca między znakami.
 
@@ -228,10 +231,17 @@ więc zdarzenie w tle nie wywołuje okna systemowego.
 
 ## Ustawienia
 
-Settings → General → Notifications ([settings-map.md](settings-map.md)), osobno na
-urządzeniu (`localStorage`): **Thread notifications** i **Bot notifications** (Off,
-Notifications, Notifications with sound), **Claude usage limit resets** (domyślnie
-Off) oraz **In-app notifications**. Alerty Claude są ciche i respektują zgodę na
+W webie i na desktopie **Settings → Notifications** zapisuje wybór na urządzeniu
+(`localStorage`). Włączone moduły mają osobne pola **Thread notifications** i **Bot notifications**
+z wyborem Off, Notifications lub Notifications with sound. Strona zawiera też
+**Claude usage limit resets** (domyślnie Off) oraz **In-app notifications**.
+Na macOS i Windows można tu włączyć **Activity notch**.
+**Restore device defaults** przywraca domyślne ustawienia alertów na tym urządzeniu.
+Ustawienie **Notify agent about pull requests** w Threads → Conversation i w ustawieniach
+projektu wysyła do agenta powiązanego wątku informacje o konfliktach i wynikach sprawdzeń.
+[Mapa ustawień](settings-map.md)
+
+Alerty Claude są ciche i respektują zgodę na
 powiadomienia systemowe oraz **In-app notifications** dla toastów. Włączenie
 alertów o wątkach lub botach wymaga zgody przeglądarki w webie albo systemu na macOS.
 Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy macOS nadal czeka na decyzję,
@@ -245,7 +255,7 @@ tylko gdy…” bot trzyma w instrukcjach
 
 ## Push na iOS i Androidzie
 
-**Settings → General → Notifications → System notifications** jest ustawieniem
+**Settings → Notifications → System notifications** jest ustawieniem
 sparowanego telefonu, domyślnie wyłączonym. Włączenie prosi o zgodę systemu.
 Powiadomienie pokazuje tytuł wątku lub nazwę bota i krótką, oczyszczoną treść.
 System decyduje o widoczności podglądu na ekranie blokady. Podczas pracy w Canopy

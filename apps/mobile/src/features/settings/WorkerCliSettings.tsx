@@ -36,16 +36,20 @@ export function WorkerCliSettings({
 
   return (
     <ResourceState resource={resource}>
+      {(current || overview.workers.length > 0) && (
+        <SettingsActions>
+          <Button
+            title={current ? "Check for updates" : "Check agent CLI versions"}
+            disabled={(current && !current.online) || !!readOnly}
+            busy={resource.busy}
+            onPress={() =>
+              void resource.run((api) => api.checkCliUpdates(current ? { workerId: current.id } : {})).then(onChanged)
+            }
+          />
+        </SettingsActions>
+      )}
       {current && (
         <View style={{ gap: 12 }}>
-          <SettingsActions>
-            <Button
-              title="Check for updates"
-              disabled={!current.online || !!readOnly}
-              busy={resource.busy}
-              onPress={() => void resource.run((api) => api.checkCliUpdates({ workerId: current.id })).then(onChanged)}
-            />
-          </SettingsActions>
           {current.cliTools.map((item) => (
             <WorkerCliRow
               key={item.tool?.provider}
