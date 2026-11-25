@@ -124,3 +124,65 @@ test("show_images settles if already offline or if the link closes before the ca
     await close();
   }
 });
+
+test("local automation grants, cancellations and finishes belong to their original gateway link", async () => {
+  const { state, ops, close } = fixture();
+  const sent: string[] = [];
+  const replacement: string[] = [];
+
+  const link = mockLink((payload) => {
+    if (payload.case === "localAutomationFinished") sent.push(`finished:${payload.value.callId}`);
+
+    if (payload.case === "agentToolCall")
+      sent.push(`${payload.value.cancelled ? "cancel" : "grant"}:${payload.value.callId}`);
+  });
+
+  const call = () =>
+    create(AgentToolCallSchema, {
+      callId: crypto.randomUUID(),
+      threadId: crypto.randomUUID(),
+      turnId: crypto.randomUUID(),
+      toolName: "authorize_local_automation",
+    });
+
+  const pending = call();
+  const admitted = call();
+  const cancelled = call();
+  const abort = new AbortController();
+  let finish: (() => void) | undefined;
+
+  try {
+    expect((await ops.callTool(call())).isError).toBe(true);
+    state.link = link;
+
+    const grant = ops.callTool(admitted, undefined, (complete) => {
+      finish = complete;
+    });
+
+    ops.toolResult(create(AgentToolResultSchema, { callId: admitted.callId, content: "allowed" }));
+    expect((await grant).isError).toBe(false);
+    expect(finish).toBeDefined();
+    finish?.();
+    const waiting = ops.callTool(pending);
+    const interrupted = ops.callTool(cancelled, abort.signal);
+    abort.abort();
+    expect((await interrupted).isError).toBe(true);
+    ops.detachGateway(link);
+    state.link = mockLink((payload) => {
+      replacement.push(payload.case);
+    });
+    expect((await waiting).isError).toBe(true);
+    finish?.();
+    expect(sent).toEqual([
+      `grant:${admitted.callId}`,
+      `finished:${admitted.callId}`,
+      `grant:${pending.callId}`,
+      `grant:${cancelled.callId}`,
+      `cancel:${cancelled.callId}`,
+    ]);
+    expect(replacement).toEqual([]);
+    expect(state.toolCalls.size).toBe(0);
+  } finally {
+    await close();
+  }
+});

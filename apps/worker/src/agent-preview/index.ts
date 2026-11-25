@@ -73,6 +73,7 @@ export class AgentPreviews {
       scope.deviceId,
       scope.app,
       scope.windowId,
+      start.followAgent,
       start.agentToolDefaults,
     ]);
 
@@ -93,6 +94,7 @@ export class AgentPreviews {
           }
         },
         start.agentToolDefaults,
+        start.followAgent,
       );
       this.#groups.set(key, group);
     }
@@ -101,6 +103,7 @@ export class AgentPreviews {
       id: start.previewId,
       threadId: start.threadId,
       maxFps: start.maxFps,
+      capacityChanged: () => group.demand.changed(),
       send: (event) => this.#options.send(event),
       stop: () => {
         if (this.#watches.get(start.previewId)?.watch === watch) this.#stop(start.previewId);

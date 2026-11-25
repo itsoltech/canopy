@@ -1708,6 +1708,8 @@ message ThreadAutomationActivity {
   string app = 7;
   string target = 8;
   string worker_id = 9;
+  // A corresponding live completion follows on this connection.
+  bool reports_completion = 10;
 }
 
 message ThreadUpdate {
@@ -1733,6 +1735,9 @@ message ThreadUpdate {
     ThreadSyncBatch batch = 811;
     ThreadControls controls = 815;
     ThreadAutomationActivity automation_activity = 816;
+    ThreadAutomationActivity automation_activity_finished = 817;
+    // Retire this abandoned live admission. An empty id resets all live activity for the watch.
+    string automation_activity_reset = 818;
   }
 }
 
@@ -2912,6 +2917,8 @@ message WatchAgentPreviewRequest {
   // Confirm frames after painting them through AckAgentPreview. By default,
   // consuming the gRPC stream acknowledges frames for older clients.
   bool client_ack = 4;
+  // Automatic Desktop preview follows the thread's observed target window.
+  bool follow_agent = 5;
 }
 
 message AckAgentPreviewRequest {

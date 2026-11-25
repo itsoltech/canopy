@@ -133,8 +133,10 @@ test("Desktop enables physical input only in an opted-in turn and still authoriz
       try {
         client = await connect(bridge);
         const { tools } = await client.listTools();
-        const modeText = tools.find((tool) => tool.name === mouseClick.name)?.description;
-        expect(modeText?.includes("The owner enabled physical input")).toBe(allowPhysicalInput);
+        const click = tools.find((tool) => tool.name === "desktop_click");
+        const snapshot = tools.find((tool) => tool.name === "desktop_snapshot");
+        expect(click?.description?.includes("can move the shared pointer")).toBe(allowPhysicalInput);
+        expect(snapshot?.description?.includes("For background work")).toBe(!allowPhysicalInput);
 
         const before = f.mcpCalls();
         f.deny(true);

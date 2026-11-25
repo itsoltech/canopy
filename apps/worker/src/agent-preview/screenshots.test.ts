@@ -3,12 +3,35 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { AgentPreviewInputSchema, AgentTool } from "@canopy/contracts";
+import sharp from "sharp";
 import { executable } from "../agent-tools/fixtures.test-support.ts";
 import { toolEnvironment } from "../agent-tools/paths.ts";
 import { eventually, previewFixture } from "./fixtures.test-support.ts";
+import { jpegFrame } from "./frames.ts";
 import { PreviewRuntime } from "./runtime.ts";
 import { screenshotPreview } from "./screenshots.ts";
 import type { PreviewUpdate } from "./types.ts";
+
+test("Desktop frame coordinates match the window inside asymmetric screenshot shadows", async () => {
+  const content = await sharp({ create: { width: 96, height: 52, channels: 4, background: "#306699" } })
+    .png()
+    .toBuffer();
+
+  const padded = await sharp(content)
+    .extend({ left: 9, right: 11, top: 4, bottom: 16, background: { r: 0, g: 0, b: 0, alpha: 0.2 } })
+    .png()
+    .toBuffer();
+
+  const geometry = { windowWidth: 48, windowHeight: 26, scaleFactor: 2 };
+  const expected = await jpegFrame(content, geometry);
+  const cropped = await jpegFrame(padded, geometry);
+  expect(cropped.windowAligned).toBe(true);
+  expect(cropped.data).toEqual(expected.data);
+
+  // A translucent window can have a smaller opaque interior than its actual frame.
+  const uncertain = await jpegFrame(padded, { ...geometry, windowWidth: 50 });
+  expect(uncertain).toMatchObject({ windowAligned: false, width: 116, height: 72 });
+});
 
 async function captureFixture() {
   const f = await previewFixture();

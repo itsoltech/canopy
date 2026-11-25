@@ -206,6 +206,7 @@
         "@canopy/process-governor": "workspace:*",
         "@canopy/syntax": "workspace:*",
         "@canopy/transport": "workspace:*",
+        "@canopy/ui": "workspace:*",
         "@canopy/updater": "workspace:*",
         "@connectrpc/connect": "2.3.0",
         "@modelcontextprotocol/sdk": "1.32.2",

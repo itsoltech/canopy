@@ -31,6 +31,10 @@ function isMediaPublication(call: AgentToolCall): boolean {
   return (call.toolName === "show_images" || call.toolName === "show_video") && !call.connectorAccountId && !call.botId;
 }
 
+function isAutomationAuthorization(call: AgentToolCall): boolean {
+  return call.toolName === "authorize_local_automation" && !call.connectorAccountId && !call.botId;
+}
+
 const switchedWorkspace = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Struct({ cwd: Schema.String })));
 
 function isProjectSecretCall(call: AgentToolCall): boolean {
@@ -174,8 +178,21 @@ export class HostEvents {
     });
   }
 
-  async callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult> {
+  async callTool(
+    call: AgentToolCall,
+    signal?: AbortSignal,
+    admitted?: (finish: () => void) => void,
+  ): Promise<AgentToolResult> {
+    const link = this.ctx.state.link;
     const result = await this.#requestTool(call, signal);
+
+    if (!result.isError && isAutomationAuthorization(call)) {
+      if (!link || this.ctx.state.link !== link) return disconnectedToolResult(call);
+      const { callId } = call;
+      admitted?.(() => {
+        if (this.ctx.state.link === link) this.send({ case: "localAutomationFinished", value: { callId } });
+      });
+    }
 
     if (
       !result.isError &&
@@ -220,6 +237,7 @@ export class HostEvents {
       );
     const { link, toolCalls, secrets } = this.ctx.state;
     const mediaPublication = isMediaPublication(call);
+    const automation = isAutomationAuthorization(call);
     const projectSecret = isProjectSecretCall(call);
 
     if (projectSecret) {
@@ -243,7 +261,7 @@ export class HostEvents {
         }),
       );
 
-    if (mediaPublication && !link)
+    if ((mediaPublication || automation) && !link)
       return Promise.resolve(
         create(AgentToolResultSchema, {
           callId: call.callId,
@@ -259,12 +277,19 @@ export class HostEvents {
       const abort = () => {
         const cancelled = create(AgentToolCallSchema, { ...call, cancelled: true });
 
-        if (projectSecret) {
-          toolCalls.delete(call.callId);
-          secrets.fenceProjectTurn(call.threadId, call.turnId);
+        if (projectSecret || automation) {
+          signal?.removeEventListener("abort", abort);
+          const wasPending = toolCalls.delete(call.callId);
 
-          if (this.ctx.state.link === link) this.ctx.ops.send({ case: "agentToolCall", value: cancelled });
-          resolve(projectSecretFailure(call.callId));
+          if (projectSecret) secrets.fenceProjectTurn(call.threadId, call.turnId);
+
+          if ((projectSecret || wasPending) && this.ctx.state.link === link)
+            this.ctx.ops.send({ case: "agentToolCall", value: cancelled });
+          resolve(
+            projectSecret
+              ? projectSecretFailure(call.callId)
+              : create(AgentToolResultSchema, { callId: call.callId, isError: true, content: "Turn interrupted" }),
+          );
 
           return;
         }
@@ -298,15 +323,15 @@ export class HostEvents {
         return;
       }
 
-      toolCalls.set(call.callId, { call, resolve: finish });
+      toolCalls.set(call.callId, { call, resolve: finish, ...(automation && { cancel: abort }) });
 
-      if ((mediaPublication || projectSecret) && link) {
-        // Media transfer is bound to the gateway connection that started it.
+      if ((mediaPublication || projectSecret || automation) && link) {
+        // These calls are bound to their original connection and cannot resume after reconnect.
         try {
           link.send({ case: "agentToolCall", value: call });
         } catch {
           if (projectSecret) secrets.fenceProjectTurns();
-          this.toolResult(projectSecret ? projectSecretFailure(call.callId) : disconnectedMediaResult(call));
+          this.toolResult(projectSecret ? projectSecretFailure(call.callId) : disconnectedToolResult(call));
         }
       } else this.ctx.ops.send({ case: "agentToolCall", value: call });
     });
@@ -318,7 +343,7 @@ export class HostEvents {
     this.ctx.state.secrets.fenceProjectTurns();
 
     for (const { call } of this.ctx.state.toolCalls.values())
-      if (isMediaPublication(call)) this.toolResult(disconnectedMediaResult(call));
+      if (isMediaPublication(call) || isAutomationAuthorization(call)) this.toolResult(disconnectedToolResult(call));
 
     return true;
   }
@@ -353,12 +378,14 @@ export class HostEvents {
   }
 }
 
-function disconnectedMediaResult(call: AgentToolCall): AgentToolResult {
+function disconnectedToolResult(call: AgentToolCall): AgentToolResult {
   const media = call.toolName === "show_video" ? "the video was" : "the images were";
 
   return create(AgentToolResultSchema, {
     callId: call.callId,
     isError: true,
-    content: `Lost the connection to the gateway. Canopy could not confirm that ${media} published. Check the thread before trying again.`,
+    content: isAutomationAuthorization(call)
+      ? "Lost the gateway connection that authorizes this automation action."
+      : `Lost the connection to the gateway. Canopy could not confirm that ${media} published. Check the thread before trying again.`,
   });
 }

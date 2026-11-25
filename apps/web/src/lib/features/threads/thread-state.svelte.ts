@@ -21,6 +21,7 @@ import { isFinished, upsertSchedule } from "#lib/features/schedules/schedules.ts
 import { ComposerConnection } from "@canopy/domain/composer-connection";
 import { lastResult } from "#lib/shared/last-result.ts";
 import { ReplySuggestionsState } from "./reply-suggestions.svelte.ts";
+import { ThreadPreviewActivity } from "#lib/features/preview/thread-preview-activity.svelte.ts";
 
 import type { TimelineEntry, TimelineNotice, TurnResult } from "./thread-types.ts";
 
@@ -69,8 +70,7 @@ function endFields(status: string | undefined, finished: TurnFinished) {
 
 export class ThreadState {
   readonly replySuggestions = new ReplySuggestionsState();
-  /** Approved automation observed live; never part of the cached snapshot or transcript. */
-  automationActivity = $state.raw<ui.ThreadAutomationActivity>();
+  readonly previewActivity = new ThreadPreviewActivity();
   #snapshot: ui.ThreadSnapshot | undefined;
   readonly #entryPositions = new Map<string, number>();
   readonly history = new ThreadHistory(
@@ -107,6 +107,7 @@ export class ThreadState {
     return this.#connection;
   }
   set connection(value: Connection) {
+    if (value === "error" || value === "reconnecting") this.previewActivity.clear();
     this.#connection = value;
     this.composerConnection.update(value === "live");
   }
@@ -203,6 +204,7 @@ export class ThreadState {
   apply(update: ui.ThreadUpdate): void {
     const previous = this.#snapshot;
     this.#snapshot = applyThreadUpdate(previous, update);
+    this.previewActivity.apply(this.#snapshot, update);
 
     if (this.loaded && update.change.case === "batch") {
       if (this.#snapshot === previous) return;
@@ -229,9 +231,6 @@ export class ThreadState {
       : update.change;
 
     switch (change.case) {
-      case "automationActivity":
-        this.automationActivity = change.value;
-        break;
       case "snapshot": {
         const snapshot = change.value;
         this.thread = snapshot.thread;
@@ -484,8 +483,14 @@ export class ThreadState {
   connect(threadId: string, overviewStatus?: () => string | undefined): () => void {
     const disconnect = this.history.connect(threadId, overviewStatus);
 
+    const release = threadCache.onRelease((id) => {
+      if (id === undefined || id === threadId) this.previewActivity.clear();
+    });
+
     return () => {
       disconnect();
+      release();
+      this.previewActivity.clear();
       this.composerConnection.reset();
     };
   }

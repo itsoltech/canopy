@@ -1,16 +1,29 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { toJsonString } from "@bufbuild/protobuf";
+import { create, toJsonString } from "@bufbuild/protobuf";
 import { AgentTool, PermissionMode, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { type JsonObject } from "@canopy/domain";
 import { qualifyId } from "@canopy/domain/computers";
 import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
+import { LOCAL_AUTOMATION_COMPLETION_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
+import { expireLocalAutomationLeases } from "../../apps/gateway/src/core/automation-permissions.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { configComputer, pairConfig } from "./support/config-sync.ts";
 
 const tools = [AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE];
+const completionHello = { capabilities: ["agent_tools_v1", LOCAL_AUTOMATION_COMPLETION_CAPABILITY] };
+
+async function completionWorker(gateway: TestGateway, name: string) {
+  const registration = await gateway.addWorker(name);
+
+  const worker = await gateway.connect(registration.workerId, registration.credential, undefined, {
+    hello: completionHello,
+  });
+
+  return { ...gateway, ...registration, worker };
+}
 
 async function running(gateway: TestGateway, mode = PermissionMode.FULL_AUTO) {
   gateway.worker.holdTurns = true;
@@ -82,22 +95,28 @@ function authorize(
   });
 }
 
-async function watch(api: TestGateway["api"], threadId: string, syncCursor?: ui.ThreadSyncCursor) {
+async function watch(api: TestGateway["api"], threadId: string, checkpoint?: ui.ThreadSnapshot) {
   const abort = new AbortController();
   const activities: ui.ThreadAutomationActivity[] = [];
-  let snapshot: ui.ThreadSnapshot | undefined;
+  const finished: ui.ThreadAutomationActivity[] = [];
+  const resets: string[] = [];
+  let snapshot = checkpoint;
   let ready = false;
   let failure: unknown;
 
   const reading = (async () => {
     try {
       for await (const update of api.watchThread(
-        { threadId, sequence: true, syncCursor },
+        { threadId, sequence: true, syncCursor: checkpoint?.syncCursor },
         { signal: abort.signal, timeoutMs: 0 },
       )) {
         snapshot = applyThreadUpdate(snapshot, update);
 
         if (update.change.case === "automationActivity") activities.push(update.change.value);
+
+        if (update.change.case === "automationActivityFinished") finished.push(update.change.value);
+
+        if (update.change.case === "automationActivityReset") resets.push(update.change.value);
 
         if (update.change.case === "batch" && update.change.value.caughtUp) ready = true;
       }
@@ -106,21 +125,29 @@ async function watch(api: TestGateway["api"], threadId: string, syncCursor?: ui.
     }
   })();
 
-  expect(await eventually(async () => ready, Boolean)).toBe(true);
-  expect(failure).toBeUndefined();
+  try {
+    expect(await eventually(async () => ready || failure !== undefined, Boolean)).toBe(true);
+    expect(failure).toBeUndefined();
+  } catch (cause) {
+    abort.abort();
+    await reading;
+    throw cause;
+  }
 
   return {
     activities,
+    finished,
+    resets,
     get snapshot() {
       return snapshot!;
     },
-    async until(count: number) {
+    async until(count: number, completions = 0, lost = 0) {
       expect(
         await eventually(
-          async () => activities.length,
-          (length) => length === count,
+          async () => [activities.length, finished.length, resets.length],
+          ([starts, ends, abandoned]) => starts === count && ends === completions && abandoned === lost,
         ),
-      ).toBe(count);
+      ).toEqual([count, completions, lost]);
       expect(failure).toBeUndefined();
     },
     async close() {
@@ -175,7 +202,9 @@ describe.skipIf(!dockerAvailable)("ephemeral approved automation activity over W
         windowId: "",
         app: "",
         target: "",
+        reportsCompletion: false,
       });
+      gateway.worker.link.send({ case: "localAutomationFinished", value: { callId } });
       expect((await authorize(gateway, scope, AgentTool.BROWSER, "browser_open", {}, callId)).isError).toBe(true);
       expect(
         (
@@ -232,6 +261,136 @@ describe.skipIf(!dockerAvailable)("ephemeral approved automation activity over W
     } finally {
       await live.close();
       gateway.worker.finish(scope.threadId, scope.turnId);
+    }
+  });
+
+  test("overlapping calls finish once on the admitting connection and never on its replacement", async () => {
+    const scoped = await completionWorker(gateway, "Completion worker");
+    const { worker, workerId, credential } = scoped;
+    const scope = await running(scoped);
+    let live = await watch(gateway.api, scope.threadId);
+    const ids = [crypto.randomUUID(), crypto.randomUUID()];
+
+    try {
+      const admitted = await Promise.all(
+        ids.map((id) => authorize(scoped, scope, AgentTool.DESKTOP, "desktop_click", {}, id)),
+      );
+
+      expect(admitted.every((result) => !result.isError)).toBe(true);
+      gateway.worker.link.send({ case: "localAutomationFinished", value: { callId: ids[0]! } });
+      // Wait until the gateway has consumed the foreign notice on its own stream.
+      expect((await authorize(gateway, scope, AgentTool.DESKTOP, "desktop_click")).isError).toBe(true);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: ids[1]! } });
+      worker.link.send({ case: "localAutomationFinished", value: { callId: ids[1]! } });
+      worker.link.send({ case: "localAutomationFinished", value: { callId: crypto.randomUUID() } });
+      await live.until(2, 1);
+      expect(live.finished[0]).toEqual(live.activities.find((activity) => activity.id === ids[1]));
+      expect(live.finished[0]?.reportsCompletion).toBe(true);
+
+      // A worker can cancel after admission but before receiving the grant and starting the MCP call.
+      const interrupted = {
+        ...scope,
+        callId: crypto.randomUUID(),
+        tool: "authorize_local_automation",
+        args: { tool: AgentTool.DESKTOP, name: "desktop_click", arguments: "{}" },
+        expiresAt: new Date(Date.now() + 10_000),
+      };
+
+      expect((await worker.callTool(interrupted)).isError).toBe(false);
+      expect((await worker.callTool({ ...interrupted, cancelled: true })).isError).toBe(true);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: interrupted.callId } });
+      await live.until(3, 2);
+
+      const replacement = await gateway.connect(workerId, credential, undefined, {
+        hello: completionHello,
+        resumeJournal: true,
+      });
+
+      await live.until(3, 2, 1);
+      expect(live.resets).toEqual([ids[0]!]);
+      expect(live.finished.map((activity) => activity.id)).toEqual([ids[1]!, interrupted.callId]);
+      replacement.link.send({ case: "localAutomationFinished", value: { callId: ids[0]! } });
+      const next = crypto.randomUUID();
+      expect(
+        (await authorize({ ...scoped, worker: replacement }, scope, AgentTool.DESKTOP, "desktop_click", {}, next))
+          .isError,
+      ).toBe(false);
+      replacement.link.send({ case: "localAutomationFinished", value: { callId: next } });
+      await live.until(4, 3, 1);
+      expect(live.finished.at(-1)?.id).toBe(next);
+      await live.close();
+      live = await watch(gateway.api, scope.threadId, live.snapshot);
+      await live.until(0);
+      replacement.finish(scope.threadId, scope.turnId);
+    } finally {
+      await live.close();
+    }
+  });
+
+  test("a full live metadata queue resets preview tracking while the same transcript watch stays open", async () => {
+    const scoped = await completionWorker(gateway, "Overflow worker");
+    const { worker } = scoped;
+    const scope = await running(scoped);
+    const live = await watch(gateway.api, scope.threadId);
+    const lost = crypto.randomUUID();
+
+    // Deliver a burst in the same turn as a real completion, before the sequence reader can drain.
+    const unsubscribe = gateway.core.hub.observeThread(scope.threadId, ({ change }) => {
+      if (change.case !== "automationActivityFinished" || change.value.id !== lost) return;
+
+      for (let index = 0; index < 128; index++)
+        gateway.core.hub.publishThread(
+          scope.threadId,
+          create(ui.ThreadUpdateSchema, { change: { case: "schedule", value: { id: crypto.randomUUID() } } }),
+        );
+    });
+
+    try {
+      expect((await authorize(scoped, scope, AgentTool.DESKTOP, "desktop_click", {}, lost)).isError).toBe(false);
+      await live.until(1);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: lost } });
+      await live.until(1, 0, 1);
+      expect(live.resets).toEqual([""]);
+      const next = crypto.randomUUID();
+      expect((await authorize(scoped, scope, AgentTool.DESKTOP, "desktop_click", {}, next)).isError).toBe(false);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: next } });
+      await live.until(2, 1, 1);
+      expect(live.finished[0]?.id).toBe(next);
+    } finally {
+      unsubscribe();
+      await live.close();
+      worker.finish(scope.threadId, scope.turnId);
+    }
+  });
+
+  test("the heartbeat sweep retains admitted calls past approval expiry and discards abandoned calls", async () => {
+    const scoped = await completionWorker(gateway, "Lease worker");
+    const { worker } = scoped;
+    const scope = await running(scoped);
+    const live = await watch(gateway.api, scope.threadId);
+    const connection = gateway.core.link.connections.get(scoped.workerId)!;
+    const first = crypto.randomUUID();
+    const lost = crypto.randomUUID();
+
+    try {
+      expect((await authorize(scoped, scope, AgentTool.DESKTOP, "desktop_click", {}, first)).isError).toBe(false);
+      // The authorization in this suite has a ten-second deadline. The admitted MCP call can still return.
+      expireLocalAutomationLeases(gateway.core, connection, Date.now() + 11_000);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: first } });
+      await live.until(1, 1);
+      expect((await authorize(scoped, scope, AgentTool.DESKTOP, "desktop_click", {}, lost)).isError).toBe(false);
+      expireLocalAutomationLeases(gateway.core, connection, Date.now() + 311_000);
+      await live.until(2, 1, 1);
+      expect(live.resets).toEqual([lost]);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: lost } });
+      const next = crypto.randomUUID();
+      expect((await authorize(scoped, scope, AgentTool.DESKTOP, "desktop_click", {}, next)).isError).toBe(false);
+      worker.link.send({ case: "localAutomationFinished", value: { callId: next } });
+      await live.until(3, 2, 1);
+      expect(live.finished.map((activity) => activity.id)).toEqual([first, next]);
+    } finally {
+      await live.close();
+      worker.finish(scope.threadId, scope.turnId);
     }
   });
 
@@ -309,14 +468,8 @@ test.skipIf(!dockerAvailable)(
 
     try {
       await pairConfig(viewer, home);
-      const registered = await home.gateway.addWorker("Live automation");
-
-      const worker = await home.gateway.connect(registered.workerId, registered.credential, undefined, {
-        hello: { capabilities: ["agent_tools_v1"] },
-      });
-
-      // The helper uses the selected scripted worker, while RPC and persistence remain real.
-      const gateway = { ...home.gateway, worker, workerId: registered.workerId };
+      const gateway = await completionWorker(home.gateway, "Live automation");
+      const { worker, workerId, credential } = gateway;
       const scope = await running(gateway);
       const threadId = qualifyId(scope.threadId, home.node);
       live = await watch(viewer.gateway.api, threadId);
@@ -334,11 +487,13 @@ test.skipIf(!dockerAvailable)(
           )
         ).isError,
       ).toBe(false);
-      await live.until(1);
+      worker.link.send({ case: "localAutomationFinished", value: { callId } });
+      await live.until(1, 1);
+      expect(live.finished).toEqual(live.activities);
       expect(live.activities[0]).toMatchObject({
         id: callId,
         turnId: qualifyId(scope.turnId, home.node),
-        workerId: qualifyId(registered.workerId, home.node),
+        workerId: qualifyId(workerId, home.node),
         tool: AgentTool.DESKTOP,
         app: "Background App",
         windowId,
@@ -357,13 +512,32 @@ test.skipIf(!dockerAvailable)(
       await live.close();
       live = await watch(viewer.gateway.api, threadId);
       expect(live.activities).toEqual([]);
+      expect(live.finished).toEqual([]);
+      expect(live.resets).toEqual([]);
+      const deviceCall = crypto.randomUUID();
       expect(
-        (await authorize(gateway, scope, AgentTool.DEVICE, "snapshot", { platform: "android", serial: windowId }))
-          .isError,
+        (
+          await authorize(
+            gateway,
+            scope,
+            AgentTool.DEVICE,
+            "snapshot",
+            { platform: "android", serial: windowId },
+            deviceCall,
+          )
+        ).isError,
       ).toBe(false);
       await live.until(1);
       expect(live.activities[0]).toMatchObject({ deviceId: windowId, platform: "android" });
-      worker.finish(scope.threadId, scope.turnId);
+
+      const replacement = await home.gateway.connect(workerId, credential, undefined, {
+        hello: completionHello,
+        resumeJournal: true,
+      });
+
+      await live.until(1, 0, 1);
+      expect(live.resets).toEqual([deviceCall]);
+      replacement.finish(scope.threadId, scope.turnId);
     } finally {
       await live?.close();
       await Promise.allSettled([viewer.close(), home.close()]);

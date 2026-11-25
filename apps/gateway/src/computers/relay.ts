@@ -1,5 +1,6 @@
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 import { RESTART_PRESENCE } from "@canopy/domain/computer-presence";
+import { AGENT_PREVIEW_FOLLOW_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { computerLink as link } from "@canopy/contracts";
 import {
@@ -30,6 +31,7 @@ const FEATURES = new Set([
   "diagnostics_logs_v1",
   "thread_files_watch_v1",
   AGENT_PREVIEW_CLIENT_ACK,
+  AGENT_PREVIEW_FOLLOW_CAPABILITY,
   BOT_THREAD_ACCESS,
   REMOTE_THREADS,
   "remote_worktrees",

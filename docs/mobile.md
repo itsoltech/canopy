@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Aktualizacja (2026-11-25). Desktop Preview pokazuje animowany kursor agenta przy
+akcjach w obserwowanym oknie. [Kursor agenta](automation-tools.md#kursor-agenta)
+
 Status (2026-11-25): pełnoekranowy Preview ma dolny pasek nawigacji, arkusz wyboru
 źródła oraz edycję adresu i tekstu na żądanie. Obraz obsługuje lokalne gesty dwoma
 palcami, a Inspect preview / Control app przełącza działanie jednego palca.

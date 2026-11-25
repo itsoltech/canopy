@@ -14,6 +14,7 @@ import {
   type AgentPreviewCommand,
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { AGENT_PREVIEW_FOLLOW_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
@@ -21,7 +22,7 @@ import { SqlClient } from "effect/sql";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { expectLinkedAgentPreview } from "./support/agent-preview-linked.ts";
 
-const capabilities = ["agent_tools_v1", "agent_preview_v1"];
+const capabilities = ["agent_tools_v1", "agent_preview_v1", AGENT_PREVIEW_FOLLOW_CAPABILITY];
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGLsAAAAASUVORK5CYII=",
@@ -129,6 +130,7 @@ function start(
   id = threadId,
   scope: MessageInitShape<typeof ui.WatchAgentPreviewRequestSchema>["scope"] = { tool: AgentTool.BROWSER },
   maxFps = 0,
+  followAgent = false,
 ) {
   const abort = new AbortController();
   controllers.add(abort);
@@ -138,7 +140,7 @@ function start(
   const done = (async () => {
     try {
       for await (const event of gateway.api.watchAgentPreview(
-        { threadId: id, scope, maxFps },
+        { threadId: id, scope, maxFps, followAgent },
         { signal: abort.signal, timeoutMs: 0 },
       ))
         events.push(event);
@@ -152,8 +154,8 @@ function start(
   return { abort, events, done, failure: () => failure };
 }
 
-async function opened(id = threadId, worker = gateway.worker) {
-  const watch = start(id);
+async function opened(id = threadId, worker = gateway.worker, tool = AgentTool.BROWSER) {
+  const watch = start(id, { tool });
   await eventually(
     async () => watch.events.length,
     (count) => count > 0,
@@ -218,6 +220,7 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
       threadId,
       previewId: watch.previewId,
       maxFps: 12,
+      followAgent: false,
       scope: { tool: AgentTool.BROWSER, session: threadId, operation: "", target: "", value: "" },
     });
 
@@ -278,6 +281,10 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
     await fps.done;
     expect(fps.failure()).toBe(Code.InvalidArgument);
 
+    const invalidFollow = start(threadId, { tool: AgentTool.BROWSER }, 4, true);
+    await invalidFollow.done;
+    expect(invalidFollow.failure()).toBe(Code.InvalidArgument);
+
     for (const id of ["invalid", crypto.randomUUID()]) {
       const watch = start(id);
       await watch.done;
@@ -296,6 +303,10 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
       const old = start();
       await old.done;
       expect(old.failure()).toBe(Code.Unimplemented);
+      connection.hello.capabilities = ["agent_tools_v1", "agent_preview_v1"];
+      const oldDesktop = start(threadId, { tool: AgentTool.DESKTOP }, 4, true);
+      await oldDesktop.done;
+      expect(oldDesktop.failure()).toBe(Code.Unimplemented);
     } finally {
       connection.hello.capabilities = capabilities;
     }
@@ -627,6 +638,7 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
       { title: "x".repeat(4097) },
       { targets: Array.from({ length: 65 }, () => ({ id: "window" })) },
       { targets: Array.from({ length: 64 }, () => ({ label: "x".repeat(600) })) },
+      { mode: "screenshots", targetId: "w-12", cursor: { actionId: "click-1", x: 0.5, y: 0.25, click: true } },
     ]) {
       const watch = await opened();
       gateway.worker.link.send({ case: "agentPreview", value: frame(watch.previewId, 1n, overrides) });
@@ -637,6 +649,73 @@ describe.skipIf(!dockerAvailable)("thread preview streaming and human input", ()
 
     expect(gateway.core.link.connections.get(gateway.workerId)?.isOpen).toBe(true);
     expect(gateway.core.link.connections.get(gateway.workerId)?.previewWatches.size).toBe(0);
+  });
+
+  test("an automatic Desktop watch receives confirmed window frames and refuses an ordinary foreground capture", async () => {
+    const abort = new AbortController();
+
+    const request = create(ui.WatchAgentPreviewRequestSchema, {
+      threadId,
+      scope: { tool: AgentTool.DESKTOP },
+      followAgent: true,
+      clientAck: true,
+    });
+
+    const stream = gateway.core.agentPreviews.watch(request, abort.signal)[Symbol.asyncIterator]();
+
+    try {
+      const previewId = (await stream.next()).value!.previewId;
+      expect(ofKind("start")[0]?.kind.value).toMatchObject({ followAgent: true, scope: { session: threadId } });
+      expect(
+        await code(gateway.api.sendAgentPreviewInput({ threadId, previewId, inputs: [{ kind: "release" }] })),
+      ).toBe(Code.FailedPrecondition);
+      expect(ofKind("input")).toHaveLength(0);
+      const target = { mode: "screenshots", targetId: "w-12", followingAgent: true };
+      gateway.worker.link.send({ case: "agentPreview", value: frame(previewId, 1n, target) });
+      gateway.worker.link.send({ case: "agentPreview", value: { previewId, state: "ready" } });
+      await eventually(
+        async () => ofKind("ack").some((cmd) => cmd.kind.case === "ack" && cmd.kind.value.frameId === 1n),
+        Boolean,
+      );
+      expect((await stream.next()).value?.state).toBe("ready");
+      expect(await code(gateway.api.ackAgentPreview({ threadId, previewId, frameId: 1n }))).toBe(Code.InvalidArgument);
+      gateway.worker.link.send({ case: "agentPreview", value: frame(previewId, 2n, target) });
+      expect((await stream.next()).value).toMatchObject({ ...target, frameId: 2n });
+      const observed = { mode: "screenshots", agentObservation: true, targetId: "", title: "Agent screenshot" };
+      gateway.worker.link.send({ case: "agentPreview", value: frame(previewId, 3n, observed) });
+      expect((await stream.next()).value).toMatchObject({ ...observed, frameId: 3n, data: new Uint8Array(png) });
+      gateway.worker.link.send({ case: "agentPreview", value: frame(previewId, 4n, observed) });
+      gateway.worker.link.send({ case: "agentPreview", value: { previewId, state: "ready" } });
+      await eventually(
+        async () => ofKind("ack").some((cmd) => cmd.kind.case === "ack" && cmd.kind.value.frameId === 4n),
+        Boolean,
+      );
+      expect((await stream.next()).value?.state).toBe("ready");
+      gateway.worker.link.send({
+        case: "agentPreview",
+        value: frame(previewId, 5n, { mode: "screenshots", targetId: "other-window" }),
+      });
+      expect(await code(stream.next())).toBe(Code.DataLoss);
+    } finally {
+      abort.abort();
+      await stream.return?.();
+    }
+  });
+
+  test("a Desktop viewer receives a window-relative cursor and rejects an out-of-frame action", async () => {
+    const watch = await opened(threadId, gateway.worker, AgentTool.DESKTOP);
+    const cursor = { actionId: "click-1", x: 0, y: 1, click: true };
+    const desktop = { mode: "screenshots", targetId: "w-12", cursor };
+    gateway.worker.link.send({ case: "agentPreview", value: frame(watch.previewId, 1n, desktop) });
+    const received = await eventually(async () => watch.events.find((event) => event.frameId === 1n), Boolean);
+    expect(received).toMatchObject(desktop);
+    gateway.worker.link.send({
+      case: "agentPreview",
+      value: frame(watch.previewId, 2n, { ...desktop, cursor: { ...cursor, x: 1.1 } }),
+    });
+    await watch.done;
+    expect(watch.failure()).toBe(Code.DataLoss);
+    expect(watch.events.some((event) => event.frameId === 2n)).toBe(false);
   });
 
   test("revoking the grant or archiving the thread stops an idle watch and refuses late input", async () => {

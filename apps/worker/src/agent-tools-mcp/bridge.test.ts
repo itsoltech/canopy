@@ -114,14 +114,19 @@ test("local MCP rejects unauthenticated, unknown and revoked calls before invoki
   const path = join(temporary("canopy-local-mcp-policy-"), "events.jsonl");
   let activeTurn = false;
   let authorized = 0;
+  const finished: string[] = [];
 
   const bridge = createLocalAutomationMcp({
     servers: [descriptor("desktop", path)],
     env: {},
-    authorize: async () => {
+    authorize: async (_name, tool) => {
       authorized++;
 
       if (!activeTurn) throw new Error("Sensitive authorization failure");
+
+      return () => {
+        finished.push(tool);
+      };
     },
   });
 
@@ -146,6 +151,7 @@ test("local MCP rejects unauthenticated, unknown and revoked calls before invoki
       -32001,
     );
     expect(authorized).toBe(4);
+    expect(finished).toEqual(["echo", "unknown"]);
     expect(events(path).filter((event) => event.event === "called")).toHaveLength(1);
   } finally {
     await bridge.close();
@@ -156,15 +162,22 @@ test("local MCP cancellation reaches stdio, aborts authorization, and close stop
   const path = join(temporary("canopy-local-mcp-cancel-"), "events.jsonl");
   let waitingForAuthorization = false;
   let authorizationSignal: AbortSignal | undefined;
+  const lateGrant = Promise.withResolvers<void>();
+  const finished: string[] = [];
 
   const bridge = createLocalAutomationMcp({
     servers: [descriptor("device", path)],
     env: {},
     authorize: async (_name, toolName, _argsJson, signal) => {
-      if (toolName !== "blocked") return;
-      waitingForAuthorization = true;
-      authorizationSignal = signal;
-      await new Promise<void>(() => {});
+      if (toolName === "blocked") {
+        waitingForAuthorization = true;
+        authorizationSignal = signal;
+        await lateGrant.promise;
+      }
+
+      return () => {
+        finished.push(toolName);
+      };
     },
   });
 
@@ -174,16 +187,21 @@ test("local MCP cancellation reaches stdio, aborts authorization, and close stop
     expect((await send(bridge, "notifications/cancelled", undefined, { requestId: "auth" })).status).toBe(202);
     expect(RpcReply.parse(await (await blocked).json()).error?.message).toContain("cancelled");
     expect(authorizationSignal?.aborted).toBe(true);
+    lateGrant.resolve();
+    await until(() => finished.length === 1);
     expect(events(path)).toEqual([]);
     const pending = send(bridge, "tools/call", "wait", { name: "wait" });
     await until(() => events(path).some((event) => event.event === "called"));
+    expect(finished).toEqual(["blocked"]);
     await send(bridge, "notifications/cancelled", undefined, { requestId: "wait" });
     expect(RpcReply.parse(await (await pending).json()).error?.message).toContain("cancelled");
     await until(() => events(path).some((event) => event.event === "cancelled"));
+    expect(finished).toEqual(["blocked", "wait"]);
     const closingCall = send(bridge, "tools/call", "close", { name: "wait" }).catch(() => undefined);
     await until(() => events(path).filter((event) => event.event === "called").length === 2);
     await bridge.close();
     await closingCall;
+    expect(finished).toEqual(["blocked", "wait", "wait"]);
     await bridge.close();
     await waitForProcessStopped(events(path)[0]!.pid);
   } finally {

@@ -31,6 +31,7 @@ import { syncWorkerThreadLifecycle } from "./worker-thread-lifecycle.ts";
 import { coreTurnLogin } from "./turn-logins.ts";
 import { offerWorkerStorage, completeWorkerStorage } from "./worker-storage.ts";
 import { handleWorkerToolCall } from "./worker-tool-call.ts";
+import { expireLocalAutomationLeases, finishLocalAutomation } from "./automation-permissions.ts";
 import { allowFullAccessPermission, settleTurnPermissions } from "./live-turn-permissions.ts";
 import { permissionsChanged } from "./turn-permission-state.ts";
 
@@ -169,8 +170,12 @@ export async function coreServe(hostContext: GatewayCore, connection: WorkerConn
         case "agentToolCall":
           void handleWorkerToolCall(hostContext, connection, message.payload.value);
           break;
+        case "localAutomationFinished":
+          finishLocalAutomation(hostContext, connection, message.payload.value.callId);
+          break;
 
         case "heartbeat":
+          expireLocalAutomationLeases(hostContext, connection, Date.now());
           await cancelStaleGenerations(hostContext, [connection]);
           await coreRun(hostContext, (s) => s.workerSeen(workerId, epoch));
           await coreRedeliver(hostContext, workerId);

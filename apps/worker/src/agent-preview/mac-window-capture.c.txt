@@ -1,0 +1,186 @@
+// Compiled in the isolated helper by Bun's built-in C compiler. No platform SDK is needed.
+#include "capture-api.h"
+
+// Each isolated process serves one authenticated target and accepts one pull at a time.
+static WindowID windowID;
+static int pid, unique;
+static unsigned long long startSeconds, startMicros;
+static Object appName, filter, config, jpegType, jpegOptions;
+static unsigned viewportWidth, viewportHeight, outputWidth, outputHeight;
+
+static int sameProcess(void) {
+    // Darwin proc_bsdinfo and PROC_PIDTBSDINFO, also used for Agent Desktop 1.3.1's macos-proc-v1.
+    struct {
+        unsigned char prefix[12];
+        unsigned pbi_pid;
+        unsigned char middle[104];
+        unsigned long long pbi_start_tvsec, pbi_start_tvusec;
+    } info;
+    return proc_pidinfo(pid, 3, 0, &info, sizeof(info)) == (int)sizeof(info) && info.pbi_pid == (unsigned)pid &&
+           info.pbi_start_tvsec == startSeconds && info.pbi_start_tvusec == startMicros;
+}
+
+static int inspect(unsigned *width, unsigned *height, char *title) {
+    if (!sameProcess()) return 0;
+    // Unique targets use the pinned CLI's all-Spaces layer-zero inventory, including minimized windows.
+    // For an exact ID WindowServer supplies metadata for that one window only.
+    const unsigned excludeDesktopElements = 1 << 4, includingWindow = 1 << 3;
+    Object list =
+        CGWindowListCopyWindowInfo(unique ? excludeDesktopElements : includingWindow, unique ? 0 : windowID);
+    if (!list) return 0;
+    int matched = 0;
+    for (long i = 0, n = CFArrayGetCount(list); i < n; i++) {
+        Object win = CFArrayGetValueAtIndex(list, i);
+        if (integer(CFDictionaryGetValue(win, kCGWindowOwnerPID)) != pid) continue;
+        Object layer = CFDictionaryGetValue(win, kCGWindowLayer);
+        if (!layer || integer(layer) != 0) continue;
+        if (integer(CFDictionaryGetValue(win, kCGWindowNumber)) != windowID) {
+            if (unique) {
+                matched = 0;
+                break;
+            }
+            continue;
+        }
+        Object name = CFDictionaryGetValue(win, kCGWindowOwnerName);
+        Object bounds = CFDictionaryGetValue(win, kCGWindowBounds);
+        Rect rect;
+        if (!name || !SEND(_Bool, Object)(name, SELECT("isEqualToString:"), appName) || !bounds ||
+            !CGRectMakeWithDictionaryRepresentation(bounds, &rect) ||
+            !(rect.width >= 1 && rect.width <= 8192 && rect.height >= 1 && rect.height <= 8192) ||
+            (unsigned)rect.width != rect.width || (unsigned)rect.height != rect.height) {
+            matched = 0;
+            break;
+        }
+        *width = (unsigned)rect.width;
+        *height = (unsigned)rect.height;
+        if (title) {
+            Object name = CFDictionaryGetValue(win, kCGWindowName);
+            title[0] = 0;
+            if (name && !CFStringGetCString(name, title, 16385, 0x08000100)) {
+                matched = 0;
+                break;
+            } // UTF-8
+        }
+        matched = 1;
+    }
+    CFRelease(list);
+    return matched && sameProcess();
+}
+
+static int selectWindow(unsigned width, unsigned height) {
+    Object shareable = objc_getClass("SCShareableContent");
+    if (!CGPreflightScreenCaptureAccess()) return 0;
+    SEND(void, _Bool, _Bool, Object)(
+        shareable, SELECT("getShareableContentExcludingDesktopWindows:onScreenWindowsOnly:completionHandler:"), 1, 0,
+        &completion);
+    Object content = waitForCompletion();
+    if (!content) return 0;
+    Object windows = get(content, "windows"), nextFilter = 0;
+    for (long i = 0, n = CFArrayGetCount(windows); i < n; i++) {
+        Object window = CFArrayGetValueAtIndex(windows, i);
+        if (SEND(unsigned)(window, SELECT("windowID")) != windowID) continue;
+        if (SEND(int)(get(window, "owningApplication"), SELECT("processID")) != pid) break;
+        Rect frame = rectProperty(window, "frame");
+        if (frame.width == width && frame.height == height)
+            nextFilter = SEND(Object, Object)(get(objc_getClass("SCContentFilter"), "alloc"),
+                                              SELECT("initWithDesktopIndependentWindow:"), window);
+        break;
+    }
+    CFRelease(content);
+    if (!nextFilter) return 0;
+    if (filter) CFRelease(filter);
+    filter = nextFilter;
+    // A JPEG of the requested output dimensions can still be letterboxed. Verify its source geometry.
+    Rect source = rectProperty(filter, "contentRect");
+    if (source.width != width || source.height != height) return 0;
+    float scale = SEND(float)(filter, SELECT("pointPixelScale"));
+    if (!(scale > 0 && scale <= 16)) return 0;
+    double pixelsW = width * scale, pixelsH = height * scale;
+    if (pixelsW > 8192 || pixelsH > 8192 || pixelsW * pixelsH > 32000000) return 0;
+    double limit = 1600.0 / (width > height ? width : height);
+    double ratio = scale < limit ? scale : limit;
+    viewportWidth = width;
+    viewportHeight = height;
+    outputWidth = (unsigned)(width * ratio + 0.5);
+    outputHeight = (unsigned)(height * ratio + 0.5);
+    if (!outputWidth) outputWidth = 1;
+    if (!outputHeight) outputHeight = 1;
+    setSize(config, "setWidth:", outputWidth);
+    setSize(config, "setHeight:", outputHeight);
+    return 1;
+}
+
+int open_window(unsigned id, int owner, unsigned long long seconds, unsigned long long micros, int single,
+                char *app) {
+    windowID = id;
+    pid = owner;
+    startSeconds = seconds;
+    startMicros = micros;
+    unique = single;
+    if (!CGPreflightScreenCaptureAccess() || !initializeCompletion()) return 0;
+    Object pool = make("NSAutoreleasePool");
+    appName = SEND(Object, const char *)(get(objc_getClass("NSString"), "alloc"), SELECT("initWithUTF8String:"), app);
+    config = make("SCStreamConfiguration");
+    if (!responds(config, "setIncludeChildWindows:") ||
+        !responds(objc_getClass("SCScreenshotManager"), "captureImageWithFilter:configuration:completionHandler:")) {
+        SEND(void)(pool, SELECT("drain"));
+        return 0;
+    }
+    setBool(config, "setShowsCursor:", 0);
+    setBool(config, "setIncludeChildWindows:", 0);
+    setBool(config, "setIgnoreShadowsSingleWindow:", 1);
+    setBool(config, "setIgnoreGlobalClipSingleWindow:", 1);
+    setBool(config, "setScalesToFit:", 1);
+    jpegType = SEND(Object, const char *)(get(objc_getClass("NSString"), "alloc"), SELECT("initWithUTF8String:"),
+                                          "public.jpeg");
+    Object quality = SEND(Object, double)(objc_getClass("NSNumber"), SELECT("numberWithDouble:"), 0.75);
+    jpegOptions =
+        CFRetain(SEND(Object, Object, Object)(objc_getClass("NSDictionary"), SELECT("dictionaryWithObject:forKey:"),
+                                              quality, kCGImageDestinationLossyCompressionQuality));
+    unsigned w = 0, h = 0;
+    int ok = inspect(&w, &h, 0) && selectWindow(w, h);
+    SEND(void)(pool, SELECT("drain"));
+    return ok;
+}
+
+static int encode(Object image, unsigned char *out, unsigned limit) {
+    if (!image || CGImageGetWidth(image) != outputWidth || CGImageGetHeight(image) != outputHeight) return 0;
+    Object data = CFDataCreateMutable(0, 0);
+    Object dest = CGImageDestinationCreateWithData(data, jpegType, 1, 0);
+    if (dest) CGImageDestinationAddImage(dest, image, jpegOptions);
+    long size = dest && CGImageDestinationFinalize(dest) ? CFDataGetLength(data) : 0;
+    if (size > 0 && size <= limit)
+        memcpy(out, CFDataGetBytePtr(data), size);
+    else
+        size = 0;
+    if (dest) CFRelease(dest);
+    CFRelease(data);
+    return (int)size;
+}
+
+int next_window(unsigned char *jpeg, unsigned limit, unsigned *dimensions, char *title) {
+    Object pool = make("NSAutoreleasePool");
+    int bytes = 0;
+    unsigned beforeW = 0, beforeH = 0, afterW = 0, afterH = 0;
+    if (CGPreflightScreenCaptureAccess() && inspect(&beforeW, &beforeH, 0)) {
+        if ((beforeW == viewportWidth && beforeH == viewportHeight) || selectWindow(beforeW, beforeH)) {
+            SEND(void, Object, Object, Object)(objc_getClass("SCScreenshotManager"),
+                                               SELECT("captureImageWithFilter:configuration:completionHandler:"),
+                                               filter, config, &completion);
+            Object image = waitForCompletion();
+            if (image) {
+                bytes = encode(image, jpeg, limit);
+                CFRelease(image);
+            }
+            if (bytes && (!CGPreflightScreenCaptureAccess() || !inspect(&afterW, &afterH, title) ||
+                          beforeW != afterW || beforeH != afterH))
+                bytes = 0;
+        }
+    }
+    dimensions[0] = outputWidth;
+    dimensions[1] = outputHeight;
+    dimensions[2] = viewportWidth;
+    dimensions[3] = viewportHeight;
+    SEND(void)(pool, SELECT("drain"));
+    return bytes;
+}

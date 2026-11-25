@@ -1,0 +1,51 @@
+// The standalone executable runs this isolated helper in Bun runtime mode.
+import { cc, dlopen, ptr } from "bun:ffi";
+
+const [source, encodedTarget, frameLimit] = process.argv.slice(1);
+const target = JSON.parse(encodedTarget);
+const maxBytes = Number(frameLimit);
+const loader = dlopen("/usr/lib/libSystem.B.dylib", {
+  dlopen: { args: ["ptr", "int"], returns: "ptr" },
+});
+for (const name of ["Foundation", "CoreGraphics", "ImageIO", "ScreenCaptureKit"]) {
+  const path = Buffer.from("/System/Library/Frameworks/" + name + ".framework/" + name + "\0");
+  if (!loader.symbols.dlopen(ptr(path), 10)) process.exit(1); // RTLD_NOW | RTLD_GLOBAL
+}
+const native = cc({
+  source,
+  symbols: {
+    open_window: { args: ["u32", "i32", "u64", "u64", "int", "ptr"], returns: "int" },
+    next_window: { args: ["ptr", "u32", "ptr", "ptr"], returns: "int" },
+  },
+});
+const app = Buffer.from(target.app + "\0");
+if (
+  !native.symbols.open_window(
+    target.id,
+    target.pid,
+    BigInt(target.seconds),
+    BigInt(target.micros),
+    Number(target.unique),
+    ptr(app),
+  )
+)
+  process.exit(1);
+
+const jpeg = Buffer.allocUnsafe(maxBytes);
+const dimensions = new Uint32Array(4);
+const title = Buffer.alloc(16385);
+const write = (data) =>
+  new Promise((resolve, reject) => process.stdout.write(data, (error) => (error ? reject(error) : resolve())));
+await write(Buffer.from([1]));
+for await (const request of Bun.stdin.stream()) {
+  if (request.length !== 1 || request[0] !== 1) break;
+  const size = native.symbols.next_window(ptr(jpeg), maxBytes, ptr(dimensions), ptr(title));
+  if (size <= 0 || size > maxBytes) break;
+  const titleBytes = title.indexOf(0);
+  if (titleBytes < 0) break;
+  const header = Buffer.allocUnsafe(24);
+  header.writeUInt32LE(size, 0);
+  header.writeUInt32LE(titleBytes, 4);
+  for (let i = 0; i < 4; i++) header.writeUInt32LE(dimensions[i], 8 + 4 * i);
+  await write(Buffer.concat([header, title.subarray(0, titleBytes), jpeg.subarray(0, size)]));
+}

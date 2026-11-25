@@ -5,7 +5,7 @@ import { AgentTool, RunAgentToolSchema } from "@canopy/contracts";
 import sharp from "sharp";
 import { executable, fixture } from "../agent-tools/fixtures.test-support.ts";
 import { agentToolSpec } from "../agent-tools/specs.ts";
-import { AgentTools } from "../agent-tools/index.ts";
+import { AgentTools, type AgentToolsOptions } from "../agent-tools/index.ts";
 import { PreviewRuntime } from "./runtime.ts";
 import { toolEnvironment } from "../agent-tools/paths.ts";
 
@@ -15,6 +15,9 @@ export interface PreviewFixtureState {
     title: string;
     app_name: string;
     is_focused: boolean;
+    accessible?: boolean;
+    pid?: number;
+    process_instance?: string;
     bounds: { x: number; y: number; width: number; height: number };
   }[];
   devices?: {
@@ -27,10 +30,12 @@ export interface PreviewFixtureState {
   }[];
   sessions?: { name: string; id: string; platform: string }[];
   screenshotDelay?: number;
+  screenshotGate?: string;
+  windowImages?: Record<string, string>;
   readiness?: boolean;
 }
 
-export async function previewFixture(tool = AgentTool.DESKTOP) {
+export async function previewFixture(tool = AgentTool.DESKTOP, desktopPointer?: AgentToolsOptions["desktopPointer"]) {
   const f = fixture();
   const statePath = join(f.dir, "preview-state.json");
   const logPath = join(f.dir, "preview-log.jsonl");
@@ -63,14 +68,15 @@ export async function previewFixture(tool = AgentTool.DESKTOP) {
   executable(
     f.path(tool),
     `
-import { appendFileSync, copyFileSync, readFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 const args=process.argv.slice(2);
 const state=JSON.parse(readFileSync(${JSON.stringify(statePath)},"utf8"));
-const commands=["doctor","status","list-windows","session","devices","screenshot","find","type","press","mouse-click","mouse-move","mouse-wheel","drag","swipe","click","scroll","keyboard","back","home"];
+const commands=["doctor","status","list-windows","session","devices","screenshot","find","type","press","mouse-click","mouse-move","mouse-wheel","drag","swipe","click","scroll","keyboard","back","home","cursor-overlay"];
 const command=args.find(value=>commands.includes(value));
 const stdin=await new Response(Bun.stdin.stream()).text();
 const record=event=>appendFileSync(${JSON.stringify(logPath)},JSON.stringify({args,command,event,stdin,secret:Boolean(process.env.API_KEY||process.env.CANOPY_WORKER_TOKEN)})+"\\n");
-const ok=data=>{console.log(JSON.stringify({success:true,ok:true,data,error:null}));};
+const ok=data=>{console.log(JSON.stringify({success:true,ok:true,command,data,error:null}));};
 record("start");
 if(args.includes("--version")){console.log(${JSON.stringify(spec.version)});process.exit(0);}
 if(command==="doctor"){
@@ -79,13 +85,27 @@ if(command==="doctor"){
 }
 if(args.includes("daemon")){ok({state:"stopped"});process.exit(0);}
 if(command==="status"){ok({platform:"linux",supported_surfaces:["window"],permissions:{accessibility:{state:"granted"},screen_recording:{state:"not_required"}}});process.exit(0);}
-if(command==="list-windows")ok(state.windows);
+if(command==="list-windows"){
+ const app=args.find(arg=>arg.startsWith("--app="))?.slice(6);
+ ok(app ? state.windows.filter(win=>win.app_name===app) : state.windows);
+}
 else if(command==="devices")ok({devices:state.devices});
 else if(command==="session")ok({sessions:state.sessions});
 else if(command==="find")ok({match:{ref_id:"@snapshot:e1"}});
+else if(command==="cursor-overlay"){
+ if(args.at(-1)!=="disable")process.exit(1);
+ const session=args[args.indexOf("--session")+1];
+ const file=join(${JSON.stringify(f.dir)}, ".agent-desktop", "sessions", session, "session.json");
+ const manifest=JSON.parse(readFileSync(file,"utf8"));
+ manifest.cursor_overlay.enabled=false;
+ writeFileSync(file,JSON.stringify(manifest));
+ ok({session_id:session,cursor_overlay:{enabled:false}});
+}
 else if(command==="screenshot"){
  if(state.screenshotDelay)await new Promise(resolve=>setTimeout(resolve,state.screenshotDelay));
- copyFileSync(${JSON.stringify(pngPath)},args.at(-1));
+ while(state.screenshotGate && !existsSync(state.screenshotGate))await new Promise(resolve=>setTimeout(resolve,10));
+ const window=args.includes("--window-id") ? args[args.indexOf("--window-id")+1] : "";
+ copyFileSync(state.windowImages?.[window] ?? ${JSON.stringify(pngPath)},args.at(-1));
  ok({width:2400,height:1200,logicalWidth:1200,logicalHeight:600,scale_factor:2});
 }else ok({});
 record("end");
@@ -94,6 +114,7 @@ record("end");
 
   const tools = new AgentTools({
     dataDir: f.dir,
+    ...(desktopPointer && { desktopPointer }),
     env: f.env,
     probe: { which: f.which, platform: "linux" },
     send: () => {},

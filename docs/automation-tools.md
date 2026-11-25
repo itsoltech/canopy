@@ -1,5 +1,11 @@
 # Narzędzia automatyzacji agentów
 
+Aktualizacja (2026-11-25). Wątek może włączyć animowany kursor Agent Desktop
+na pulpicie workera i w podglądzie wybranego okna. Automatyczny mini Preview
+pokazuje zrzut otrzymany przez agenta, a podczas pracy w oknie może odświeżać
+obraz do 12 razy na sekundę również przy wyłączonym kursorze. Katalog narzędzi informuje
+agenta, kiedy kliknięcie może poruszyć wskaźnikiem użytkownika. [Kursor agenta](#kursor-agenta)
+
 Aktualizacja (2026-11-25). **Allow physical input** pozwala właścicielowi włączyć
 sterowanie wskaźnikiem w Agent Desktop w kolejnych turach na workerach z grantem.
 
@@ -19,8 +25,8 @@ Katalog Device Preview jest ograniczony do urządzenia sesji lub wolnych,
 uruchomionych celów przed rezerwacją; przejściowe pliki klatek używają prywatnego
 katalogu cache workera zamiast współdzielonego katalogu tymczasowego.
 Desktop Preview zachowuje katalog okien, gdy narzędzie zgłosi nieprawidłową geometrię okna.
-Web/desktop potwierdza klatki po narysowaniu obrazu; odświeżanie metadanych celu
-i naprawa kursora historii zachowują działający podgląd.
+Web/desktop potwierdza klatki po narysowaniu obrazu. Ręczny Preview zachowuje
+subskrypcję przy odświeżeniu metadanych celu i naprawie kursora historii.
 Osobne okno ponawia pojedynczy nieudany odczyt stanu wątku bez przerywania podglądu.
 Aktualizacja (2026-11-24): w web/desktop **Settings → Agent tools → Worker access** grupuje dostęp
 i instalacje według narzędzia. Włączenie na połączonym workerze uruchamia potrzebną instalację.
@@ -35,13 +41,14 @@ Browser MCP pozostaje w sesji wątku i działa headless;
 Browser, Desktop i Device mają wspólną kontrolę sesji wątku przed autoryzacją,
 obejmującą także sesje w krokach batch. Desktop nie udostępnia tworzenia obcej
 sesji, globalnego GC sesji ani wykonania na gościu sandbox poza zakresem Preview.
-Domyślny cel podglądu podąża za oknem aktywnym lub urządzeniem sesji, a jawny
-wybór użytkownika pozostaje przypięty. Subskrypcja zachowuje się po aktualizacji
-statusu tego samego workera, a nowy odbiorca
-aktywnej grupy dostaje ostatnią klatkę. Zmiana uprawnień bieżącej tury Claude
-aktualizuje także autoryzację automatyzacji.
-Automatyczny mini Preview zachowuje wybór celu i minimizację per wątek w sesji
-klienta, także po nawigacji i ponownym zamontowaniu strony.
+Ręczny Desktop Preview bez przypiętego okna może podążać za akcjami włączonego
+kursora albo za fokusem. Automatyczny mini Preview czeka na potwierdzone okno
+agenta. Device Preview podąża za urządzeniem sesji. Jawny wybór użytkownika
+pozostaje przypięty. Subskrypcja zachowuje się po aktualizacji statusu tego samego
+workera. Zmiana uprawnień bieżącej tury Claude aktualizuje także autoryzację
+automatyzacji.
+Automatyczny mini Preview zapamiętuje minimizację per wątek w sesji klienta.
+Po ponownym otwarciu wątku jego cel ustala bieżąca aktywność.
 Zwijanie i rozwijanie mini Preview używa tego samego przycisku ikonowego z chevronem,
 tooltipem i dostępną nazwą; nagłówek zachowuje układ w obu stanach.
 Interaktywny Preview dopasowuje cały obraz do szerokości i wysokości panelu.
@@ -256,7 +263,11 @@ Desktop przekazuje startupowe `--session` przez `forwarded_globals` i nie wymaga
 dodatkowego env. Worker uruchamia MCP Desktop z `--headed` wyłącznie wtedy, gdy
 ustawienia właściciela w `ThreadSpec` jawnie zezwalają na fizyczne sterowanie.
 Bez tego trybu `mouse-click` zwraca `POLICY_DENIED`, a kliknięcie przez `ref_id`
-korzysta z akcji dostępności elementu. Bridge nie ponawia odmowy ani nie zmienia
+korzysta z akcji dostępności elementu. W trybie `--headed` na macOS Agent Desktop
+1.3.1 przy zwykłym `click(ref_id)` próbuje najpierw fizycznego kliknięcia.
+Może wysunąć wskazane okno i poruszyć systemową myszą. Wybór `window_id` przy
+snapshocie wskazuje źródło referencji. Kliknięcie po współrzędnych ekranu
+trafia w okno widoczne w tym miejscu. Bridge nie ponawia odmowy ani nie zmienia
 trybu w reakcji na wywołanie. W trakcie tury agent nie może ustawić `--headed`
 w argumencie pojedynczego wywołania. Ręczne sterowanie w Preview jest niezależne
 od ustawienia dostępnego agentowi. MCP Desktop nie obsługuje pola `session`
@@ -290,7 +301,7 @@ i MCP.
 Archiwizacja zamyka bridge MCP i podglądy przed zwolnieniem sesji narzędzi.
 Worker blokuje nowe wywołania, czeka na operacje w toku i wykonuje sprzątanie
 wyłącznie dla deterministycznej sesji wątku: Browser zamyka przeglądarkę,
-Desktop wyłącza jej cursor overlay, a Device zamyka sesję i należące do niej
+Desktop ukrywa kursor i usuwa zapisany wybór jego prezentacji, a Device zamyka sesję i należące do niej
 helpery oraz zarządzaną przeglądarkę. Desktop nie dostaje trwałego `session end`,
 więc ten sam wątek może ponownie korzystać z automatyzacji po przywróceniu.
 Rezerwacja Device jest zwalniana po zamknięciu jego sesji; emulator lub symulator
@@ -320,6 +331,10 @@ wywołania, które może uruchomić przeglądarkę, dodaje jawne `--headed false
 `open` i `doctor` używają odpowiednio `headed: false`. Dzięki temu lokalna
 konfiguracja `agent-browser` nie otwiera zwykłego okna na pulpicie użytkownika,
 a aktywność agenta pozostaje widoczna w Preview tego samego wątku.
+Agent Browser wysyła zdarzenia myszy bezpośrednio do strony w sesji wątku,
+która ma własne karty i stan logowania. Kliknięcie elementu przez agenta
+z użyciem selektora lub referencji zachowuje fokus i położenie wskaźnika
+użytkownika. Ręczne sterowanie w Browser Preview przyjmuje także współrzędne.
 `close` zamyka wyłącznie sesję bieżącego wątku; `all: true` i `--all` w
 `extraArgs` są odrzucane, aby nie zamknąć przeglądarek innych wątków.
 Katalog MCP i błędy wywołań wyjaśniają agentowi, że jest to stałe ograniczenie,
@@ -398,6 +413,36 @@ workera, aby gateway kierował żądanie do jego komputera.
 
 Sterowanie należy do wątku, którego worker i sesja wyznaczają zakres podglądu.
 
+## Kursor agenta
+
+Użytkownik może poprosić agenta o pokazanie kursora w bieżącym wątku.
+Wywołanie `desktop_cursor_overlay_enable` włącza prezentację w sesji Desktop
+po zwykłej autoryzacji. Worker zapamiętuje wybór dla tego wątku również po
+restarcie. Zakończenie sesji Desktop i archiwizacja wątku usuwają ten wybór.
+`desktop_cursor_overlay_disable` wyłącza prezentację. Worker wycofuje też
+wcześniej włączoną nakładkę systemową Agent Desktop przed wykonaniem akcji.
+
+Pulpit macOS i Preview używają tej samej niebieskiej strzałki z ciemnym obrysem.
+Na pulpicie Canopy rysuje ją w widocznej części okna docelowego i oznacza
+kliknięcie pierścieniem. Gdy inna aplikacja zakryje cel, wskaźnik na pulpicie
+znika. Nakładka przepuszcza wejście użytkownika i działa z akcjami dostępności
+wykonanymi w tle przy wyłączonym **Allow physical input**. Agent pobiera snapshot
+wskazanego okna i używa referencji przycisku lub pola, jeśli aplikacja udostępnia
+odpowiednią akcję dostępności. Dowolny punkt na rysunku w przeglądarce może
+nie mieć takiej akcji. Położenie strzałki pokazuje cel wykonanej akcji.
+Na pozostałych systemach wskaźnik jest dostępny w Preview.
+
+W Desktop Preview klient rysuje wskaźnik nad obrazem właściwego okna. Pozwala to
+śledzić akcje również wtedy, gdy inne okno zasłania aplikację na workerze.
+Worker przekazuje pozycję względem obrazu i informację o kliknięciu, jeśli
+potrafi powiązać dostarczoną akcję z tym oknem i ustalić jej położenie.
+Wizualizacja korzysta z pojedynczych wywołań na kwalifikowanych referencjach
+elementów. Przy szybkich akcjach na jedną klatkę przypada ostatnia znana pozycja. Przy zrzutach
+z cieniem dopasowuje obraz do rozmiaru okna, gdy potwierdza go geometria
+nieprzezroczystych pikseli. Klient animuje przesunięcie między pozycjami
+niezależnie od liczby klatek na sekundę i uwzględnia systemowe ograniczenie ruchu.
+Dotyczy to mini Preview, panelu, osobnego okna i pełnoekranowego Preview na telefonie.
+
 ## Interaktywny Preview wątku
 
 W web/desktop prawy panel łączy **Files** i **Preview**. Preview wybiera
@@ -445,7 +490,7 @@ poza krawędzią panelu; oba pola i `Apply` pozostają dostępne.
 | Widok | Obraz i wybór celu | Sterowanie i ograniczenia |
 |---|---|---|
 | Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; przekazuje listę kart i pozwala wybrać aktywną kartę w pasku Preview. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja oraz przełączanie kart przez CLI. Preview nie zmienia viewportu przy zmianie szerokości panelu; pola `Width` i `Height` oraz uchwyty krawędzi wysyłają jawne `Resize`, a ich wartości są niezależne od rozmiaru panelu. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
-| Desktop | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za aktywnym oknem. Jawny wybór okna pozostaje przypięty; filtr aplikacji może wybrać jej jedyne dostępne okno także bez fokusu. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
+| Desktop | Współdzielona pętla zrzutów podąża za ostatnią rozpoznaną akcją włączonego kursora w zakresie wybranej aplikacji. W pozostałych przypadkach wybiera aktywne okno lub jedyne dostępne okno wskazanej aplikacji. Jawny wybór okna ma pierwszeństwo. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
 | Device | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za urządzeniem sesji wątku albo jedynym dostępnym, zgodnym z platformą. Jawny wybór urządzenia pozostaje przypięty w granicach sesji; alias `apple` dopasowuje iOS i macOS. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
 
 Katalog Device Preview pokazuje wyłącznie urządzenie bieżącej sesji lub rezerwacji
@@ -529,36 +574,45 @@ odtwarzana z historii przy nowej stronie, przeładowaniu ani catch-upie.
 
 Browser zawsze pokazuje aktywną kartę wspólnej sesji wątku. Dla Device bridge
 rozpoznaje jawną platformę i UDID/serial, a dla Desktop — jawne, znane selektory
-aplikacji lub `window_id` z operacji odczytu i przechwytywania. Prywatnego okna
-ukrytego za kwalifikowanym refem nie można wywnioskować; puste selektory używają
-bieżącego lub domyślnego celu sesji. Jawna obca sesja albo nieobsługiwane
+aplikacji lub `window_id` z operacji odczytu i przechwytywania. Automatyczny
+mini Preview Desktop czeka, aż worker ustali okno na podstawie operacji w tym
+wątku. Przy wpisywaniu tekstu lub klikaniu na kwalifikowanej referencji worker
+wiąże ją z oknem źródłowym snapshotu. Po przełączeniu fokusu przez użytkownika
+miniatura nadal pokazuje to okno, również gdy jest zasłonięte. Wybór celu
+działa niezależnie od [widoczności kursora agenta](#kursor-agenta).
+Jeśli wywołanie Desktop zwraca agentowi obraz, Mini może od razu pokazać ten
+sam obraz. Zachowuje bajty PNG lub JPEG mieszczące się w limicie 2 MiB. Większy
+obsługiwany obraz skaluje i kompresuje z tej samej odpowiedzi. Zrzut ekranu bez
+potwierdzonego okna to pojedyncza klatka. Mini oznacza zachowany zrzut jako
+`Last view` po zakończeniu wywołania. Następna operacja Desktop unieważnia
+poprzedni zrzut. Worker przechowuje po jednym takim obrazie na sesję przez
+maksymalnie 15 sekund, do 16 MiB łącznie. Drzewo dostępności jest tekstem.
+Podczas takich operacji Mini odświeża potwierdzone okno także po kliknięciu,
+więc widać reakcję aplikacji.
+Jawna obca sesja albo nieobsługiwane
 nadpisanie sesji w wywołaniu MCP powodują pominięcie sygnału.
 
-Strona, która aktualnie obserwuje wątek, podąża za ostatnią zatwierdzoną aktywnością.
-Pod podsumowaniem wątku pokazuje mini Preview tylko do odczytu, z limitem 4 klatek
-na sekundę, bez sterowania myszką lub klawiaturą i bez zmiany viewportu. Mini czeka na przeglądarkę
-agenta, bez jej uruchamiania ani automatycznej nawigacji. Używa istniejących
-limitów i autoryzacji Preview, a po kolejnych wywołaniach zmienia narzędzie i
-bezpieczny cel na najnowsze wartości. Aktywności dla tego samego zakresu zachowują
-działający stream; aktualizacja statusu tego samego workera także go zachowuje.
-Zakres subskrypcji jest porównywany po wartościach identyfikujących cel, bez
-tożsamości obiektu, etykiety i pozostałych metadanych. Reset kursora podczas
-naprawy historii usuwa jej cache, ale zachowuje wybór mini Preview i jego
-działającą subskrypcję. Usunięcie prywatnej kopii wątku nadal czyści oba stany.
-Nowy odbiorca aktywnej grupy Preview od razu dostaje jej ostatnią klatkę, bez
-czekania na zmianę obrazu. Grupa trzyma tylko jedną ograniczoną klatkę w pamięci;
-zmiana celu, utrata celu Desktop/Device i zamknięcie grupy ją usuwają.
-Klient pamięta ostatni wybór wynikający z zaobserwowanej, zatwierdzonej aktywności
-i minimizację osobno dla maksymalnie 32 ostatnio odwiedzanych wątków. Powrót do
-wątku przywraca te metadane także po ponownym zamontowaniu strony lub wymianie
-obiektu stanu transkryptu; kolejne aktywności nie cofają minimizacji. Aktywność
-obecna przy pierwszej obserwacji jest nadal sygnałem odebranym na żywo, nie
-odtworzeniem historii. Cache nie przechowuje klatek ani nie trafia do storage;
-przeładowanie klienta, usunięcie jego kopii wątku lub zmiana zakresu dostępu
-usuwa odpowiednie wpisy. Zmiana przypisanego workera, archiwizacja i usunięcie
-wątku również odrzucają wybór. Przywrócenie celu nie omija bieżącego grantu,
-gotowości narzędzia ani autoryzacji gatewaya; watch wznawia się z nową klatką.
-Sam sygnał nigdy nie przejmuje fokusu.
+Pod podsumowaniem wątku Mini pokazuje aktualną pracę agenta. Kiedy kończy się
+ostatnie wywołanie automatyzacji, a agent pracuje już np. w terminalu,
+miniatura znika. Równoległe polecenie terminala pozwala dalej oglądać wciąż
+trwającą pracę Desktop. Koniec tury lub utrata połączenia usuwa bieżącą
+aktywność. Kolejne zatwierdzone wywołanie może ponownie otworzyć Mini.
+
+Desktop żąda do 12 klatek na sekundę, Browser i Device do 4. Worker rozpoczyna
+następne przechwycenie po potwierdzeniu klatki i uwzględnia czas potrzebny na
+odczyt obrazu. Na macOS może przechwytywać treść konkretnego, nawet zasłoniętego
+okna przez ScreenCaptureKit, z istniejącym uprawnieniem do nagrywania ekranu.
+Jeśli ten mechanizm jest niedostępny, używa zrzutów Agent Desktop dla tego
+samego celu. Obie ścieżki sprawdzają okno, PID i tożsamość instancji procesu.
+Nowy odbiorca dostaje aktualny obraz z narzędzia lub świeży zrzut potwierdzonego
+okna. Zmiana źródła unieważnia oczekującą klatkę. Ręczny Preview może wznowić
+wyświetlanie od ostatniej klatki nadal wybranego celu.
+
+Mini jest tylko do odczytu. Czeka na przeglądarkę agenta bez jej uruchamiania
+ani automatycznej nawigacji. Kolejne operacje dla tego samego zakresu zachowują
+subskrypcję. Klient zapamiętuje minimizację dla maksymalnie 32 wątków w pamięci
+sesji. Ponowne otwarcie wątku lub wznowienie połączenia wymaga bieżącej
+aktywności agenta. Otwarcie Mini zachowuje fokus użytkownika.
 
 Nagłówek mini Preview ma stałe miejsca na zwijanie/rozwijanie oraz `Open in sidebar`.
 Ten sam przycisk pokazuje chevron w dół przy rozwiniętym podglądzie i w górę przy
@@ -576,7 +630,8 @@ klatkę.
 ## Obrazy i trwałość
 
 Klatki Preview są przejściowe: nie tworzą itemu, outboxa, journala, lustra
-ani trwałej galerii. Desktop/Device tworzą prywatny katalog przechwytywania
+ani trwałej galerii. Przechwycenie przez ScreenCaptureKit przekazuje JPEG
+w pamięci. Backend CLI Desktop/Device tworzy prywatny katalog przechwytywania
 dopiero przy pierwszym zrzucie, w systemowym cache użytkownika workera
 (Linux respektuje bezwzględny `XDG_CACHE_HOME`). Nie używają współdzielonego
 katalogu tymczasowego, którego limit użytkownika może blokować zapis mimo

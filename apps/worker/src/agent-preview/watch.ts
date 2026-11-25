@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { AgentPreviewEventSchema } from "@canopy/contracts";
 import { LEASE_MS, MAX_FRAME_BYTES, type PreviewUpdate } from "./types.ts";
+import type { PreviewRuntime } from "./runtime.ts";
 
 type Event = MessageInitShape<typeof AgentPreviewEventSchema>;
 
@@ -32,11 +33,14 @@ export class PreviewWatch {
   readonly threadId: string;
   readonly #send: (event: Event) => void | Promise<void>;
   readonly #stop: () => void;
+  readonly #capacityChanged: (() => void) | undefined;
   readonly #interval: number;
   readonly #leaseMs: number;
   #lease: Timer | undefined;
   #timer: Timer | undefined;
   #latest: PreviewUpdate | undefined;
+  #currentCursor: PreviewRuntime["desktopCursor"] | undefined;
+  #stillCurrent: (() => boolean) | undefined;
   #sent = 0n;
   #outstanding = 0n;
   #next = 0;
@@ -49,19 +53,25 @@ export class PreviewWatch {
     maxFps: number;
     send: (event: Event) => void | Promise<void>;
     stop: () => void;
+    capacityChanged?: () => void;
     leaseMs?: number;
   }) {
     this.id = options.id;
     this.threadId = options.threadId;
     this.#send = options.send;
     this.#stop = options.stop;
+    this.#capacityChanged = options.capacityChanged;
     this.#interval = 1000 / Math.max(1, Math.min(12, options.maxFps || 6));
     this.#leaseMs = options.leaseMs ?? LEASE_MS;
     this.#renew();
   }
 
   get capacity(): boolean {
-    return !this.#closed && !this.#outstanding && !this.#sending && Date.now() >= this.#next;
+    return this.nextFrameIn === 0;
+  }
+
+  get nextFrameIn(): number {
+    return this.#closed || this.#outstanding || this.#sending ? Infinity : Math.max(0, this.#next - Date.now());
   }
 
   ack(frameId: bigint): void {
@@ -71,16 +81,34 @@ export class PreviewWatch {
     if (frameId && frameId === this.#outstanding) {
       this.#outstanding = 0n;
       this.#flush();
+      this.#capacityChanged?.();
     }
   }
 
-  offer(update: PreviewUpdate): void {
+  offer(update: PreviewUpdate, currentCursor?: PreviewRuntime["desktopCursor"], stillCurrent?: () => boolean): void {
     if (this.#closed) return;
 
     if (update.state === "frame") {
+      // A passive watcher always receives a freshly verified capture after its previous ACK.
+      if (update.followingAgent && (!this.capacity || !stillCurrent?.() || this.#latest?.agentObservation)) return;
+
+      if (update.agentObservation && !stillCurrent?.()) return;
       this.#latest = update;
+      this.#currentCursor = currentCursor;
+      this.#stillCurrent = stillCurrent;
       this.#flush();
-    } else this.#deliver({ ...update, previewId: this.id });
+    } else {
+      if (
+        update.state === "error" ||
+        (this.#latest?.agentObservation && !update.targetId) ||
+        (update.targetId !== undefined && update.targetId !== this.#latest?.targetId)
+      ) {
+        this.#latest = undefined;
+        this.#stillCurrent = undefined;
+      }
+
+      this.#deliver({ ...update, previewId: this.id });
+    }
   }
 
   #renew(): void {
@@ -102,20 +130,40 @@ export class PreviewWatch {
     }
 
     const update = this.#latest;
+    const stillCurrent = this.#stillCurrent;
     this.#latest = undefined;
+    this.#stillCurrent = undefined;
     this.#outstanding = ++this.#sent;
     this.#next = Date.now() + this.#interval;
     this.#sending = true;
-    this.#deliver({ ...update, previewId: this.id, frameId: this.#sent }, true);
+    this.#deliver({ ...update, previewId: this.id, frameId: this.#sent }, true, stillCurrent);
   }
 
-  #deliver(event: Event, frame = false): void {
-    const delivered = Promise.resolve().then(() => this.#send(event));
+  #deliver(event: Event, frame = false, stillCurrent?: () => boolean): void {
+    const delivered = Promise.resolve().then(() => {
+      if (frame && (this.#closed || (stillCurrent && !stillCurrent()))) {
+        this.#outstanding = 0n;
+        this.#next = 0;
+
+        return;
+      }
+
+      if (event.cursor) {
+        const current = this.#currentCursor?.();
+
+        if (!frame || !current || current.actionId !== event.cursor.actionId) delete event.cursor;
+        else if (!current.click && event.cursor.click) event.cursor = { ...event.cursor, click: false };
+      }
+
+      return this.#send(event);
+    });
+
     void delivered.then(
       () => {
         if (frame) {
           this.#sending = false;
           this.#flush();
+          this.#capacityChanged?.();
         }
       },
       () => this.#stop(),
@@ -128,6 +176,7 @@ export class PreviewWatch {
     clearTimeout(this.#lease);
     clearTimeout(this.#timer);
     this.#latest = undefined;
+    this.#stillCurrent = undefined;
     this.#deliver({ previewId: this.id, state: "closed" });
   }
 }

@@ -79,6 +79,8 @@ message WorkerMessage {
     AgentToolsReport agent_tools_report = 821;
     AgentToolProgress agent_tool_progress = 822;
     AgentPreviewEvent agent_preview = 823;
+    // Ephemeral completion of an admitted local automation call on this same link.
+    LocalAutomationFinished local_automation_finished = 824;
     // Bieżąca gałąź checkoutów wątków (capability "git_heads", docs/worktrees.md).
     GitHeads git_heads = 840;
     // Transient, capability git_clone_progress_v1; never journaled.
@@ -1802,6 +1804,10 @@ message AgentToolResult {
   // Pliki zapisane przez gateway w zakresie wątku lub bieżącej tury bota.
   // Worker pobiera ich bajty osobno przez FetchBlob (agent_tool_attachments_v1).
   repeated InputAttachment attachments = 5;
+}
+
+message LocalAutomationFinished {
+  string call_id = 1;
 }
 
 // ---------- Modele (docs/protocol.md#modele-effort-i-steer) ----------

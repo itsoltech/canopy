@@ -151,13 +151,12 @@ describe.skipIf(!dockerAvailable)("incremental mirrors over two real gateway lin
     const updates = await open();
     expect(updates[0]?.syncing).toBe(true);
     expect(updates[0]?.change.case === "snapshot" && updates[0].change.value.items.length).toBe(3000);
-    expect(updates.at(-1)?.syncing).toBe(false);
+    const last = updates.at(-1);
+    expect(last?.syncing).toBe(false);
     const delta = opens.find((u) => u.change.case === "delta")!;
     expect(delta.change.case === "delta" && delta.change.value.snapshot?.items.length).toBe(0);
     expect(toBinary(ui.ThreadUpdateSchema, delta).length).toBeLessThan(4000);
-    expect(updates.at(-1)?.change.case === "snapshot" && updates.at(-1)!.change.value?.$typeName).toBe(
-      ui.ThreadSnapshotSchema.typeName,
-    );
+    expect(last?.change.case === "snapshot" && last.change.value.$typeName).toBe(ui.ThreadSnapshotSchema.typeName);
   });
 
   test("a UI checkpoint resumes at the remote home without retransmitting the gateway mirror", async () => {

@@ -1,21 +1,10 @@
-import { rmSync } from "node:fs";
-import { join } from "node:path";
-import { AgentTool, type AgentPreviewInput } from "@canopy/contracts";
-import { z } from "zod";
+import { create } from "@bufbuild/protobuf";
+import { AgentPreviewCursorSchema, AgentTool, type AgentPreviewInput } from "@canopy/contracts";
 import { DesktopCatalog, deviceCatalog } from "./catalog.ts";
 import { DesktopInput } from "./desktop-input.ts";
 import { DeviceInput } from "./device-input.ts";
-import { jpegFrame, readPreviewImage } from "./frames.ts";
-import { screenshotDirectory } from "./screenshot-storage.ts";
+import { PreviewCaptureFile } from "./capture-file.ts";
 import type { PreviewBackend, PreviewContext, PreviewUpdate } from "./types.ts";
-
-const screenshot = z.object({
-  width: z.number().positive().max(8192).optional(),
-  height: z.number().positive().max(8192).optional(),
-  logicalWidth: z.number().positive().max(8192).optional(),
-  logicalHeight: z.number().positive().max(8192).optional(),
-  scale_factor: z.number().positive().max(16).default(1),
-});
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -37,7 +26,7 @@ class ScreenshotPreview implements PreviewBackend {
   readonly #desktop: DesktopCatalog | undefined;
   readonly #desktopInput: DesktopInput | undefined;
   readonly #deviceInput: DeviceInput | undefined;
-  #dir = "";
+  readonly #file: PreviewCaptureFile;
   #loop: Promise<void> | undefined;
   #closed = false;
   #selected = false;
@@ -46,6 +35,7 @@ class ScreenshotPreview implements PreviewBackend {
 
   constructor(context: PreviewContext) {
     this.#context = context;
+    this.#file = new PreviewCaptureFile(context.runtime);
 
     if (context.runtime.scope.tool === AgentTool.DESKTOP) {
       this.#desktop = new DesktopCatalog(context.runtime);
@@ -70,8 +60,8 @@ class ScreenshotPreview implements PreviewBackend {
       this.#metadata = { mode: "screenshots", ...metadata };
     }
 
-    this.#catalogAt = Date.now();
     this.#context.emit({ ...this.#metadata, state: "ready" });
+    this.#catalogAt = Date.now();
   }
 
   async #captureLoop(): Promise<void> {
@@ -80,7 +70,12 @@ class ScreenshotPreview implements PreviewBackend {
 
     while (!this.#closed && !signal.aborted) {
       try {
-        if (Date.now() - this.#catalogAt > 5_000) await this.#catalog();
+        if (
+          Date.now() - this.#catalogAt > 5_000 ||
+          this.#desktop?.cursorChanged ||
+          (this.#desktop && this.#desktop.targetId !== this.#metadata.targetId)
+        )
+          await this.#catalog();
 
         if (this.#selected && this.#context.active()) {
           await this.#capture();
@@ -88,6 +83,7 @@ class ScreenshotPreview implements PreviewBackend {
         }
       } catch (error) {
         if (signal.aborted || this.#closed) break;
+
         failures++;
         this.#context.emit({
           state: "error",
@@ -103,49 +99,40 @@ class ScreenshotPreview implements PreviewBackend {
   }
 
   async #capture(): Promise<void> {
-    const { runtime, signal } = this.#context;
-    this.#dir ||= screenshotDirectory(runtime.env);
-    const path = join(this.#dir, "frame.png");
-    rmSync(path, { force: true });
-
-    const args = this.#desktop
-      ? ["screenshot", ...this.#desktop.scopeArgs(), path]
-      : ["screenshot", "--no-stabilize", "--", path];
-
-    let info: z.infer<typeof screenshot>;
-    let source: Uint8Array;
-
-    try {
-      info = screenshot.parse(await runtime.command(args));
-      source = readPreviewImage(path);
-    } finally {
-      rmSync(path, { force: true });
-    }
-
-    const image = await jpegFrame(source);
+    const { signal } = this.#context;
+    const metadata = this.#metadata;
+    const sample = this.#desktop?.cursor();
+    const args = this.#desktop?.scopeArgs() ?? ["--no-stabilize", "--"];
+    const { windowAligned, ...image } = await this.#file.take(args, this.#desktop?.logicalSize(), signal);
+    const cursor = windowAligned && sample && (await this.#desktop?.frameCursor(sample.actionId));
     signal.throwIfAborted();
-    const size = this.#desktop?.logicalSize();
-    const width = size?.width ?? info.logicalWidth ?? (info.width ? info.width / info.scale_factor : 0);
-    const height = size?.height ?? info.logicalHeight ?? (info.height ? info.height / info.scale_factor : 0);
 
-    if (!width || !height) throw new Error("The screenshot did not report logical input dimensions");
+    if (this.#desktop && metadata.targetId !== this.#desktop.targetId) return;
 
     if (this.#deviceInput) {
-      this.#deviceInput.width = width;
-      this.#deviceInput.height = height;
+      this.#deviceInput.width = image.viewportWidth;
+      this.#deviceInput.height = image.viewportHeight;
     }
 
     this.#context.emit({
-      ...this.#metadata,
+      ...metadata,
       ...image,
+      ...(cursor && {
+        cursor: create(AgentPreviewCursorSchema, {
+          actionId: cursor.actionId,
+          x: cursor.x,
+          y: cursor.y,
+          click: cursor.click,
+        }),
+      }),
       state: "frame",
-      viewportWidth: Math.round(width),
-      viewportHeight: Math.round(height),
     });
   }
 
   async input(inputs: readonly AgentPreviewInput[], owner: string): Promise<void> {
     if (!this.#selected) throw new Error("Select a preview target before sending input");
+
+    if (this.#desktopInput) await this.#context.runtime.prepareDesktopInput();
 
     for (const input of inputs) {
       this.#context.signal.throwIfAborted();
@@ -164,7 +151,7 @@ class ScreenshotPreview implements PreviewBackend {
     this.#closed = true;
     await this.#loop?.catch(() => undefined);
 
-    if (this.#dir) rmSync(this.#dir, { recursive: true, force: true });
+    this.#file.close();
   }
 }
 

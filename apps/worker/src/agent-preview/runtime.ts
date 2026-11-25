@@ -3,6 +3,7 @@ import { runProcess } from "@canopy/process-governor";
 import { z } from "zod";
 import type { AgentTools } from "../agent-tools/index.ts";
 import { toolArgv } from "../agent-tools/paths.ts";
+import type { DesktopTarget } from "../agent-tools/desktop-window.ts";
 import { serializeAgentTool } from "../agent-tools/queue.ts";
 
 export type JsonValue = z.infer<ReturnType<typeof z.json>>;
@@ -21,14 +22,48 @@ const envelope = z.object({
 
 export class PreviewRuntime {
   readonly scope: RunAgentTool;
+  readonly followAgent: boolean;
   readonly #resolved: Resolved;
   readonly #signal: AbortSignal;
   #deviceName = "";
 
-  constructor(resolved: Resolved, signal: AbortSignal) {
+  constructor(resolved: Resolved, signal: AbortSignal, followAgent = false) {
+    this.followAgent = followAgent;
     this.scope = resolved.scope;
     this.#resolved = resolved;
     this.#signal = signal;
+  }
+
+  desktopCursor() {
+    return this.#resolved.desktopCursor?.();
+  }
+
+  desktopTarget() {
+    return this.#resolved.desktopTarget?.();
+  }
+
+  desktopObservation() {
+    return this.#resolved.desktopObservation?.();
+  }
+
+  watchDesktopTarget(changed: () => void) {
+    this.#resolved.watchDesktopTarget?.(this.#signal, changed);
+  }
+
+  missingDesktopTarget(target: DesktopTarget) {
+    this.#resolved.missingDesktopTarget?.(target);
+  }
+
+  get desktopDefaultApp(): string {
+    return this.#resolved.desktopDefaultApp ?? "";
+  }
+
+  async prepareDesktopInput(): Promise<void> {
+    await this.#resolved.prepareDesktopInput?.(this.#signal);
+  }
+
+  missingCursorWindow(actionId: string): void {
+    this.#resolved.missingCursorWindow?.(actionId);
   }
 
   redact(detail: string): string {
@@ -57,9 +92,14 @@ export class PreviewRuntime {
 
   async command(
     args: readonly string[],
-    options: { cleanup?: boolean; timeoutMs?: number; input?: string } = {},
+    options: { cleanup?: boolean; timeoutMs?: number; input?: string; signal?: AbortSignal } = {},
   ): Promise<JsonValue> {
-    const signal = options.cleanup ? AbortSignal.timeout(2_000) : this.#signal;
+    const signal = options.cleanup
+      ? AbortSignal.timeout(2_000)
+      : options.signal
+        ? AbortSignal.any([options.signal, this.#signal])
+        : this.#signal;
+
     signal.throwIfAborted();
 
     if (this.scope.tool === AgentTool.BROWSER && !options.cleanup && ["open", "set"].includes(args[0] ?? ""))
@@ -118,7 +158,8 @@ export class PreviewRuntime {
 
     if (tool === AgentTool.BROWSER) return ["--json", "--session", session, "--headed", "false"];
 
-    if (tool === AgentTool.DESKTOP) return ["--session", session, "--headed"];
+    if (tool === AgentTool.DESKTOP)
+      return ["--session", session, ...(["list-windows", "screenshot"].includes(args[0] ?? "") ? [] : ["--headed"])];
 
     if (["devices", "session"].includes(args[0] ?? "")) return ["--json", "--session", session];
     const prefix = ["--json", "--session", session, ...(platform ? ["--platform", platform] : [])];

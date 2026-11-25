@@ -23,6 +23,9 @@ import { AgentToolDiscoveryCache } from "./cache.ts";
 import { AgentToolLifecycle } from "./lifecycle.ts";
 import { AgentToolCleanup } from "./cleanup.ts";
 import { DeviceAutomation } from "./device-automation.ts";
+import { DesktopCursors, type DesktopPresentation } from "./desktop-cursor.ts";
+import { DesktopPointerPresentation } from "./desktop-pointer.ts";
+import type { DesktopTarget } from "./desktop-window.ts";
 import { browserDefaultsInitializer } from "./browser-defaults.ts";
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 
@@ -43,6 +46,7 @@ export interface AgentToolsOptions {
   readonly dataDir: string;
   readonly probe?: AgentToolProbe;
   readonly env?: ToolEnv;
+  readonly desktopPointer?: DesktopPresentation;
   send(report: ReportInit): void | Promise<void>;
   progress(progress: ProgressInit): void | Promise<void>;
 }
@@ -67,11 +71,15 @@ export class AgentTools {
   readonly #cache = new AgentToolDiscoveryCache();
   readonly #lifecycle = new AgentToolLifecycle();
   readonly #devices: DeviceAutomation;
+  readonly #desktopCursors: DesktopCursors;
   readonly #cleanup = new AgentToolCleanup(() => this.#probeOptions());
   #last: ReportInit | undefined;
 
   constructor(options: AgentToolsOptions) {
     this.#options = options;
+    this.#desktopCursors = new DesktopCursors(
+      options.desktopPointer ?? new DesktopPointerPresentation(options.dataDir),
+    );
     this.#devices = new DeviceAutomation(options.dataDir, () => this.#probeOptions());
   }
 
@@ -140,6 +148,11 @@ export class AgentTools {
           ? [
               {
                 name: localMcpName(tool),
+                ...(session &&
+                  tool === AgentTool.DESKTOP && {
+                    configure: (nativeEnv: ToolEnv) =>
+                      this.#desktopCursors.configure(session, nativeEnv, Boolean(headed), this.#lifecycle),
+                  }),
                 ...(session &&
                   tool === AgentTool.DEVICE && { managed: this.#devices.managed(session, defaults?.device) }),
                 command,
@@ -257,14 +270,26 @@ export class AgentTools {
   fenceThread(threadId: string): void {
     this.#lifecycle.fence(threadId);
     this.#devices.fence(threadId);
+
+    try {
+      this.#desktopCursors.end(agentToolSession(threadId));
+    } catch {
+      // The draining close retries preference removal. Fencing must still release the thread's other resources.
+    }
   }
 
   closeThread(threadId: string): Promise<void> {
     this.#devices.fence(threadId);
 
     return this.#lifecycle.close(threadId, async () => {
-      await this.#cleanup.close(agentToolSession(threadId));
-      await this.#devices.release(threadId);
+      const session = agentToolSession(threadId);
+
+      try {
+        this.#desktopCursors.end(session);
+      } finally {
+        await this.#cleanup.close(session);
+        await this.#devices.release(threadId);
+      }
     });
   }
 
@@ -292,6 +317,14 @@ export class AgentTools {
     this.#lifecycle.assertOpen(command.session);
 
     try {
+      if (command.tool === AgentTool.DESKTOP)
+        await this.#desktopCursors.prepareCli(
+          agentToolSession(command.session),
+          found.path,
+          toolEnvironment(this.#probeOptions().env ?? process.env),
+          AbortSignal.timeout(5_000),
+        );
+
       const run = () =>
         runAgentToolOperation(command, found.path, this.#probeOptions().env ?? process.env, () =>
           this.#lifecycle.assertOpen(command.session),
@@ -311,6 +344,8 @@ export class AgentTools {
   }
 
   close(): Promise<void> {
+    this.#desktopCursors.close();
+
     return this.#devices.close();
   }
 
@@ -320,8 +355,10 @@ export class AgentTools {
   }
 
   async #resolvePreviewScope(scope: RunAgentTool, defaults?: AgentToolSessionDefaults) {
-    if (scope.tool === AgentTool.DESKTOP && !scope.app && !scope.windowId) scope.app = defaults?.desktop?.app ?? "";
-    validateAgentToolCommand(scope);
+    const desktopDefaultApp =
+      scope.tool === AgentTool.DESKTOP && !scope.app && !scope.windowId ? defaults?.desktop?.app : undefined;
+
+    validateAgentToolCommand(desktopDefaultApp ? { ...scope, app: desktopDefaultApp } : scope);
     const spec = agentToolSpec(scope.tool);
 
     if (this.#installing.has(scope.tool))
@@ -344,7 +381,22 @@ export class AgentTools {
     const source = this.#probeOptions().env ?? process.env;
     const { secrets } = installEnv(source);
 
+    const env = toolEnvironment(source);
+    const session = agentToolSession(scope.session);
+
     return {
+      ...(scope.tool === AgentTool.DESKTOP && {
+        desktopDefaultApp,
+        desktopTarget: () => this.#desktopCursors.targets.current(session),
+        desktopObservation: () => this.#desktopCursors.targets.observation(session),
+        watchDesktopTarget: (signal: AbortSignal, changed: () => void) =>
+          this.#desktopCursors.targets.watch(session, signal, changed),
+        missingDesktopTarget: (target: DesktopTarget) => this.#desktopCursors.targets.missing(session, target),
+        desktopCursor: () => this.#desktopCursors.current(session),
+        missingCursorWindow: (actionId: string) => this.#desktopCursors.missingWindow(session, actionId),
+        prepareDesktopInput: (signal: AbortSignal) =>
+          this.#lifecycle.run(session, () => this.#desktopCursors.prepareCli(session, found.path, env, signal)),
+      }),
       ...(scope.tool === AgentTool.DEVICE && {
         devicePlatform: this.#devices.currentPlatform(scope.session) ?? defaults?.device?.platform ?? "",
         canPreviewDevice: (deviceId: string, platform: string) =>
@@ -353,15 +405,10 @@ export class AgentTools {
       useDevice: <T>(signal: AbortSignal, work: () => Promise<T>) =>
         this.#devices.use(scope, signal, work, defaults?.device),
       ...(scope.tool === AgentTool.BROWSER && {
-        initializeBrowser: browserDefaultsInitializer(
-          found.path,
-          toolEnvironment(source),
-          agentToolSession(scope.session),
-          defaults?.browser,
-        ),
+        initializeBrowser: browserDefaultsInitializer(found.path, env, session, defaults?.browser),
       }),
       executable: found.path,
-      env: toolEnvironment(source),
+      env,
       scope,
       redact: (detail: string) => redactLine(detail, secrets),
     };

@@ -55,6 +55,49 @@ test("frame ACK only releases the exact outstanding frame; stale heartbeat retai
   }
 });
 
+test("invalidating an automatic frame before dispatch releases the watcher without a client ACK", async () => {
+  const frames: string[] = [];
+  const sent = Promise.withResolvers<void>();
+
+  const watch = new PreviewWatch({
+    id: "automatic",
+    threadId: "thread",
+    maxFps: 12,
+    stop: () => {},
+    send: (event) => {
+      if (event.state !== "frame") return;
+      frames.push(event.targetId!);
+      sent.resolve();
+    },
+  });
+
+  let current = "first";
+
+  const offer = (targetId: string) =>
+    watch.offer(
+      {
+        state: "frame",
+        followingAgent: true,
+        targetId,
+        data: Uint8Array.of(1),
+      },
+      undefined,
+      () => current === targetId,
+    );
+
+  try {
+    offer("first");
+    current = "second";
+    await tick();
+    expect(watch.capacity).toBe(true);
+    offer("second");
+    await sent.promise;
+    expect(frames).toEqual(["second"]);
+  } finally {
+    watch.close();
+  }
+});
+
 test("known ACK heartbeat renews leases; a slow or throwing sender never creates parallel frame sends", async () => {
   let stopped = 0;
   let sends = 0;

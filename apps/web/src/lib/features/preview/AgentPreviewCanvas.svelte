@@ -7,7 +7,7 @@
   import type { ClassValue } from "svelte/elements";
   import ViewportControls from "./ViewportControls.svelte";
   import ViewportResizeHandles from "./ViewportResizeHandles.svelte";
-  import { paintPreviewFrame } from "./preview-frame.ts";
+  import PreviewFrame from "./PreviewFrame.svelte";
 
   let {
     event,
@@ -56,15 +56,6 @@
       ? Math.min(1, surfaceBounds.width / frameWidth, surfaceBounds.height / frameHeight)
       : 1,
   );
-
-  $effect(() => {
-    const frame = event;
-    const target = canvas;
-
-    if (!frame?.data.length || !target) return;
-
-    return paintPreviewFrame(target, frame, onpaint, onframeerror);
-  });
 
   onDestroy(() => {
     releaseKeys();
@@ -249,8 +240,11 @@
         style:width={frameWidth ? `${frameWidth * scale}px` : undefined}
         style:height={frameHeight ? `${frameHeight * scale}px` : undefined}
       >
-        <canvas
-          bind:this={canvas}
+        <PreviewFrame
+          bind:canvas
+          frame={event}
+          {onpaint}
+          {onframeerror}
           class="block size-full rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900"
           aria-label="Live screen preview"
           role="button"
@@ -269,7 +263,7 @@
             if (focused) event.preventDefault();
           }}
           onwheel={wheel}
-        ></canvas>
+        />
       </div>
       <textarea
         bind:this={keyboard}

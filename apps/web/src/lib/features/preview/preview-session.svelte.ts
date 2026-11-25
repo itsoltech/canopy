@@ -1,13 +1,16 @@
 import { create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   AgentPreviewInputSchema,
   AgentTool,
+  ui,
   type AgentPreviewEvent,
   type AgentPreviewInput,
   type AgentPreviewTarget,
   type RunAgentTool,
 } from "@canopy/contracts";
 import { PreviewInputQueue } from "./preview-input.ts";
+import { PreviewImages } from "./preview-images.svelte.ts";
 import { acknowledgePreviewFrame, sendAgentPreviewInput, watchAgentPreview } from "./preview-client.ts";
 
 /** One visible preview only. Streams, frames and pending input are discarded together when its scope changes. */
@@ -21,7 +24,10 @@ export class PreviewSession {
   mode = $state("");
   targetId = $state("");
   targets = $state<AgentPreviewTarget[]>([]);
-  frame = $state<AgentPreviewEvent>();
+  readonly images = new PreviewImages((event) => this.#acknowledge?.(event));
+  get frame(): AgentPreviewEvent | undefined {
+    return this.images.frame;
+  }
   #queue: PreviewInputQueue | undefined;
   #stop: (() => void) | undefined;
   #noticeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -44,7 +50,7 @@ export class PreviewSession {
   }
 
   painted(frame: AgentPreviewEvent): void {
-    this.#acknowledge?.(frame);
+    this.images.painted(frame);
   }
 
   frameError(frame: AgentPreviewEvent): void {
@@ -64,8 +70,7 @@ export class PreviewSession {
       ) {
         // A target can disappear before its in-flight image decodes. Consume that obsolete
         // frame too, otherwise the worker cannot send the first frame of the replacement target.
-        if (this.frame) this.#acknowledge?.(this.frame);
-        this.frame = undefined;
+        this.images.invalidate();
       }
 
       if (event.detail) this.#setNotice(event.detail);
@@ -76,10 +81,14 @@ export class PreviewSession {
       this.targetId = event.targetId;
     }
 
-    if (event.data.length) this.frame = event;
+    if (event.state === "frame" && event.data.length) this.images.receive(event);
   }
 
-  connect(threadId: string, scope: RunAgentTool, maxFps = 15): () => void {
+  connect(
+    threadId: string,
+    scope: RunAgentTool,
+    options: Partial<Pick<ui.WatchAgentPreviewRequest, "maxFps" | "followAgent">> = {},
+  ): () => void {
     this.#stop?.();
     const controller = new AbortController();
     this.state = "connecting";
@@ -91,12 +100,20 @@ export class PreviewSession {
     this.mode = "";
     this.targetId = "";
     this.targets = [];
-    this.frame = undefined;
+    this.images.clear();
     let stopped = false;
     let acknowledged = 0n;
 
+    const request = create(ui.WatchAgentPreviewRequestSchema, {
+      threadId,
+      scope,
+      clientAck: true,
+      maxFps: 15,
+      ...options,
+    });
+
     const release = () => {
-      if (!this.previewId) return;
+      if (!this.previewId || request.followAgent) return;
       void sendAgentPreviewInput(
         threadId,
         this.previewId,
@@ -105,12 +122,12 @@ export class PreviewSession {
       ).catch(() => {});
     };
 
-    const fail = (detail = "Check the connection, then retry.") => {
+    const fail = (detail = "Check the connection, then retry.", state: "error" | "unconfirmed" = "error") => {
       if (stopped) return;
-      this.state = "error";
+      this.state = state;
       this.detail = detail;
       this.#setNotice("");
-      this.frame = undefined;
+      this.images.clear();
       release();
       controller.abort();
       queue.dispose();
@@ -141,9 +158,7 @@ export class PreviewSession {
     };
 
     void watchAgentPreview(
-      threadId,
-      scope,
-      maxFps,
+      request,
       (event) => {
         if (stopped || controller.signal.aborted) return;
         this.#receive(event, scope.tool);
@@ -156,8 +171,12 @@ export class PreviewSession {
       .then(() => {
         if (!controller.signal.aborted && !stopped && !["error", "closed"].includes(this.state)) fail();
       })
-      .catch(() => {
-        if (!controller.signal.aborted) fail();
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return;
+
+        if (request.followAgent && cause instanceof ConnectError && cause.code === Code.Unimplemented)
+          fail("Update the gateway and worker to follow the agent’s view.", "unconfirmed");
+        else fail();
       });
 
     const stop = () => {
@@ -166,7 +185,7 @@ export class PreviewSession {
       release();
       controller.abort();
       queue.dispose();
-      this.frame = undefined;
+      this.images.clear();
       this.previewId = "";
       this.state = "idle";
       this.#setNotice("");

@@ -7,7 +7,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { previewScope, previewScopeKey } from "./preview-client.ts";
-  import { paintPreviewFrame } from "./preview-frame.ts";
+  import PreviewFrame from "./PreviewFrame.svelte";
   import { isPreviewReady } from "./preview-readiness.ts";
   import { PreviewSession } from "./preview-session.svelte.ts";
 
@@ -22,6 +22,8 @@
     worker,
     tool,
     target,
+    activityId,
+    settled,
     active,
     minimized,
     onminimize,
@@ -32,6 +34,8 @@
     worker?: ui.Worker;
     tool: AgentTool;
     target?: AgentPreviewTarget;
+    activityId: string;
+    settled: boolean;
     active: boolean;
     minimized: boolean;
     onminimize: () => void;
@@ -44,26 +48,36 @@
   let foreground = $state(false);
   let visible = $state(false);
   let connected = $state(false);
-  let canvas = $state<HTMLCanvasElement>();
   let retry = $state(0);
   let stopWatch: (() => void) | undefined;
-  let watchedScope = "";
+  let watchedScope = $state("");
   const name = $derived(tool === AgentTool.BROWSER ? "Browser" : tool === AgentTool.DEVICE ? "Device" : "Desktop");
 
   const icon = $derived(
     tool === AgentTool.BROWSER ? "globe-alt" : tool === AgentTool.DEVICE ? "square" : "computer-desktop",
   );
 
-  const caption = $derived(target?.label || session.title);
+  const followAgent = $derived(tool === AgentTool.DESKTOP);
   const workerId = $derived(worker?.id ?? "");
-  const scopeKey = $derived(previewScopeKey(threadId, workerId, tool, target));
+  const scopeKey = $derived(previewScopeKey(threadId, workerId, tool, target, followAgent));
   const item = $derived(worker?.agentTools.find((entry) => entry.tool?.tool === tool));
   const ready = $derived(isPreviewReady(item?.tool));
   const installing = $derived(item?.tool?.install?.state === "running");
   const unavailable = $derived(Boolean(offline || !connected || !worker?.online));
   const allowed = $derived(!unavailable && Boolean(item?.enabled && ready && !item.blockedReason));
   const watching = $derived(active && !minimized && foreground && visible && allowed);
-  const failed = $derived(["error", "closed"].includes(session.state));
+  const failed = $derived(["error", "closed", "unconfirmed"].includes(session.state));
+  const currentSession = $derived(watchedScope === scopeKey ? session : undefined);
+  const frame = $derived(watching ? currentSession?.frame : undefined);
+  const lastImage = $derived(settled && frame?.agentObservation);
+
+  const caption = $derived(
+    followAgent ? (frame?.title ?? "") : target?.label || frame?.title || currentSession?.title || "",
+  );
+
+  const source = $derived(followAgent ? frame : currentSession);
+  const selected = $derived(source?.targets.find((entry) => entry.id === source.targetId));
+  const canExpand = $derived(!followAgent || !frame || Boolean(frame.targetId && selected));
 
   const status = $derived.by(() => {
     if (offline || !worker?.online) return { title: "Computer offline", detail: "Reconnect this computer to resume." };
@@ -81,13 +95,18 @@
 
     if (!watching) return { title: "Preview paused", detail: "Open Preview to watch this tool." };
 
+    if (session.state === "unconfirmed") return { title: "Agent view unavailable", detail: session.detail };
+
     if (failed) return { title: "Preview disconnected", detail: "Check the connection, then retry." };
 
-    if (session.state === "ready" && !session.frame && tool !== AgentTool.BROWSER && !session.targetId)
-      return {
-        title: "Choose a target",
-        detail: tool === AgentTool.DEVICE ? "Open Preview to choose a device." : "Open Preview to choose a window.",
-      };
+    if (settled) return { title: "Preview paused", detail: "" };
+
+    if (session.state === "ready" && !frame) {
+      if (followAgent) return { title: "Waiting for the agent’s view…", detail: "" };
+
+      if (tool === AgentTool.DEVICE && !session.targetId)
+        return { title: "Choose a target", detail: "Open Preview to choose a device." };
+    }
 
     return {
       title: session.state === "connecting" ? "Connecting…" : "Waiting for image…",
@@ -101,7 +120,7 @@
       connected = navigator.onLine;
     };
 
-    const observer = new IntersectionObserver(([entry]) => (visible = Boolean(entry?.isIntersecting)));
+    const observer = new IntersectionObserver((entries) => (visible = Boolean(entries.at(-1)?.isIntersecting)));
 
     if (root) observer.observe(root);
     document.addEventListener("visibilitychange", sync);
@@ -123,7 +142,11 @@
 
     if (!watching) return;
     watchedScope = key;
-    const stop = untrack(() => session.connect(threadId, previewScope(tool, target), 4));
+
+    const stop = untrack(() =>
+      session.connect(threadId, previewScope(tool, target), { maxFps: followAgent ? 12 : 4, followAgent }),
+    );
+
     stopWatch = stop;
 
     return () => {
@@ -133,18 +156,10 @@
     };
   });
 
-  $effect(() => {
-    const frame = session.frame;
-    const surface = canvas;
-
-    if (!frame?.data.length || !surface) return;
-
-    return paintPreviewFrame(
-      surface,
-      frame,
-      (value) => session.painted(value),
-      (value) => session.frameError(value),
-    );
+  $effect.pre(() => {
+    const id = activityId;
+    const paused = settled;
+    untrack(() => session.images.activity(id, paused));
   });
 
   function handoff(action: () => void): void {
@@ -154,10 +169,9 @@
   }
 
   function expand(): void {
-    const selected =
-      watchedScope === scopeKey ? (session.targets.find((entry) => entry.id === session.targetId) ?? target) : target;
-
-    handoff(() => onexpand(selected));
+    if (!canExpand) return;
+    const destination = selected ?? target;
+    handoff(() => onexpand(destination));
   }
 
   async function toggle(): Promise<void> {
@@ -180,8 +194,11 @@
   >
     <Icon name={icon} />
     <span class="shrink-0 text-sm/5 font-medium">{name}</span>
-    <div class="min-w-0 flex-1 text-sm/5 text-muted sm:text-xs/5">
-      {#if !minimized}<TruncatedText text={caption} />{/if}
+    <div class="flex min-w-0 flex-1 gap-1 text-sm/5 text-muted sm:text-xs/5">
+      {#if !minimized}
+        {#if lastImage}<span class="shrink-0">Last view{caption ? " ·" : ""}</span>{/if}
+        <TruncatedText text={caption} />
+      {/if}
     </div>
     <div class="flex shrink-0 items-center gap-1">
       <IconButton
@@ -193,16 +210,42 @@
         data-preview-toggle
         onclick={() => void toggle()}
       />
-      <IconButton size="sm" icon="arrow-top-right-on-square" label="Open in sidebar" onclick={expand} />
+      <IconButton
+        size="sm"
+        icon="arrow-top-right-on-square"
+        label="Open in sidebar"
+        disabled={!canExpand}
+        onclick={expand}
+      />
     </div>
   </div>
   {#if !minimized}
-    <div class="relative aspect-2/1 max-h-40 min-h-0 overflow-hidden bg-panel">
-      {#if session.frame && watching && !failed}
-        <canvas bind:this={canvas} aria-label={`Live ${name} preview`} class="size-full object-contain"></canvas>
+    <div
+      class="[container-type:size] relative grid aspect-2/1 max-h-40 min-h-0 place-items-center overflow-hidden bg-panel"
+    >
+      {#if frame}
+        <div
+          class="relative"
+          style:width={`min(100cqw, ${(100 * frame.width) / frame.height}cqh)`}
+          style:aspect-ratio={`${frame.width} / ${frame.height}`}
+        >
+          {#key frame.agentObservation ? frame : frame.targetId}
+            <PreviewFrame
+              {frame}
+              aria-label={lastImage
+                ? `Last ${name} view`
+                : frame.agentObservation
+                  ? "Agent screenshot"
+                  : `Live ${name} preview`}
+              class="block size-full"
+              onpaint={(painted) => session.painted(painted)}
+              onframeerror={(failedFrame) => session.frameError(failedFrame)}
+            />
+          {/key}
+        </div>
       {:else}
         <div class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-5 text-center" role="status">
-          {#if watching && !failed && !status.detail}<Spinner class="mb-1 text-muted" />{/if}
+          {#if watching && !settled && !failed && !status.detail}<Spinner class="mb-1 text-muted" />{/if}
           <p class="text-sm/5 font-medium">{status.title}</p>
           {#if status.detail}<p class="max-w-60 text-sm/5 text-muted sm:text-xs/5">{status.detail}</p>{/if}
           {#if watching && failed}<div class="mt-1">

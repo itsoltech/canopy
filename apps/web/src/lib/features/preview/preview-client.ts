@@ -1,4 +1,6 @@
 import { create, fromJsonString } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { readThreadWatchFailure } from "@canopy/domain/thread-watch-recovery";
 import {
   ui,
   AgentPreviewEventSchema,
@@ -19,21 +21,14 @@ export type PreviewEventHandler = (event: AgentPreviewEvent) => void;
  * so the panel only deals with decoded events and can abort the stream when it leaves the viewport.
  */
 export async function watchAgentPreview(
-  threadId: string,
-  scope: RunAgentTool,
-  maxFps: number,
+  request: ui.WatchAgentPreviewRequest,
   onmessage: PreviewEventHandler,
   signal: AbortSignal,
 ): Promise<void> {
-  const body = encode(
-    ui.WatchAgentPreviewRequestSchema,
-    create(ui.WatchAgentPreviewRequestSchema, { threadId, scope, maxFps, clientAck: true }),
-  );
-
-  const response = await fetch(`/api/threads/${encodeURIComponent(threadId)}/preview/events`, {
+  const response = await fetch(`/api/threads/${encodeURIComponent(request.threadId)}/preview/events`, {
     method: "POST",
     headers: { accept: "text/event-stream", "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(encode(ui.WatchAgentPreviewRequestSchema, request)),
     signal,
   });
 
@@ -41,7 +36,21 @@ export async function watchAgentPreview(
 
   if (!response.body) throw new Error("The preview stream did not return a body.");
 
-  await readEvents(response.body, onmessage, signal);
+  await readEvents(
+    response.body,
+    (event) => {
+      // Older gateways can ignore followAgent and stream the owner's foreground window.
+      if (
+        request.followAgent &&
+        event.state === "frame" &&
+        (event.followingAgent === event.agentObservation || (event.followingAgent && !event.targetId))
+      )
+        throw new ConnectError("The preview did not confirm the agent’s source.", Code.Unimplemented);
+
+      onmessage(event);
+    },
+    signal,
+  );
 }
 
 export async function sendAgentPreviewInput(
@@ -117,7 +126,7 @@ function handleBlock(block: string, onmessage: PreviewEventHandler): void {
     ?.slice(6)
     .trim();
 
-  if (kind === "failure" || kind === "away") throw new Error("The preview connection was interrupted.");
+  if (kind === "away") throw new Error("The preview connection was interrupted.");
 
   if (kind === "heartbeat" || kind === "ready") return;
 
@@ -126,6 +135,9 @@ function handleBlock(block: string, onmessage: PreviewEventHandler): void {
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice(5).trimStart())
     .join("\n");
+
+  if (kind === "failure")
+    throw new ConnectError("The preview connection was interrupted.", readThreadWatchFailure(data).code);
 
   if (!data || data === "{}") return;
 
@@ -148,11 +160,13 @@ export function previewScopeKey(
   workerId: string,
   tool: AgentTool,
   target?: AgentPreviewTarget,
+  followAgent = false,
 ): string {
   return JSON.stringify([
     threadId,
     workerId,
     tool,
+    followAgent,
     target?.platform ?? "",
     target?.app ?? "",
     target?.windowId ?? "",

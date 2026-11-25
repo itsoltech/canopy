@@ -150,10 +150,6 @@
 
   const worktreeRemoved = $derived(Boolean(thread?.worktree?.removedAt));
 
-  $effect(() => {
-    if (thread?.deletedAt) void goto("/threads/new");
-  });
-
   // An old link of a thread that moved to another computer: the gateway follows the move; open its new id (stage 8).
   $effect(() => {
     if (!thread || thread.id === threadId || thread.id.split("~")[0] !== threadId.split("~")[0]) return;
@@ -170,6 +166,12 @@
 
   // A thread whose home is a linked computer: read and driven there, unusable while that computer is away.
   const away = $derived(thread?.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
+
+  $effect(() => {
+    if (thread?.deletedAt) void goto("/threads/new");
+
+    if (away || worktreeRemoved || worker?.online === false) view.previewActivity.clear();
+  });
 
   // The tree and the subagents keep their value while an event elsewhere leaves them unchanged.
   const [keepTree, keepSubagents] = [retainTree(), retainSubagents()];
@@ -893,23 +895,24 @@
 
 {#snippet miniPreview()}
   {#if automaticPreview.selection}
-    <AgentPreviewMini
-      {threadId}
-      {worker}
-      tool={automaticPreview.selection.tool}
-      target={automaticPreview.selection.target}
-      active={showMiniPreview && !fileTab}
-      minimized={automaticPreview.minimized}
-      offline={away ?? ""}
-      onminimize={() => (automaticPreview.minimized = !automaticPreview.minimized)}
-      onexpand={(target) => {
-        if (!automaticPreview.selection) return;
-        workspaceState.openPreview({
-          ...automaticPreview.selection,
-          target: target ?? automaticPreview.selection.target,
-        });
-      }}
-    />
+    {#key automaticPreview.turnId}
+      <AgentPreviewMini
+        {threadId}
+        {worker}
+        tool={automaticPreview.selection.tool}
+        target={automaticPreview.selection.target}
+        activityId={automaticPreview.admissionId}
+        settled={automaticPreview.settled}
+        active={showMiniPreview && !fileTab}
+        minimized={automaticPreview.minimized}
+        offline={away ?? ""}
+        onminimize={() => (automaticPreview.minimized = !automaticPreview.minimized)}
+        onexpand={(target) => {
+          const selection = automaticPreview.selection;
+          if (selection) workspaceState.openPreview({ ...selection, target }, automaticPreview.workerId);
+        }}
+      />
+    {/key}
   {/if}
 {/snippet}
 

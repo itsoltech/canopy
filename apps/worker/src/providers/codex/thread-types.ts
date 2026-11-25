@@ -2,14 +2,11 @@ import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ServerNotification } from "@canopy/codex-protocol";
 import {
   InteractionRequestSchema,
-  type AgentToolCall,
-  type AgentToolResult,
   type InteractionRequest,
   type InteractionResponse,
   type Mention,
   type ThreadEvent,
   type ThreadSpec,
-  type AgentTool,
 } from "@canopy/contracts";
 import type { ViewImageResult } from "../../images/index.ts";
 import { Predicate, Schema, type Semaphore } from "effect";
@@ -20,7 +17,7 @@ import type { CodexAppServerLaunch } from "./launch.ts";
 import { CodexEventMapper } from "./mapping.ts";
 import { RolloutTail } from "./rollout.ts";
 import type { codexConnectorMcp } from "./connector-mcp.ts";
-import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
+import type { AutomationMcpOptions } from "../local-automation.ts";
 import type { SandboxEvidence } from "./sandbox-profile.ts";
 import type { codexProjectSecretProtection } from "./project-secret-protection.ts";
 import { projectSecretGuard } from "../../runtime/project-secret-guard.ts";
@@ -35,7 +32,7 @@ export class CodexThreadError extends Schema.TaggedError<CodexThreadError>()("Co
 
 export type InteractionInit = Omit<MessageInitShape<typeof InteractionRequestSchema>, "threadId" | "requestId">;
 
-export interface CodexThreadsOptions {
+export interface CodexThreadsOptions extends AutomationMcpOptions {
   pricing?: import("../pricing/model-catalog.ts").OpenAiPricingCatalog | undefined;
   onUsage?(snapshot: import("@canopy/contracts").ProviderUsageSnapshot): void;
   readonly launch: CodexAppServerLaunch;
@@ -56,18 +53,10 @@ export interface CodexThreadsOptions {
   onActivitySettled?(): void;
   /** Asks the platform (gateway -> user or parent agent) and waits for the answer. */
   interact(request: InteractionRequest): Promise<InteractionResponse>;
-  /** Runs an agent bus tool call on the gateway (docs/agent-bus.md) and waits for its result. */
-  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   /** The device owner's default reasoning effort (their config.toml, default-effort.ts); read on every use. */
   configuredEffort?(): string | undefined;
   /** The platform's view_image (worker-side; docs/agent-bus.md), offered to every new thread as a dynamic tool. */
   viewImage?(threadId: string, path: string): Promise<ViewImageResult>;
-  /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
-  localMcpServers?(
-    tools: readonly AgentTool[],
-    threadId: string,
-    defaults?: ThreadSpec["agentToolDefaults"],
-  ): readonly LocalAgentToolMcpServer[];
   /** Prepares image previews and writes the event to the journal. */
   recordEvent?(
     journal: Journal["Service"],

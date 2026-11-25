@@ -172,6 +172,8 @@ test("desktop defaults only target app-aware tools and preserve explicit app, wi
     const calls: AutomationCall[] = [
       { name: "desktop_snapshot", arguments: {} },
       { name: "desktop_screenshot", arguments: { app: "Another Editor" } },
+      { name: "desktop_screenshot", arguments: { screen: 0 } },
+      { name: "desktop_snapshot", arguments: { root: "@chosen-window:e1" } },
       { name: "desktop_click", arguments: { window_id: "chosen-window" } },
       { name: "desktop_click", arguments: { ref_id: "@chosen-window:e1" } },
       { name: "desktop_session_end", arguments: {} },
@@ -180,6 +182,8 @@ test("desktop defaults only target app-aware tools and preserve explicit app, wi
     const expected = [
       { app: "Preferred Editor" },
       { app: "Another Editor" },
+      { screen: 0 },
+      { root: "@chosen-window:e1" },
       { window_id: "chosen-window" },
       { ref_id: "@chosen-window:e1" },
       { id: session },

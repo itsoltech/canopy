@@ -1,4 +1,6 @@
 import {
+  AGENT_PREVIEW_FOLLOW_CAPABILITY,
+  LOCAL_AUTOMATION_COMPLETION_CAPABILITY,
   AGENT_TOOL_ATTACHMENTS_CAPABILITY,
   ANTIGRAVITY_ACP_CAPABILITY,
   SERVICE_TIERS_CAPABILITY,
@@ -72,8 +74,10 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     CLI_INSTALL_UPGRADE_ONLY_CAPABILITY,
     // agent_tools_v1: owner-scoped Canopy control of the three local automation binaries.
     "agent_tools_v1",
+    LOCAL_AUTOMATION_COMPLETION_CAPABILITY,
     // agent_preview_v1: ephemeral, acknowledged preview frames and direct human input.
     "agent_preview_v1",
+    AGENT_PREVIEW_FOLLOW_CAPABILITY,
     // desktop_bundled: the desktop app's own local-mode worker, updated with the app (docs/updates.md).
     ...(options.localWorker ? ["desktop_bundled"] : ["network_route_migration"]),
     "agent_environment_v1",

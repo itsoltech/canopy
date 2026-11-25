@@ -96,6 +96,7 @@ test("Grok automation MCP uses the real HTTP SDK, stdio fixture and gateway auth
   const path = join(root, "events.jsonl");
   const turns = { current: "" };
   const authorized: AgentToolCall[] = [];
+  const finished: string[] = [];
   let delayed: { promise: Promise<AgentToolResult>; resolve(result: AgentToolResult): void } | undefined;
   let revoked = false;
   let descriptorRequest: { tools: AgentTool[]; threadId: string } | undefined;
@@ -112,14 +113,16 @@ test("Grok automation MCP uses the real HTTP SDK, stdio fixture and gateway auth
 
         return [descriptor(path)];
       },
-      callTool: async (call) => {
+      callTool: async (call, _signal, admitted) => {
         authorized.push(call);
 
-        if (delayed) return delayed.promise;
-
         if (revoked) return create(AgentToolResultSchema, { content: "grant revoked", isError: true });
+        const result = delayed ? await delayed.promise : create(AgentToolResultSchema, { content: "approved" });
+        admitted?.(() => {
+          finished.push(call.callId);
+        });
 
-        return create(AgentToolResultSchema, { content: "approved" });
+        return result;
       },
     },
     spec,
@@ -142,6 +145,7 @@ test("Grok automation MCP uses the real HTTP SDK, stdio fixture and gateway auth
     turns.current = "turn-1";
     const granted = await client.callTool({ name: "echo", arguments: { phase: "granted" } });
     expect(granted.isError ?? false).toBe(false);
+    expect(finished).toEqual([authorized[0]!.callId]);
     const content = (granted as { content: { type: "text"; text: string }[] }).content;
 
     const payload = JSON.parse(content[0]!.text) as {
@@ -174,6 +178,7 @@ test("Grok automation MCP uses the real HTTP SDK, stdio fixture and gateway auth
     turns.current = "turn-2";
     delayed.resolve(create(AgentToolResultSchema, { content: "approved" }));
     await expect(stale).rejects.toThrow("Local automation denied");
+    expect(finished).toEqual(authorized.map((call) => call.callId));
     expect(events(path).filter((event) => event.event === "called")).toHaveLength(1);
 
     delayed = undefined;
@@ -181,6 +186,7 @@ test("Grok automation MCP uses the real HTTP SDK, stdio fixture and gateway auth
     await expect(client.callTool({ name: "echo", arguments: { phase: "revoked" } })).rejects.toThrow(
       "Local automation denied",
     );
+    expect(finished).toHaveLength(2);
     expect(events(path).filter((event) => event.event === "called")).toHaveLength(1);
   } finally {
     await client.close();

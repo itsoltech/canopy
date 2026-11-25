@@ -18,6 +18,8 @@ export interface LocalAutomationServer {
   command: string;
   args: readonly string[];
   readonly scope?: AutomationScope;
+  /** Bind native session state access to the same environment that the child actually receives. */
+  readonly configure?: (env: Readonly<Record<string, string>>) => Pick<LocalAutomationServer, "prepare" | "managed">;
   readonly prepare?: (tool: string, signal: AbortSignal) => Promise<void>;
   readonly env?: Readonly<{ AGENT_BROWSER_SESSION?: string; AGENT_DEVICE_SESSION?: string }>;
   readonly managed?: {
@@ -58,8 +60,6 @@ export class AutomationStdio {
 
   constructor(server: LocalAutomationServer, env: Record<string, string>) {
     this.scope = server.scope;
-    this.managed = server.managed;
-    this.prepare = server.prepare;
     // The SDK merges its default environment even with an explicit env. Mask omitted values.
     const isolatedEnv = Object.fromEntries(DEFAULT_INHERITED_ENV_VARS.map((key) => [key, ""]));
     Object.assign(isolatedEnv, env);
@@ -72,6 +72,9 @@ export class AutomationStdio {
 
     if (server.env?.AGENT_DEVICE_SESSION !== undefined)
       isolatedEnv["AGENT_DEVICE_SESSION"] = server.env.AGENT_DEVICE_SESSION;
+    const configured = server.configure?.(isolatedEnv) ?? server;
+    this.managed = configured.managed;
+    this.prepare = configured.prepare;
     this.transport = new AutomationTransport({
       command: server.command,
       args: [...server.args],
