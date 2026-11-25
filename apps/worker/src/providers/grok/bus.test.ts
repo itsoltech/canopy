@@ -8,6 +8,19 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
   const calls: AgentToolCall[] = [];
   const events: ThreadEventInit[] = [];
 
+  const imageEnvelope = {
+    content: [
+      {
+        type: "image",
+        mimeType: "image/png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      },
+    ],
+    structuredContent: { references: [{ id: "reference-1" }] },
+  };
+
+  const imageSummary = JSON.stringify({ ...imageEnvelope, content: [] });
+
   const bus = grokBus({
     threadId: "thread",
     depth: 0,
@@ -30,7 +43,12 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
     callTool: async (call) => {
       calls.push(call);
 
-      return create(AgentToolResultSchema, { content: '{"issue":"OK"}' });
+      return call.argumentsJson === '{"id":"with-image"}'
+        ? create(AgentToolResultSchema, {
+            content: imageSummary,
+            resultJson: JSON.stringify(imageEnvelope),
+          })
+        : create(AgentToolResultSchema, { content: '{"issue":"OK"}' });
     },
   });
 
@@ -71,25 +89,42 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
       },
     });
 
+    const imageResponse = await fetch(bus.server.url, {
+      ...request,
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "jira_issue", arguments: { id: "with-image" } },
+      }),
+    });
+
+    expect(await imageResponse.json()).toMatchObject({
+      result: {
+        content: [{ type: "text", text: imageSummary }, ...imageEnvelope.content],
+      },
+    });
+
     const denied = await fetch(bus.server.url, {
       ...request,
       headers,
-      body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "spawn_thread" } }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "spawn_thread" } }),
     });
 
     expect(((await denied.json()) as { error: unknown }).error).toBeTruthy();
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     await fetch(bus.server.url, {
       ...request,
       headers,
       body: JSON.stringify({
         jsonrpc: "2.0",
-        id: 3,
+        id: 4,
         method: "tools/call",
         params: { name: "memory_search", arguments: { queries: ["release"] } },
       }),
     });
-    expect(calls[1]).toMatchObject({
+    expect(calls[2]).toMatchObject({
       threadId: "thread",
       turnId: "turn",
       toolName: "memory_search",

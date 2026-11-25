@@ -11,8 +11,11 @@ import { runToolCall, WAITING } from "./turn-steps.ts";
 import type { BotTurn } from "./types.ts";
 import { botConfiguration } from "./store-views.ts";
 import { slackDownloadAttachments } from "../connectors/slack-download-tool.ts";
+import { failed } from "../connectors/calls.ts";
+import { connectorResultFields } from "./mcp-result.ts";
 
 const decodeArgs = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.JsonObject));
+const isJson = Schema.is(Schema.Json);
 
 /** Uses the existing bot executors; MCP never bypasses approvals or the turn lease. */
 export class HarnessTools {
@@ -135,7 +138,15 @@ export class HarnessTools {
 
         this.waiting(turn.id, false);
 
-        const answer = reply(JSON.stringify(result ?? null));
+        const answer =
+          call.connectorAccountId && isJson(result)
+            ? create(AgentToolResultSchema, {
+                callId: call.callId,
+                ...connectorResultFields(result),
+                isError: failed(result),
+              })
+            : reply(JSON.stringify(result ?? null));
+
         answer.attachments = slackDownloadAttachments(result, call.toolName);
 
         return answer;
