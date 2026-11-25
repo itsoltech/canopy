@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-25): wiadomość zapisana w prywatnym czacie po zmianie modelu
+czeka na nową turę po przekazaniu kontekstu. Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Status (2026-11-25): szczegóły zmian ustawień bota w web/desktop pokazują instrukcje
 jako jednokolumnowy diff z zawijaniem tekstu oraz nagłówkiem przypiętym podczas przewijania.
 Dostępność w kanałach określa
@@ -228,8 +232,10 @@ tej tury i usuwa ją z kolejki. Zachowuje identyfikator, treść i pozycję wiad
 w widocznym czacie.
 
 Bez aktywnej tury właściciela, po odrzuceniu przez worker lub w przypadku
-załączników, cytatów i wzmianek wiadomość czeka na następną turę. Dotyczy to także
-Grok i starszych workerów bez `bot_steer_v1`. Niepotwierdzone dostarczenie
+załączników, cytatów i wzmianek wiadomość czeka na następną turę. Czeka również,
+jeśli zapis zmiany modelu uruchomił [przekazanie kontekstu](#zmiana-modelu--ukryte-przekazanie-kontekstu),
+które wciąż jest w kolejce lub w toku. Dotyczy to także Groka i starszych workerów
+bez `bot_steer_v1`. Niepotwierdzone dostarczenie
 zostawia wiadomość w kolejce z informacją dla modelu, by nie powtarzał ukończonych
 działań. Gateway nigdy nie ponawia nietrwałej komendy po utracie łącza lub restarcie.
 Prywatna wiadomość nie trafia do aktywnej tury Slacka, rutyny, handoffu ani
