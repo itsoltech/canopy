@@ -4,7 +4,7 @@ import { AgentToolInfoSchema, type AgentToolInfo } from "@canopy/contracts";
 import { ProcessTimeoutError, runProcess } from "@canopy/process-governor";
 import { installEnv, redactLine } from "../cli-tools/installer.ts";
 import { executablePaths, toolArgv, toolCandidates, toolEnvironment, type ToolEnv, type Which } from "./paths.ts";
-import { preflightAgentTool } from "./preflight.ts";
+import { preflightAgentTool, type ToolReadiness } from "./preflight.ts";
 import { serializeAgentTool } from "./queue.ts";
 import type { AgentToolScope } from "./scope.ts";
 import { AGENT_TOOL_SPECS, type AgentToolSpec } from "./specs.ts";
@@ -63,13 +63,11 @@ export async function agentToolVersion(
 export const agentToolPlatformSupported = (platform: NodeJS.Platform, arch: string): boolean =>
   ["linux", "darwin", "win32"].includes(platform) && ["x64", "arm64"].includes(arch);
 
-export interface DiscoveredAgentTool {
+export interface DiscoveredAgentTool extends ToolReadiness {
   readonly spec: AgentToolSpec;
   readonly path: string;
   readonly version: string;
-  readonly detail: string;
   readonly installed: boolean;
-  readonly ready: boolean;
   readonly installable: boolean;
 }
 

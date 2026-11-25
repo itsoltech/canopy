@@ -10,6 +10,7 @@ import { agentToolScopeArgs, type AgentToolScope } from "./scope.ts";
 export interface ToolReadiness {
   readonly ready: boolean;
   readonly detail: string;
+  readonly needsMacDesktopPermissions?: boolean;
 }
 
 const permission = z.object({ state: z.enum(["granted", "not_required", "denied", "unknown"]) });
@@ -54,13 +55,28 @@ function desktopReady(stdout: string, platform: NodeJS.Platform): ToolReadiness 
 
   if (!matches) return { ready: false, detail: "Desktop status reported a different operating system" };
 
-  if (!allowed(permissions.accessibility.state))
-    return { ready: false, detail: "Grant Accessibility permission and run the worker in your graphical session" };
+  const accessibility = allowed(permissions.accessibility.state);
 
   // Screen Recording is a macOS TCC permission. Linux and Windows may report
   // the field as unknown because those platforms do not have this permission.
-  if (platform === "darwin" && !allowed(permissions.screen_recording.state))
-    return { ready: false, detail: "Grant Screen Recording permission for desktop screenshots" };
+  if (platform === "darwin") {
+    const missing = [
+      accessibility ? "" : "Accessibility",
+      allowed(permissions.screen_recording.state) ? "" : "Screen Recording",
+    ]
+      .filter(Boolean)
+      .join(" and ");
+
+    if (missing)
+      return {
+        ready: false,
+        detail: `Allow ${missing} in System Settings on the Mac running this worker. Then select Check tools.`,
+        needsMacDesktopPermissions: true,
+      };
+  }
+
+  if (!accessibility)
+    return { ready: false, detail: "Grant Accessibility permission and run the worker in your graphical session" };
 
   return { ready: true, detail: "ready" };
 }
@@ -139,6 +155,7 @@ export async function preflightAgentTool(
       ready: result.code === 0 && readiness.ready,
       detail:
         result.code !== 0 && readiness.ready ? `${spec.label} preflight failed` : redactLine(readiness.detail, secrets),
+      ...(result.code === 0 && readiness.needsMacDesktopPermissions && { needsMacDesktopPermissions: true }),
     };
   } catch (error) {
     return {

@@ -12,6 +12,7 @@ export interface FixtureState {
   platform?: string;
   emptySurfaces?: boolean;
   invalidJson?: boolean;
+  failPermissionGuide?: boolean;
   failOperation?: boolean;
   delay?: number;
   text?: string;
@@ -73,6 +74,10 @@ if (state.delay) await new Promise(resolve => setTimeout(resolve, state.delay));
 record("end");
 if (args.includes("--version")) { console.log(name + " " + (state.version ?? ${JSON.stringify(spec.version)})); process.exit(0); }
 if (args[0] === "install") { console.log("runtime installed"); process.exit(0); }
+if (name === "agent-desktop" && args.join(" ") === "permissions --guide") {
+  if (state.failPermissionGuide) process.exit(1);
+  console.log(JSON.stringify({ ok: true, data: { guide: "started" } })); process.exit(0);
+}
 if (args[0] === "doctor" || args[0] === "status") {
   if (state.invalidJson) { console.log("not json"); process.exit(0); }
   const ready = state.ready !== false;

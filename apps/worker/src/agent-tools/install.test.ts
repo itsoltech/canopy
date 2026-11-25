@@ -6,6 +6,8 @@ import {
   AgentTool,
   InstallAgentToolSchema,
   AgentToolInstallStatusSchema,
+  AgentToolInfoSchema,
+  type AgentToolInfo,
   type AgentToolInstallStatus,
 } from "@canopy/contracts";
 import { AgentTools } from "./index.ts";
@@ -146,6 +148,77 @@ writeFileSync(join(pkg, "bin", "agent-desktop"), ${JSON.stringify(`#!/usr/bin/en
 
   f.state(AgentTool.DESKTOP, { platform: "windows", version: "1.3.1-preview" });
   await expect(installAgentTool(input)).rejects.toThrow("expected version 1.3.1 (found 1.3.1-preview)");
+});
+
+test("macOS desktop install opens the permission guide and stays unready until the user grants access", async () => {
+  const f = fixture();
+  const npm = installer(f);
+  const tool = AgentTool.DESKTOP;
+  const install = command(tool);
+  const lines: string[] = [];
+  const finished = Promise.withResolvers<AgentToolInfo>();
+  f.state(tool, { platform: "macos", denied: true, screenRecording: "denied" });
+
+  const manager = new AgentTools({
+    dataDir: f.dir,
+    probe: { which: (name) => (name === "npm" ? npm.path : null), platform: "darwin" },
+    env: f.env,
+    send: (report) => {
+      const info = report.tools?.find((item) => item.tool === tool);
+
+      if (info?.install?.installId === install.installId && info.install.state !== "running")
+        finished.resolve(create(AgentToolInfoSchema, info));
+    },
+    progress: (progress) => {
+      lines.push(...(progress.lines ?? []));
+    },
+  });
+
+  await manager.install(install);
+  const installed = await finished.promise;
+
+  expect(installed.install?.state).toBe("succeeded");
+  expect(installed.installed).toBe(true);
+  expect(installed.ready).toBe(false);
+  expect(installed.detail).toContain("Allow Accessibility and Screen Recording");
+  expect(lines).toContain("Follow the permission guide on the Mac running this worker.");
+
+  expect((await manager.probe()).tools?.find((item) => item.tool === tool)?.ready).toBe(false);
+  f.state(tool, { platform: "macos", screenRecording: "granted" });
+  expect((await manager.probe()).tools?.find((item) => item.tool === tool)?.ready).toBe(true);
+  const guideCalls = f.calls().filter((call) => call.event === "start" && call.args[0] === "permissions");
+
+  expect(guideCalls.map((call) => call.args)).toEqual([["permissions", "--guide"]]);
+  expect(guideCalls[0]?.privateEnv).toBe(false);
+});
+
+test("macOS desktop repair reuses the installed CLI and gives manual steps if its guide cannot open", async () => {
+  const f = fixture();
+  const spec = agentToolSpec(AgentTool.DESKTOP);
+  const npm = executable(join(f.dir, "npm"), "process.exit(1);");
+  const lines: string[] = [];
+  executable(join(managedPrefix(f.dir, spec), "bin", spec.executable), f.script(spec.tool));
+  f.state(spec.tool, { platform: "macos", screenRecording: "denied", failPermissionGuide: true });
+
+  await installAgentTool({
+    command: command(spec.tool),
+    spec,
+    npm,
+    dataDir: f.dir,
+    env: f.env,
+    platform: "darwin",
+    emit: async (line) => {
+      lines.push(line);
+    },
+  });
+
+  expect(
+    f
+      .calls()
+      .filter((call) => call.event === "start")
+      .map((call) => call.args),
+  ).toEqual([["--version"], ["status"], ["permissions", "--guide"]]);
+  expect(lines.at(-1)).toContain("Open System Settings → Privacy & Security");
 });
 
 test("all AgentTools instances serialize npm recipes sharing their installation resources", async () => {
