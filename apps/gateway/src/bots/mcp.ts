@@ -7,7 +7,50 @@ import { Schema } from "effect";
 import type { McpConnection, ToolSpec } from "./types.ts";
 import { httpMcpFailure, McpFailure, networkMcpFailure, protocolMcpFailure, type McpPhase } from "./mcp-errors.ts";
 
-type McpResult = Awaited<ReturnType<Client["callTool"]>> | { error: string };
+type McpResult = Awaited<ReturnType<Client["callTool"]>>;
+
+const isStructuredResult = Schema.is(Schema.JsonObject);
+
+const MAX_MCP_TEXT_BYTES = 100_000;
+const MAX_MCP_IMAGE_RESULT_BYTES = 1_000_000;
+const resultBytes = (result: McpResult) => Buffer.byteLength(JSON.stringify(result));
+
+function boundedMcpResult(result: McpResult): McpResult {
+  const bytes = resultBytes(result);
+
+  if (bytes <= MAX_MCP_TEXT_BYTES) return result;
+
+  if ("content" in result && Array.isArray(result.content)) {
+    const content = result.content.filter((block) => block.type !== "image");
+
+    if (content.length < result.content.length) {
+      const withoutImages = { ...result, content };
+
+      if (resultBytes(withoutImages) <= MAX_MCP_TEXT_BYTES && bytes <= MAX_MCP_IMAGE_RESULT_BYTES) return result;
+
+      if (content.length || result.structuredContent) {
+        content.push({ type: "text", text: "Canopy omitted images that exceeded the connector response limit." });
+
+        if (resultBytes(withoutImages) <= MAX_MCP_TEXT_BYTES) return withoutImages;
+      }
+    }
+  }
+
+  if (isStructuredResult(result.structuredContent)) {
+    const metadata: McpResult = {
+      structuredContent: result.structuredContent,
+      isError: result.isError === true,
+      content: [{ type: "text", text: "Canopy omitted bulky content. The structured result is available." }],
+    };
+
+    if (resultBytes(metadata) <= MAX_MCP_TEXT_BYTES) return metadata;
+  }
+
+  return {
+    isError: true,
+    content: [{ type: "text", text: "The connector response exceeded Canopy’s size limit." }],
+  };
+}
 
 /** The SDK has already parsed the wire JSON; this only states it in the gateway's JSON type. */
 const toolSchema = Schema.decodeUnknownSync(Schema.JsonObject);
@@ -147,9 +190,6 @@ export async function mcpCall(
       timeout: 120_000,
     });
 
-    // Binary content and tool JSON remain internal; only the model receives the result.
-    const text = JSON.stringify(result);
-
-    return text.length <= 100_000 ? result : { error: "MCP result too large; narrow the query" };
+    return boundedMcpResult(result);
   });
 }
