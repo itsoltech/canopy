@@ -1,5 +1,10 @@
 # Boty przez oficjalne harnessy
 
+Status (2026-11-25): worker zapisuje wynik tury także po błędzie zapisu
+powiadomienia o zamknięciu sterowania. Gateway może wtedy uruchomić następną
+wiadomość z kolejki i zakończyć aktywność w czacie. Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Aktualizacja (2026-11-24). Boty mogą delegować zadania do wątków Antigravity. Do wykonania własnej tury bota potrzebny jest harness z możliwością wyłączenia wszystkich lokalnych narzędzi. `agy` 1.5.16 zachowuje narzędzie `manage_task` przy pustej liście uprawnień agenta. [Adapter Antigravity](antigravity-adapter.md)
 
 Status (2026-11-24): natywne boty Codexa pobierają bieżący login wybranej instancji

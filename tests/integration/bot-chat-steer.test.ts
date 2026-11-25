@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
+import { join } from "node:path";
 import { fromBinary } from "@bufbuild/protobuf";
-import { CommandSchema, Provider } from "@canopy/contracts";
+import { CommandSchema, Provider, TurnOutcome, type bots } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { applyBotConversation } from "@canopy/domain/bot-snapshot";
 import { eventually } from "./support/gateway.ts";
 import { harnessBots } from "./support/harness-bots.ts";
 
@@ -144,3 +147,76 @@ test.skipIf(!dockerAvailable)(
   },
   30_000,
 );
+
+for (const { provider, failure } of [
+  { provider: Provider.CODEX, failure: false },
+  { provider: Provider.CLAUDE, failure: true },
+]) {
+  test.skipIf(!dockerAvailable)(
+    `${Provider[provider]} settles the reply and drains queued input even if steering cleanup cannot journal a notice`,
+    async () => {
+      const f = await harnessBots();
+
+      try {
+        const bot = await f.add(provider);
+        const label = "steer-cleanup";
+        const original = await f.send(bot.id, `HOLD:${label}${failure ? " FAIL:unavailable" : ""}`);
+        const running = await eventually(async () => f.records().some((record) => record.event === "turn"), Boolean);
+        expect(running).toBe(true);
+
+        const followup = "FIXTURE_UNCONFIRMED_BOT_STEER";
+        const queued = await f.send(bot.id, followup);
+
+        const steered = await eventually(
+          async () => f.inputs().at(-1)?.parts[0]?.text?.endsWith(followup) ?? false,
+          Boolean,
+        );
+
+        expect(steered).toBe(true);
+
+        // Only the auxiliary notice fails. The journal can still commit the terminal event.
+        using journal = new Database(join(f.dir, "journal.db"));
+        journal.exec(`CREATE TRIGGER reject_drop_notice BEFORE INSERT ON events
+          WHEN instr(NEW.payload, CAST('bot_steer_dropped' AS BLOB)) > 0
+          BEGIN SELECT RAISE(ABORT, 'fixture: cannot journal dropped steering input'); END`);
+
+        const controller = new AbortController();
+        let state: bots.BotConversation | undefined;
+
+        try {
+          for await (const update of f.gw.api.watchBotConversation(
+            { botId: bot.id, incremental: true, pageSize: 50 },
+            { signal: controller.signal, timeoutMs: 10_000 },
+          )) {
+            const first = !state;
+            state = applyBotConversation(state, update);
+
+            if (first) {
+              expect(state).toMatchObject({ statusLine: "Typing…", working: true });
+              await f.release(label);
+            } else if (!state.working) break;
+          }
+        } finally {
+          controller.abort();
+        }
+
+        expect(state).toMatchObject({ statusLine: "", working: false });
+        const replies = state?.messages.filter((message) => message.senderId === bot.id) ?? [];
+        expect(replies).toHaveLength(2);
+        expect(replies[0]).toMatchObject(
+          failure ? { failed: true, errorCode: "usage_limit", errorSource: "harness" } : { text: "FIXTURE_OK" },
+        );
+        expect(replies[1]).toMatchObject({ text: "FIXTURE_OK", failed: false });
+        expect(f.logs).toContain("bots: steering cleanup failed");
+        const ended = await f.gw.core.bots.run((s) => s.harnessTurn(original.turnId));
+        expect(ended?.outcome).toBe(failure ? TurnOutcome.FAILED : TurnOutcome.COMPLETED);
+        const next = await f.gw.core.bots.run((s) => s.harnessTurn(queued.turnId));
+        expect(next?.outcome).toBe(TurnOutcome.COMPLETED);
+        expect(f.records().filter((record) => record.event === "turn")).toHaveLength(2);
+      } finally {
+        await f.close();
+      }
+    },
+    30_000,
+  );
+}

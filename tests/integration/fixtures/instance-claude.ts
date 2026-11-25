@@ -285,9 +285,6 @@ for await (const line of createInterface({ input: process.stdin })) {
     if (!permissions.response(message.response.request_id, message.response.response ?? {}))
       inventory.response(message.response.request_id, message.response.response ?? {});
   } else if (message.type === "user") {
-    if (message.uuid)
-      send({ type: "command_lifecycle", command_uuid: message.uuid, state: "started", session_id: session });
-
     const content = Schema.decodeSync(
       Schema.Union([
         Schema.String,
@@ -306,6 +303,12 @@ for await (const line of createInterface({ input: process.stdin })) {
       : content.map((part) => ({ type: part.type, text: part.text, image: part.source?.media_type }));
 
     recordInput("claude", parts);
-    void configured.then(() => turn(parts.map((part) => part.text ?? "").join("\n")));
+    const text = parts.map((part) => part.text ?? "").join("\n");
+
+    if (message.uuid && text.endsWith("FIXTURE_UNCONFIRMED_BOT_STEER")) continue;
+
+    if (message.uuid)
+      send({ type: "command_lifecycle", command_uuid: message.uuid, state: "started", session_id: session });
+    void configured.then(() => turn(text));
   }
 }
