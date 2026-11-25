@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Status (2026-11-25). Ustawienia powiadomień telefonu mają własną sekcję Notifications.
+Threads zawiera ustawienia listy i potwierdzenia. App updates skupia aktualizacje Canopy
+na telefonie, gatewayu, workerach i połączonych komputerach. Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Aktualizacja (2026-11-25). Desktop Preview pokazuje animowany kursor agenta przy
 akcjach w obserwowanym oknie. [Kursor agenta](automation-tools.md#kursor-agenta)
 
@@ -117,7 +122,7 @@ Komunikat o restarcie znika po potwierdzeniu powrotu gatewaya lub wersji docelow
 Stan gotowości binarnego gatewaya kończy także zapowiedź restartu bez zmiany wersji.
 Zmiana wątku nie przedłuża wyświetlania wyniku.
 Puste pole wiadomości w wątku zajmuje jeden wiersz do ustawienia fokusu i wraca do tej wysokości po wysłaniu szkicu.
-Arkusz Updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
+Settings → App updates pokazuje start i zamykanie gatewaya oraz etapy aktualizacji workerów.
 Do serii 0.7 przeniesiono wygaszanie zapowiedzi restartu po potwierdzeniu gotowości binarnego gatewaya bez zmiany wersji.
 Wiadomości agenta w rozwiniętej aktywności tury mają dodatkowy odstęp pionowy.
 Stany źródeł Usage są widoczne w sekcji **Recording gateways**. Podsumowanie
@@ -461,8 +466,8 @@ Konfiguracja: `apps/mobile/app.json`, `app.config.ts`, `eas.json`.
 
 Po OTA lub aktualizacji sklepowej „View changes” w powiadomieniu „Updated to …”
 otwiera „What's new” z zakresem poprzedniej i bieżącej wersji bundla. Historia jest lokalna
-dla instalacji i pozostaje po zmianie parowania. Settings → App updates i Updates
-otwierają ten sam arkusz. Notatki oraz podgląd notatek dostępnego OTA czytają
+dla instalacji i pozostaje po zmianie parowania. W Settings → App updates przycisk
+„See what's new” otwiera ten sam arkusz. Notatki oraz podgląd notatek dostępnego OTA czytają
 wyłącznie statyczny JSON Pages, bez API GitHuba. Implementacja jest wyłącznie JS,
 bez nowych modułów, konfiguracji natywnej lub wejść fingerprintu; [updates.md](updates.md#whats-new-po-aktualizacji).
 Agregacja zakresu i lista ostatnich wydań sortują nowe tablice przez `sort`,
@@ -987,8 +992,10 @@ Przyszłe logowanie/multi-user musi zastąpić to mapowanie, nie rozszerzyć wsp
 
 ### Powiadomienia push
 
-Powiadomienia w Modules włączonych na koncie można uruchomić w **Settings →
-General → Notifications**. Po otwarciu rozmowy treść jest pobierana tym samym
+Powiadomienia o aktywności włączonych modułów można uruchomić w **Settings → Notifications**.
+„Restore device defaults” w tej sekcji włącza alerty w aplikacji i wyłącza powiadomienia
+systemowe dla tego telefonu. Zgoda systemu i preferencje czasu mają osobne ustawienia.
+Po otwarciu rozmowy treść jest pobierana tym samym
 Connect z przypiętym TLS. Podgląd jest już w powiadomieniu, więc do jego
 wyświetlenia wystarczy łączność telefonu z usługą push. Szczegóły zdarzeń
 i metadanych opisuje
@@ -1298,31 +1305,36 @@ oraz po powrocie do niej, gdy od ostatniego sprawdzenia lub pobrania minęło 15
 Po błędzie obowiązuje ta sama przerwa. Aplikacja pobiera wykryte zgodne OTA oraz obsługuje
 dyrektywę powrotu do wbudowanego bundle'a. Pobrany pakiet czeka na następny zimny start.
 Sprawdzanie działa także bez parowania. Nowe próby są wstrzymane w tle i po pobraniu aktualizacji.
-Settings → App updates oraz centrum aktualizacji współdzielą stan telefonu:
-sprawdzenie (`checkForUpdateAsync`), pobranie (`fetchUpdateAsync`) i jawne zastosowanie
-(`reloadAsync`). „Apply next launch” odkłada restart; aplikacja nigdy nie restartuje się
+W Settings → App updates akcja „Check for updates” sprawdza OTA telefonu
+(`checkForUpdateAsync`) oraz aktualizacje po stronie gatewaya. Wiersz telefonu pozwala
+pobrać OTA (`fetchUpdateAsync`) i jawnie je zastosować (`reloadAsync`).
+„Apply next launch” odkłada restart; aplikacja nigdy nie restartuje się
 automatycznie w trakcie pracy. Próba zastosowania przy niewysłanym tekście, plikach
 (także w trakcie uploadu), niewysłanym cytacie, edycji kolejki lub wpisywaniu sekretu odkłada aktualizację
 do następnego uruchomienia. Rejestr przechowuje wyłącznie funkcje sprawdzające zajętość,
 bez treści szkiców; uwzględnia też kompozytory pozostawione pod Settings.
 
-Centrum aktualizacji i Settings → Workers pokazują również aplikację komputera,
-z którym telefon jest sparowany. Akcja Update pyta o restart tego komputera,
+Ikona aktualizacji w pasku bocznym, odnośnik w Workers i szczegóły przerwy gatewaya
+otwierają Settings → App updates (`/settings/app-updates`). Przy parowaniu z aplikacją
+desktopową jej wiersz obejmuje również dołączony gateway i worker. Akcja Update pyta o restart tego komputera,
 pokazuje znane aktywne tury jego workera i wyjaśnia automatyczne odzyskanie połączenia.
 Ten sam rejestr niewysłanej pracy blokuje żądanie przed potwierdzeniem oraz przed
 wysłaniem. Komputer używa istniejącego journalu `RemoteAppUpdate`, czeka na idle,
 ogłasza przerwę gatewaya i raportuje wynik po restarcie. Starsza aplikacja lub
 gateway bez capability pokazuje instrukcję jednorazowej aktualizacji w oknie komputera.
-Arkusz Updates pokazuje licznik i przycisk Update all tylko dla kroków, które
-Canopy może wykonać. Podczas startu i zamykania gatewaya arkusz pokazuje bieżący
+App updates pokazuje licznik dostępnych aktualizacji i przycisk Update all dla kroków, które
+Canopy może wykonać. Podczas startu i zamykania gatewaya ekran pokazuje bieżący
 stan, wstrzymuje akcje instalacji i sam odświeża odczyt.
 Wiersz workera dostarczanego z aplikacją desktopową korzysta
 ze stanu i kanału aktualizacji aplikacji, również gdy sam worker jest rozłączony.
 Jeśli aktualizacje wymagają ręcznej instalacji, nagłówek pokazuje
-„Manual updates available”.
+„Manual updates available”. Wiersz zachowuje zainstalowaną wersję i znany cel.
+Instrukcja instalacji lub rozwijany powód błędu pojawia się pod wersjami.
 Aktualizacja telefonu ma osobną akcję w swoim wierszu. Gdy plan opróżni się
 przed wysłaniem Update all, aplikacja odświeża stan po odpowiedzi gatewaya.
-CLI dostawcy można zaktualizować osobno w ustawieniach workera. Restart własnej
+App updates pokazuje postęp i szczegóły przebiegu oraz pozwala ponowić błędne kroki.
+W Workers można sprawdzić wersje CLI dostawców i zmienić harmonogram ich sprawdzania.
+Instalacja konkretnego CLI pozostaje przy jego workerze. Restart własnej
 aplikacji komputera w ramach Update all wymaga takiego samego potwierdzenia jak
 indywidualna aktualizacja. To zmiana JS/TS bez nowych modułów,
 uprawnień ani konfiguracji natywnej; fingerprinty pozostają granicą zgodności OTA.
@@ -1349,7 +1361,7 @@ np. `0.2.0-nightly.105`, `0.2.0-beta.3` lub `0.2.0`. `app.config.ts` pokazuje j�
 w `expo.extra.canopyVersion`; `bunx expo config --type public` pozwala sprawdzić przygotowanie.
 
 Settings pokazuje wersję działającego JS, również po OTA; nie odczytuje wersji natywnej
-zainstalowanego IPA/APK. Wiersz About → Updates nadal pokazuje kanał i tożsamość aktualizacji.
+zainstalowanego IPA/APK. Wiersz telefonu w App updates pokazuje kanał i tożsamość aktualizacji.
 Mobilny klient nie wykonuje sprawdzeń `WORKER_LINK_PROTOCOL`; wersje gatewaya i workerów
 w ich ustawieniach pochodzą z odpowiedzi gatewaya, nie z wersji telefonu.
 
@@ -1409,7 +1421,7 @@ nowej binarki; stare instalacje nadal pytają stary URL, więc utrzymuj go do ko
 W razie wadliwego JS zatrzymaj dalsze publikacje i opublikuj ponownie ostatnią dobrą grupę
 na tym samym kanale/runtime przez `eas update:republish --channel <kanał> --group <grupa>`.
 Na EAS Starter nie podawaj klucza podpisu. Zmiana natywna wymaga nowego buildu. Wersję
-działającego OTA ustala wiersz Updates; manifesty i historię grup pokazuje EAS.
+działającego OTA ustala wiersz telefonu w App updates; manifesty i historię grup pokazuje EAS.
 
 - **Aplikacja:** w App Store Connect nazywa się „Canopy Remote”. Ma bundle id
   `tech.itsol.canopy-remote`, ASC app id `6768351426` i zespół `5XWLF3YKWM`.
@@ -2422,7 +2434,7 @@ ograniczonych animacji; zmiana nie wymaga nowego runtime natywnego.
 Snapshot strony zachowuje także itemy zadań w tle spoza okna załadowanych tur.
 „Show full output” korzysta ze wspólnego `TextViewer`, także dla wyniku zapisanego jako blob.
 
-Settings → General → Sidebar ma jedno pole „Group by”: „None”, „Project”
+Settings → Threads → Sidebar ma jedno pole „Group by”: „None”, „Project”
 i „Project & worktree”. Wybór zapisuje oba istniejące pola preferencji lokalnych
 atomowo; reset przywraca „None”. Dotychczasowe `groupByProject=true` z brakującym
 polem worktree nadal oznacza „Project”. „Project order” jest nieaktywne dla „None”.
@@ -2430,6 +2442,10 @@ Nagłówki projektów mają znaki z inicjałami, a podgrupy pokazują gałąź l
 oraz liczbę wątków. Oba poziomy można zwinąć niezależnie; zapis należy do telefonu
 i parowania. Wyszukiwanie odsłania grupy wyników bez zmiany zapamiętanego zwinięcia.
 Wcięcia po 20 dp i pionowe linie pokazują projekt → worktree → wątki.
+
+Threads → Confirmations zapisuje na koncie preferencje potwierdzania odpinania,
+archiwizacji i usuwania. Gdy działa tylko moduł Bots, General udostępnia potwierdzenia
+odpinania i archiwizacji botów oraz rozwiązywanie konfliktów tych ustawień.
 
 Obok wyszukiwania „Sort threads” otwiera wybór kolejności, a „Filter by project”
 otwiera wybór jednego projektu. „All projects” czyści filtr. Przy więcej niż sześciu
@@ -2543,8 +2559,8 @@ bez historii pomiędzy wyborami. Arkusze botów mają własne
 dostępne wyłącznie bez sesji; zakończenie lub usunięcie parowania usuwa niepasujące
 trasy z historii. Back Androida w skanerze wraca najpierw do wypełnionego formularza.
 
-Settings używa rejestru sekcji web, z General, Keybindings, Diffs, Agent environment,
-Proxies, Network access i Linked computers na obsługującym je gatewayu.
+Settings używa wspólnego rejestru sekcji z grupami Preferences, Workspace, Agents,
+Connections i System. Widoczność sekcji zależy od włączonych modułów i możliwości gatewaya.
 Od 600 dp pokazuje listę obok treści. Zmiany konta zapisuje
 bezpośrednio przez owner-scoped GatewayService. Agent environment ma zakładki **Instructions**,
 **Skills**, **Plugins** i **Computers** widoczne podczas przewijania. Dotknięcie wiersza
@@ -2563,9 +2579,9 @@ W modalnych formularzach pierwszy Android Back chowa klawiaturę i usuwa fokus p
 zachowując edycję; kolejne cofnięcie zamyka arkusz.
 Keybindings jest wyszukiwalną listą domyślnych skrótów webu i desktopu.
 Skróty konfiguruje się w kliencie, który je wykonuje. Kontrolki lokalnego procesu Electron i jego updatera są ukryte jak w web
-remote. W App updates można sprawdzić wersję telefonu oraz stan i dostępne
-akcje aktualizacji połączonych komputerów. Workers pokazuje też gateway i workery. Powiadomienia systemowe są
-konfigurowane dla tego telefonu w General z uwzględnieniem uprawnień systemowych
+remote. App updates zawiera wersję telefonu oraz instalacje Canopy na komputerach
+i workerach. Powiadomienia systemowe i alerty w aplikacji konfiguruje się
+dla tego telefonu w Notifications (`/settings/notifications`) z uwzględnieniem uprawnień systemowych
 i obsługi relaya przez gateway.
 Settings → Agent tools pokazuje gotowość narzędzi Browser, Desktop i Device,
 logi instalacji i dostęp poszczególnych workerów. Rozwinięta karta pozwala zapisać

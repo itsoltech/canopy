@@ -18,6 +18,8 @@ import { SettingsScroll } from "./SettingsScroll";
 import { SettingsDensity } from "../../ui/density";
 import { AgentToolsSettings } from "./AgentToolsSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { NotificationSettings } from "./NotificationSettings";
+import { ConfirmationSettings, ThreadListSettings } from "./ThreadListSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { KeybindingSettings } from "./KeybindingSettings";
 import { DiffSettings } from "./DiffSettings";
@@ -105,6 +107,7 @@ export default function SettingsScreen() {
           loading={!settings.user && !settings.error && ["general", "threads", "text-generation"].includes(section)}
         >
           {section === "general" && <GeneralSettings />}
+          {section === "notifications" && <NotificationSettings />}
           {section === "app-updates" && <AppUpdatesSettings />}
           {section === "memory" && <MemorySettings key={session.deviceId} />}
           {section === "agent-tools" && <AgentToolsSettings />}
@@ -119,6 +122,8 @@ export default function SettingsScreen() {
           {section === "appearance" && <AppearanceSettings />}
           {section === "threads" && (
             <>
+              <ThreadListSettings />
+              <ConfirmationSettings />
               <ThreadDisplaySettings />
               <TurnActivitySettings />
               <ThreadDefaultsSettings settings={settings} />

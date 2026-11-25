@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-25): ustawienia listy wątków i potwierdzeń są w Settings → Threads.
+W webie i na desktopie otwiera je zakładka **Thread list**.
+
 Status (2026-11-25): w sidebarze web i desktop grupy projektu i worktree mają
 osobne miejsce między prowadnicą a tytułem na ikonę aktywności i licznik zadań w tle.
 
@@ -229,7 +232,12 @@ identyfikują. Gdy jedynym niezrewokowanym workerem jest lokalny worker wbudowan
 w desktop i nie ma połączonych komputerów, wiersz pomija nazwę i ikonę komputera.
 Inne konfiguracje, także pojedynczy worker serwera, nadal pokazują tę informację.
 
-Pole „Group by” jest w sekcji Sidebar, w web/desktop pod Settings → General → Thread list. Dostępne wartości to „None”, „Project”
+W webie i na desktopie Settings → Threads → Thread list zawiera sekcje **Sidebar** i **Confirmations**.
+Pierwsza ustawia grupowanie, kolejność projektów i widoczność sekcji Working na danym urządzeniu.
+Druga określa dla całego konta, czy odpięcie, archiwizacja i usunięcie wątku wymagają potwierdzenia.
+Domyślnie Canopy pyta przed usunięciem.
+
+Dostępne wartości pola „Group by” to „None”, „Project”
 lub „Project & worktree”. „None” wyłącza grupowanie, „Project” zostawia tylko nagłówki
 projektów, a „Project & worktree” dodaje podgrupy katalogów. Wybór zapisuje oba
 istniejące ustawienia lokalne jednocześnie; wcześniejsze preferencje są odczytywane

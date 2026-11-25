@@ -1,146 +1,104 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
+  import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
-  import UpdateActionButton from "./UpdateActionButton.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import { clock } from "#lib/shared/clock.svelte.ts";
-  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
-  import ReleaseChannelField from "./ReleaseChannelField.svelte";
-  import UpdateRows from "./UpdateRows.svelte";
-  import CompactCliSection from "./CompactCliSection.svelte";
-  import { homes } from "@canopy/domain/release/computer-update";
-  import { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
-  import UpdateRun from "./UpdateRun.svelte";
-  import { updateCenter, UpdatesState, updateBusy } from "./updates.svelte.ts";
-  import TextLink from "#lib/shared/ui/TextLink.svelte";
-  import { listedWorkers } from "./compact-updates.ts";
-  import { updateIndicator } from "./update-indicator.ts";
   import { isRateLimitMessage } from "@canopy/domain/release/http";
+  import UpdateActionButton from "./UpdateActionButton.svelte";
+  import UpdateRows from "./UpdateRows.svelte";
+  import UpdateRun from "./UpdateRun.svelte";
+  import { type UpdatesState, updateBusy } from "./updates.svelte.ts";
+  import { updatesHeadline } from "./updates-headline.ts";
 
   let {
+    updates,
+    app,
     class: className,
-    fixture,
-  }: {
-    class?: ClassValue;
-    /** Development fixtures (/dev/updates): fixed state, no polling. */
-    fixture?: { updates: UpdatesState; app: DesktopUpdatesState };
-  } = $props();
+  }: { updates: UpdatesState; app: DesktopUpdatesState; class?: ClassValue } = $props();
 
-  const given = untrack(() => fixture);
-  const updates = given?.updates ?? updateCenter;
-  const app = given?.app ?? new DesktopUpdatesState();
-  const overview = useOverview();
   const snapshot = $derived(updates.snapshot);
-  const busy = $derived(updates.active || updateBusy(snapshot?.gatewayState ?? ""));
 
-  const summary = $derived(
-    updateIndicator(undefined, snapshot, updates.error, updates.pending, false, updates.gatewayTransition),
+  const checking = $derived(
+    !!(snapshot?.checking || updates.pending === "check" || app.pending || app.status?.phase === "checking"),
   );
 
-  const error = $derived(updates.error || (!updates.gatewayTransition && snapshot?.checkError) || "");
+  const headline = $derived(updatesHeadline(updates, app, checking));
 
-  const checked = $derived.by(() => {
-    const at = Date.parse(snapshot?.checkedAt ?? "");
-
-    if (!Number.isFinite(at)) return "Not checked yet";
-    const minutes = Math.max(0, Math.floor((clock.now - at) / 60000));
-
-    return minutes < 1
-      ? "Checked just now"
-      : `Checked ${minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} hr`} ago`;
-  });
-
-  const status = $derived(
-    summary.phase === "quiet"
-      ? "All up to date"
-      : summary.phase === "error"
-        ? "Update failed"
-        : summary.phase === "available"
-          ? "Updates available"
-          : summary.message,
+  const error = $derived(
+    (updates.readable && (updates.error || (!updates.gatewayTransition && snapshot?.checkError))) || "",
   );
 
-  onMount(() => {
-    const unsubscribe = overview.subscribe((update) => {
-      if (update.change.case === "desktopUpdate" && updates.snapshot) {
-        const value = update.change.value;
-        const worker = updates.snapshot.workers.find((w) => w.workerId === value.workerId);
+  const canCheckGateway = $derived(
+    updates.readable &&
+      !updates.gatewayTransition &&
+      !updates.pending &&
+      !snapshot?.checking &&
+      !updateBusy(snapshot?.gatewayState ?? ""),
+  );
 
-        if (worker) worker.desktop = value;
-      }
-    });
+  const canCheckApp = $derived(
+    (!!app.status || !!window.canopyDesktop?.checkForUpdates) &&
+      !app.pending &&
+      !app.restarting &&
+      !app.status?.changingChannel &&
+      !["disabled", "downloading", "checking"].includes(app.status?.phase ?? ""),
+  );
 
-    if (given) return unsubscribe;
-    const off = app.connect();
-    const stop = updates.poll();
+  let checkingAll = $state(false);
 
-    return () => {
-      stop();
-      unsubscribe();
-      off?.();
-    };
-  });
+  async function check() {
+    if (checkingAll) return;
+    checkingAll = true;
+
+    try {
+      await Promise.all([
+        canCheckGateway
+          ? updates.writable && (snapshot?.admin || snapshot?.gatewayBundled)
+            ? updates.manage({ action: "check" })
+            : updates.reload()
+          : undefined,
+        canCheckApp ? app.check() : undefined,
+      ]);
+    } finally {
+      checkingAll = false;
+    }
+  }
 </script>
 
-<SettingsGroup title="Updates" class={className}>
-  <div class="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2">
-    <div class="min-w-0 text-sm/5" role="status">
-      <p class="font-medium">{status}</p>
-      <p class="text-xs/5 text-muted" title={snapshot?.checkedAt}>{checked}</p>
+{#if updates.readable || app.status || app.error}
+  <SettingsGroup title="Update status" class={className}>
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2">
+      <p class="min-w-0 text-sm/5 font-medium tabular-nums" role="status">{headline.text}</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          disabled={!canCheckGateway && !canCheckApp}
+          loading={checkingAll || (checking && !canCheckGateway && !canCheckApp)}
+          onclick={() => void check()}>Check for updates</Button
+        >
+        <UpdateActionButton {updates} variant="primary" />
+      </div>
     </div>
-    <div class="flex shrink-0 items-center gap-1">
-      <Button
-        size="sm"
-        disabled={busy || snapshot?.checking}
-        loading={!updates.gatewayTransition && (updates.pending === "check" || snapshot?.checking)}
-        onclick={() =>
-          void (snapshot?.admin || snapshot?.gatewayBundled ? updates.manage({ action: "check" }) : updates.reload())}
-        >Check now</Button
-      >
-      <UpdateActionButton {updates} />
-    </div>
-  </div>
-  {#if error}<div class="p-3">
-      <Alert tone={isRateLimitMessage(error) ? "info" : "error"}>{error}</Alert>
-    </div>{/if}
-  {#if snapshot}
-    {#if snapshot.run && snapshot.run.state !== "dismissed"}<UpdateRun
-        run={snapshot.run}
-        {updates}
-        class="border-b border-divider px-3 py-2"
-      />{/if}
-    <Disclosure class="px-3 py-2 text-sm/5 text-muted">
-      {#snippet summary()}Update order{/snippet}
-      <p class="pt-2 text-pretty">
-        Canopy updates gateways, workers, and apps on all online computers, including this one. Workers wait for their
-        gateway. Canopy skips offline computers and workers. Independent updates continue after a failure. The results
-        list the installer for items that need a manual update.
-      </p>
-    </Disclosure>
-    {#if snapshot.gatewayBundled}<p class="px-3 py-2 text-sm/5 text-pretty text-muted">
-        This computer’s gateway and worker update with its Canopy app.
-        {#if app.status && !app.remote}Open <TextLink href="/settings/app-updates">App updates</TextLink> to update it.{/if}
-      </p>{/if}
+    {#if error}<div class="p-3"><Alert tone={isRateLimitMessage(error) ? "info" : "error"}>{error}</Alert></div>{/if}
+    {#if updates.run && updates.run.state !== "dismissed"}
+      <UpdateRun run={updates.run} {updates} class="px-3 py-2" />
+    {/if}
     <div class="min-w-0 px-3">
-      <UpdateRows {updates} {app} allowForce>
-        {#snippet gateway()}<ReleaseChannelField
-            current={snapshot.channel}
-            version={snapshot.gatewayVersion}
-            disabled={!snapshot.admin || busy}
-            pending={updates.pending === "channel"}
-            onsave={(channel) => updates.manage({ action: "channel", channel })}
-            class="-mx-3"
-          />{/snippet}
-      </UpdateRows>
-      <CompactCliSection groups={homes(snapshot)} {updates} class="border-t" />
+      <UpdateRows {updates} {app} />
+      {#if updates.readable && !snapshot && !error}<p class="py-2 text-sm/5 text-muted" role="status">
+          Loading gateway updates…
+        </p>{/if}
     </div>
-    {#if !snapshot.gatewayBundled && !listedWorkers(snapshot).length && !snapshot.computers.length}<p
-        class="px-3 py-2 text-sm/5 text-muted"
-      >
-        No workers yet
-      </p>{/if}
-  {:else}<p class="px-3 py-2 text-sm/5 text-muted" role="status">Loading update status…</p>{/if}
-</SettingsGroup>
+    {#if snapshot}
+      <Disclosure class="px-3 py-2 text-sm/5 text-muted">
+        {#snippet summary()}Update order{/snippet}
+        <p class="pt-2 text-pretty">
+          Workers wait for their gateway. Offline computers and workers are skipped. Independent updates continue after
+          a failure. The results list the installer for items that need a manual update.
+        </p>
+      </Disclosure>
+    {/if}
+  </SettingsGroup>
+{/if}

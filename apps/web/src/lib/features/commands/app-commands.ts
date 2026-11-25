@@ -37,7 +37,7 @@ export interface AppCommandContext {
 const newThreadHref = (project: ui.Project) => `/threads/new?project=${encodeURIComponent(project.id)}`;
 
 /** Palette titles of the settings sections ("Threads" alone would read as the thread list). */
-const sectionTitles = new Map<string, string>([["/settings/threads", "Thread defaults"]]);
+const sectionTitles = new Map<string, string>([["/settings/threads", "Thread settings"]]);
 
 const threadCommand = (overview: OverviewState, thread: ui.Thread, suggested: boolean): Command => {
   const project = overview.project(thread.projectId);

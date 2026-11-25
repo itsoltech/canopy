@@ -6,9 +6,9 @@ import { SettingsDisclosure } from "../settings/SettingsDisclosure";
 import { UpdateDetails } from "./UpdateDetails";
 import { useUpdates } from "./state";
 import { bulkUpdatesAvailable, updateLabel } from "./model";
-import { gatewayUpdateLifecycle, updateRunSummary } from "@canopy/domain/release/update-status";
+import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
 
-/** Loading and action errors share the same recovery controls in settings and the sheet. */
+/** Keep the last snapshot visible while an action reports an error. */
 export function UpdateFeedback() {
   const { snapshot, error, details, reload, pending, dismissError } = useUpdates();
   const c = useColors();
@@ -41,27 +41,24 @@ export function UpdateFeedback() {
   );
 }
 
-export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
+export function UpdateRun({ run }: { run: ui.UpdateRun }) {
   const c = useColors();
   const { snapshot, pending, manage } = useUpdates();
 
-  if (!run?.steps.length) return null;
+  if (!run.steps.length) return null;
   const disabled = !!pending || gatewayUpdateLifecycle(snapshot?.gatewayState);
+  const stopped = ["failed", "blocked"].includes(run.state);
 
   return (
     <SettingsDisclosure
       viewKey={`update-run:${run.id}`}
-      title={`Update all · ${run.state === "succeeded" ? "Complete" : updateLabel(run.state)}`}
-      initiallyOpen={run.state === "running"}
+      title={`Update steps · ${run.state === "succeeded" ? "Complete" : updateLabel(run.state)}`}
     >
-      <Text accessibilityLiveRegion="polite" style={[styles.overlayMeta, { color: c.muted }]}>
-        {updateRunSummary(run)?.text ?? `${run.steps.filter((step) => step.state === "succeeded").length} updated`}
-      </Text>
-      {["failed", "blocked"].includes(run.state) && (
+      {stopped && (
         <View style={[styles.row, { flexWrap: "wrap", gap: 8 }]}>
           {snapshot && bulkUpdatesAvailable(snapshot) && (
             <Button
-              title="Request again"
+              title="Update all available"
               size="sm"
               disabled={disabled}
               onPress={() => void manage({ action: "update_all" })}
@@ -86,7 +83,7 @@ export function UpdateRun({ run }: { run: ui.UpdateRun | undefined }) {
             </Text>
           )}
           {!!step.reason && <UpdateDetails text={step.reason} />}
-          {run.state !== "running" && ["failed", "blocked"].includes(step.state) && (
+          {stopped && ["failed", "blocked"].includes(step.state) && (
             <Button
               title="Retry update"
               size="sm"

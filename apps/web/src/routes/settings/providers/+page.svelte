@@ -10,7 +10,6 @@
   import { instanceKeyOf, instanceName, providerCall } from "#lib/features/providers/instances.ts";
   import { ProvidersState } from "#lib/features/providers/providers-state.svelte.ts";
   import ScopeBar from "#lib/features/providers/ScopeBar.svelte";
-  import ProviderUpdates from "#lib/features/providers/ProviderUpdates.svelte";
   import SettingsHeading from "#lib/features/settings/SettingsHeading.svelte";
   import ConfigNotices from "#lib/features/computers/ConfigNotices.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -191,7 +190,6 @@
 </SettingsHeading>
 
 <div class="settings-stack">
-  <ProviderUpdates {workers} />
   <ConfigNotices
     title="Deleted on another computer"
     match={(n) => n.kind === "instance" && n.field === "deleted" && !n.localId}

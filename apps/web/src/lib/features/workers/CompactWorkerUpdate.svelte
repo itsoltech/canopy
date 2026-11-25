@@ -22,7 +22,6 @@
     updates,
     home,
     nodeId = "",
-    allowForce = false,
     class: className,
   }: {
     worker: ui.WorkerUpdate;
@@ -31,7 +30,6 @@
     home?: ui.UpdatesSnapshot | undefined;
     /** The linked computer the worker belongs to; empty for this computer. */
     nodeId?: string;
-    allowForce?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -40,7 +38,13 @@
   const snapshot = $derived(home ?? updates.snapshot);
   const linked = $derived(!!home && home !== updates.snapshot);
   const desktop = $derived(worker.desktop);
-  const connected = $derived(desktop ? desktop.connected : worker.connected);
+
+  const homeOnline = $derived(
+    !nodeId ||
+      updates.snapshot?.computers.some((computer) => computer.nodeId === nodeId && computer.presence === "connected"),
+  );
+
+  const connected = $derived(homeOnline && (desktop ? desktop.connected : worker.connected));
   const current = $derived(workerCurrent(worker, snapshot?.gatewayVersion ?? ""));
   const blocked = $derived(updates.gatewayTransition || gatewayUpdateLifecycle(snapshot?.gatewayState));
 
@@ -48,7 +52,7 @@
     desktop?.phase === "downloading" ? "updating" : binaryUpdateStatus(desktop?.phase ?? worker.state),
   );
 
-  const offline = $derived(!desktop && workerUpdateOffline(worker));
+  const offline = $derived(!homeOnline || (!desktop && workerUpdateOffline(worker)));
   const target = $derived(desktop ? appRowTarget(desktop) : workerUpdateTarget(worker, snapshot?.gatewayVersion ?? ""));
 
   const failed = $derived(worker.state === "failed" || desktop?.phase === "failed");
@@ -77,10 +81,10 @@
 
   // A feed check keeps the settled word; the header shows the check.
   const own = $derived(
-    desktop
-      ? (phase ?? (current ? "current" : actionable ? "available" : "Unavailable"))
-      : offline
-        ? "Offline"
+    offline
+      ? "Offline"
+      : desktop
+        ? (phase ?? (current ? "current" : actionable ? "available" : "Unavailable"))
         : (phase ??
           (current
             ? "current"
@@ -96,14 +100,6 @@
   const status = $derived(offline ? own : updates.rowStatus(key, own));
   const step = $derived(updates.failedStep(key));
   const inProgress = $derived(updateInProgress(status));
-
-  function retry() {
-    const run = updates.snapshot?.run;
-
-    if (step >= 0 && run)
-      void updates.manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key);
-    else void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId }, key);
-  }
 </script>
 
 <UpdateItem
@@ -127,14 +123,17 @@
   class={[!connected && !inProgress && "opacity-50", className]}
 >
   {#snippet action()}
-    {#if !blocked && status === "failed" && (step >= 0 || (!linked && (failed || actionable)))}
+    {#if !blocked && status === "failed" && step < 0 && (!linked || !desktop) && (failed || actionable)}
       <IconButton
         icon="repeat"
         size="sm"
         label="Retry"
-        disabled={updates.active || !connected || !!desktop?.disabledReason}
+        disabled={updates.active ||
+          !connected ||
+          !!desktop?.disabledReason ||
+          (!desktop && (!snapshot?.admin || external))}
         loading={updates.pending === worker.workerId || updates.pending === "retry_step"}
-        onclick={retry}
+        onclick={() => void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId }, key)}
       />
     {:else if !blocked && actionable && status === "available"}
       <IconButton
@@ -145,7 +144,7 @@
         loading={updates.pending === worker.workerId}
         onclick={() => void updates.manage({ action: desktop ? "desktop" : "worker", workerId: worker.workerId }, key)}
       />
-    {:else if !blocked && allowForce && !linked && desktop?.phase === "waiting_idle" && desktop.connected && !desktop.disabledReason}
+    {:else if !blocked && !linked && desktop?.phase === "waiting_idle" && desktop.connected && !desktop.disabledReason}
       <IconButton
         icon="power"
         size="sm"
@@ -165,7 +164,7 @@
       <Button
         size="sm"
         class="justify-self-start"
-        disabled={!!updates.pending || blocked}
+        disabled={!updates.writable || !!updates.pending || blocked}
         onclick={() =>
           void updates.manage({
             action: "desktop_dismiss",

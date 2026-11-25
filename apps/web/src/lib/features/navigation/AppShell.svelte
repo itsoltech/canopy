@@ -231,7 +231,7 @@
   // The shared bot list and update center follow pushed changes instead of polling.
   $effect(() => (botsEnabled ? botList.follow(overview) : undefined));
 
-  $effect(() => updateCenter.follow(overview));
+  $effect(() => updateCenter.follow(overview, capabilities));
 
   // connect() negotiates initially; genuine stream gaps renegotiate after recovery.
   $effect(() => {

@@ -44,8 +44,11 @@ test("section evidence is scoped to a published client build and carries visibil
   });
 
   const keyword = lookup("web", "sidebar grouping");
-  expect(keyword).toMatchObject({ status: "unconfirmed", search_suggestions: ["General"] });
+  expect(keyword).toMatchObject({ status: "unconfirmed", search_suggestions: ["Threads"] });
   expect(keyword).not.toHaveProperty("path");
+  expect(lookup("ios", "in-app alerts")["search_suggestions"]).toEqual(["Notifications"]);
+  expect(lookup("desktop", "gateway updates")["search_suggestions"]).toEqual(["App updates"]);
+  expect(lookup("web", "CLI updates")["search_suggestions"]).toEqual(["Workers"]);
   expect(lookup("web", "Fictional panel")).toMatchObject({ status: "unconfirmed", search_suggestions: [] });
 });
 

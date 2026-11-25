@@ -11,7 +11,12 @@
    * the page's name keeps its room. On narrow screens the section is a menu of every section
    * (`SettingsSectionMenu`) in place of the first two crumbs. `#settings-title` names the dialog.
    */
-  let { class: className, focused = false }: { class?: ClassValue; focused?: boolean } = $props();
+  let {
+    class: className,
+    focused = false,
+    query = $bindable(),
+  }: { class?: ClassValue; focused?: boolean; query: string } = $props();
+
   const overview = useOverview();
   const route = useSettingsRoute();
   const sections = useSettingsSections();
@@ -34,7 +39,7 @@
       {:else}
         <Crumb class="max-lg:hidden">{section?.label ?? "Settings"}</Crumb>
       {/if}
-      <li class="-ml-2 flex shrink-0 items-center lg:hidden"><SettingsSectionMenu /></li>
+      <li class="-ml-2 flex shrink-0 items-center lg:hidden"><SettingsSectionMenu bind:query /></li>
       {#if leaf}<Crumb>{leaf}</Crumb>{/if}
     </ol>
   </nav>

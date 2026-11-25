@@ -16,7 +16,6 @@
     center,
     bundled = false,
     worker,
-    allowForce = false,
     class: className,
   }: {
     updates: DesktopUpdatesState;
@@ -25,18 +24,27 @@
     bundled?: boolean;
     /** This app's worker on a remote gateway, matched by the enrolled worker ID. */
     worker?: ui.WorkerUpdate | undefined;
-    allowForce?: boolean;
     class?: ClassValue;
   } = $props();
 
   const status = $derived(updates.status);
   const ready = $derived(!!status?.stagedVersion || status?.phase === "downloaded");
 
+  const reported = $derived(worker?.desktop ?? (bundled ? center.snapshot?.app : undefined));
+
   const desktop = $derived(
-    worker?.desktop && currentRemoteUpdate({ ...worker.desktop, version: status?.version || worker.desktop.version }),
+    reported && currentRemoteUpdate({ ...reported, version: status?.version || reported.version }),
   );
 
-  const target = $derived(status?.stagedVersion || status?.updateVersion || (desktop ? appRowTarget(desktop) : ""));
+  const downloading = $derived(status?.phase === "downloading");
+
+  const target = $derived(
+    (downloading && status?.updateVersion) ||
+      status?.stagedVersion ||
+      status?.updateVersion ||
+      (desktop ? appRowTarget(desktop) : ""),
+  );
+
   const key = $derived(updateTargetKey(worker ? { kind: "desktop", workerId: worker.workerId } : { kind: "app" }));
   const step = $derived(center.failedStep(key));
   let confirming = $state(false);
@@ -45,12 +53,12 @@
   const own = $derived(
     !status
       ? "current"
-      : ready
-        ? "downloaded"
-        : status.retryAt
-          ? "Checks paused"
-          : status.phase === "downloading"
-            ? "updating"
+      : downloading
+        ? "updating"
+        : ready
+          ? "downloaded"
+          : status.retryAt
+            ? "Checks paused"
             : status.phase === "error"
               ? "failed"
               : status.phase === "disabled"
@@ -79,7 +87,8 @@
   );
 
   const row = $derived(center.rowStatus(key, furthestStatus(own, requested)));
-  const actionable = $derived(!!worker && desktop?.connected && !desktop.disabledReason);
+  const actionable = $derived(center.writable && !!worker && desktop?.connected && !desktop.disabledReason);
+  const gatewayBusy = $derived(center.writable && center.active);
 
   const error = $derived(
     desktop?.reason ||
@@ -94,18 +103,14 @@
     [
       status?.publishing || (status?.retryAt ? status.message : ""),
       desktop?.disabledReason,
-      bundled ? "Includes this computer’s gateway and worker." : "",
+      status?.phase === "disabled" ? status.message : "",
     ]
       .filter(Boolean)
       .join(" "),
   );
 
   function retry() {
-    const run = center.snapshot?.run;
-
-    if (step >= 0 && run)
-      void center.manage({ action: "retry_step", desktopRequestId: run.id, updateStepIndex: step }, key);
-    else if (worker && desktop?.phase === "failed" && actionable)
+    if (worker && desktop?.phase === "failed" && actionable)
       void center.manage({ action: "desktop", workerId: worker.workerId }, key);
     else void updates.check();
   }
@@ -118,11 +123,15 @@
     current={status.version}
     {target}
     status={row}
-    line={row === "waiting"
-      ? "Restarts after its current turns end."
-      : row === "queued" && ready && !worker
-        ? "Restarts after the other Canopy updates finish."
-        : ""}
+    line={downloading
+      ? status.progress === undefined
+        ? "Downloading"
+        : `Downloading · ${Math.round(status.progress)}%`
+      : row === "waiting"
+        ? "Restarts after its current turns end."
+        : row === "queued" && ready && !worker
+          ? "Restarts after the other Canopy updates finish."
+          : ""}
     error={row === "failed" ? error : ""}
     busy={updateInProgress(row)}
     progress={status.phase === "downloading"
@@ -133,7 +142,7 @@
     class={className}
   >
     {#snippet action()}
-      {#if row === "downloaded" || (ready && row === "failed")}
+      {#if row === "downloaded" || (ready && (row === "failed" || downloading))}
         <IconButton
           icon="power"
           size="sm"
@@ -141,16 +150,16 @@
           tooltipText={status.phase === "checking" || status.phase === "downloading"
             ? "Restart to update after this download. Agents running on this computer stop."
             : "Restart to update. Agents running on this computer stop."}
-          disabled={!!status.changingChannel || center.active}
+          disabled={!!status.changingChannel || gatewayBusy}
           loading={updates.restarting}
           onclick={() => void updates.run()}
         />
-      {:else if row === "failed"}
+      {:else if row === "failed" && step < 0}
         <IconButton
           icon="repeat"
           size="sm"
           label="Retry"
-          disabled={center.active}
+          disabled={gatewayBusy}
           loading={updates.pending || center.pending === worker?.workerId || center.pending === "retry_step"}
           onclick={retry}
         />
@@ -163,7 +172,16 @@
           loading={center.pending === worker.workerId}
           onclick={() => void center.manage({ action: "desktop", workerId: worker.workerId }, key)}
         />
-      {:else if row === "waiting" && allowForce && actionable && worker}
+      {:else if row === "available" && !actionable}
+        <IconButton
+          icon="arrow-down-tray"
+          size="sm"
+          label="Download app update"
+          disabled={gatewayBusy || !!status.changingChannel || status.phase === "disabled"}
+          loading={updates.pending}
+          onclick={() => void updates.check()}
+        />
+      {:else if row === "waiting" && actionable && worker}
         <IconButton
           icon="power"
           size="sm"
@@ -171,29 +189,41 @@
           disabled={center.active}
           onclick={() => (confirming = true)}
         />
-      {:else if info && !updateInProgress(row)}<IconButton
-          icon="information-circle"
-          size="sm"
-          label={info}
-          tooltipOptions={{ touch: "tap" }}
-        />{/if}
+      {/if}
     {/snippet}
     {#snippet errorActions()}
-      {#if desktop?.phase === "failed" && worker}
+      {#if desktop?.phase === "failed" && (worker || bundled)}
         <Button
           size="sm"
           class="justify-self-start"
-          disabled={!!center.pending || center.gatewayTransition}
+          disabled={!center.writable || !!center.pending || center.gatewayTransition}
           onclick={() =>
             void center.manage({
-              action: "desktop_dismiss",
-              workerId: worker.workerId,
+              action: worker ? "desktop_dismiss" : "app_dismiss",
+              workerId: worker?.workerId,
               desktopRequestId: desktop?.requestId,
             })}>Dismiss</Button
         >
       {/if}
     {/snippet}
   </UpdateItem>
+  <div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
+    <p>{status.buildChannel} build{bundled ? " · Includes this computer’s gateway and worker." : ""}</p>
+    {#if info}<p class="break-anywhere">{info}</p>{/if}
+    {#if ready}
+      <p>
+        {downloading
+          ? "Restart waits for the download, then stops agents running on this computer."
+          : "Restarting stops the agents running on this computer."}
+      </p>
+    {/if}
+    {#if row !== "failed" && (updates.error || status.error)}<p
+        class="break-anywhere text-rose-600 dark:text-rose-400"
+        role="status"
+      >
+        {updates.error || status.error}
+      </p>{/if}
+  </div>
 {:else if updates.error}<p
     class={["break-anywhere text-sm/5 text-rose-600 dark:text-rose-400", className]}
     role="status"

@@ -69,7 +69,7 @@ Skrót **Explore Canopy** jest domyślnie widoczny. Preferencja **This device** 
 | --- | --- | --- |
 | Menu `…` na stronie biblioteki | **Hide from sidebar** / **Show in sidebar** | Zmienia widoczność skrótu od razu. Menu pokazuje akcję odpowiednią do zapisanego stanu. |
 | Paleta poleceń | **Explore Canopy** | Otwiera bibliotekę także przy ukrytym skrócie. Na wąskim ekranie paletę otwiera **Search and commands**. |
-| Settings → General → Sidebar | **Explore Canopy shortcut** · `Show the examples library in the sidebar on this device.` | Przełącznik z domyślną wartością włączoną i resetem do tej wartości. Jest dostępny także przy włączonym wyłącznie module Bots. |
+| Settings → General → Device (plan) | **Explore Canopy shortcut** · `Show the examples library in the sidebar on this device.` | Przełącznik z domyślną wartością włączoną i resetem do tej wartości. Jest dostępny także przy włączonym wyłącznie module Bots. |
 
 Bezpośrednie linki do biblioteki, przykładów i strony o prywatności otwierają wskazany widok także przy ukrytym skrócie. [Zakres ustawień](settings-map.md#nawigacja)
 

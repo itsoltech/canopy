@@ -1,5 +1,7 @@
 # Canopy Desktop
 
+Status (2026-11-25): podsumowanie aktualizacji w stopce paska bocznego prowadzi do **Settings → App updates → Status**.
+
 Status (2026-11-25): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows przylega do górnej krawędzi i rozwija listę po najechaniu kursorem.
 W rozwiniętej liście wątki projektowe mają logo lub inicjały projektu.
@@ -438,7 +440,7 @@ ustawia nativeTheme; System reaguje na preferencję systemu.
 
 ### Activity notch
 
-**Settings → General → Notifications → Activity notch** to domyślnie wyłączona
+**Settings → Notifications → Activity notch** to domyślnie wyłączona
 preferencja bieżącego profilu Desktop, w trybie lokalnym i zdalnym. Nakładka
 i przełącznik są dostępne wyłącznie w aplikacji desktopowej na macOS i Windows.
 Gdy główne okno działa w tle, u góry głównego ekranu pojawia się czarne
@@ -994,8 +996,8 @@ Spakowany Dev korzysta z własnego ICNS w Finderze. Electron ustawia ikonę Dock
 w Dev i przy uruchomieniu ze źródeł.
 Ekran startu otrzymuje ścieżkę ikony powłoki przez preload. Sidebar oznacza
 wersję uruchomionego web buildu i używa tej samej skali nagłówka co [web](ui-api.md).
-Sekcja App updates pokazuje wersję i kanał
-aktualizacji samego Electrona także w trybie Remote, gdy gateway ma inną wersję.
+W **Settings → App updates** zakładka **Status** pokazuje wersję aplikacji desktopowej,
+a **Update preferences** jej kanał, także w trybie Remote, gdy gateway ma inną wersję.
 Nowa ikona pojawia się po instalacji wybranego wydania. Aktualizator obsługuje
 Stable, Beta i Nightly; dla lokalnego Dev domyślnym wyborem jest Stable.
 
@@ -1033,8 +1035,8 @@ Nazwę magazynu kluczy ustala
 `0.2.0-nightly.2` (`app.canopy.desktop.nightly`) i dawnego `app.canopy.desktop.beta`.
 Ich updater na macOS nie może zmienić bundle ID: Squirrel wymaga tego samego
 designated requirement. Ponawianie aktualizacji starej aplikacji tego nie naprawi.
-Po instalacji Canopy wybierz Beta/Nightly w App updates. Stare aplikacje zamknij
-i usuń ich bundle/instalator, gdy nowa instalacja działa; ich dane pozostają nietknięte.
+Po instalacji Canopy wybierz Beta lub Nightly w **Settings → App updates → Update preferences**.
+Stare aplikacje zamknij i usuń ich bundle/instalator, gdy nowa instalacja działa; ich dane pozostają nietknięte.
 
 Nie ma automatycznego importu: `secrets.enc` jest związany z magazynem kluczy OS
 i dawną aplikacją, a kopia działającego klastra PostgreSQL nie jest poprawnym backupem.
@@ -1373,25 +1375,24 @@ zachowuje zrzuty. Smoke Linux nie potwierdza natywnego menu ani adaptera macOS.
 
 ## Automatyczne aktualizacje desktopu
 
-Trzecia ikona w stopce sidebara otwiera wspólne centrum aktualizacji. Dla własnej
-aplikacji pokazuje spoczynek, sprawdzanie, postęp pobierania oraz restart po
-pobraniu. Hover i kliknięcie otwierają ten sam przewijany popover (na telefonie
-sheet), z historią GitHub Releases między zainstalowaną a pobieraną wersją,
-najnowszą najpierw, według wybranego kanału. Sprawdzanie respektuje reduced motion.
-Brak feedu platformy dla nowszego wydania jest wyjaśniony osobnym komunikatem;
-nie oznacza braku nowej wersji serwera. Web bez bridge nie pokazuje sekcji własnej aplikacji.
+Najechanie na wskaźnik aktualizacji w stopce paska bocznego lub kliknięcie go otwiera
+podsumowanie z odnośnikiem do **Settings → App updates → Status**.
+**Check for updates** sprawdza instalacje Canopy, a **Update all** zleca dostępne
+aktualizacje. W Electronie wiersz uruchomionej aplikacji pokazuje jej wersję,
+postęp pobierania i po pobraniu udostępnia **Restart to update**. Jeśli nowsze
+wydanie czeka na paczkę dla danej platformy, aplikacja informuje o tym w zakładce **Status**.
+Animacja sprawdzania uwzględnia systemową preferencję ograniczonego ruchu.
 
-Resolver Canopy czyta indeks GitHub Pages przy starcie i domyślnie co
-6 godzin, także po pobraniu gotowej paczki. Settings → **App updates** pozwala zmienić
-częstotliwość (Never wyłącza automatyczne sprawdzanie i pobieranie) i pokazuje
-wersję/kanał buildu, własny combobox Stable/Beta/Nightly, Check for updates,
-procent pobierania i Restart to update. Sekcja istnieje wyłącznie przy obecności
-bridge desktopu. Wybór jest atomowo zapisany w `userData/app-updates.json` przez main;
-bez zapisu domyślny jest kanał zainstalowanego buildu.
+W **Update preferences** użytkownik wybiera kanał desktopu (Stable, Beta lub Nightly)
+i częstotliwość sprawdzania. Canopy czyta indeks GitHub Pages przy starcie i domyślnie
+co 6 godzin, także po pobraniu gotowej paczki. **Never** wyłącza automatyczne
+sprawdzanie i pobieranie. Proces main zapisuje kanał atomowo w `userData/app-updates.json`.
+Domyślnie używa kanału zainstalowanego buildu. W zakładce **Releases** notatki
+do pobieranej aktualizacji obejmują wydania z wybranego kanału od wersji docelowej
+do pierwszej nowszej od zainstalowanej.
 
-**Check now** w centrum aktualizacji i **Check for updates** w ustawieniach działają
-również przy stanie Ready. Najpierw sprawdzamy metadane bez automatycznego pobierania
-(`autoDownload=false`), potem pobieramy tylko cel nowszy od gotowej paczki.
+**Check for updates** działa również przy stanie Ready. Najpierw sprawdzamy metadane
+bez automatycznego pobierania (`autoDownload=false`), potem pobieramy tylko cel nowszy od gotowej paczki.
 Brak nowszego wydania zachowuje poprzedni cel. Zmiana kanału unieważnia poprzednią
 gotowość w UI i od razu sprawdza aktualizacje w wybranym kanale.
 
@@ -1420,7 +1421,7 @@ Zachowanie platform wynika ze źródeł przypiętej biblioteki:
 - **Linux / AppImage:** ten sam helper wskazuje gotowy AppImage; `doInstall` przenosi
   go na miejsce uruchomionego obrazu. Kolejny udany download może zastąpić poprzedni.
 - **Linux / deb:** biblioteka ma `DebUpdater`, ale Canopy wyłącza updater bez `APPIMAGE`.
-  Instalację nadal aktualizuje menedżer pakietów; popover pokazuje dotychczasowe wyjaśnienie.
+  Instalację aktualizuje menedżer pakietów. Zakładka **Status** pokazuje stan Disabled.
 
 Samo ponowne wywołanie biblioteki nie wystarcza do bezpiecznej podmiany:
 `DownloadedUpdateHelper` usuwa wspólny `pending` przy innym SHA-512, a `executeDownload`
@@ -1523,8 +1524,8 @@ Testy na Linuxie nie potwierdzają działania instalatora, UAC ani restartu Wind
 Poprawka działa od wersji, która ją zawiera: starszy desktop nadal uruchamia
 instalator według poprzednich reguł podczas pierwszego przejścia na tę wersję.
 
-Na podpisanym Macu sprawdź: pobierz nightly A, bez restartu udostępnij nowszy B,
-użyj Check now oraz osobno Check for updates i poczekaj na Ready → B. Powtórz
+Na podpisanym Macu pobierz nightly A, bez restartu udostępnij nowszy B,
+wybierz **Check for updates** w zakładce **Status** i poczekaj na Ready → B. Powtórz
 z timerem ustawionym na Every hour. Podczas pobierania B wybierz Restart to update:
 aplikacja ma poczekać, zamknąć usługi, przejść walidację Squirrel i uruchomić B.
 Osobno przerwij pobieranie B: Ready ma wrócić do A z błędem, a restart zainstalować A.
@@ -1532,8 +1533,8 @@ Sprawdź też przejście z Nightly do Beta z kodem starszym, identycznym i nowsz
 zwykłe Quit bez instalacji i zdalną aktualizację po idle/force. Testy na Linuxie nie
 potwierdzają podpisu, rzeczywistego staging Squirrel ani restartu macOS.
 
-W trybie zdalnym Workers gatewaya może zażądać **Update Canopy app** przez
-uwierzytelniony kanał desktopu. Main używa bieżącego kanału oraz wymaga wyższego
+W trybie zdalnym **Update Canopy app** w **Settings → App updates → Status** wysyła
+żądanie przez uwierzytelniony kanał desktopu. Main używa bieżącego kanału oraz wymaga wyższego
 SemVer do zdalnej instalacji i czeka na idle własnego workera przed restartem. Właściciel może
 jawnie wymusić restart oczekującego żądania; desktop pokazuje powiadomienie.
 Postęp i wynik są widoczne zdalnie i audytowane. Szczegóły:
@@ -1558,7 +1559,7 @@ Resolver wybiera najwyższą wersję SemVer ze statycznego indeksu
 `https://itsoltech.github.io/canopy/releases/v1.json`, bez draftów, z feedem platformy
 i końcowym `manifest.json`. Wspólny klient metadanych ma cache 15 min, ETag i deduplikację;
 sprawdzenie z połączonego komputera korzysta z tego samego klienta co lokalne.
-Ręczne **Check now** w popoverze i ustawieniach, **Check for updates** w App updates,
+**Check for updates** w zakładce **Status**, **Check now** przy połączonym komputerze,
 zmiana kanału i zdalne zlecenie sprawdzenia omijają TTL cache oraz przerwę po awarii
 indeksu. Wymagają walidacji przez sieć (`Cache-Control: no-cache`, z zachowaniem ETag
 i obsługi `304`), a wynik uaktualnia wspólny cache. Timer nadal korzysta z cache.

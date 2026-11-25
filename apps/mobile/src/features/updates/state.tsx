@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "expo-router";
 import { Code, ConnectError } from "@connectrpc/connect";
 import type { ui } from "@canopy/contracts";
 import { useSession } from "../../state/session";
@@ -58,7 +59,7 @@ function useRunRows(snapshot: ui.UpdatesSnapshot | undefined, optimistic: Optimi
       furthestStatus(furthestStatus(own, statuses.get(key)), optimistic?.rows.get(key)),
     /** A row's failed step in the stopped run, for its Retry; -1 without one. */
     failedStep: (key: string) =>
-      snapshot?.run && snapshot.run.state !== "running"
+      snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state)
         ? snapshot.run.steps.findIndex(
             (step) => ["failed", "blocked"].includes(step.state) && updateTargetKey(step) === key,
           )
@@ -82,14 +83,14 @@ function useUpdateGeneration() {
 
 function useUpdatePolling({
   reload,
-  open,
   busy,
 }: {
   reload: (signal: AbortSignal) => Promise<ui.UpdatesSnapshot | undefined>;
-  open: boolean;
   busy: boolean;
 }) {
   const { client, active, online } = useSession();
+  // Entering App updates refreshes the snapshot even on gateways that push change notices.
+  const viewingUpdates = usePathname() === "/settings/app-updates";
   const { pushed, nudge } = useUpdateNotices(active, online);
 
   useEffect(() => {
@@ -111,14 +112,13 @@ function useUpdatePolling({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [client, active, online, reload, open, busy, pushed, nudge]);
+  }, [client, active, online, reload, viewingUpdates, busy, pushed, nudge]);
 }
 
 function useUpdatesState() {
   const { client } = useSession();
   const overview = useOverview();
   const [snapshot, setSnapshot] = useState<ui.UpdatesSnapshot>();
-  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState("");
   const [optimistic, setOptimistic] = useState<Optimistic>();
   const [error, setError] = useState("");
@@ -157,7 +157,7 @@ function useUpdatesState() {
   const rows = useRunRows(snapshot, optimistic, pending);
   // While an action is pending, reads keep going so its progress shows as soon as it starts.
   const busy = !!pending || (!!snapshot && updatesRunning(snapshot));
-  useUpdatePolling({ reload, open, busy });
+  useUpdatePolling({ reload, busy });
 
   /** `target`: the row the action belongs to (`updateTargetKey`), shown as Starting until the answer arrives. */
   async function manage(request: UpdateRequest, target = "") {
@@ -238,8 +238,6 @@ function useUpdatesState() {
 
   return {
     snapshot,
-    open,
-    setOpen,
     pending,
     error: error || (!snapshot ? loadError : ""),
     details,

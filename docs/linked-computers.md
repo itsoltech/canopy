@@ -2,6 +2,8 @@
 
 Status (2026-11-25): w zdalnym trybie desktopu Settings → Linked computers wskazuje komputer
 uruchamiający gateway jako miejsce zarządzania połączeniami, także podczas awarii gatewaya.
+W aplikacji webowej i desktopowej **App updates → Status** pokazuje aktualizacje Canopy na połączonych
+komputerach, a **Workers → Agent CLIs** udostępnia aktualizacje CLI dostawców.
 
 Status (2026-11-24): w web i desktopie miniatury i otwarte podglądy obrazów
 pozostają stabilne po aktualizacji metadanych komputera z niezmienionym stanem połączenia.
@@ -616,7 +618,7 @@ niedostępne (z czytelnym powodem).
 
 Telefon i przeglądarka łączą się z jednym gatewayem i widzą przez niego wszystkie połączone komputery
 (zsumowany widok), bez osobnego parowania z każdym.
-Centrum aktualizacji pozwala też zaktualizować aplikację komputera, z którym klient
+**Settings → App updates** pozwala też zaktualizować aplikację komputera, z którym klient
 łączy się bezpośrednio. Jego gateway przekazuje potwierdzone żądanie właściciela
 do własnego kanału desktopu; nie tworzy połączenia komputera z samym sobą.
 Akcje partnerów nadal przechodzą przez bezpośrednie, sparowane łącza. Zasady
@@ -936,12 +938,15 @@ Limity i reguły ponowienia opisuje [updates.md](updates.md).
 
 Capability **`remote_app_update`** dodaje `ComputerUpdateService` (`GetComputerUpdates`,
 `RequestComputerUpdate`) do listy `SERVED`, wyłącznie na bezpośrednim łączu; relay ich nie
-przenosi. A pokazuje wersję i stan aplikacji B, jego workery i CLI, prosi B o aktualizację,
-a obie strony ją audytują. Szczegóły i kolejność Update all: [updates.md](updates.md#połączone-komputery).
-Update all obejmuje aplikacje partnerów i ich binarne workery. Niezależni partnerzy mogą
+przenosi. W aplikacji webowej i desktopowej **Settings → App updates → Status** pokazuje wersję i stan
+aplikacji partnera oraz jego workery. Oba komputery zapisują zlecenie aktualizacji
+w audycie. [Kolejność aktualizacji](updates.md#połączone-komputery)
+
+**Update all** obejmuje aplikacje partnerów i ich binarne workery. Niezależni partnerzy mogą
 restartować się równolegle. Po nich restartuje się własna aplikacja. Gateway wznawia
-zapisany przebieg po restarcie. Osobna akcja aktualizacji CLI w ustawieniach
-partnera wymaga obustronnego Share configuration.
+zapisany przebieg po restarcie. Aby zaktualizować CLI dostawcy na workerze partnera,
+wybierz tego workera w **Settings → Workers → Agent CLIs**. Wymaga to włączenia
+**Share configuration** na obu komputerach.
 Zabezpieczone żądanie CLI z `upgrade_only` wymaga `remote_cli_upgrade_only` na używanym
 łączu. Bez tej capability gateway prosi o aktualizację Canopy na komputerze partnera.
 Pojedyncze żądania bez tego pola nadal działają na starszych połączeniach.
@@ -1024,7 +1029,7 @@ sprawdza zapisany pin TLS 1.3. Nowe trasy idą starym łączem przed jego zamkni
 
 `ListBotsResponse.unavailable_computers` wskazuje utracone domy, a
 `refreshing_computers` — powolne odświeżenia. Connectors pokazuje notkę przy lokalnych
-kontach zamiast błędu strony. Updates zachowuje ostatni snapshot partnera i osobne
+kontach zamiast błędu strony. App updates zachowuje ostatni snapshot partnera i osobne
 `read_state` loading/fresh/stale/unavailable. Polling nie nakłada wywołań; timeout
 odczytu nie powoduje kolejnej próby na każdym pollu. Tick Update all też jest single-flight.
 
@@ -1034,7 +1039,7 @@ odczytu nie powoduje kolejnej próby na każdym pollu. Tick Update all też jest
 | Mobile reconnect `mobile_snapshot`, `computer_snapshot` | Ta sama projekcja i wspólne `retainLinkedRows`, `retainProjects`, `workersWithAvailability`; brak pustej listy w trakcie flappingu, również przed wykryciem utraty łącza. Jawny snapshot domu, usuwanie i unlink nadal uzgadniają usunięcia. |
 | `GetThread`, `WatchThread`, historia i wyszukiwanie w otwartym wątku | Lokalny mirror seed, odczyt offline; wysyłanie, steer i edycje wymagają domu. |
 | `ListModels`, `ListSchedules`, `ListWorktrees`, cele botów/harmonogramów | Ostatnia odpowiedź i odświeżenie w tle; pickery zachowują workery/projekty i wyjaśniają wyłączone akcje. |
-| `ListBots`, Updates, Connectors | Cache / lustro bota i stan dostępności; rekordy kont konektorów są lokalne. Zimny lub nieudany odczyt listy botów korzysta z zatwierdzonego lustra także online. |
+| `ListBots`, App updates, Connectors | Cache / lustro bota i stan dostępności; rekordy kont konektorów są lokalne. Zimny lub nieudany odczyt listy botów korzysta z zatwierdzonego lustra także online. |
 | Settings: projekty, providers, connectors, proxies, workers, agent environment, Devices | Lokalne rekordy i współdzielona konfiguracja; edycja zdalnego workera ma osobny jawny RPC i owner-scoping. Pobieranie blobów config-sync jest poza transakcją DB. |
 | Search i wzmianki | Paleta i sidebar przeszukują zachowany overview. Pod `#` wyszukiwanie wątków (`SearchThreads`) obejmuje lokalny dom, a wyszukiwanie zgłoszeń i pull requestów (`SearchIssues`) korzysta z domu wybranego wątku lub workspace i jego grantów. Pliki i katalogi należą do wybranego workera. |
 | Katalogi agentów i narzędzia `list_agents`, `list_threads`, `list_bots` | Dane z tego samego modułu korzystają z cache i luster. Gdy wątek szuka botów lub bot szuka wątków/projektów, listę udostępnia osiągalny dom po sprawdzeniu bieżących ustawień. W `list_agents` wszystkie domy mają wspólne 200 ms na zwrot nazw botów. Przy przekroczeniu tego czasu narzędzie zwraca dostępne dane z oznaczeniem `loading`, a następne wywołanie ponownie sprawdza dostęp. |

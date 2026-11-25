@@ -5,6 +5,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import UpdateItem from "./UpdateItem.svelte";
   import { computerUpdate } from "@canopy/domain/release/computer-update";
+  import { updateCheckLabel } from "@canopy/domain/computer-presence";
   import { presenceTime } from "#lib/features/computers/computers.ts";
   import type { UpdatesState } from "./updates.svelte.ts";
   import AppUpdateConfirmation from "./AppUpdateConfirmation.svelte";
@@ -49,19 +50,23 @@
     view.line || (computer.reason && computer.readState && computer.readState !== "fresh" ? computer.reason : ""),
   );
 
-  const retry = $derived(
-    step >= 0
-      ? { action: "retry_step", desktopRequestId: updates.snapshot?.run?.id ?? "", updateStepIndex: step }
-      : undefined,
-  );
-
   let confirming = $state(false);
+  let checking = $state(false);
+
+  async function check() {
+    checking = true;
+
+    try {
+      await updates.manage({ action: "computer_check", nodeId: computer.nodeId });
+    } finally {
+      checking = false;
+    }
+  }
 </script>
 
 <!-- A computer's Canopy app: its own gateway and worker update with it (docs/updates.md). -->
 <UpdateItem
-  name={local ? "This Canopy app" : computer.name}
-  title={computer.name}
+  name={computer.name}
   icon="computer-desktop"
   current={app?.version || computer.version}
   target={view.target}
@@ -74,19 +79,15 @@
   class={className}
 >
   {#snippet action()}
-    {#if failed && (retry || app?.phase === "failed")}
+    {#if failed && step < 0 && app?.phase === "failed"}
       <IconButton
         icon="repeat"
         size="sm"
         label="Retry"
-        disabled={updates.active || computer.presence !== "connected"}
-        loading={updates.pending === "retry_step"}
-        onclick={() => {
-          if (retry && !local) void updates.manage(retry, key);
-          else confirming = true;
-        }}
+        disabled={updates.active || computer.presence !== "connected" || !app.connected || !!app.disabledReason}
+        onclick={() => (confirming = true)}
       />
-    {:else if view.actionable && !updateInProgress(status)}
+    {:else if !failed && view.actionable && !updateInProgress(status)}
       <IconButton
         icon={local && status === "downloaded" ? "power" : "arrow-down-tray"}
         size="sm"
@@ -95,19 +96,14 @@
         loading={updates.pending === (local ? "app" : computer.nodeId)}
         onclick={() => (confirming = true)}
       />
-    {:else if (view.detail || local) && !failed && !updateInProgress(status)}<IconButton
-        icon="information-circle"
-        size="sm"
-        label={view.detail || "Includes this computer’s gateway and worker."}
-        tooltipOptions={{ touch: "tap" }}
-      />{/if}
+    {/if}
   {/snippet}
   {#snippet errorActions()}
     {#if app?.phase === "failed"}
       <Button
         size="sm"
         class="justify-self-start"
-        disabled={!!updates.pending || updates.gatewayTransition}
+        disabled={!updates.writable || !!updates.pending || updates.gatewayTransition}
         onclick={() =>
           void updates.manage({
             action: local ? "app_dismiss" : "computer_dismiss",
@@ -119,4 +115,30 @@
   {/snippet}
 </UpdateItem>
 
-<AppUpdateConfirmation bind:open={confirming} {computer} {updates} request={local ? retry : undefined} />
+<div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
+  {#if local}<p>Includes this computer’s gateway and worker.</p>{/if}
+  {#if view.detail && !failed && !line}<p class="break-anywhere">{view.detail}</p>{/if}
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+    {#if app}
+      <span class="tabular-nums"
+        >{app.channel ? `${app.channel} · ` : ""}{updateCheckLabel(app.lastCheckedAtMs, presenceTime)}</span
+      >
+    {/if}
+    {#if !local && computer.remoteUpdate}
+      <Button
+        size="sm"
+        variant="text"
+        aria-label={`Check ${computer.name} for updates`}
+        loading={checking}
+        disabled={!updates.writable ||
+          !!updates.pending ||
+          updates.gatewayTransition ||
+          computer.presence !== "connected" ||
+          !app?.connected}
+        onclick={() => void check()}>Check now</Button
+      >
+    {/if}
+  </div>
+</div>
+
+<AppUpdateConfirmation bind:open={confirming} {computer} {updates} />

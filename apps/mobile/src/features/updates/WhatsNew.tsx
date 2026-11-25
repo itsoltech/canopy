@@ -8,26 +8,8 @@ import { useMotion } from "../../ui/motion";
 import { styles, useColors, useTypography } from "../../ui/theme";
 import { CANOPY_VERSION } from "../../version";
 import { SettingsDisclosure } from "../settings/SettingsDisclosure";
-import { SettingsGroup, SettingsRow } from "../settings/SettingsGroup";
 import { WhatsNewEntries } from "./WhatsNewEntries";
 import { useWhatsNew } from "./whats-new";
-
-export function WhatsNewSettings() {
-  const notes = useWhatsNew();
-
-  return (
-    <SettingsGroup title="What's new">
-      <SettingsRow
-        title={`Canopy ${CANOPY_VERSION}`}
-        description={
-          notes.previous ? `Updated from ${notes.previous}.` : "Read changes in this version and recent releases."
-        }
-      >
-        <Button title="See what's new" size="sm" variant="ghost" onPress={notes.show} />
-      </SettingsRow>
-    </SettingsGroup>
-  );
-}
 
 export function WhatsNewNotice() {
   const notes = useWhatsNew();

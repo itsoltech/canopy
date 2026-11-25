@@ -9,8 +9,8 @@ ten sam identyfikator co jej oczyszczona kopia.
 Status: zaimplementowane (2026-11-21), w tym ponowne użycie skanu z sugestii w webie i desktopie oraz pauza
 importu po wyłączeniu modułu Threads i wznowienie od kursora.
 
-Settings → Code → **Import** przenosi do Canopy wątki, które użytkownik prowadził wcześniej w Claude Code,
-Codexie i Groku, tak żeby mógł je czytać i kontynuować. Wybór źródeł działa w webie, desktopie
+W **Settings → Import** (grupa **Workspace**) można przenieść do Canopy wątki z Claude Code,
+Codexa i Groka, żeby je czytać i kontynuować. Wybór źródeł działa w webie, desktopie
 i na sparowanym telefonie; pliki zawsze czyta worker komputera (sekcja „Wejścia i telefon”).
 
 Stos A (wątki) ma pięć etapów:

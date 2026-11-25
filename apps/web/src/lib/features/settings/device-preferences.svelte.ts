@@ -193,13 +193,12 @@ function validChoice(key: DeviceKey, value: string): boolean {
 
 export const devicePreferences = new DevicePreferences();
 
-export const generalDeviceKeys = [
+export const notificationDeviceKeys = [
   "threadNotifications",
   "botNotifications",
   "claudeLimitResetNotifications",
   "inAppNotifications",
   "activityNotch",
-  "timeFormat",
 ] as const;
 
 export const appearanceDeviceKeys = [

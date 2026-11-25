@@ -213,7 +213,8 @@ Nazwy widoczne to `Canopy`, `Canopy (Beta)` i `Canopy (Nightly)` z ikoną danego
 kanału. `productName`, wewnętrzna nazwa Electrona, nazwy plików i identyfikatory
 instalacji pozostają stałe, aby aktualizacje i zmiana kanału zastępowały tę samą aplikację.
 Pola poszczególnych OS opisuje [desktop.md](desktop.md#jedna-instalacja-i-kanały).
-Kanał wybiera się lokalnie w Settings → App updates; domyślnie odpowiada buildowi.
+Kanał desktopu wybiera się lokalnie w **Settings → App updates → Update preferences**.
+Domyślnie odpowiada zainstalowanemu buildowi.
 To niezależna preferencja od polityki aktualizacji gatewaya/workera.
 Stare Canopy Beta/Nightly wymagają jednorazowej ręcznej instalacji Canopy — Squirrel
 nie aktualizuje między różnymi bundle ID. [Migracja](desktop.md#przejście-ze-starych-canopy-beta--canopy-nightly)
@@ -822,8 +823,9 @@ Sekrety dodaje maintainer do GitHub → Settings → Secrets and variables → A
 (środowisko `release-signing`). Klucze pozostają w jobie podpisywania.
 Do pobierania publicznych aktualizacji aplikacja nie potrzebuje tokena GitHub.
 
-Centrum aktualizacji pobiera również publiczne notatki GitHub Releases, z krótkim
-cache, dla przedziału (wersja zainstalowana, wersja docelowa], od najnowszej.
+W **Settings → App updates → Releases** desktop pokazuje publiczne notatki GitHub Releases.
+Dla pobieranej aktualizacji uwzględnia wydania od wersji docelowej do pierwszej nowszej
+od zainstalowanej. Pobrane notatki przechowuje krótko w pamięci podręcznej.
 Notatki stosują te same reguły kanałów co wybór aktualizacji. Starsze wydania mogą
 nie mieć feedu danej platformy; klient nadal je pomija. Nowe wydania są publiczne dopiero
 po przygotowaniu desktopu, więc brak feedu nie jest już zwykłym etapem publikacji.

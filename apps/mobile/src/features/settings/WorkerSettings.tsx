@@ -17,7 +17,6 @@ import { WorkerCliSettings } from "./WorkerCliSettings";
 import { WorkerDetails } from "./WorkerDetails";
 import { WorkerEnrollment } from "./WorkerEnrollment";
 import { WorkerSsh } from "./WorkerSsh";
-import { UpdateSettings } from "./UpdateSettings";
 import { useDateTime } from "./display";
 import { useOverview } from "../../state/overview";
 import { SettingsSkeletonGroups } from "./SettingsSkeleton";
@@ -40,6 +39,7 @@ function useWorkerExpansion() {
 
 export function WorkerSettings() {
   const overview = useOverview();
+  const openSettingsSection = useOpenSettingsSection();
 
   // Each part is a shared read: other screens reuse it and events refresh only the part that changed.
   const setup = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
@@ -78,6 +78,7 @@ export function WorkerSettings() {
   return (
     <ResourceState resource={resource}>
       <SettingsActions>
+        <Button variant="ghost" title="Open app updates" onPress={() => openSettingsSection("app-updates")} />
         <Button variant="primary" title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
       </SettingsActions>
       {(data || resource.initialLoading) && <WorkerNetworkAccess network={data?.network} />}
@@ -139,7 +140,6 @@ export function WorkerSettings() {
         <WorkerCliSettings />
       </SettingsGroup>
       <AccountConfigNotices sections={["cliUpdates"]} />
-      <UpdateSettings />
       <SettingsGroup title="Install over SSH">
         <WorkerSsh />
       </SettingsGroup>
@@ -288,7 +288,7 @@ function WorkerCard({
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {!!updates && (
               <Text style={[styles.workMeta, { color: c.text }]}>
-                {updates} {updates === 1 ? "update" : "updates"}
+                {updates} {updates === 1 ? "CLI update" : "CLI updates"}
               </Text>
             )}
             <Text style={[styles.workMeta, { color: c.text }]}>{status}</Text>

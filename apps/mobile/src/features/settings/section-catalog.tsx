@@ -4,12 +4,6 @@ import { settingsSectionEnabled, settingsSectionMethods, settingsSections } from
 import { useAppearance } from "../../state/appearance";
 import { useSettingsResource } from "./resource";
 
-const mobileSections = settingsSections.map((section) =>
-  section.href === "/settings/general"
-    ? { ...section, keywords: `${section.keywords} privacy analytics telemetry usage ping` }
-    : section,
-);
-
 const methods = new Map<string, readonly string[]>(Object.entries(settingsSectionMethods));
 
 function mobileSectionSupported(href: string, capabilities?: ui.ClientCapabilities) {
@@ -24,9 +18,18 @@ function mobileSectionSupported(href: string, capabilities?: ui.ClientCapabiliti
 }
 
 export function useSettingsCatalog() {
-  const { modules } = useAppearance();
+  const { modules, threadsEnabled } = useAppearance();
   const resource = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
-  const sections = mobileSections.filter((section) => settingsSectionEnabled(section.href, modules));
+
+  const sections = settingsSections
+    .filter((section) => settingsSectionEnabled(section.href, modules))
+    .map((section) => {
+      if (section.href !== "/settings/general") return section;
+
+      const confirmations = threadsEnabled ? "" : " bot confirmations confirm unpin archive";
+
+      return { ...section, keywords: `${section.keywords} privacy analytics telemetry usage ping${confirmations}` };
+    });
 
   return {
     sections,

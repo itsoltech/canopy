@@ -42,7 +42,7 @@ export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
       />
       <ThreadRetentionSettings settings={settings} />
       <NewThreadSettings settings={settings} />
-      <AccountConfigNotices sections={["threadDefaults", "composer", "threadRetention"]} />
+      <AccountConfigNotices sections={["threadDefaults", "composer", "threadRetention", "general", "sidebar"]} />
     </View>
   );
 }

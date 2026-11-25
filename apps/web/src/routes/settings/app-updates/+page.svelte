@@ -1,37 +1,82 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { applicationName } from "#lib/application-name.ts";
-  import AppUpdates from "#lib/features/desktop/AppUpdates.svelte";
-  import LinkedAppUpdates from "#lib/features/desktop/LinkedAppUpdates.svelte";
+  import AppUpdatePreferences from "#lib/features/desktop/AppUpdatePreferences.svelte";
+  import { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
+  import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
+  import UpdateReleaseNotes from "#lib/features/desktop/UpdateReleaseNotes.svelte";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import WhatsNewSettings from "#lib/features/updates/WhatsNewSettings.svelte";
-  import { updateCenter } from "#lib/features/workers/updates.svelte.ts";
+  import ReleaseChannelField from "#lib/features/workers/ReleaseChannelField.svelte";
+  import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
+  import UpdateNotes from "#lib/features/workers/UpdateNotes.svelte";
+  import { gatewayRowTarget } from "@canopy/domain/release/update-status";
+  import { updateBusy, updateCenter } from "#lib/features/workers/updates.svelte.ts";
+  import Alert from "#lib/shared/ui/Alert.svelte";
+  import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
 
-  onMount(() => updateCenter.poll());
+  const app = new DesktopUpdatesState();
+  const capabilities = useGatewayCapabilities();
+  const gateway = $derived(updateCenter.snapshot);
+  const gatewayPreferences = $derived(gateway && !gateway.gatewayBundled);
+
+  onMount(() => app.connect());
+
+  $effect(() => {
+    if (updateCenter.readable) return untrack(() => updateCenter.poll());
+  });
 </script>
 
 <svelte:head><title>App updates · Settings · {applicationName}</title></svelte:head>
-<AppUpdates>
-  {#snippet layout(releases, preferences, hasPreferences)}
-    <SettingsTopics
-      label="App update settings"
-      topics={[
-        { id: "releases", label: "Releases", content: currentRelease },
-        { id: "preferences", label: "Update preferences", content: preferences, hidden: !hasPreferences },
-        {
-          id: "computers",
-          label: "Linked computers",
-          content: computers,
-          hidden: !updateCenter.snapshot?.computers.length,
-        },
-      ]}
-    />
-    {#snippet currentRelease()}
-      {@render releases()}
-      <WhatsNewSettings />
-    {/snippet}
-    {#snippet computers()}
-      <LinkedAppUpdates updates={updateCenter} />
-    {/snippet}
-  {/snippet}
-</AppUpdates>
+<SettingsTopics
+  label="App update settings"
+  topics={[
+    {
+      id: "status",
+      label: "Status",
+      keywords: "check for updates update all progress restart gateway workers linked computers",
+      content: status,
+    },
+    {
+      id: "preferences",
+      label: "Update preferences",
+      keywords: "stable beta nightly release channel frequency schedule pinned version",
+      content: preferences,
+      hidden: !app.status && !gatewayPreferences,
+    },
+    { id: "releases", label: "Releases", keywords: "what's new release notes changelog", content: releases },
+  ]}
+/>
+
+{#snippet status()}
+  {#if !updateCenter.readable}
+    <Alert>{capabilities?.message || "Update Canopy on your gateway to see its computers and workers."}</Alert>
+  {/if}
+  <UpdatesPanel updates={updateCenter} {app} />
+{/snippet}
+
+{#snippet preferences()}
+  <AppUpdatePreferences {app} />
+  {#if gateway && gatewayPreferences}
+    <SettingsGroup title="Gateway">
+      <ReleaseChannelField
+        current={gateway.channel}
+        version={gateway.gatewayVersion}
+        disabled={!gateway.admin || updateCenter.active || updateBusy(gateway.gatewayState)}
+        pending={updateCenter.pending === "channel"}
+        onsave={(channel) => updateCenter.manage({ action: "channel", channel })}
+      />
+    </SettingsGroup>
+    {#if updateCenter.error}<Alert tone="error">{updateCenter.error}</Alert>{/if}
+  {/if}
+{/snippet}
+
+{#snippet releases()}
+  <WhatsNewSettings />
+  {#if gateway && !gateway.gatewayBundled}
+    <UpdateNotes current={gateway.gatewayVersion} target={gatewayRowTarget(gateway)} channel={gateway.channel} />
+  {/if}
+  {#if app.status?.updateVersion && ["downloading", "downloaded", "error"].includes(app.status.phase)}
+    <UpdateReleaseNotes releases={app.status.releases ?? []} channel={app.status.channel} />
+  {/if}
+{/snippet}

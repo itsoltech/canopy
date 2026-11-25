@@ -23,6 +23,8 @@ gdy platforma i wyświetlana data są identyczne (2026-11-24).
 
 Settings → Linked computers kieruje do aplikacji na komputerze uruchamiającym gateway.
 Wskazówka działa także bez połączenia z gatewayem (2026-11-25).
+W aplikacji webowej i desktopowej **Settings → App updates → Status** pokazuje stan
+aktualizacji sparowanego desktopu i akcję **Update Canopy app** (2026-11-25).
 
 ## Decyzja
 
@@ -311,17 +313,17 @@ Gateway audytuje `desktop.update.request`, `desktop.update.force` i końcowy
 Wersja celu żądania pozostaje osobna od najnowszej dostępnej wersji, również gdy
 normalny updater po restarcie znajdzie już następne wydanie.
 
-Workers otrzymuje stan przez overview oraz snapshot: wersję/kanał aplikacji,
-dostępną wersję, procent, oczekiwanie, restart i błąd. Brak sesji, parowania lub
-obsługi funkcji wyłącza akcję z powodem. Starszej aplikacji bez strumienia nie da
-się odróżnić od niesparowanej: komunikat wskazuje parowanie lub ręczną aktualizację.
-Kontrolki pochodzą z kitu; `DesktopUpdateStatus` skupia stan i dialog potwierdzenia.
+Klient otrzymuje przez overview oraz snapshot wersję i kanał aplikacji, dostępną
+wersję, postęp pobierania, stan oczekiwania na zakończenie tur, restart i ewentualny błąd.
+Brak sesji, parowania lub obsługi funkcji wyłącza akcję z powodem. Starszej aplikacji
+bez strumienia nie da się odróżnić od niesparowanej: komunikat wskazuje parowanie lub ręczną aktualizację.
 
-Ten sam stan i „Update Canopy app” są dostępne w centrum aktualizacji w stopce
-sidebara. „Update all” kolejkuje połączone, obsługiwane aplikacje z wykrytą nowszą
-wersją. Po aktualizacji gatewaya mogą działać równolegle z binarnymi workerami. Czeka na raport sukcesu po restarcie;
-nie wymusza przerwania pracy. Ręczne akcje w Workers pozostają dostępne poza
-trwającą kolejką. Własny desktop ma niezależny restart w tym samym centrum.
+Podsumowanie w stopce paska bocznego prowadzi do **Settings → App updates → Status**.
+Poza trwającą aktualizacją zbiorczą można tam wybrać **Update Canopy app** dla jednego
+desktopu. **Update all** kolejkuje połączone, obsługiwane aplikacje z wykrytą nowszą
+wersją. Po aktualizacji gatewaya mogą aktualizować się równolegle z binarnymi workerami.
+Kolejka czeka na zakończenie pracy i raport sukcesu po restarcie. Własny desktop
+ma w zakładce **Status** osobną akcję restartu.
 
 **Tryb lokalny:** desktop połączony z innym gatewayem jako komputer nie otrzymuje
 tego kanału sterowania. Aktualizacje między połączonymi komputerami są możliwym

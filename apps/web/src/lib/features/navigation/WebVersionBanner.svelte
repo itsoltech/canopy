@@ -27,7 +27,8 @@
         {#if lag === "older"}
           This web app is older than the gateway. The gateway now serves the web app. Remove the separate web service.
         {:else}
-          This web app is newer than the gateway. Update the gateway to the same version.
+          This web app is newer than the gateway.
+          <TextLink href="/settings/app-updates#topic-status">Check for a gateway update</TextLink>.
         {/if}
         <TextLink href={WEB_MIGRATION_DOCS} target="_blank" rel="noreferrer">How to fix</TextLink>
       </span>

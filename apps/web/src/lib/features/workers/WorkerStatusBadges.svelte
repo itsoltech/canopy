@@ -12,6 +12,6 @@
 </script>
 
 <div class="flex shrink-0 flex-wrap items-center gap-1.5">
-  {#if updates > 0}<Badge tone="amber">{updates === 1 ? "1 update" : `${updates} updates`}</Badge>{/if}
+  {#if updates > 0}<Badge tone="amber">{updates === 1 ? "1 CLI update" : `${updates} CLI updates`}</Badge>{/if}
   <Badge tone={presence.tone}>{presence.label}</Badge>
 </div>

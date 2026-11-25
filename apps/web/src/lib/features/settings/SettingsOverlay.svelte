@@ -11,12 +11,12 @@
     isSettingsRoute,
     overlayKey,
     provideSettingsRoute,
+    settingsRedirect,
     type SettingsForm,
     type SettingsRoute,
   } from "./settings-route.ts";
   import SettingsDialog from "./SettingsDialog.svelte";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
-  import { settingsSectionEnabled } from "./sections.ts";
   import { useSettings } from "./settings-state.svelte.ts";
   import AlertCompatibility from "#lib/features/desktop/GatewayCompatibility.svelte";
 
@@ -32,8 +32,7 @@
   let { route, focused }: { route: Snippet; focused: boolean } = $props();
 
   const routeMode = $derived(
-    isSettingsRoute(page.route.id) &&
-      (!page.error || !settingsSectionEnabled(page.url.pathname, settings.enabledModules)),
+    isSettingsRoute(page.route.id) && (!page.error || Boolean(settingsRedirect(page.url, settings.enabledModules))),
   );
 
   const shallowUrl = $derived(
@@ -70,7 +69,7 @@
     if (open) fromSetup = untrack(() => focused);
   });
 
-  const allowed = $derived(!shown || settingsSectionEnabled(shown.url.pathname, settings.enabledModules));
+  const redirect = $derived(shown && settingsRedirect(shown.url, settings.enabledModules));
   const entry = $derived(shown?.key ? overlay.pages.get(shown.key) : undefined);
 
   // Settings pages set the document title (and nothing sets it back): keep the page's own while closed.
@@ -88,16 +87,32 @@
   });
 
   $effect(() => {
-    if (allowed && key && !overlay.pages.has(key)) untrack(() => void overlay.ensure(key));
+    if (!redirect && key && !overlay.pages.has(key)) untrack(() => void overlay.ensure(key));
   });
 
-  $effect(() => {
-    if (!view || !settings.loaded || overlay.bridging) return;
+  function replaceSection(target: string) {
+    return routeMode
+      ? goto(target, { replace: true, state: page.state, persistState: true })
+      : overlay.open(target, true);
+  }
 
-    if (!allowed) {
-      if (routeMode) void goto("/settings/general", { replace: true });
-      else untrack(() => void overlay.open("/settings/general", true));
-    } else if (routeMode) {
+  // Pasting a different fragment on the current URL can bypass SvelteKit navigation.
+  function followMovedFragment(event: HashChangeEvent) {
+    const url = new URL(event.newURL);
+
+    if (!view || overlay.bridging || url.pathname !== view.url.pathname) return;
+    const target = settingsRedirect(url, settings.enabledModules);
+
+    if (target) void replaceSection(target);
+  }
+
+  $effect(() => {
+    if (!view || overlay.bridging) return;
+
+    if (redirect) {
+      const target = redirect;
+      untrack(() => void replaceSection(target));
+    } else if (routeMode && settings.loaded) {
       const enabled = settings.enabledModules;
       untrack(() => void overlay.handOver(enabled));
     }
@@ -175,7 +190,7 @@
 
     if (!to?.route.id || !isSettingsRoute(to.route.id)) return;
     navigation.cancel();
-    const href = settingsSectionEnabled(to.url.pathname, settings.enabledModules) ? to.url.href : "/settings/general";
+    const href = settingsRedirect(to.url, settings.enabledModules) ?? to.url.href;
     void overlay.open(href, Boolean(shallowKey));
   });
 
@@ -191,6 +206,8 @@
   });
 </script>
 
+<svelte:window onhashchange={followMovedFragment} />
+
 {#if shown}
   <SettingsDialog
     {open}
@@ -202,8 +219,8 @@
       fromSetup = undefined;
     }}
   >
-    {#if !allowed}
-      <!-- Redirecting to General after the module was turned off. -->
+    {#if redirect}
+      <!-- Opening the current destination for this settings link. -->
     {:else if capabilities && !capabilities.supports(shown.url.pathname)}
       <AlertCompatibility message={capabilities.unavailableMessage(shown.url.pathname)} desktopActions={false} />
     {:else if !shown.key}

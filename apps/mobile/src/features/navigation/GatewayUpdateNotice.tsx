@@ -7,7 +7,7 @@ import { Button } from "../../ui/Button";
 import { Overlay } from "../../ui/Overlay";
 import { SheetDragArea } from "../../ui/SheetDragArea";
 import { styles, useColors } from "../../ui/theme";
-import { useUpdates } from "../updates/state";
+import { useOpenSettingsSection } from "../settings/navigation";
 import { UpdateDetails } from "../updates/UpdateDetails";
 
 export function GatewayUpdateNotice() {
@@ -16,7 +16,7 @@ export function GatewayUpdateNotice() {
   const [openId, setOpenId] = useState("");
   const updates = useRef(false);
   const c = useColors();
-  const { setOpen: showUpdates } = useUpdates();
+  const openSettingsSection = useOpenSettingsSection();
 
   if (!value) return null;
   const failed = value.state === "failed" || value.state === "rolled_back";
@@ -42,7 +42,7 @@ export function GatewayUpdateNotice() {
 
           if (updates.current) {
             updates.current = false;
-            showUpdates(true);
+            openSettingsSection("app-updates");
           }
         }}
       >
@@ -57,12 +57,12 @@ export function GatewayUpdateNotice() {
           </Text>
           <Text style={[styles.overlayMeta, { color: c.muted }]}>
             {failed
-              ? "The update did not finish. Open Updates to retry."
+              ? "The update did not finish. Open App updates to retry."
               : "Canopy reconnects automatically on the same route."}
           </Text>
           {!!value.reason && <UpdateDetails text={value.reason} />}
           <Button
-            title="Open updates"
+            title="Open app updates"
             onPress={() => {
               updates.current = true;
               setOpenId("");

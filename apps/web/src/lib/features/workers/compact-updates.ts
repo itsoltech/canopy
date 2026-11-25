@@ -1,5 +1,4 @@
 import type { ui } from "@canopy/contracts";
-import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
 import { updateBusy } from "./updates.svelte.ts";
 
 export { bulkUpdatesAvailable as updatesAvailable, externalUpdatesAvailable } from "@canopy/domain/release/update-plan";
@@ -21,17 +20,6 @@ export function workerCurrent(worker: ui.WorkerUpdate, gatewayVersion: string): 
 
   return worker.connected && !!worker.version && worker.version === gatewayVersion;
 }
-
-export const cliCurrent = (item: ui.WorkerCliTool): boolean =>
-  !!item.tool?.version &&
-  !!item.latest?.version &&
-  item.tool.version === item.latest.version &&
-  !item.action &&
-  !item.latest.error &&
-  !["running", "failed"].includes(item.tool.install?.state ?? "");
-
-export const appCurrent = (app: DesktopUpdateStatus | undefined): boolean =>
-  !!app && app.phase === "idle" && !app.updateVersion && !app.publishing;
 
 export const gatewayCurrent = (snapshot: ui.UpdatesSnapshot): boolean =>
   !!snapshot.availableVersion &&

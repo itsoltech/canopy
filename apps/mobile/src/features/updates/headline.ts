@@ -5,31 +5,33 @@ import { gatewayUpdateLifecycle, updateRunSummary } from "@canopy/domain/release
 import { presenceTime } from "../computers/presence";
 import { updateHomes, updatesRunning } from "./model";
 
-export interface SheetHeadline {
+export interface UpdateHeadline {
   text: string;
   tone: "ink" | "muted" | "rose";
-  /** The run's bar under the header; undefined hides it. */
+  /** The run's bar under the summary; undefined hides it. */
   progress: number | undefined;
 }
 
 /**
- * Web: updatesHeadline. The sheet's one summary: what the user just started, else the run's single counter, else the
+ * Web: updatesHeadline. The page summary: what the user just started, else the run's single counter, else the
  * settled state with the last check time. Rows never repeat it.
  */
-export function sheetHeadline({
+export function updatesHeadline({
   snapshot,
   run,
   starting,
   checking,
   phoneUpdate,
+  phoneUpdating,
 }: {
   snapshot: ui.UpdatesSnapshot | undefined;
   run: ui.UpdateRun | undefined;
   starting: boolean;
   checking: boolean;
   phoneUpdate: boolean;
-}): SheetHeadline {
-  const line = (text: string, tone: SheetHeadline["tone"] = "ink", progress?: number) => ({ text, tone, progress });
+  phoneUpdating: boolean;
+}): UpdateHeadline {
+  const line = (text: string, tone: UpdateHeadline["tone"] = "ink", progress?: number) => ({ text, tone, progress });
 
   if (gatewayUpdateLifecycle(snapshot?.gatewayState))
     return line(snapshot?.gatewayState === "starting" ? "Gateway is starting…" : "Gateway is shutting down…");
@@ -39,6 +41,8 @@ export function sheetHeadline({
 
   if (summary?.progress !== undefined || summary?.tone === "rose")
     return line(summary.text, summary.tone, summary.progress);
+
+  if (phoneUpdating) return line("Updating this phone…");
 
   if (checking) return line("Checking for updates…", "muted");
 

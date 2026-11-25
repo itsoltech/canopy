@@ -14,13 +14,17 @@ export interface UpdatesHeadline {
 }
 
 /**
- * The popover's one summary (docs/updates.md): what the user just started, else the run's single counter, else the
+ * The sidebar and App updates share this summary: what the user just started, else the run's single counter, else the
  * settled state with the last check time. Rows never repeat it.
  */
 export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState, checking: boolean): UpdatesHeadline {
   const snapshot = updates.snapshot;
   const line = (text: string, tone: UpdatesHeadline["tone"] = "ink", progress?: number) => ({ text, tone, progress });
   const gatewayActivity = gatewayUpdateActivity(snapshot?.gatewayState, updates.gatewayTransition);
+
+  if (!updates.readable && !app.status && !app.error) return line("Gateway updates unavailable", "muted");
+
+  if (!snapshot && app.status?.phase === "disabled") return line("App updates unavailable", "muted");
 
   if (gatewayActivity) return line(gatewayActivity);
 
@@ -32,13 +36,21 @@ export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState,
 
   if (checking) return line("Checking for updates…", "muted");
 
-  const summary = updateIndicator(app.status, snapshot, app.error || updates.error, updates.pending, app.remote);
+  const summary = updateIndicator(
+    app.status,
+    snapshot,
+    app.error || (updates.readable ? updates.error : ""),
+    updates.pending,
+    app.remote,
+  );
 
   if (run && summary.phase !== "downloading") return line(run.text, run.tone);
 
   const planned = snapshot ? bulkUpdateSteps(snapshot).filter((step) => step.state === "queued").length : 0;
 
   switch (summary.phase) {
+    case "checking":
+      return line("Checking for updates…", "muted");
     case "error":
       return line("Update failed", "rose");
     case "downloading":
@@ -52,7 +64,8 @@ export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState,
     case "external":
       return line("Updates available outside Canopy", "muted");
     default: {
-      const checked = app.status?.lastCheckedAt || snapshot?.app?.lastCheckedAtMs;
+      const checked =
+        app.status?.lastCheckedAt || snapshot?.app?.lastCheckedAtMs || Date.parse(snapshot?.checkedAt || "");
 
       return line(checked ? `Up to date · ${updateCheckLabel(checked, presenceTime)}` : "Up to date", "muted");
     }

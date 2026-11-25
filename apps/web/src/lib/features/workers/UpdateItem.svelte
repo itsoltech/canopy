@@ -8,8 +8,7 @@
   import UpdateProgress from "./UpdateProgress.svelte";
 
   /**
-   * One update row (docs/updates.md): always two lines. A state change swaps the badge and the second line; the bar
-   * sits in the bottom padding and the action keeps its slot, so nothing moves. Only an error expands, on request.
+   * The name, status and action share a row. Installed and target versions stay visible above status details or errors.
    */
   let {
     name,
@@ -34,7 +33,7 @@
     current: string;
     target?: string | undefined;
     status: UpdateStatus | string;
-    /** Replaces the versions on the second line: a state that says more than them. */
+    /** More detail about this update state. */
     line?: string;
     lineTone?: "amber" | undefined;
     error?: string;
@@ -60,44 +59,47 @@
         <!-- Every shared word fits the slot, so state changes never move the name; a rare long edge word widens it. -->
         <span class="flex min-w-28 shrink-0 justify-end sm:min-w-23"><UpdateBadge {status} /></span>
       </div>
+      <p class="break-anywhere mt-0.5 font-mono text-xs/4 text-muted tabular-nums select-text" title={versions}>
+        {versions}
+      </p>
+    </div>
+    <div class="flex w-8 shrink-0 items-center justify-center self-start sm:w-7">{@render action?.()}</div>
+  </div>
+  {#if error || line}
+    <div class="mt-1 ml-6 min-w-0 text-xs/4">
       {#if error}
         <button
           type="button"
-          class="mt-0.5 flex h-4 w-full min-w-0 rounded text-left text-xs/4 text-rose-600 focus-ring dark:text-rose-400"
+          class="flex w-full min-w-0 rounded text-left text-rose-600 focus-ring dark:text-rose-400 desktop:cursor-pointer"
           aria-expanded={expanded}
           title={error}
           onclick={() => (expanded = !expanded)}
         >
-          {#key error}<span class="t-swap min-w-0 truncate">{error}</span>{/key}
+          {#key error}<span
+              class={[
+                "t-swap min-w-0",
+                expanded ? "break-anywhere max-h-40 scroll-stable overflow-y-auto select-text" : "truncate",
+              ]}>{error}</span
+            >{/key}
         </button>
+        {#if expanded && errorActions}
+          <div class="mt-1 grid gap-1">{@render errorActions()}</div>
+        {/if}
       {:else}
-        <p
-          class={[
-            "mt-0.5 flex h-4 min-w-0 text-xs/4 tabular-nums",
-            line ? "" : "font-mono select-text",
-            lineTone === "amber" ? "text-amber-700 dark:text-amber-400" : "text-muted",
-          ]}
-          title={line || versions}
-        >
-          {#key line || versions}<span class="t-swap min-w-0 truncate">{line || versions}</span>{/key}
-        </p>
+        {#key line}<p
+            class={[
+              "t-swap break-anywhere tabular-nums",
+              lineTone === "amber" ? "text-amber-700 dark:text-amber-400" : "text-muted",
+            ]}
+          >
+            {line}
+          </p>{/key}
       {/if}
     </div>
-    <div class="flex w-8 shrink-0 items-center justify-center sm:w-7">{@render action?.()}</div>
-  </div>
+  {/if}
   {#if busy}<UpdateProgress
       label={`${name}: ${status}`}
       value={progress}
       class="t-rise absolute right-0 bottom-0.5 left-6"
     />{/if}
-  {#if error && expanded}
-    <div class="mt-1 ml-6 grid gap-1">
-      <p
-        class="break-anywhere max-h-40 scroll-stable overflow-y-auto text-xs/5 text-rose-600 select-text dark:text-rose-400"
-      >
-        {error}
-      </p>
-      {@render errorActions?.()}
-    </div>
-  {/if}
 </div>

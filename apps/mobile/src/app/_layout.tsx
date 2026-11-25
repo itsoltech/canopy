@@ -26,7 +26,6 @@ import { OverlayLayer } from "../ui/overlay-stack";
 import { ToastHost } from "../ui/Toast";
 import { PhoneUpdatesProvider } from "../features/updates/phone";
 import { UpdatesProvider } from "../features/updates/state";
-import { UpdateCenter } from "../features/updates/UpdateCenter";
 import { WhatsNewProvider } from "../features/updates/whats-new";
 import { WhatsNewNotice, WhatsNewSheet } from "../features/updates/WhatsNew";
 import { KeyboardWindow } from "../ui/KeyboardWindow";
@@ -83,7 +82,6 @@ function Navigation() {
       <DismissReadPushes />
       <InAppAlerts />
       <HabitReviewNotice />
-      <UpdateCenter />
       <WhatsNewSheet />
       <WhatsNewNotice />
       <ConfirmHost />

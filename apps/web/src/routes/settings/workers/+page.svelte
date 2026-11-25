@@ -9,12 +9,12 @@
   import { WorkerSetup } from "#lib/features/workers/worker-setup.svelte.ts";
   import { workerEnvironment } from "#lib/features/workers/worker-environment.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import WorkerConnectionSettings from "#lib/features/workers/WorkerConnectionSettings.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import SettingsCard from "#lib/shared/ui/SettingsCard.svelte";
-  import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
   import CliUpdatesSummary from "#lib/features/workers/CliUpdatesSummary.svelte";
   import CliCheckSettings from "#lib/features/workers/CliCheckSettings.svelte";
   import WorkerSshKey from "#lib/features/workers/WorkerSshKey.svelte";
@@ -122,7 +122,12 @@
   topics={[
     { id: "workers", label: "Registered workers", content: workers },
     { id: "connections", label: remote ? "Gateway connections" : "Connections", content: connections },
-    { id: "updates", label: "Updates", content: updates },
+    {
+      id: "agent-clis",
+      label: "Agent CLIs",
+      keywords: "install update provider CLI check frequency schedule",
+      content: clis,
+    },
   ]}
 />
 
@@ -139,7 +144,10 @@
         {/if}
       </p>
     </div>
-    <div class="shrink-0">
+    <div class="flex flex-wrap gap-2">
+      {#if desktop.status || capabilities?.supportsMethod("GetUpdates")}
+        <ButtonLink href="/settings/app-updates#topic-status">View app updates</ButtonLink>
+      {/if}
       <Button
         variant="primary"
         icon="plus"
@@ -215,9 +223,19 @@
   {/if}
 {/snippet}
 
-{#snippet updates()}
-  <UpdatesPanel />
-  <CliUpdatesSummary workers={overview.workers} />
+{#snippet clis()}
+  <CliUpdatesSummary workers={overview.ownWorkers} />
+  {#if records.workers.length}
+    <SettingsGroup title="Agent CLIs by worker">
+      {#each records.workers as worker (worker.id)}
+        <SettingsRow
+          title={worker.name}
+          description={records.readOnly(worker.id) || worker.hostname}
+          href={`/settings/workers/${encodeURIComponent(worker.id)}#topic-agent-clis`}
+        />
+      {/each}
+    </SettingsGroup>
+  {/if}
   <SettingsGroup title="CLI update schedule" description="Account · Workers can override this schedule."
     ><CliCheckSettings /></SettingsGroup
   >
