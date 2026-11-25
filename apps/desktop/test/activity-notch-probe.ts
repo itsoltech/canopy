@@ -15,3 +15,7 @@ ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNot
     contextIsolated: process.contextIsolated,
   } satisfies ActivityNotchProbe);
 });
+
+ipcRenderer.on("canopy:activity-notch-height", (_event, height: number) => {
+  ipcRenderer.send("activity-notch-fixture:received-height", height);
+});

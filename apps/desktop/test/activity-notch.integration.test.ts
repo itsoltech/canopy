@@ -2,17 +2,21 @@ import { expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tempDirs } from "@canopy/testing";
+import { buildMacNativeAddon } from "../scripts/mac-native-addon.ts";
 
 const tempDirectory = tempDirs();
 const supported = process.platform === "darwin" || process.platform === "win32";
 
 test.skipIf(!supported || process.env["CANOPY_LIVE"] !== "1")(
-  "activity notch uses a separate inactive Electron window with redacted IPC and a source-bound lifetime",
+  "activity notch anchors and resizes an inactive Electron window with redacted IPC and a source-bound lifetime",
   async () => {
     const directory = tempDirectory("canopy-activity-notch-");
     const dist = join(directory, "dist");
     await mkdir(join(directory, "profile"));
     await writeFile(join(directory, "package.json"), JSON.stringify({ main: "dist/main.cjs" }));
+
+    if (process.platform === "darwin")
+      buildMacNativeAddon(join(directory, "build/native"), "activity-notch-display", "AppKit");
 
     for (const [name, source] of [
       ["main", "./activity-notch.fixture.ts"],

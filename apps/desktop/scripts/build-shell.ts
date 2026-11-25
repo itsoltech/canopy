@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
 import { bunNotices, mergeNotices, type PackageNotice } from "../../../scripts/open-source-licenses.ts";
 import { desktopIdentity } from "../src/identity.ts";
+import { buildMacNativeAddon } from "./mac-native-addon.ts";
 
 const root = resolve(import.meta.dir, "..");
 const licenseOutput = process.env["CANOPY_SHELL_LICENSES"];
@@ -14,34 +14,13 @@ mkdirSync(resolve(root, "dist"), { recursive: true });
 
 if (process.platform === "darwin") {
   const native = resolve(root, "build/native");
-  mkdirSync(native, { recursive: true });
 
   for (const [name, framework] of [
     ["quit-key-event", "AppKit"],
     ["notification-permission", "UserNotifications"],
+    ["activity-notch-display", "AppKit"],
   ] as const) {
-    execFileSync(
-      "xcrun",
-      [
-        "clang++",
-        "-bundle",
-        "-undefined",
-        "dynamic_lookup",
-        "-fobjc-arc",
-        "-DNAPI_VERSION=8",
-        "-mmacosx-version-min=12.0",
-        "-arch",
-        process.arch === "arm64" ? "arm64" : "x86_64",
-        "-framework",
-        framework,
-        "-I",
-        resolve(dirname(require.resolve("node-api-headers/package.json")), "include"),
-        resolve(root, `native/${name}.mm`),
-        "-o",
-        resolve(native, `${name}.node`),
-      ],
-      { stdio: "inherit" },
-    );
+    buildMacNativeAddon(native, name, framework);
   }
 }
 

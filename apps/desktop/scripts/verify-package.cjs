@@ -116,7 +116,7 @@ module.exports = async ({ appOutDir, electronPlatformName, arch, packager }) => 
 
     if (!binaries.length) throw new Error("No macOS runtime binaries found");
 
-    for (const name of ["quit-key-event.node", "notification-permission.node"]) {
+    for (const name of ["quit-key-event.node", "notification-permission.node", "activity-notch-display.node"]) {
       const addon = join(resources, "native", name);
 
       if (!existsSync(addon)) throw new Error(`Packaged native addon missing: ${name}`);

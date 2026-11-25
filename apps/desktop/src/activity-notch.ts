@@ -6,7 +6,7 @@ import {
   type ActivityNotchItem,
   type DesktopStatus,
 } from "@canopy/ui/desktop";
-import { activityNotchBounds, createActivityNotchWindow } from "./activity-notch-window.ts";
+import { createActivityNotchWindow, primaryActivityNotchGeometry } from "./activity-notch-window.ts";
 import { sendWindowMessage, windowContents } from "./window-message.ts";
 
 const decodeItems = Schema.decodeUnknownSync(
@@ -48,6 +48,7 @@ export class ActivityNotch {
   #numbers = { Thread: 0, Bot: 0 };
   #expanded = false;
   #loaded = false;
+  #headerHeight: number | undefined;
   #invalidated = false;
 
   constructor(private readonly openRoute: (path: string) => void) {}
@@ -184,7 +185,25 @@ export class ActivityNotch {
   }
 
   #position = () => {
-    if (this.#target && !this.#target.isDestroyed()) this.#target.setBounds(activityNotchBounds(this.#expanded));
+    const target = this.#target;
+
+    if (!target || target.isDestroyed()) return;
+
+    const { bounds, headerHeight } = primaryActivityNotchGeometry(this.#expanded ? this.#entries.length : 0);
+    const current = target.getBounds();
+
+    const moved =
+      current.x !== bounds.x ||
+      current.y !== bounds.y ||
+      current.width !== bounds.width ||
+      current.height !== bounds.height;
+
+    if (moved) target.setBounds(bounds);
+
+    if (this.#loaded && (moved || this.#headerHeight !== headerHeight)) {
+      this.#headerHeight = headerHeight;
+      sendWindowMessage(target, (contents) => contents.send("canopy:activity-notch-height", headerHeight));
+    }
   };
 
   #hide() {
@@ -192,6 +211,7 @@ export class ActivityNotch {
 
     if (!this.#expanded) return;
     this.#expanded = false;
+    this.#position();
     sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-collapse"));
   }
 
@@ -205,9 +225,10 @@ export class ActivityNotch {
     }
 
     if (!this.#target) this.#createWindow();
-    else if (this.#loaded && !this.#target.isVisible()) {
+    else if (this.#loaded) {
       this.#position();
-      this.#target.showInactive();
+
+      if (!this.#target.isVisible()) this.#target.showInactive();
     }
   };
 
@@ -215,6 +236,7 @@ export class ActivityNotch {
     const target = this.#target;
     this.#target = undefined;
     this.#loaded = false;
+    this.#headerHeight = undefined;
     this.#expanded = false;
 
     if (target && !target.isDestroyed()) target.destroy();
@@ -233,6 +255,7 @@ export class ActivityNotch {
       .then(() => {
         if (this.#target !== target) return;
         this.#loaded = true;
+        this.#position();
         this.#sendRows();
         this.#syncVisibility();
       })

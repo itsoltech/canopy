@@ -1,17 +1,38 @@
 import { app, BrowserWindow, screen, session } from "electron";
 import { join } from "node:path";
+import { activityNotchGeometry, type ActivityNotchCutout } from "./activity-notch-geometry.ts";
 import { activityNotchPage } from "./activity-notch-page.ts";
 
-export function activityNotchBounds(expanded: boolean) {
-  const area = screen.getPrimaryDisplay().workArea;
-  const width = Math.min(304, area.width);
+interface MacNotchDisplay {
+  primaryCutout(): ActivityNotchCutout | undefined;
+}
 
-  return {
-    x: area.x + Math.floor((area.width - width) / 2),
-    y: area.y + 8,
-    width,
-    height: Math.min(expanded ? 240 : 40, area.height - 8),
-  };
+let macDisplay: MacNotchDisplay | null | undefined;
+
+export function loadMacActivityNotchDisplay() {
+  const directory = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), "build");
+
+  // SAFETY: Both paths load the Canopy N-API addon, which exports primaryCutout with this contract.
+  return require(join(directory, "native/activity-notch-display.node")) as MacNotchDisplay;
+}
+
+function primaryActivityNotchMenuBand() {
+  if (process.platform !== "darwin" || macDisplay === null) return undefined;
+
+  try {
+    macDisplay ??= loadMacActivityNotchDisplay();
+
+    return { cutout: macDisplay.primaryCutout() };
+  } catch {
+    // Keep the simulated shape in the work area when the camera's position is unknown.
+    macDisplay = null;
+
+    return undefined;
+  }
+}
+
+export function primaryActivityNotchGeometry(expandedRows: number) {
+  return activityNotchGeometry(screen.getPrimaryDisplay(), expandedRows, primaryActivityNotchMenuBand());
 }
 
 export function createActivityNotchWindow() {
@@ -24,9 +45,10 @@ export function createActivityNotchWindow() {
   );
 
   const target = new BrowserWindow({
-    ...activityNotchBounds(false),
+    ...primaryActivityNotchGeometry(0).bounds,
     title: "Canopy activity",
     frame: false,
+    roundedCorners: false,
     transparent: true,
     hasShadow: false,
     show: false,
@@ -38,7 +60,12 @@ export function createActivityNotchWindow() {
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    ...(process.platform === "darwin" && { type: "panel" as const, acceptFirstMouse: true }),
+    // Electron bypasses AppKit’s visible-frame clamp for a frameless window with this option.
+    ...(process.platform === "darwin" && {
+      type: "panel" as const,
+      acceptFirstMouse: true,
+      enableLargerThanScreen: true,
+    }),
     webPreferences: {
       session: isolated,
       preload: join(app.getAppPath(), "dist/activity-notch-preload.cjs"),
@@ -53,7 +80,11 @@ export function createActivityNotchWindow() {
 
   target.removeMenu();
 
-  if (process.platform === "darwin") target.excludedFromShownWindowsMenu = true;
+  if (process.platform === "darwin") {
+    target.excludedFromShownWindowsMenu = true;
+
+    if (macDisplay) target.setAlwaysOnTop(true, "status");
+  }
 
   target.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   target.webContents.on("will-frame-navigate", (event) => event.preventDefault());

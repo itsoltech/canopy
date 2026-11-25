@@ -2,14 +2,16 @@ import { strict as assert } from "node:assert";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain, session, type IpcMainEvent } from "electron";
+import { app, BrowserWindow, ipcMain, screen, session, type IpcMainEvent } from "electron";
 import type { ActivityNotchItem } from "@canopy/ui/desktop";
 import { ActivityNotch } from "../src/activity-notch.ts";
+import { loadMacActivityNotchDisplay } from "../src/activity-notch-window.ts";
 import { isTrustedDesktopEvent } from "../src/desktop-window.ts";
 import { initialStatus, isString } from "../src/runtime/config.ts";
 import type { ActivityNotchProbe } from "./activity-notch-probe.ts";
 
 const route = "/threads/synthetic-activity";
+const mac = process.platform === "darwin";
 const working = { path: route, state: "working", title: "Synthetic private title" } as const;
 const appPath = app.getAppPath();
 const rowsChannel = "activity-notch-fixture:received-rows";
@@ -33,6 +35,39 @@ function receiveRows() {
   });
 }
 
+function receiveHeight() {
+  return new Promise<number>((resolve) => {
+    ipcMain.once("activity-notch-fixture:received-height", (_event, height: number) => resolve(height));
+  });
+}
+
+function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: number) {
+  const { bounds, workArea } = screen.getPrimaryDisplay();
+  const cutout = mac ? loadMacActivityNotchDisplay().primaryCutout() : undefined;
+  const area = mac ? bounds : workArea;
+  const center = bounds.x + (cutout?.center ?? bounds.width / 2);
+  const native = overlay.getBounds();
+  const compact = Math.max(200, cutout ? Math.ceil(cutout.width) + 2 : 0) + 80;
+  const width = Math.min(area.width, (rows ? Math.max(480, compact) : compact) + 16);
+  const height = headerHeight + (rows ? Math.min(rows, 7) * 32 + 8 : 0);
+  const x = Math.min(area.x + area.width - width, Math.max(area.x, Math.round(center - width / 2)));
+
+  assert.equal(native.y, mac ? bounds.y : workArea.y, "the native window sits flush at the expected top edge");
+  assert.equal(native.x, x, "the native window stays centered at both widths");
+  assert.equal(native.width, width);
+  assert.equal(native.height, Math.min(height, workArea.y + workArea.height - native.y));
+  assert.equal(overlay.isFocused(), false);
+}
+
+async function toggleOverlay(overlay: BrowserWindow) {
+  const [height] = await Promise.all([
+    receiveHeight(),
+    overlay.webContents.executeJavaScript(`document.querySelector('[aria-controls="activity-panel"]').click()`),
+  ]);
+
+  return height;
+}
+
 function waitForRow(window: BrowserWindow, state: ActivityNotchItem["state"]) {
   return window.webContents.executeJavaScript(`new Promise((resolve) => {
     const inspect = () => {
@@ -48,7 +83,13 @@ function waitForRow(window: BrowserWindow, state: ActivityNotchItem["state"]) {
 }
 
 async function openOverlay(origin: string, source: BrowserWindow, settings: BrowserWindow) {
-  const [overlay, first] = await Promise.all([showOverlay(), receiveRows(), publish(source, [working])]);
+  const [overlay, first, headerHeight] = await Promise.all([
+    showOverlay(),
+    receiveRows(),
+    receiveHeight(),
+    publish(source, [working]),
+  ]);
+
   assert.notEqual(overlay, source);
   assert.equal(overlay.isVisible(), true, "the overlay is shown while the source is unfocused");
   assert.equal(overlay.isAlwaysOnTop(), true, "the overlay is always on top");
@@ -78,7 +119,45 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   assert.deepEqual(updated.rows, [{ id: row.id, kind: "Thread", number: 1, state: "approval" }]);
   assert.deepEqual(await waitForRow(overlay, "approval"), ["Open Thread 1, Needs approval"]);
 
-  return overlay;
+  return { overlay, headerHeight };
+}
+
+async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow, headerHeight: number) {
+  const { bounds, workArea } = screen.getPrimaryDisplay();
+  const cutout = mac ? loadMacActivityNotchDisplay().primaryCutout() : undefined;
+  const topInset = mac ? Math.max(workArea.y - bounds.y, cutout?.height ?? 0) : 0;
+  assert.equal(
+    headerHeight,
+    Math.ceil(topInset || 32),
+    "the renderer receives the menu height or the simulated height",
+  );
+  assertNativeBounds(overlay, 0, headerHeight);
+
+  stage = "expanding to one row";
+  assert.equal(await toggleOverlay(overlay), headerHeight);
+  assertNativeBounds(overlay, 1, headerHeight);
+
+  stage = "expanding to the row limit";
+
+  const extra = Array.from({ length: 9 }, (_, index): ActivityNotchItem => ({
+    path: `/threads/synthetic-extra-${index}`,
+    state: "working",
+  }));
+
+  const [cappedHeader] = await Promise.all([
+    receiveHeight(),
+    publish(source, [{ ...working, state: "approval" }, ...extra]),
+  ]);
+
+  assert.equal(cappedHeader, headerHeight);
+  assertNativeBounds(overlay, 10, headerHeight);
+
+  stage = "shrinking an open panel";
+  const [shrunkHeader] = await Promise.all([receiveHeight(), publish(source, [{ ...working, state: "approval" }])]);
+  assert.equal(shrunkHeader, headerHeight);
+  assertNativeBounds(overlay, 1, headerHeight);
+  assert.equal(await toggleOverlay(overlay), headerHeight);
+  assertNativeBounds(overlay, 0, headerHeight);
 }
 
 async function smoke() {
@@ -120,7 +199,10 @@ async function smoke() {
     activity.track(source);
     await source.loadURL(`${origin}/`);
     stage = "opening the overlay and checking ipc";
-    const overlay = await openOverlay(origin, source, settings);
+    const { overlay, headerHeight } = await openOverlay(origin, source, settings);
+
+    stage = "checking compact geometry";
+    await checkGeometry(overlay, source, headerHeight);
 
     // Both clicks run in the loaded renderer. DOM clicks cannot exercise native pointer delivery.
     stage = "opening a thread from the overlay";

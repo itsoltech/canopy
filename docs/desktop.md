@@ -1,7 +1,9 @@
 # Canopy Desktop
 
-Status (2026-11-25): **Activity notch** to eksperymentalna, domyślnie wyłączona
-nakładka aktywności wątków i botów na macOS i Windows. [Obsługa i weryfikacja](#activity-notch)
+Status (2026-11-25): eksperymentalny **Activity notch** w Canopy Desktop na macOS
+i Windows przylega do górnej krawędzi i rozwija listę po najechaniu kursorem.
+Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
+[Obsługa i weryfikacja](#activity-notch)
 
 Status (2026-11-24): w trybie zdalnym **Settings → Workers** rozróżnia lokalnego
 workera i workery zarejestrowane na gatewayu. Zapisany adres gatewaya można
@@ -431,12 +433,18 @@ ustawia nativeTheme; System reaguje na preferencję systemu.
 
 ### Activity notch
 
-**Settings → General → Notifications → Activity notch** włącza nakładkę w
-bieżącym profilu Desktop, w trybie lokalnym i zdalnym. Gdy główne okno działa
-w tle, Canopy pokazuje pigułkę u góry obszaru roboczego głównego ekranu.
-Kliknięcie pigułki rozwija do 24 pozycji. Kliknięcie wiersza przywraca główne
-okno i otwiera odpowiedni wątek lub rozmowę bota. Nakładka znika po
-przywróceniu fokusu, wyłączeniu ustawienia albo zamknięciu głównego okna.
+**Settings → General → Notifications → Activity notch** to domyślnie wyłączona
+preferencja bieżącego profilu Desktop, w trybie lokalnym i zdalnym. Nakładka
+i przełącznik są dostępne wyłącznie w aplikacji desktopowej na macOS i Windows.
+Gdy główne okno działa w tle, u góry głównego ekranu pojawia się czarne
+wycięcie. W zwiniętym stanie ikona i liczba zajmują jego boczne skrzydła.
+Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
+widoczne w nakładce pozycje. Najechanie kursorem lub kliknięcie rozwija listę.
+Powyżej siedmiu wierszy można ją przewijać, do 24 pozycji. Po odsunięciu
+kursora lista się zwija.
+Kliknięcie wiersza przywraca główne okno i otwiera odpowiedni wątek lub rozmowę
+bota. Nakładka znika po przywróceniu fokusu, wyłączeniu ustawienia albo
+zamknięciu głównego okna.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
@@ -445,8 +453,13 @@ i numery wierszy, typ i stan. Trasy rozmów zostają w procesie głównym. Przy 
 połączenia lub zmianie gatewaya Canopy czyści dostępne pozycje. Powiadomienia
 systemowe i ich preferencje działają niezależnie.
 
-Nakładka używa nieaktywującego panelu Electron na macOS i okna bez fokusu oraz
-pozycji na pasku zadań na Windows. Położenie wynika z obszaru roboczego ekranu.
+Na macOS nieaktywujący panel Electron sięga do górnej krawędzi ekranu. AppKit
+podaje wymiary fizycznego wycięcia, dzięki czemu jego środek pozostaje pusty.
+Na ekranach bez wycięcia Canopy rysuje je programowo. Jeśli moduł AppKit
+jest niedostępny, nakładka przylega do górnej krawędzi obszaru roboczego.
+Na Windows okno przylega
+do górnej krawędzi obszaru roboczego, również przy pasku zadań umieszczonym
+u góry. Aktualizacja i rozwinięcie nakładki zachowują fokus aktywnej aplikacji.
 Test integracyjny Electron sprawdza okno, IPC, przejście po kliknięciu w
 rendererze i sprzątanie po zmianie połączenia lub zamknięciu okna. Pełną obsługę
 wejścia i zachowanie systemu trzeba sprawdzić w sesji graficznej na obu
