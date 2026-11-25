@@ -169,15 +169,18 @@ export function ensureCaret(root: HTMLElement): void {
   select(range);
 }
 
-/** The caret where something was dropped (when the browser can tell). */
-export function caretAtPoint(root: HTMLElement, x: number, y: number): void {
-  // Not in every browser yet (Safari before 18.2).
-  const point = "caretPositionFromPoint" in document ? document.caretPositionFromPoint(x, y) : null;
+/** The editing position at a point, snapped to the edge of an atomic element. */
+export function rangeAtPoint(root: HTMLElement, x: number, y: number): Range | undefined {
+  const point = document.caretPositionFromPoint?.(x, y);
+  const legacy = point ? undefined : document.caretRangeFromPoint?.(x, y);
+  const node = point?.offsetNode ?? legacy?.startContainer;
+  const offset = point?.offset ?? legacy?.startOffset;
 
-  if (!point || !root.contains(point.offsetNode)) return;
+  if (!node || offset === undefined || !root.contains(node)) return undefined;
   const range = document.createRange();
-  const element = point.offsetNode instanceof Element ? point.offsetNode : point.offsetNode.parentElement;
-  const chip = element?.closest<HTMLElement>('[contenteditable="false"]');
+  const element = node instanceof Element ? node : node.parentElement;
+  const atomic = document.elementFromPoint(x, y)?.closest<HTMLElement>('[contenteditable="false"]');
+  const chip = atomic ?? element?.closest<HTMLElement>('[contenteditable="false"]');
 
   // A drop on an atomic chip inserts beside it; insertHTML cannot edit its contents.
   if (chip && root.contains(chip)) {
@@ -185,9 +188,17 @@ export function caretAtPoint(root: HTMLElement, x: number, y: number): void {
 
     if (x < bounds.left + bounds.width / 2) range.setStartBefore(chip);
     else range.setStartAfter(chip);
-  } else range.setStart(point.offsetNode, point.offset);
+  } else range.setStart(node, offset);
   range.collapse(true);
-  select(range);
+
+  return range;
+}
+
+/** The caret where something was dropped (when the browser can tell). */
+export function caretAtPoint(root: HTMLElement, x: number, y: number): void {
+  const range = rangeAtPoint(root, x, y);
+
+  if (range) select(range);
 }
 
 const isBlock = (node: Node | null | undefined): node is HTMLElement =>

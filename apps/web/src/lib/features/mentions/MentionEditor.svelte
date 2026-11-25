@@ -5,7 +5,6 @@
   import {
     blockBesideCaret,
     chipAfterCaret,
-    caretAtPoint,
     caretBesideBlock,
     caretNextToBlock,
     chipBeforeCaret,
@@ -17,6 +16,7 @@
   } from "./caret.ts";
   import { ChipEdits, chipClicked, copiedValue, copySelection } from "./chip-edits.ts";
   import { CodeBlocks } from "./code-blocks.ts";
+  import { EditorDrag, type DropCaret } from "./editor-drag.ts";
   import {
     activeTrigger,
     blockOf,
@@ -40,7 +40,6 @@
   import EditorCitations from "#lib/features/quotes/EditorCitations.svelte";
   import { useQuoteDrafts } from "#lib/features/quotes/quote-drafts.svelte.ts";
   import { onDestroy, untrack } from "svelte";
-  import { isWorkspaceFileDrag } from "#lib/features/workspace/file-drag.ts";
 
   /**
    * The composer's text field with inline mentions (docs/ui-api.md, "Wzmianki"): a contenteditable whose model is
@@ -123,6 +122,7 @@
   } = $props();
 
   let root = $state<HTMLDivElement>();
+  let dropCaret = $state<DropCaret>();
   const quoteDrafts = useQuoteDrafts();
   const activeQuotes = $derived(quoteKey ? quoteDrafts.list(quoteKey) : quotes);
 
@@ -180,6 +180,7 @@
     const key = mentionsKey(mentions) + JSON.stringify(activeQuotes);
 
     if (!root || (text === shown.text && key === shown.key)) return;
+    chipDrag.end();
     blocks.clear();
     root.innerHTML = toHtml({ text, mentions, quotes: activeQuotes }, icons, sources?.renderMention);
     blocks.refresh(root);
@@ -304,8 +305,16 @@
   const chips = new ChipEdits(
     () => root,
     (mention) => sources?.renderMention?.(mention) ?? INLINE_RENDERERS.mention.html({ type: "mention", mention }),
-    () => sync(),
+    sync,
     (value) => toHtml(value, icons, sources?.renderMention),
+  );
+
+  const chipDrag = new EditorDrag(
+    () => root,
+    () => !disabled && !composing,
+    (caret) => (dropCaret = caret),
+    (value, chipIndex) => chips.applyMove(value, chipIndex),
+    insertPlain,
   );
 
   $effect(() => chips.track());
@@ -525,21 +534,6 @@
     if (!inBlockArea(event.target)) copySelection(event, root, () => sync());
   }
 
-  function ondrop(event: DragEvent) {
-    if (isWorkspaceFileDrag(event.dataTransfer)) return;
-
-    if (event.defaultPrevented || event.dataTransfer?.types.includes("Files") || inBlockArea(event.target)) return;
-    const text = event.dataTransfer?.getData("text/plain");
-    event.preventDefault();
-
-    if (!text) return;
-
-    if (!root) return;
-    caretAtPoint(root, event.clientX, event.clientY);
-    root.focus();
-    insertPlain(text);
-  }
-
   editor = Object.assign(chips.controls(), {
     focus: () => root?.focus({ preventScroll: true }),
     insertTrigger(char: TriggerChar) {
@@ -576,7 +570,7 @@
     />
   </MentionSuggestions>
 {/if}
-<div class={["grid min-w-0 grid-cols-1", containerClass]}>
+<div class={["relative grid min-w-0 grid-cols-1", containerClass]}>
   {#if !value && !composing && placeholder}
     <p
       aria-hidden="true"
@@ -610,7 +604,7 @@
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
     class={[
-      "t-composer-input col-start-1 row-start-1 min-w-0 break-words text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px",
+      "t-composer-input col-start-1 row-start-1 min-w-0 break-words text-zinc-950 outline-none dark:text-white [&_.mention-chip]:mx-px [&[contenteditable=true]_[draggable=true]]:cursor-grab",
       singleLine ? "whitespace-pre" : "whitespace-pre-wrap",
       className,
     ]}
@@ -623,14 +617,13 @@
         root?.focus({ preventScroll: true });
     }}
     oninput={(event) => {
-      if (!inBlockArea(event.target) || inBlock(event.target)) {
+      if (!chips.moving && (!inBlockArea(event.target) || inBlock(event.target))) {
         inputSession.input(event instanceof InputEvent ? event : { isComposing: false, inputType: "" });
       }
     }}
     {onkeydown}
     {onbeforeinput}
     {onpaste}
-    {ondrop}
     {oncopy}
     oncut={oncopy}
     onkeyup={(event) => {
@@ -655,8 +648,18 @@
       composing = false;
       popupOpen = false;
     }}
+    {@attach chipDrag.attach}
     {@attach focusOnMount}
   ></div>
+  {#if dropCaret}
+    <span
+      aria-hidden="true"
+      class="pointer-events-none absolute z-10 w-0.5 -translate-x-1/2 rounded-full bg-brand-600 dark:bg-brand-400"
+      style:left="{dropCaret.x}px"
+      style:top="{dropCaret.y}px"
+      style:height="{dropCaret.height}px"
+    ></span>
+  {/if}
 </div>
 
 <EditorCitations {editor} quotes={activeQuotes} {quoteKey} />

@@ -45,5 +45,5 @@ export function botMentionHtml(mention: MentionData, bot: ParticipantView): stri
   const color = normalizeColor(bot.color ?? "");
   const tone = botTextTone({ id: bot.id, color });
 
-  return `<span contenteditable="false" data-element="mention" data-mention="${escape(JSON.stringify(mention))}" class="mention-chip ${BOT_CHIP_CLASS} ${tone}"${color ? ` style="--bot-color:${color}"` : ""} title="${escape(bot.name)}">${botAvatarHtml(bot)}<span class="truncate">${escape(bot.name)}</span></span>`;
+  return `<span contenteditable="false" draggable="true" data-element="mention" data-mention="${escape(JSON.stringify(mention))}" class="mention-chip ${BOT_CHIP_CLASS} ${tone}"${color ? ` style="--bot-color:${color}"` : ""} title="${escape(bot.name)}">${botAvatarHtml(bot)}<span class="truncate">${escape(bot.name)}</span></span>`;
 }

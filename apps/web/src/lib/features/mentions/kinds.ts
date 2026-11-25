@@ -106,7 +106,7 @@ export const INLINE_RENDERERS = {
 
       const data = escape(JSON.stringify({ ...mention, kind: mention.kind }));
 
-      return `<span contenteditable="false" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(chipLabel(mention))}</span></span>`;
+      return `<span contenteditable="false" draggable="true" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(chipLabel(mention))}</span></span>`;
     },
   },
 } satisfies {
