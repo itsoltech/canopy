@@ -1,5 +1,5 @@
 import { closeSync, createReadStream, lstatSync, realpathSync } from "node:fs";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join, sep } from "node:path";
 import { compose } from "node:stream";
 import { createZstdDecompress } from "node:zlib";
 import { openSource } from "../../import/read.ts";
@@ -22,7 +22,8 @@ export function nativeRollout(path: string, sessionId: string) {
 
   if (!match || match[4] !== sessionId) return undefined;
   const date = join(match[1]!, match[2]!, match[3]!);
-  const directory = dirname(path);
+  // Windows accepts both separators. dirname preserves the input spelling, while join uses the native separator.
+  const directory = dirname(path).replaceAll("/", sep);
   const archived = basename(directory) === "archived_sessions";
   const home = archived ? dirname(directory) : dirname(dirname(dirname(dirname(directory))));
   const active = join("sessions", date);

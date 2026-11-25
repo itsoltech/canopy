@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { ItemSchema, ItemStatus, TurnEndSource, TurnOutcome } from "@canopy/contracts";
 import { tempDirs } from "@canopy/testing";
@@ -59,7 +59,8 @@ function movedCodexRollout() {
     interruptRequested: false,
     harness: {
       harness: "codex",
-      transcript: active,
+      // A Windows app-server may report forward slashes even when the archive uses native separators.
+      transcript: active.split(sep).join("/"),
       sessionId,
       providerTurn: "",
       offset: byteOffset(content, '"turn_id":"turn-401"'),
