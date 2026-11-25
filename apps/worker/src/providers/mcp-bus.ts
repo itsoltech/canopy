@@ -25,7 +25,7 @@ import { toolCallId } from "./tool-call-id.ts";
 import { Schema } from "effect";
 import type { JsonValue } from "@canopy/domain";
 import { decodeJsonObject, jsonObject, jsonString } from "./json.ts";
-import { connectorNativeResult } from "./mcp-connector-result.ts";
+import { connectorImages } from "./mcp-connector-result.ts";
 import { threadSecretOutputGuard } from "../runtime/thread-secrets.ts";
 
 const McpRequest = Schema.Struct({
@@ -252,12 +252,13 @@ async function callTool(
     const isError = result.isError || (files?.isError ?? false);
     await record(isError ? ItemStatus.FAILED : ItemStatus.COMPLETED, result.content, isError);
 
-    const native =
-      connector && connectorNativeResult(result.resultJson, threadSecretOutputGuard(options.threadId).redact);
+    const images = connector
+      ? connectorImages(result.resultJson, threadSecretOutputGuard(options.threadId).redact)
+      : [];
 
+    // Codex selects structuredContent over the content blocks. The text summary already includes the metadata.
     return reply({
-      content: [{ type: "text", text: result.content }, ...(native ? native.content : []), ...(files?.content ?? [])],
-      ...(native && native.structuredContent && { structuredContent: native.structuredContent }),
+      content: [{ type: "text", text: result.content }, ...images, ...(files?.content ?? [])],
       isError,
     });
   } catch {

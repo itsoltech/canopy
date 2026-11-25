@@ -103,7 +103,6 @@ test("Grok MCP rejects unauthenticated/unknown tools and preserves connector acc
     expect(await imageResponse.json()).toMatchObject({
       result: {
         content: [{ type: "text", text: imageSummary }, ...imageEnvelope.content],
-        structuredContent: imageEnvelope.structuredContent,
       },
     });
 

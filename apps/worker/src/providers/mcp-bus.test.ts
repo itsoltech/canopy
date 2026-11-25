@@ -24,7 +24,8 @@ const image: ImageContent = {
   data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
 };
 
-const resultJson = JSON.stringify({ content: [caption, image] });
+const structuredContent = { references: [{ id: "synthetic-reference" }] };
+const resultJson = JSON.stringify({ content: [caption, image], structuredContent });
 
 async function withPlatformMcp(
   options: Pick<PlatformMcpOptions, "callTool" | "record" | "attachmentContent">,
@@ -56,7 +57,7 @@ async function withPlatformMcp(
 
 test("HTTP MCP delivers connector images alongside summary and attachments while recording only the summary", async () => {
   const events: ThreadEventInit[] = [];
-  const content = JSON.stringify({ content: [caption] });
+  const content = JSON.stringify({ content: [caption], structuredContent });
   const attachment = create(InputAttachmentSchema, { attachmentId: "notes", name: "notes.txt", kind: "file" });
 
   await withPlatformMcp(
@@ -75,6 +76,7 @@ test("HTTP MCP delivers connector images alongside summary and attachments while
       const [summary, ...blocks] = result.content;
 
       expect(result.isError).toBe(false);
+      expect(result.structuredContent).toBeUndefined();
       expect(summary).toEqual({ type: "text", text: content });
       expect(blocks).toHaveLength(2);
       expect(blocks).toContainEqual(image);

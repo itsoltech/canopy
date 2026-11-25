@@ -360,8 +360,9 @@ budżet 100 000 bajtów, a cała odpowiedź z obrazami 1 000 000 bajtów. Gatewa
 zachowuje mieszczące się bloki i wynik strukturalny oraz podaje liczbę pominiętych
 części. Zanim SDK odczyta całą odpowiedź, transport przerywa pobieranie, gdy
 przekroczy 8 000 000 bajtów. Adaptery Codex, Grok i Claude przekazują zachowane
-obrazy jako bloki MCP. Tekstowy wynik na osi narzędzi nie zawiera tych bloków
-zakodowanych w base64.
+obrazy jako bloki MCP. Metadane trafiają do towarzyszącego bloku tekstowego,
+dzięki czemu Codex odbiera je razem z obrazem. Tekstowy wynik na osi narzędzi
+nie zawiera tych bloków zakodowanych w base64.
 
 ### Pobieranie plików ze Slacka
 
