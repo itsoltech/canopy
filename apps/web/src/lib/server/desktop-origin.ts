@@ -11,9 +11,12 @@ export function desktopWebOrigin(): string | undefined {
 
 /** Positive process-local proof: this authenticated desktop BFF talks to its own gateway. */
 export function isLocalDesktop(): boolean {
-  const target = bffTarget()?.target;
+  return desktopBffMode() === "local";
+}
 
-  return Boolean(desktopWebOrigin() && target?.mode === "local");
+/** The desktop's configured BFF target, independent of the gateway's availability or role. */
+export function desktopBffMode() {
+  return desktopWebOrigin() ? bffTarget()?.target.mode : undefined;
 }
 
 /** The OAuth return is the only external navigation allowed into the desktop BFF. */

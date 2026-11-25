@@ -21,11 +21,13 @@ export class GatewayCapabilities {
   state = $state("ready");
   message = $state("");
   methods = $state<string[]>();
+  gatewayRole = $state("");
   linkedComputers = $state(false);
   offerOnboarding = $state<boolean>();
   archiveWorkerFilter = $state(false);
   /** Set by the BFF only in this desktop's local mode, independent of the gateway's role. */
   localDesktop = $state(false);
+  remoteDesktop = $state(false);
   pushRelaySettings = $state(false);
   clientPreferencesScope = $state("");
   /** This web app is "older" or "newer" than the gateway; "" when they match or it doesn't apply. */
@@ -38,8 +40,11 @@ export class GatewayCapabilities {
     return ["gateway-update", "app-update", "pairing"].includes(this.state);
   }
   supports(path: string) {
-    if (path === "/settings/computers" || path.startsWith("/settings/computers/"))
+    if (path === "/settings/computers" || path.startsWith("/settings/computers/")) {
+      if (this.remoteDesktop) return true; // The page offers local guidance without gateway methods.
+
       if (!this.linkedComputers) return false;
+    }
 
     const required =
       Object.entries(sections).find(([prefix]) => path === prefix || path.startsWith(`${prefix}/`))?.[1] ?? [];
@@ -68,6 +73,7 @@ export class GatewayCapabilities {
         return;
       this.state = value["state"];
       this.localDesktop = value["localDesktop"] === true;
+      this.remoteDesktop = value["remoteDesktop"] === true;
 
       if (isString(value["clientPreferencesScope"])) this.clientPreferencesScope = value["clientPreferencesScope"];
 
@@ -88,6 +94,7 @@ export class GatewayCapabilities {
 
       if (this.state !== "unavailable") {
         this.methods = value["methods"].filter(isString);
+        this.gatewayRole = isString(value["gatewayRole"]) ? value["gatewayRole"] : "";
         this.linkedComputers = value["linkedComputers"] === true;
         this.offerOnboarding = value["offerOnboarding"] === true;
         this.archiveWorkerFilter = value["archiveWorkerFilter"] === true;
