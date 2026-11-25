@@ -124,7 +124,9 @@
     {target}
     status={row}
     line={downloading
-      ? `Downloading ${status.updateVersion || "update"} · ${Math.round(status.progress ?? 0)}%`
+      ? status.progress === undefined
+        ? "Downloading"
+        : `Downloading · ${Math.round(status.progress)}%`
       : row === "waiting"
         ? "Restarts after its current turns end."
         : row === "queued" && ready && !worker

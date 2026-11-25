@@ -179,6 +179,7 @@ liczba dostępnych aktualizacji lub czas ostatniego sprawdzenia. Licznik i słow
 pochodzą z `@canopy/domain/release/update-status`, wspólnego dla web i telefonu.
 
 Każda instalacja ma jeden wiersz z wersją, stanem, dostępną akcją i szczegółami.
+Wersja zainstalowana i znana wersja docelowa są widoczne również przy pobieraniu lub błędzie.
 W trybie zdalnym desktop łączy własną aplikację z wierszem workera na podstawie
 identyfikatora rejestracji z lokalnego mostka `DesktopStatus.workerId`. Starszy
 mostek bez identyfikatora pokazuje obie pozycje. Wiersz zachowuje lokalny postęp
