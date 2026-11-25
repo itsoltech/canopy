@@ -6,7 +6,7 @@ import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reani
 import { IconButton } from "./Button";
 import { CompactControls } from "./density";
 import { useMotion } from "./motion";
-import { registerFullScreenViewer } from "./overlay-stack";
+import { OverlayOrientations, registerFullScreenViewer } from "./overlay-stack";
 import { styles, useColors } from "./theme";
 
 /**
@@ -64,7 +64,7 @@ export function FullScreenViewer({
                 </Text>
                 <CompactControls.Provider value={true}>{actions}</CompactControls.Provider>
               </Animated.View>
-              {children}
+              <OverlayOrientations.Provider value={supportedOrientations}>{children}</OverlayOrientations.Provider>
             </Animated.View>
           </SafeAreaView>
         </SafeAreaProvider>

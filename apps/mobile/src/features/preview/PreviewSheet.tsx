@@ -1,15 +1,15 @@
 import { useState, type ReactNode } from "react";
-import { Keyboard, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Keyboard, TextInput, View, useWindowDimensions } from "react-native";
 import { KeyboardController } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
 import { KeyboardWindow, useKeyboardFrame } from "../../ui/KeyboardWindow";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { Button } from "../../ui/Button";
-import { styles, useColors } from "../../ui/theme";
+import { IconButton } from "../../ui/Button";
 import { useSession } from "../../state/session";
-import { PreviewStage, PreviewStatus } from "./PreviewStage";
+import { PreviewNotice, PreviewStage, PreviewStatus } from "./PreviewStage";
+import type { PreviewEditorKind } from "./PreviewEditor";
 import { PreviewToolbar } from "./PreviewToolbar";
 import { useAgentPreview } from "./useAgentPreview";
 
@@ -42,10 +42,11 @@ function PreviewBody({
   offline: boolean;
   onClose: () => void;
 }) {
-  const c = useColors();
-  const { height } = useWindowDimensions();
-  const compact = height < 500;
+  const { width, height } = useWindowDimensions();
+  const compact = height < 500 && width >= 600;
   const [controls, setControls] = useState(true);
+  const [inspecting, setInspecting] = useState(false);
+  const [editor, setEditor] = useState<{ kind: PreviewEditorKind; scope: string }>();
   const { online } = useSession();
   const [tool, setTool] = useState(AgentTool.BROWSER);
   const [target, setTarget] = useState<AgentPreviewTarget>();
@@ -62,76 +63,131 @@ function PreviewBody({
   const live = allowed && ["ready", "frame"].includes(preview.state);
   const failed = ["error", "closed"].includes(preview.state);
   const targetId = target?.id || preview.targetId;
+  const scope = `${tool}:${targetId}`;
+  const [lastTarget, setLastTarget] = useState({ tool, id: targetId });
+  const editorScope = `${tool}:${targetId || (lastTarget.tool === tool ? lastTarget.id : "")}`;
+  const editing = editor?.scope === editorScope ? editor.kind : undefined;
+
+  // A suspended connection empties the target temporarily. Keep the editor mounted for the same target.
+  if (lastTarget.tool !== tool || (targetId && lastTarget.id !== targetId)) setLastTarget({ tool, id: targetId });
+
+  function closeEditor() {
+    setEditor(undefined);
+    Keyboard.dismiss();
+    void KeyboardController.dismiss();
+  }
 
   return (
     <FullScreenViewer
       title="Preview"
       closeLabel="Close preview"
+      supportedOrientations={["portrait", "landscape"]}
       onClose={onClose}
       onRequestClose={() => {
         if (Keyboard.isVisible() || KeyboardController.isVisible() || TextInput.State.currentlyFocusedInput()) {
           Keyboard.dismiss();
           void KeyboardController.dismiss();
-        } else onClose();
+        } else if (editing) closeEditor();
+        else onClose();
       }}
       actions={
-        <Button
-          title={controls ? "Hide controls" : "Show controls"}
-          variant="ghost"
-          style={{ minWidth: 112 }}
-          onPress={() => {
-            Keyboard.dismiss();
-            void KeyboardController.dismiss();
-            setControls(!controls);
-          }}
-        />
-      }
-    >
-      <KeyboardWindow preload={false}>
-        <PreviewLayout>
-          <View style={{ paddingHorizontal: 12, paddingVertical: 4 }}>
+        <PreviewHeaderActions
+          status={
             <PreviewStatus
               unavailable={unavailable}
               allowed={allowed}
               failed={failed}
               live={live}
               frame={Boolean(preview.frame)}
+              inspecting={inspecting}
             />
-          </View>
-          <View style={{ flex: 1, minHeight: 0, flexDirection: compact && controls ? "row" : "column" }}>
-            <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-              <PreviewStage
-                preview={preview}
-                unavailable={unavailable}
-                allowed={allowed}
-                failed={failed}
-                enabled={Boolean(item?.enabled)}
-                live={live}
-                scope={`${tool}:${targetId}`}
-              />
-            </View>
-            <PreviewToolbar
+          }
+          inspecting={inspecting}
+          canInspect={Boolean(preview.frame)}
+          controls={controls}
+          onInspect={() => setInspecting((value) => !value)}
+          onToggleControls={() => {
+            closeEditor();
+            setControls((value) => !value);
+          }}
+        />
+      }
+    >
+      <KeyboardWindow preload={false}>
+        <PreviewLayout>
+          <View style={{ flex: 1, minHeight: 0 }}>
+            <PreviewStage
               preview={preview}
-              tool={tool}
-              targetId={targetId}
+              unavailable={unavailable}
+              allowed={allowed}
+              failed={failed}
+              enabled={Boolean(item?.enabled)}
               live={live}
-              compact={compact}
-              visible={controls}
-              onToolChange={(value) => {
-                setTool(value);
-                setTarget(undefined);
-              }}
-              onTargetChange={setTarget}
+              inspecting={inspecting}
+              scope={scope}
             />
+            <PreviewNotice text={preview.notice} />
           </View>
-          <View style={{ paddingHorizontal: 12, paddingVertical: 4 }}>
-            <Text accessibilityLiveRegion="polite" numberOfLines={1} style={[styles.overlayMeta, { color: c.muted }]}>
-              {preview.notice || `${worker?.name || "Computer"}${preview.title ? ` · ${preview.title}` : ""}`}
-            </Text>
-          </View>
+          <PreviewToolbar
+            preview={preview}
+            tool={tool}
+            targetId={targetId}
+            computer={worker?.name}
+            live={live}
+            compact={compact}
+            visible={controls}
+            editing={editing}
+            editorScope={editorScope}
+            onEdit={(kind) => setEditor({ kind, scope: editorScope })}
+            onCloseEditor={closeEditor}
+            onToolChange={(value) => {
+              if (value === tool) return;
+              setEditor(undefined);
+              setTool(value);
+              setTarget(undefined);
+            }}
+            onTargetChange={(value) => {
+              setEditor(undefined);
+              setTarget(value);
+            }}
+          />
         </PreviewLayout>
       </KeyboardWindow>
     </FullScreenViewer>
+  );
+}
+
+function PreviewHeaderActions({
+  status,
+  inspecting,
+  canInspect,
+  controls,
+  onInspect,
+  onToggleControls,
+}: {
+  status: ReactNode;
+  inspecting: boolean;
+  canInspect: boolean;
+  controls: boolean;
+  onInspect: () => void;
+  onToggleControls: () => void;
+}) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      {status}
+      <IconButton
+        icon={inspecting ? "hand-raised" : "magnifying-glass"}
+        label={inspecting ? "Control app" : "Inspect preview"}
+        variant={inspecting ? "secondary" : "ghost"}
+        disabled={!canInspect && !inspecting}
+        onPress={onInspect}
+      />
+      <IconButton
+        icon={controls ? "arrows-pointing-out" : "arrows-pointing-in"}
+        label={controls ? "Hide preview toolbar" : "Show preview toolbar"}
+        onPress={onToggleControls}
+      />
+    </View>
   );
 }
 
