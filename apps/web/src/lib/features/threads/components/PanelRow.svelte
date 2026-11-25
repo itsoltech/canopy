@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { ClassValue } from "svelte/elements";
+  import type { ClassValue, HTMLAttributes } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import type { IconName } from "#lib/shared/ui/icons.ts";
 
@@ -13,6 +13,7 @@
     iconClass,
     href,
     onclick,
+    menuTrigger,
     current = false,
     disabled = false,
     wrap = false,
@@ -25,6 +26,10 @@
     iconClass?: ClassValue;
     href?: string | undefined;
     onclick?: (() => void) | undefined;
+    menuTrigger?: Pick<
+      HTMLAttributes<HTMLElement>,
+      symbol | "aria-haspopup" | "aria-expanded" | "aria-controls" | "oncontextmenu" | "onkeydown"
+    >;
     current?: boolean;
     disabled?: boolean | undefined;
     wrap?: boolean;
@@ -53,9 +58,9 @@
 {/snippet}
 
 {#if href}
-  <a {href} class={classes} aria-current={current ? "page" : undefined}>{@render content()}</a>
+  <a {...menuTrigger} {href} class={classes} aria-current={current ? "page" : undefined}>{@render content()}</a>
 {:else if onclick}
-  <button type="button" class={classes} {onclick} {disabled}>{@render content()}</button>
+  <button {...menuTrigger} type="button" class={classes} {onclick} {disabled}>{@render content()}</button>
 {:else}
   <div class={classes}>{@render content()}</div>
 {/if}

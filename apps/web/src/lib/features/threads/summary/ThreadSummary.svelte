@@ -92,10 +92,13 @@
     if (returnFocus && focused) pill?.focus();
   }
 
-  // Escape inside the open card closes it, unless an open picker or menu in it handled the key first.
+  // Open popovers handle Escape at the Svelte event root, after this listener.
   const escapeCloses: Attachment<HTMLElement> = (node) => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
+
+      if (event.target instanceof Element && event.target.closest(":popover-open")) return;
+
       event.preventDefault();
       void hide(true);
     };
