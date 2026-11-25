@@ -34,7 +34,7 @@ Status harmonogramów (2026-11-20): właściciel może ustawić Full access dla 
 wątków na webie, desktopie i telefonie. Scheduler wybiera worker z obsługą tego trybu.
 Dostępność w kanałach według [release.md](release.md).
 
-Status powiadomień PR (2026-11-19): agent dostaje informację o konflikcie z gałęzią bazową przy uruchomieniu obserwacji CI lub w trakcie jej trwania. Dostępność według [promocji wydań](release.md).
+Status powiadomień PR (2026-11-25): nowe powiązania PR automatycznie dostarczają agentowi potwierdzone konflikty i końcowe wyniki CI. Właściciel może je wyciszyć globalnie lub w projekcie. Dostępność według [promocji wydań](release.md).
 
 Status odczytu HEIC (2026-11-19): zaimplementowany na workerze dla `view_image`
 i podglądów transkryptu. Dostępność w kanałach według [release.md](release.md).
@@ -232,10 +232,20 @@ Narzędzia do sprawdzania własnej pracy w tle ([execution.md](execution.md#4-za
 
 ### Checki CI
 
-Agent, który wystawił PR, nie musi odpytywać CI ani spać: `watch_pr_checks` zleca gatewayowi obserwację checków,
-a wynik przychodzi jako notatka platformy. Definicje: `packages/domain/src/agent-bus/pr-checks.ts`, ocena checków
+Po dodaniu powiązania z PR gateway automatycznie wysyła notatki o konflikcie z bazą i zbiorczym
+wyniku checków do agenta. Właściciel ustawia **Notify agent about pull requests** globalnie i per projekt
+([github.md §10](github.md#10-powiązania-z-istniejącymi-funkcjami)). Agent może użyć `watch_pr_checks`, gdy
+potrzebuje własnego filtra lub bieżącego odczytu. Definicje: `packages/domain/src/agent-bus/pr-checks.ts`, ocena checków
 i treść notatki: `packages/domain/src/pr-check-watch.ts`, wykonanie: `apps/gateway/src/core/pr-check-{watches,tools}.ts`,
-tabele `pr_check_watches` i `pr_check_notes` (migracja `0148`).
+tabele `pr_check_watches` i `pr_check_notes` (migracje `0148` i `0216`).
+
+- **Automatyczne notatki.** Obserwacja zapisana razem z nowym linkiem śledzi otwarty PR i kolejne commity.
+  Potwierdzony konflikt dostarcza jedną notatkę aż do potwierdzenia, że PR można scalić. Końcowy wynik
+  jest potwierdzany po co najmniej 30 s, żeby checki zdążyły się zarejestrować. Jeśli PR zdążył się scalić,
+  pełny końcowy odczyt checków wystarcza. Notatka zawiera liczniki i do pięciu nieudanych checków wraz
+  z identyfikatorami przebiegów. Zapisany wynik zapobiega ponownym powiadomieniom po restarcie. Jawny
+  watch tego samego PR ma pierwszeństwo. Obserwacja kończy się po scaleniu, zamknięciu, odlinkowaniu
+  lub archiwizacji wątku. Starsze powiązanie może zacząć obserwację po ponownym wykryciu lub podlinkowaniu PR.
 
 | Narzędzie | Argumenty | Wynik |
 |---|---|---|
@@ -244,7 +254,7 @@ tabele `pr_check_watches` i `pr_check_notes` (migracja `0148`).
 | `list_pr_watches` | — | watche wątku: aktywne i zakończone w ostatniej dobie, ze statusem i `end_reason` |
 | `cancel_pr_watch` | `watch_id` | `cancelled: true`; czekające notatki watcha przepadają |
 
-- **Linkowanie.** `link_pull_request` przyjmuje URL albo `owner/repo#n` i tworzy lokalne powiązanie; nie zapisuje nic w GitHub. Repozytorium bazowe lub źródłowe PR musi pasować do `git_origin` workspace’u albo remotes `origin`, `upstream`, push lub upstream z ostatniego zapisanego kontekstu Git wątku. Obsługuje więc również PR z forka do upstreamu, bez wymagania zgodnego head ref/SHA. Brak wykrytego repo, obcy PR i zarchiwizowany wątek kończą się odmową. Narzędzie nie odwraca tombstone’u po wcześniejszym unlinku wykonanym przez użytkownika — wtedy użytkownik używa panelu Pull requests. Lokalny link nie zwiększa `hops` ani nie uruchamia nowej tury.
+- **Linkowanie.** `link_pull_request` przyjmuje URL albo `owner/repo#n` i tworzy lokalne powiązanie; nie zapisuje nic w GitHub. Repozytorium bazowe lub źródłowe PR musi pasować do `git_origin` workspace’u albo remotes `origin`, `upstream`, push lub upstream z ostatniego zapisanego kontekstu Git wątku. Obsługuje więc również PR z forka do upstreamu, bez wymagania zgodnego head ref/SHA. Brak wykrytego repo, obcy PR i zarchiwizowany wątek kończą się odmową. Narzędzie nie odwraca tombstone’u po wcześniejszym unlinku wykonanym przez użytkownika — wtedy użytkownik używa panelu Pull requests. Nowa tura może się zacząć przy dostarczeniu notatki, gdy wątek jest bezczynny.
 - **Zakres watcha.** `watch_pr_checks` działa tylko na PR podlinkowanych do wątku (ręcznie, przez `link_pull_request` albo automatycznie z wyniku `gh pr create`; świeży PR narzędzie czeka do 10 s). Odczyt kontem GitHub przypisanym do repozytorium w domu wątku ([github.md §10](github.md#10-powiązania-z-istniejącymi-funkcjami)); brak konta lub dostępu to błąd narzędzia z podpowiedzią dla użytkownika. Linkowanie i watch działają również na PR poza pierwszą stroną listy wątku. Najwyżej 10 aktywnych watchy na wątek; nowy watch tego samego PR zastępuje poprzedni (`replaced`).
 - **Kiedy notatka.** `failure`: każdy nowo nieudany check (`failure`, `timed_out`, `cancelled`, `action_required`, `startup_failure`, `error`). `complete`: raz, gdy wszystkie checki bieżącego commita się zakończą (ponownie po re-runie). `each`: każdy check, który doszedł do stanu końcowego. Kilka zdarzeń jednego odczytu to jedna notatka; `complete` wymienia nieudane checki. Checki już zakończone przy wywołaniu są w wyniku narzędzia, nie w notatce.
 - **Konflikt z bazą.** Potwierdzony konflikt kończy aktywną obserwację notatką `conflict` przy każdym wyborze `notify_on`, również gdy żaden check jeszcze nie wystartował. Agent dostaje wskazówkę, aby rozwiązać konflikt, wypchnąć zmiany i ponownie wywołać `watch_pr_checks`. Jeśli wszystkie checki przeszły, a GitHub nadal oblicza stan scalenia (`UNKNOWN`), obserwacja czeka na wynik w ramach swojego limitu czasu.

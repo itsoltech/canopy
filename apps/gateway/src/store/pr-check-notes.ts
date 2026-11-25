@@ -2,6 +2,7 @@ import { lockedOwnerModule, ownerModule } from "./module-access.ts";
 import { PrChecksNote, prChecksNoteText } from "@canopy/domain";
 import { Effect, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
+import { automaticPrNotificationsEnabled } from "./automatic-pr-watches.ts";
 import type { TurnRow } from "./rows.ts";
 import { DISPATCHED, steerTarget } from "./turn-select.ts";
 
@@ -48,6 +49,12 @@ export const deliverCheckNotes = (sql: SqlClient.SqlClient, owner: string, threa
         SELECT (archived_at IS NOT NULL OR deleted_at IS NOT NULL) AS closed, (settings->>'sandboxProfile' IS NOT NULL) AS sandbox FROM threads WHERE id = ${threadId}::uuid AND owner_user_id = ${owner}::uuid FOR UPDATE`)[0];
 
       if (!thread) return { cancelled: 0 };
+
+      yield* sql`UPDATE pr_check_notes n SET status='cancelled',reason='automatic notifications disabled or unlinked',updated_at=now()
+        FROM pr_check_watches w WHERE n.thread_id=${threadId}::uuid AND n.status='waiting' AND w.id=n.watch_id
+          AND w.call_id IS NULL AND (NOT ${automaticPrNotificationsEnabled(sql, sql`n.thread_id`)} OR NOT EXISTS (
+            SELECT 1 FROM thread_pull_requests l WHERE l.owner_user_id=w.owner_user_id AND l.thread_id=w.thread_id
+              AND l.pull_request_id=w.pull_request_id AND l.unlinked_at IS NULL))`;
 
       const notes = yield* sql<NoteRow>`
         SELECT id, body, wake, hops FROM pr_check_notes

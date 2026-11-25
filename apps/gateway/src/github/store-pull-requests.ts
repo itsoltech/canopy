@@ -1,3 +1,4 @@
+import { unlinkAutomaticPrWatch, watchNewPullRequestLink } from "../store/automatic-pr-watches.ts";
 import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access.ts";
 import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
@@ -186,6 +187,7 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
         AND thread_id=${id}::uuid AND pull_request_id=${pr}::uuid RETURNING pull_request_id`;
 
           if (!row.length) return yield* Effect.fail(missing());
+          yield* unlinkAutomaticPrWatch(sql, owner, id, pr);
           yield* project(owner, id);
         }),
       ),
@@ -244,7 +246,10 @@ function linkPullRequest(
         source=CASE WHEN thread_pull_requests.source='manual' THEN 'manual' ELSE excluded.source END
       WHERE ${source === "manual" && evidence?.kind !== "agent_tool"} OR thread_pull_requests.unlinked_at IS NULL RETURNING pull_request_id`;
 
-      if (linked.length) yield* project(owner, id, pr);
+      if (linked.length) {
+        yield* watchNewPullRequestLink(sql, owner, id, pr, snapshot?.summary?.state, snapshot?.summary?.headSha ?? "");
+        yield* project(owner, id, pr);
+      }
 
       return linked.length > 0;
     }),

@@ -2,6 +2,7 @@ import { toJson } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
+import { watchNewPullRequestLink } from "../store/automatic-pr-watches.ts";
 import type { MutationRow } from "./store-mutations.ts";
 import { lifecycleParameters } from "./lifecycle.ts";
 
@@ -65,10 +66,22 @@ export function githubCreateStore(
         FOR UPDATE OF m,t`;
 
           if (!rows[0]) return;
-          yield* sql`INSERT INTO thread_pull_requests(owner_user_id,thread_id,pull_request_id,source,evidence,head_repository_id,head_ref,head_oid)
+
+          const linked =
+            yield* sql`INSERT INTO thread_pull_requests(owner_user_id,thread_id,pull_request_id,source,evidence,head_repository_id,head_ref,head_oid)
         VALUES (${r.owner_user_id}::uuid,${r.thread_id}::uuid,${ref.id}::uuid,'auto','product_create',${snapshot.headRepositoryId},${snapshot.headRef},${snapshot.summary?.headSha ?? r.head_sha})
         ON CONFLICT(owner_user_id,thread_id,pull_request_id) DO UPDATE SET last_seen_at=now()
-        WHERE thread_pull_requests.unlinked_at IS NULL`;
+        WHERE thread_pull_requests.unlinked_at IS NULL RETURNING pull_request_id`;
+
+          if (linked.length)
+            yield* watchNewPullRequestLink(
+              sql,
+              r.owner_user_id,
+              r.thread_id,
+              ref.id,
+              snapshot.summary?.state,
+              snapshot.summary?.headSha ?? r.head_sha,
+            );
 
           const saved =
             (yield* sql<MutationRow>`UPDATE github_mutation_receipts SET state='succeeded',pull_request_id=${ref.id}::uuid,created_pr=${JSON.stringify(toJson(github.PullRequestRefSchema, ref))}::jsonb,detail='',updated_at=now()

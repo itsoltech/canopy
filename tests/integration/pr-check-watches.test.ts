@@ -8,7 +8,7 @@ import { setModules } from "./support/module-settings.ts";
 import { describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { GitPrContextSchema, PermissionMode, type AgentToolResult, type ui } from "@canopy/contracts";
+import { GitPrContextSchema, PermissionMode, type AgentToolResult, ui } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import { codexMessagePermission, composerChoices } from "@canopy/domain/composer-choices";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -20,6 +20,24 @@ import { connectGitHub, githubPrData, githubPrFixture, githubThread } from "./su
 import { linkedRead } from "./support/github-read.ts";
 
 const json = (result: AgentToolResult) => JSON.parse(result.content) as JsonObject;
+
+async function startExplicitWatchGateway(options: Parameters<typeof startTestGateway>[0]) {
+  const gw = await startTestGateway(options);
+
+  try {
+    const { user } = await gw.api.getSettings({});
+    const defaults = user?.threadDefaults ?? create(ui.ThreadDefaultsSchema);
+    await gw.api.updateUserSettings({
+      expectedVersion: user!.version,
+      threadDefaults: { ...defaults, notifyOnLinkedPullRequests: false },
+    });
+
+    return gw;
+  } catch (error) {
+    await gw.close();
+    throw error;
+  }
+}
 
 const turns = (gw: TestGateway, threadId: string) =>
   gw.runtime.runPromise(
@@ -55,7 +73,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
   test("a failed run, a followed commit and the passing run that ends the watch", async () => {
     const fixture = pollingFixture();
 
-    const gw = await startTestGateway({
+    const gw = await startExplicitWatchGateway({
       github: fixture.options,
       worker: { hello: { capabilities: ["full_access"] } },
     });
@@ -214,7 +232,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
     fixture.state.running = false;
     fixture.state.mergeable = "CONFLICTING";
     fixture.state.mergeStateStatus = "DIRTY";
-    const gw = await startTestGateway({ github: fixture.options });
+    const gw = await startExplicitWatchGateway({ github: fixture.options });
 
     try {
       const { thread } = await linkedRead(gw, fixture);
@@ -257,7 +275,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
       fixture.state.checkPages = scenario.checkPages;
       fixture.state.mergeable = "UNKNOWN";
       fixture.state.mergeStateStatus = "UNKNOWN";
-      const gw = await startTestGateway({ github: fixture.options });
+      const gw = await startExplicitWatchGateway({ github: fixture.options });
 
       try {
         const { thread } = await linkedRead(gw, fixture);
@@ -332,7 +350,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
   test("fast CI polling sees a same-head conflict when the last running check passes", async () => {
     const fixture = pollingFixture();
-    const gw = await startTestGateway({ github: fixture.options });
+    const gw = await startExplicitWatchGateway({ github: fixture.options });
 
     try {
       const { thread } = await linkedRead(gw, fixture);
@@ -378,7 +396,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
   test("cancel_pr_watch stops the notes; a merged pull request ends a watch with a note", async () => {
     const fixture = pollingFixture();
-    const gw = await startTestGateway({ github: fixture.options });
+    const gw = await startExplicitWatchGateway({ github: fixture.options });
 
     try {
       const { thread } = await linkedRead(gw, fixture);
@@ -426,7 +444,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
   test("link_pull_request links and watches beyond the first page and respects unlink", async () => {
     const fixture = pollingFixture();
-    const gw = await startTestGateway({ github: fixture.options });
+    const gw = await startExplicitWatchGateway({ github: fixture.options });
 
     try {
       const account = await connectGitHub(gw, fixture);
@@ -530,7 +548,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
   test("link_pull_request rejects unrelated repositories and allows a fork's upstream PR", async () => {
     const fixture = githubPrFixture();
-    const gw = await startTestGateway({ github: fixture.options });
+    const gw = await startExplicitWatchGateway({ github: fixture.options });
 
     try {
       const account = await connectGitHub(gw, fixture);
@@ -596,7 +614,7 @@ describe.skipIf(!dockerAvailable)("CI check watches (gateway + scripted worker +
 
   test("link_pull_request needs GitHub access and can use the thread's recorded Git context", async () => {
     const fixture = pollingFixture();
-    const gw = await startTestGateway({ github: fixture.options });
+    const gw = await startExplicitWatchGateway({ github: fixture.options });
 
     try {
       const thread = await githubThread(gw);

@@ -210,4 +210,5 @@ export const expectedSchemaMigrations = [
   "213_thread_worktree_switch",
   "214_bot_message_reactions",
   "215_antigravity_provider",
+  "216_automatic_pr_notifications",
 ];

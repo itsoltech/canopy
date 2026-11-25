@@ -4,6 +4,9 @@ Status (2026-11-25): na liście Bots akcja „Create bot” ma widoczną etykiet
 plusa po prawej stronie wyszukiwarki, w tym samym miejscu co „New thread” w Threads.
 Dostępność w kanałach określa [promocja wydań](release.md).
 
+Status (2026-11-25): ustawienia Threads i szczegóły projektu pozwalają sterować
+automatycznymi powiadomieniami agenta o powiązanych pull requestach.
+
 Status (2026-11-24): pasek boczny Threads używa skali typografii i znaków projektów z web/desktop.
 Nagłówki Working i Snoozed mają liczniki, linie oraz wspólne rozwijanie i zwijanie.
 Uśpione wątki mają przygaszone tytuły i znaki projektów. Przełącznik Threads/Bots pokazuje
@@ -223,7 +226,11 @@ a awatar, czas i menu zachowują położenie.
 
 W **Threads** można zmienić i przywrócić domyślne ustawienia nowych wątków, edytować
 profile sandboxa i ustawić **Auto-archive after merge**. Projekt może odziedziczyć
-lub nadpisać tę regułę. W **Appearance** wybór **Context display** decyduje,
+lub nadpisać tę regułę. **Notify agent about pull requests** jest domyślnie włączone
+w **Settings → Threads**. W szczegółach projektu **Use my default** dziedziczy wartość
+konta, a **On** i **Off** ją nadpisują.
+
+W **Appearance** wybór **Context display** decyduje,
 czy przy kompozytorze pokazać pierścień, wartości tokenów albo pasek. Dotknięcie
 wskaźnika pokazuje dokładny pomiar zgłoszony przez dostawcę.
 

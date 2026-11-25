@@ -17,6 +17,7 @@
   import SubagentPermissionSettings from "#lib/features/settings/SubagentPermissionSettings.svelte";
   import ThreadRetentionSettings from "#lib/features/settings/ThreadRetentionSettings.svelte";
   import AutoArchiveSettings from "#lib/features/settings/AutoArchiveSettings.svelte";
+  import GitHubThreadNotifications from "#lib/features/settings/GitHubThreadNotifications.svelte";
 
   const route = useSettingsRoute();
   const overview = useOverview();
@@ -51,6 +52,7 @@
             create(ui.ThreadDefaultsSchema, {
               subagentPermissionMode: settings.threadDefaults.subagentPermissionMode,
               autoArchiveOnMerge: settings.threadDefaults.autoArchiveOnMerge,
+              notifyOnLinkedPullRequests: settings.threadDefaults.notifyOnLinkedPullRequests,
             }),
           )}>Restore defaults</Button
       >
@@ -67,6 +69,7 @@
   <FollowUpSettings />
   <WorkFoldSettings />
   <SubagentDisplaySettings />
+  <GitHubThreadNotifications />
   <AccountConfigNotices section="composer" />
 {/snippet}
 

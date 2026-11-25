@@ -64,6 +64,7 @@ export type NoteReason = (typeof NOTE_REASONS)[number];
 /** One note of a watch: stored with it (pr_check_notes.body), in the turn's input for the timeline, and as text. */
 export const PrChecksNote = Schema.Struct({
   watch_id: Schema.String,
+  automatic: Schema.optionalKey(Schema.Boolean),
   pull_request_id: Schema.String,
   repository: Schema.String,
   number: Schema.Number,
@@ -157,22 +158,26 @@ export function judgeChecks(
 }
 
 /** The checks a note names (bounded) and how many it leaves out. */
-export function noteChecks(checks: readonly WatchedCheck[]): Pick<PrChecksNote, "checks" | "omitted"> {
+export function noteChecks(
+  checks: readonly WatchedCheck[],
+  limit = NOTE_CHECKS,
+): Pick<PrChecksNote, "checks" | "omitted"> {
   return {
-    checks: checks.slice(0, NOTE_CHECKS).map((c) => ({
+    checks: checks.slice(0, limit).map((c) => ({
       name: c.name.slice(0, 200),
       state: c.state,
       provider: c.provider.slice(0, 100),
       url: c.url.slice(0, 500),
       run_id: c.runId,
     })),
-    omitted: Math.max(0, checks.length - NOTE_CHECKS),
+    omitted: Math.max(0, checks.length - limit),
   };
 }
 
-export const PR_MERGE_CONFLICT_NOTE =
-  "Merge conflicts with the base branch block this pull request. Pull request workflows may wait for the conflicts to be resolved. " +
-  "Resolve the conflicts, push the updated branch, then call watch_pr_checks again.";
+const PR_MERGE_CONFLICT =
+  "Merge conflicts with the base branch block this pull request. Pull request workflows may wait for the conflicts to be resolved.";
+
+export const PR_MERGE_CONFLICT_NOTE = `${PR_MERGE_CONFLICT} Resolve the conflicts, push the updated branch, then call watch_pr_checks again.`;
 
 const ENDED: Record<Exclude<NoteReason, "">, string> = {
   passed: "Every check passed, so the watch ended.",
@@ -216,7 +221,7 @@ function block(note: PrChecksNote): string {
   const intro = `[canopy] CI checks of pull request ${note.repository}#${note.number} (${note.head_changed ? "new commit" : "head"} ${head})`;
   const lines = [note.reason === "conflict" ? `${intro}.` : `${intro}: ${countsText(note.counts)}.`];
 
-  if (note.event === "complete" && note.counts.failed === 0) lines.push("Every check passed.");
+  if (note.event === "complete" && note.counts.failed === 0 && !note.automatic) lines.push("Every check passed.");
   const title = heading(note);
 
   if (note.checks.length > 0) {
@@ -226,7 +231,14 @@ function block(note: PrChecksNote): string {
     if (note.omitted > 0) lines.push(`- …and ${note.omitted} more`);
   }
 
-  if (note.reason) lines.push(ENDED[note.reason]);
+  if (note.reason)
+    lines.push(
+      note.automatic && note.reason === "conflict"
+        ? `${PR_MERGE_CONFLICT} Resolve the conflicts and push the updated branch.`
+        : ENDED[note.reason],
+    );
+
+  if (note.automatic) return lines.join("\n");
 
   lines.push(
     note.watching

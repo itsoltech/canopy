@@ -2056,6 +2056,8 @@ message ThreadDefaults {
   optional bool use_last_agent = 8;
   // User: absent = false. Project: absent inherits the user policy.
   optional bool auto_archive_on_merge = 9;
+  // User: absent = true. Project: absent inherits the user policy.
+  optional bool notify_on_linked_pull_requests = 10;
 }
 
 message ProviderModel {

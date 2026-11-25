@@ -61,6 +61,7 @@ export function settingsValues(stored: SettingsJson, self: string, nodes: readon
       "cliUpdates.intervalMinutes": null,
       "threadDefaults.useLastAgent": null,
       "threadDefaults.autoArchiveOnMerge": null,
+      "threadDefaults.notifyOnLinkedPullRequests": null,
       "agentToolDefaults.browser.viewportWidth": null,
       "agentToolDefaults.browser.viewportHeight": null,
       "agentToolDefaults.browser.colorScheme": "",

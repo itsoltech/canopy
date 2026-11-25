@@ -59,9 +59,16 @@ function headline(note: ui.PullRequestChecksNote): Pick<ChecksNoteLine, "text" |
         ? { text: named(note, "finished, with failures"), icon: "x-circle", tone: "failed" }
         : { text: named(note, "finished"), icon: "check-circle", tone: "passed" };
     case "complete":
-      return note.failed > 0
-        ? { text: `${note.failed} of ${plural(note.total, "check")} failed`, icon: "x-circle", tone: "failed" }
-        : { text: `All ${plural(note.total, "check")} passed`, icon: "check-circle", tone: "passed" };
+      if (note.failed > 0)
+        return { text: `${note.failed} of ${plural(note.total, "check")} failed`, icon: "x-circle", tone: "failed" };
+
+      return {
+        text: note.skipped
+          ? `${note.passed} passed, ${note.skipped} skipped`
+          : `All ${plural(note.total, "check")} passed`,
+        icon: "check-circle",
+        tone: "passed",
+      };
     default:
       return { ...ended(note.reason), tone: note.reason === "passed" ? "passed" : "neutral" };
   }

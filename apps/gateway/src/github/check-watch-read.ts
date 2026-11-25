@@ -12,13 +12,15 @@ const MAX_PAGES = 6;
  * Every check of the snapshot's head, through the checks page reads the panel uses (same cache, budgets and
  * validation that the page still belongs to that head). Agent CI watches only (core/pr-check-watches.ts).
  */
-export async function readWatchedChecks(
+export async function readWatchCheckPages(
   prs: GitHubPullRequests,
   pullRequestId: string,
   snapshot: github.PullRequestSnapshot,
-): Promise<WatchedCheck[]> {
+  refresh = false,
+): Promise<{ checks: WatchedCheck[]; complete: boolean }> {
   const found: WatchedCheck[] = [];
   let cursor = "";
+  let complete = true;
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const request = create(github.PullRequestPageRequestSchema, {
@@ -26,6 +28,7 @@ export async function readWatchedChecks(
       headSha: snapshot.summary?.headSha ?? "",
       baseSha: snapshot.baseSha,
       cursor,
+      refresh,
     });
 
     const result = await checks(await readScope(prs, request, "checks", true, snapshot));
@@ -41,11 +44,20 @@ export async function readWatchedChecks(
       });
 
     cursor = result.page?.nextCursor ?? "";
+    complete &&= result.page?.completeness === "complete" && !result.page.stale;
 
     if (!cursor) break;
   }
 
-  return found;
+  return { checks: found, complete: complete && !cursor };
+}
+
+export async function readWatchedChecks(
+  prs: GitHubPullRequests,
+  pullRequestId: string,
+  snapshot: github.PullRequestSnapshot,
+): Promise<WatchedCheck[]> {
+  return (await readWatchCheckPages(prs, pullRequestId, snapshot)).checks;
 }
 
 /** What watch_pr_checks may name: a linked pull request's id, repository and number. */

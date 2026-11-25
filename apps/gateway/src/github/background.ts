@@ -8,6 +8,7 @@ export class GitHubBackground {
   constructor(
     readonly prs: GitHubPullRequests,
     readonly archive: (threadId: string) => Promise<void> = async () => {},
+    readonly settleCheckNotes: () => Promise<void> = async () => {},
   ) {}
   start() {
     this.#timer ??= setInterval(() => void this.tick().catch(() => {}), 60_000);
@@ -27,7 +28,11 @@ export class GitHubBackground {
     await pollMergeArchivePullRequests(this.prs, new Map(candidates.map((p) => [p.id, p.refresh])));
     await pollVisiblePullRequests(this.prs);
 
-    for (const thread of await run((s) => s.mergeArchiveThreads(owner))) await this.archive(thread.id);
+    const ready = await run((s) => s.mergeArchiveThreads(owner));
+
+    if (ready.length) await this.settleCheckNotes();
+
+    for (const thread of ready) await this.archive(thread.id);
   }
   async stop() {
     clearInterval(this.#timer);

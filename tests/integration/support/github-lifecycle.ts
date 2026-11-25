@@ -237,6 +237,30 @@ export function lifecycleFixture() {
             : [],
         );
 
+      const number = Number(/^\/repos\/itsoltech\/canopy\/pulls\/(\d+)$/.exec(path)?.[1] ?? 0);
+
+      if (created.has(number)) {
+        const pr = pull(number);
+
+        return Response.json({
+          node_id: pr.id,
+          updated_at: pr.updatedAt,
+          state: pr.state === "OPEN" ? "open" : "closed",
+          merged: pr.state === "MERGED",
+          draft: pr.isDraft,
+          head: { sha: pr.headRefOid },
+          base: { sha: pr.baseRefOid },
+          mergeable: pr.mergeable === "UNKNOWN" ? null : pr.mergeable === "MERGEABLE",
+          mergeable_state: pr.mergeStateStatus.toLowerCase(),
+        });
+      }
+
+      if (created.size > 0 && path === `/repos/itsoltech/canopy/commits/${state.head}/check-runs`)
+        return Response.json({ total_count: 0, check_runs: [] });
+
+      if (created.size > 0 && path === `/repos/itsoltech/canopy/commits/${state.head}/status`)
+        return Response.json({ total_count: 0, statuses: [] });
+
       if (path.includes("/branches/")) {
         const name = decodeURIComponent(path.split("/branches/")[1]!);
 

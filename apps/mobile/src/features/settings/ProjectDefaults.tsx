@@ -7,7 +7,7 @@ import { Button } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
 import { useSettingsResource } from "./resource";
 import { DefaultModels } from "./SettingsModels";
-import { AutoArchiveSettings } from "./AutoArchiveSettings";
+import { PullRequestSettings } from "./PullRequestSettings";
 import { DefaultResets } from "./DefaultResets";
 import { SelectField } from "../../ui/Picker";
 import { availablePermission, PermissionPickerSheet, permissionLabel } from "../threads/permissions";
@@ -117,7 +117,10 @@ export function ProjectDefaults({ project, resource }: { project: ui.Project; re
               void resource.run((api) =>
                 api.updateProjectSettings({
                   projectId: project.id,
-                  threadDefaults: create(ui.ThreadDefaultsSchema, { autoArchiveOnMerge: value.autoArchiveOnMerge }),
+                  threadDefaults: create(ui.ThreadDefaultsSchema, {
+                    autoArchiveOnMerge: value.autoArchiveOnMerge,
+                    notifyOnLinkedPullRequests: value.notifyOnLinkedPullRequests,
+                  }),
                   expectedVersion: row?.version ?? 0n,
                 }),
               )
@@ -125,11 +128,11 @@ export function ProjectDefaults({ project, resource }: { project: ui.Project; re
           />
         </SettingsGroup>
       </DefaultResets>
-      <AutoArchiveSettings
-        value={value.autoArchiveOnMerge}
-        inherited={settings.user?.threadDefaults?.autoArchiveOnMerge ?? false}
+      <PullRequestSettings
+        value={value}
+        inherited={settings.user?.threadDefaults ?? create(ui.ThreadDefaultsSchema)}
         disabled={resource.busy}
-        onChange={(autoArchiveOnMerge) => save({ autoArchiveOnMerge })}
+        onChange={save}
       />
     </>
   );

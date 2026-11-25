@@ -11,6 +11,7 @@
     children,
     changed,
     onreset,
+    resetLabel,
     soon = false,
     flush = false,
     control: rowControl,
@@ -21,6 +22,7 @@
     children?: Snippet;
     changed: boolean;
     onreset: () => void;
+    resetLabel?: string;
     control: Snippet;
     soon?: boolean;
     flush?: boolean;
@@ -35,7 +37,7 @@
       {@render rowControl()}
       {#snippet reset()}<IconButton
           icon="arrow-path"
-          label="Reset {title} to default"
+          label={resetLabel ?? `Reset ${title} to default`}
           size="sm"
           onclick={onreset}
         />{/snippet}
