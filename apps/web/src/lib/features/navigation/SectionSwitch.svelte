@@ -61,7 +61,7 @@
           href={sectionMemory.href(section)}
           aria-current={current ? "true" : undefined}
           data-active={current || undefined}
-          class={[segmentedLabel, "sidebar-section-label"]}
+          class={[segmentedLabel, "sidebar-section-label desktop:cursor-default"]}
         >
           <span class="relative">
             {#if busy > 0}

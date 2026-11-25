@@ -70,12 +70,15 @@
   cursor: none;
 }
 
+:where(html:not([data-canopy-platform])) :is(.video-player-surface, .video-player-row button) {
+  cursor: pointer;
+}
+
 .video-player-surface {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  cursor: pointer;
 }
 
 .video-player-surface:disabled {
@@ -194,7 +197,6 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 0.5rem;
-  cursor: pointer;
   transition: background-color var(--duration-quick) var(--ease-smooth-out);
 }
 

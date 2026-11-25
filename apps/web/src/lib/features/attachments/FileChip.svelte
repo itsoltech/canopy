@@ -69,8 +69,10 @@
     bind:this={anchor}
     {href}
     download={name}
-    class={["flex min-w-0 items-center gap-2.5 focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/5", className]}
-    >{@render body()}</a
+    class={[
+      "flex min-w-0 items-center gap-2.5 focus-ring hover:bg-zinc-950/2.5 dark:hover:bg-white/5 desktop:cursor-default",
+      className,
+    ]}>{@render body()}</a
   >
 {:else}
   <div class={["flex min-w-0 items-center gap-2.5", className]}>{@render body()}</div>

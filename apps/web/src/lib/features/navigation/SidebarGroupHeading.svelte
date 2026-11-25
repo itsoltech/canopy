@@ -69,7 +69,7 @@
   {#if newThread}
     <a
       href={newThread.href}
-      class="sidebar-group-new-thread grid items-center justify-items-end rounded-lg text-icon-muted focus-ring hover:bg-zinc-950/5 hover:text-icon-emphasis dark:hover:bg-white/10"
+      class="sidebar-group-new-thread grid items-center justify-items-end rounded-lg text-icon-muted focus-ring hover:bg-zinc-950/5 hover:text-icon-emphasis dark:hover:bg-white/10 desktop:cursor-default"
       aria-label={newThread.label}
       {@attach tooltip(newThread.label)}
     >

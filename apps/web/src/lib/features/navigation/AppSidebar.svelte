@@ -107,7 +107,7 @@
   const settingsLabel = $derived(habitCount ? `Open settings, ${habitSuggestionCount(habitCount)}` : "Open settings");
 
   const iconLink =
-    "relative grid size-9 place-items-center rounded-lg text-icon-muted hover:bg-zinc-950/5 hover:text-icon-emphasis focus-ring sm:size-8 dark:hover:bg-white/5";
+    "relative grid size-9 place-items-center rounded-lg text-icon-muted hover:bg-zinc-950/5 hover:text-icon-emphasis focus-ring sm:size-8 dark:hover:bg-white/5 desktop:cursor-default";
 </script>
 
 <!-- Compact chrome (docs/ui-scale.md): text one step below the pages beside it. -->

@@ -73,7 +73,7 @@
       type="button"
       disabled={disabled || !panel.data}
       onclick={() => (managing = true)}
-      class="shrink-0 text-zinc-500 underline decoration-zinc-400/50 underline-offset-2 hover:text-zinc-900 disabled:opacity-50 dark:hover:text-zinc-100"
+      class="shrink-0 text-zinc-500 underline decoration-zinc-400/50 underline-offset-2 hover:text-zinc-900 disabled:opacity-50 dark:hover:text-zinc-100 desktop:not-disabled:cursor-pointer"
     >
       {noProject ? "View access" : "Manage"}
     </button>

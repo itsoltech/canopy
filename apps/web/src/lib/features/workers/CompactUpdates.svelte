@@ -105,7 +105,7 @@
     <a href="/settings/workers#topic-updates" class="rounded focus-ring hover:text-ink">Settings</a>
     {#if whatsNew.notice}<button
         type="button"
-        class="t-rise rounded focus-ring hover:text-ink"
+        class="t-rise rounded focus-ring hover:text-ink desktop:cursor-pointer"
         onclick={() => {
           onnotes?.();
           whatsNew.show();
