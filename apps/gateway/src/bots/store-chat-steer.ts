@@ -3,7 +3,7 @@ import type { SqlClient } from "effect/sql";
 import type { BotSteerDelivery } from "./types.ts";
 
 /** Called under the bot lock, which also serializes claiming, stopping and journal ingestion. */
-export function chatSteerTarget(sql: SqlClient.SqlClient, botId: string) {
+export function chatSteerTarget(sql: SqlClient.SqlClient, botId: string, { waitForHandoff = false } = {}) {
   return sql<Pick<BotSteerDelivery, "turnId" | "workerId">>`
     SELECT t.id AS "turnId", h.worker_id AS "workerId"
     FROM bot_turns t JOIN bot_harness_turns h ON h.turn_id = t.id
@@ -11,6 +11,10 @@ export function chatSteerTarget(sql: SqlClient.SqlClient, botId: string) {
     WHERE t.bot_id = ${botId}::uuid AND t.status = 'running' AND t.lease_until > now()
       AND t.conversation_id IS NULL AND t.routine_id IS NULL AND t.handoff_configuration IS NULL
       AND t.exchange_id IS NULL AND h.outcome IS NULL
+      AND (${!waitForHandoff} OR NOT EXISTS (
+        SELECT 1 FROM bot_turns pending WHERE pending.bot_id = t.bot_id AND pending.handoff_configuration IS NOT NULL
+          AND pending.status IN ('queued', 'running', 'waiting')
+      ))
     ORDER BY t.created_at, t.id LIMIT 1`.pipe(Effect.map((rows) => rows[0]));
 }
 

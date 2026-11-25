@@ -141,7 +141,7 @@ function botEnqueue(
 
         const target =
           options.steer && !checked.length && !quotes.length && !images.length
-            ? yield* chatSteerTarget(sql, botId)
+            ? yield* chatSteerTarget(sql, botId, { waitForHandoff: true })
             : undefined;
 
         const routine = options.routineId

@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { join } from "node:path";
-import { Provider, TurnOutcome, type bots } from "@canopy/contracts";
+import { fromBinary } from "@bufbuild/protobuf";
+import { CommandSchema, Provider, TurnOutcome, type bots } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { applyBotConversation } from "@canopy/domain/bot-snapshot";
 import { eventually } from "./support/gateway.ts";
@@ -68,6 +69,79 @@ test.skipIf(!dockerAvailable)(
         { turn_id: queued.turnId },
       ]);
     } finally {
+      await f.close();
+    }
+  },
+  30_000,
+);
+
+test.skipIf(!dockerAvailable)(
+  "private chat input after a provider change waits for handoff and starts on the saved provider",
+  async () => {
+    const f = await harnessBots();
+
+    try {
+      const bot = await f.add(Provider.CLAUDE);
+      const original = await f.send(bot.id, "HOLD:provider-change");
+      expect(
+        await eventually(
+          async () => f.records().find((record) => record.event === "turn" && record.harness === "claude"),
+          Boolean,
+        ),
+      ).toBeDefined();
+
+      const configuration = { ...bot.configuration!, provider: Provider.CODEX, model: "other-model" };
+      const updated = await f.gw.api.updateBot({ botId: bot.id, configuration });
+      expect(updated.bot?.configuration).toMatchObject({ provider: Provider.CODEX, model: "other-model" });
+      expect((await f.gw.api.getBot({ botId: bot.id })).bot?.configuration).toEqual(updated.bot?.configuration);
+
+      const followup = "Continue with the newly selected model.";
+      const next = await f.send(bot.id, followup);
+      expect(await f.query("SELECT status, steer_target_id FROM bot_turns WHERE id = $1", [next.turnId])).toEqual([
+        { status: "queued", steer_target_id: null },
+      ]);
+      await f.release("provider-change");
+      const settled = await f.settled(bot.id);
+      expect(settled.messages.at(-1)?.text).toBe("FIXTURE_OK");
+      expect(await f.query("SELECT turn_id FROM bot_messages WHERE text = $1", [followup])).toEqual([
+        { turn_id: next.turnId },
+      ]);
+
+      const commands = await f.query<{ payload: Uint8Array }>(
+        `SELECT c.payload FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id
+         JOIN bot_turns t ON t.id = h.turn_id WHERE h.bot_id = $1 ORDER BY c.created_at, t.id`,
+        [bot.id],
+      );
+
+      expect(commands.map(({ payload }) => fromBinary(CommandSchema, payload).kind)).toEqual([
+        {
+          case: "runBotTurn",
+          value: expect.objectContaining({
+            provider: Provider.CLAUDE,
+            model: "fixture-model",
+            turnId: original.turnId,
+          }),
+        },
+        {
+          case: "runBotTurn",
+          value: expect.objectContaining({ provider: Provider.CLAUDE, model: "fixture-model", tools: [] }),
+        },
+        {
+          case: "runBotTurn",
+          value: expect.objectContaining({
+            provider: Provider.CODEX,
+            profileId: "native",
+            model: "other-model",
+            turnId: next.turnId,
+          }),
+        },
+      ]);
+      expect(f.inputs().at(-1)).toMatchObject({
+        harness: "codex",
+        parts: [{ text: expect.stringContaining(followup) }],
+      });
+    } finally {
+      await f.release("provider-change");
       await f.close();
     }
   },
