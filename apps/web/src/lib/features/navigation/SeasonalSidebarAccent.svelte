@@ -14,11 +14,13 @@
       <clipPath id={crownClip}><path d={canopyTree.crown} /></clipPath>
     </defs>
     <g {transform} clip-path={"url(#" + crownClip + ")"}>
+      <!-- The lower edge crosses all three lobes. The path closes outside the crown. -->
       <path
         class="snow"
-        d="M23 10H59L57 17C52 17 51 23 45 23C40 23 39 27 36 31C32 37 30 34 25 38Z
-           M53 -8H122V11C116 13 115 19 108 19C102 19 101 14 95 14C88 14 87 23 80 23C74 23 73 18 67 18C62 18 60 21 55 20Z
-           M116 6H148L150 38C145 38 142 30 136 28C130 26 129 22 123 22C118 22 117 18 114 17Z"
+        d="M18 38 C34 38 34 24 44 24
+           S55 18 63 18 S73 23 80 23 S89 14 95 14
+           S102 19 109 19 S116 17 121 18 S132 24 137 27 S144 37 156 38
+           V-12 H18 Z"
       />
     </g>
   </svg>
