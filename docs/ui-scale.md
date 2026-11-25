@@ -8,6 +8,7 @@ z jednoliniowym menu prędkości i oznaczeniami poziomu przyspieszenia.
 Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
 Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
 Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
+Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -258,7 +259,8 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
 - Sidebar web/desktop używa wspólnego guttera `--sidebar-gutter` (12 px): wyrównuje
   treść wierszy, nagłówki grup, ikonę wyszukiwania i ikony dolnego paska. Tło wiersza
   ma inset `--sidebar-row-inset` (4 px), a padding wiersza to różnica tych tokenów
-  (8 px). Wyszukiwarka i dolny pasek korzystają z tego samego insetu. Lista rezerwuje
+  (8 px). Wyszukiwarka i dolny pasek korzystają z tego samego insetu. Odstęp między
+  lupą a tekstem wyszukiwania wynosi 0,25 rem (4 px) w Threads i Bots. Lista rezerwuje
   scrollbar tylko po prawej, bez dodatkowego pustego guttera po lewej.
   Wspólne klasy `sidebar-swap-resting` / `sidebar-swap-action` zamieniają status/czas
   na „…” oraz znak dostawcy/licznik na Archive. Oba sloty używają tego samego
