@@ -19,6 +19,7 @@ export function activityNotchGeometry(
   display: { bounds: Rectangle; workArea: Rectangle },
   expandedRows: number,
   menuBand?: { cutout?: ActivityNotchCutout | undefined },
+  compactHeight = activityNotchSimulatedHeight,
 ) {
   const { bounds, workArea } = display;
   const cutout = menuBand?.cutout;
@@ -28,10 +29,7 @@ export function activityNotchGeometry(
   const availableHeight = workArea.y + workArea.height - y;
   const menuHeight = menuBand ? workArea.y - bounds.y : 0;
 
-  const headerHeight = Math.min(
-    availableHeight,
-    Math.ceil(Math.max(menuHeight, cutout?.height ?? 0) || activityNotchSimulatedHeight),
-  );
+  const headerHeight = Math.min(availableHeight, Math.ceil(Math.max(menuHeight, cutout?.height ?? 0) || compactHeight));
 
   // Allow for DIP rounding when centering the two wings around the camera.
   const gap = Math.max(activityNotchGapWidth, cutout ? Math.ceil(cutout.width) + 2 : 0);

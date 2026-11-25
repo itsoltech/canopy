@@ -457,9 +457,10 @@ Na macOS nieaktywujący panel Electron sięga do górnej krawędzi ekranu. AppKi
 podaje wymiary fizycznego wycięcia, dzięki czemu jego środek pozostaje pusty.
 Na ekranach bez wycięcia Canopy rysuje je programowo. Jeśli moduł AppKit
 jest niedostępny, nakładka przylega do górnej krawędzi obszaru roboczego.
-Na Windows okno przylega
-do górnej krawędzi obszaru roboczego, również przy pasku zadań umieszczonym
-u góry. Aktualizacja i rozwinięcie nakładki zachowują fokus aktywnej aplikacji.
+Na Windows okno przylega do górnej krawędzi obszaru roboczego, również przy
+pasku zadań umieszczonym u góry. Canopy dopasowuje nagłówek do wysokości
+zwiniętego okna, jaką dopuścił system. Aktualizacja i rozwinięcie nakładki
+zachowują fokus aktywnej aplikacji.
 Test integracyjny Electron sprawdza okno, IPC, przejście po kliknięciu w
 rendererze i sprzątanie po zmianie połączenia lub zamknięciu okna. Pełną obsługę
 wejścia i zachowanie systemu trzeba sprawdzić w sesji graficznej na obu

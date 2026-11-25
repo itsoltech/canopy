@@ -46,6 +46,14 @@ function assertDimension(name: string, actual: number, expected: number) {
   assert.equal(actual, expected, name);
 }
 
+async function assertHeaderFillsBand(overlay: BrowserWindow, height: number) {
+  const rendered: number = await overlay.webContents.executeJavaScript(
+    `document.querySelector('[aria-controls="activity-panel"]').getBoundingClientRect().height`,
+  );
+
+  assertDimension("rendered header height", rendered, height);
+}
+
 function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: number) {
   const { bounds, workArea } = screen.getPrimaryDisplay();
   const cutout = mac ? loadMacActivityNotchDisplay().primaryCutout() : undefined;
@@ -88,12 +96,7 @@ function waitForRow(window: BrowserWindow, state: ActivityNotchItem["state"]) {
 }
 
 async function openOverlay(origin: string, source: BrowserWindow, settings: BrowserWindow) {
-  const [overlay, first, headerHeight] = await Promise.all([
-    showOverlay(),
-    receiveRows(),
-    receiveHeight(),
-    publish(source, [working]),
-  ]);
+  const [overlay, first] = await Promise.all([showOverlay(), receiveRows(), publish(source, [working])]);
 
   assert.notEqual(overlay, source);
   assert.equal(overlay.isVisible(), true, "the overlay is shown while the source is unfocused");
@@ -124,19 +127,24 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   assert.deepEqual(updated.rows, [{ id: row.id, kind: "Thread", number: 1, state: "approval" }]);
   assert.deepEqual(await waitForRow(overlay, "approval"), ["Open Thread 1, Needs approval"]);
 
-  return { overlay, headerHeight };
+  return overlay;
 }
 
-async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow, headerHeight: number) {
+async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
+  const headerHeight = overlay.getBounds().height;
   const { bounds, workArea } = screen.getPrimaryDisplay();
   const cutout = mac ? loadMacActivityNotchDisplay().primaryCutout() : undefined;
   const topInset = mac ? Math.max(workArea.y - bounds.y, cutout?.height ?? 0) : 0;
-  assertDimension("header height", headerHeight, Math.ceil(topInset || 32));
+
+  if (mac) assertDimension("header height", headerHeight, Math.ceil(topInset || 32));
+  else assert.ok(headerHeight >= 32, "the Windows header is at least the requested compact height");
   assertNativeBounds(overlay, 0, headerHeight);
+  await assertHeaderFillsBand(overlay, headerHeight);
 
   stage = "expanding to one row";
   assert.equal(await toggleOverlay(overlay), headerHeight);
   assertNativeBounds(overlay, 1, headerHeight);
+  await assertHeaderFillsBand(overlay, headerHeight);
 
   stage = "expanding to the row limit";
 
@@ -200,10 +208,10 @@ async function smoke() {
     activity.track(source);
     await source.loadURL(`${origin}/`);
     stage = "opening the overlay and checking ipc";
-    const { overlay, headerHeight } = await openOverlay(origin, source, settings);
+    const overlay = await openOverlay(origin, source, settings);
 
     stage = "checking compact geometry";
-    await checkGeometry(overlay, source, headerHeight);
+    await checkGeometry(overlay, source);
 
     // Both clicks run in the loaded renderer. DOM clicks cannot exercise native pointer delivery.
     stage = "opening a thread from the overlay";

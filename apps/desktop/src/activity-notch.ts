@@ -6,7 +6,7 @@ import {
   type ActivityNotchItem,
   type DesktopStatus,
 } from "@canopy/ui/desktop";
-import { createActivityNotchWindow, primaryActivityNotchGeometry } from "./activity-notch-window.ts";
+import { createActivityNotchWindow, positionActivityNotchWindow } from "./activity-notch-window.ts";
 import { sendWindowMessage, windowContents } from "./window-message.ts";
 
 const decodeItems = Schema.decodeUnknownSync(
@@ -82,9 +82,9 @@ export class ActivityNotch {
         this.openRoute(entry.path);
       }
     });
-    screen.on("display-added", this.#position);
-    screen.on("display-removed", this.#position);
-    screen.on("display-metrics-changed", this.#position);
+    screen.on("display-added", this.#displayChanged);
+    screen.on("display-removed", this.#displayChanged);
+    screen.on("display-metrics-changed", this.#displayChanged);
   }
 
   track(source: BrowserWindow) {
@@ -184,27 +184,34 @@ export class ActivityNotch {
     sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows));
   }
 
-  #position = () => {
+  #displayChanged = () => {
+    this.#headerHeight = undefined;
+    this.#position();
+  };
+
+  #position(show = false) {
     const target = this.#target;
 
-    if (!target || target.isDestroyed()) return;
+    if (!this.#loaded || !target || target.isDestroyed()) return;
 
-    const { bounds, headerHeight } = primaryActivityNotchGeometry(this.#expanded ? this.#entries.length : 0);
-    const current = target.getBounds();
+    const expandedRows = this.#expanded ? this.#entries.length : 0;
+    let { headerHeight, moved } = positionActivityNotchWindow(target, expandedRows, this.#headerHeight);
 
-    const moved =
-      current.x !== bounds.x ||
-      current.y !== bounds.y ||
-      current.width !== bounds.width ||
-      current.height !== bounds.height;
+    if (show) {
+      target.showInactive();
 
-    if (moved) target.setBounds(bounds);
+      if (process.platform === "win32") {
+        const visible = positionActivityNotchWindow(target, expandedRows, headerHeight);
+        headerHeight = visible.headerHeight;
+        moved ||= visible.moved;
+      }
+    }
 
-    if (this.#loaded && (moved || this.#headerHeight !== headerHeight)) {
+    if (moved || this.#headerHeight !== headerHeight) {
       this.#headerHeight = headerHeight;
       sendWindowMessage(target, (contents) => contents.send("canopy:activity-notch-height", headerHeight));
     }
-  };
+  }
 
   #hide() {
     if (this.#target?.isVisible()) this.#target.hide();
@@ -225,11 +232,7 @@ export class ActivityNotch {
     }
 
     if (!this.#target) this.#createWindow();
-    else if (this.#loaded) {
-      this.#position();
-
-      if (!this.#target.isVisible()) this.#target.showInactive();
-    }
+    else this.#position(!this.#target.isVisible());
   };
 
   #destroyWindow() {
@@ -255,9 +258,10 @@ export class ActivityNotch {
       .then(() => {
         if (this.#target !== target) return;
         this.#loaded = true;
-        this.#position();
-        this.#sendRows();
         this.#syncVisibility();
+
+        if (!target.isVisible()) this.#position();
+        this.#sendRows();
       })
       .catch(() => {
         if (this.#target === target) this.#destroyWindow();
