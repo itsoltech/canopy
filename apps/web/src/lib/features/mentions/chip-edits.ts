@@ -11,6 +11,7 @@ import {
 import { MentionKind, type Mention } from "@canopy/contracts";
 import {
   CHIPS_TYPE,
+  blockOf,
   chipsFromClipboard,
   chipsToClipboard,
   elementOf,
@@ -29,11 +30,16 @@ import { citationHtml } from "#lib/features/quotes/inline.ts";
 export class ChipEdits {
   /** Where the caret was when the field lost focus: chips added from the "+" menu go there. */
   #last: Range | undefined;
+  #moving = false;
+
+  get moving(): boolean {
+    return this.#moving;
+  }
 
   constructor(
     private readonly root: () => HTMLElement | undefined,
     private readonly html: (mention: MentionData) => string,
-    private readonly sync: () => void,
+    private readonly sync: (format?: boolean) => void,
     private readonly render: (value: EditorValue) => string,
   ) {}
 
@@ -152,16 +158,33 @@ export class ChipEdits {
 
   /** Text with its chips (rendered HTML, a paste of copied chips) at the caret. */
   insertRendered(html: string): void {
-    this.insertMarked(
-      html.replaceAll(
-        '<span contenteditable="false" data-element',
-        '<span data-inserted="" contenteditable="false" data-element',
-      ),
-    );
+    this.insertMarked(markRendered(html));
+  }
+
+  /** Replace the editor in one undo step, placing the caret just after the moved chip. */
+  applyMove(value: EditorValue, chipIndex: number): void {
+    const root = this.root();
+
+    if (!root) return;
+    root.focus({ preventScroll: true });
+    const last = root.lastChild;
+
+    // Chromium needs an editable endpoint to replace a terminal non-editable block.
+    if (last instanceof HTMLElement && blockOf(last)) root.append(document.createTextNode("\u200b"));
+    const range = document.createRange();
+    range.selectNodeContents(root);
+    restoreCaret(root, range);
+    this.#moving = true;
+
+    try {
+      this.insertMarked(markRendered(this.render(value)), chipIndex);
+    } finally {
+      this.#moving = false;
+    }
   }
 
   /** HTML with chips marked `data-inserted` at the caret (one undoable edit); the caret after the last one. */
-  private insertMarked(html: string): HTMLElement | undefined {
+  private insertMarked(html: string, movedIndex?: number): HTMLElement | undefined {
     document.execCommand("insertHTML", false, html);
     // Chrome leaves the caret before inserted non-editable content: put it after the chip and its space.
     const chips = [...(this.root()?.querySelectorAll<HTMLElement>("[data-inserted]") ?? [])];
@@ -173,16 +196,28 @@ export class ChipEdits {
       chip.removeAttribute("data-inserted");
     }
 
-    const last = chips.at(-1);
+    const last = movedIndex === undefined ? chips.at(-1) : chips[movedIndex];
 
-    if (last) caretAfter(last);
-    this.sync();
+    if (last && movedIndex === undefined) caretAfter(last);
+    else if (last) {
+      const range = document.createRange();
+      range.setStartAfter(last);
+      range.collapse(true);
+      const root = this.root();
+
+      if (root) restoreCaret(root, range);
+    }
+
+    this.sync(movedIndex === undefined);
 
     return last;
   }
 }
 
 const marked = (html: string) => html.replace("<span ", '<span data-inserted="" ');
+
+const markRendered = (html: string) =>
+  html.replaceAll('<span contenteditable="false"', '<span data-inserted="" contenteditable="false"');
 
 /** Copy and cut: the text, and with chips the value under CHIPS_TYPE. */
 export function copyValue(data: DataTransfer, value: EditorValue): void {

@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-25): w edytorze web/desktop można przeciągać załączniki, wzmianki
+i cytaty do innego miejsca w tekście.
+
 Status (2026-11-24): web i desktop obsługują dodawanie i cofanie reakcji w prywatnej rozmowie z botem.
 
 Status (2026-11-24): kompozytor istniejącego wątku w web i desktopie otwiera się
@@ -2394,6 +2397,11 @@ is available.” z „Reload”. Nieznana lub wycofana wersja kitu pokazuje
 z „Retry”.
 
 #### Załączniki w tekście
+
+W kompozytorach i edytorze kolejki web/desktop załączniki, wzmianki i cytaty można
+przeciągnąć w obrębie bieżącego pola. Znacznik wskazuje miejsce wstawienia, a jedno
+cofnięcie przywraca poprzednią pozycję. Przeniesienie zachowuje ten sam załącznik
+i przelicza zakresy wzmianek oraz cytatów w szkicu.
 
 **Podgląd plików.** Plakietki wiadomości wysłanych, kolejki i kompozytora otwierają
 obrazy w `Lightbox` (powiększanie, nazwa, rozmiar, pobieranie), a pliki tekstowe w

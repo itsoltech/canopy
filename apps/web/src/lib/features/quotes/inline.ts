@@ -32,7 +32,7 @@ export function quoteFromJson(data: string): QuoteDraft | undefined {
 }
 
 export function citationHtml(quote: QuoteDraft): string {
-  return `<span contenteditable="false" data-element="citation" data-quote="${escape(quoteJson(quote))}" role="button" tabindex="0" aria-label="Citation: ${escape(citationTokenLabel(quote))}" class="${CHIP_CLASS} max-w-64 cursor-pointer focus-ring" title="${escape(citationTitle(quote))}">${iconSvg(quote.pullRequest ? "git-fork" : "chat-bubble-bottom-center-text")}<span class="truncate">${escape(citationTokenLabel(quote))}</span></span>`;
+  return `<span contenteditable="false" draggable="true" data-element="citation" data-quote="${escape(quoteJson(quote))}" role="button" tabindex="0" aria-label="Citation: ${escape(citationTokenLabel(quote))}" class="${CHIP_CLASS} max-w-64 cursor-pointer focus-ring" title="${escape(citationTitle(quote))}">${iconSvg(quote.pullRequest ? "git-fork" : "chat-bubble-bottom-center-text")}<span class="truncate">${escape(citationTokenLabel(quote))}</span></span>`;
 }
 
 export function placedQuote(quote: QuoteDraft, start: number): QuoteDraft {
