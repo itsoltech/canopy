@@ -58,19 +58,6 @@ export function accountResult(state: string, configDir: string, detail = ""): Pr
   });
 }
 
-/** agy can also use an OS keyring. Only the fallback file's metadata is observable without opening a session. */
-export function antigravityAccount(configDir: string, loginDir: string, apiKeyConfigured: boolean) {
-  const account = accountResult("unknown", configDir);
-
-  if (apiKeyConfigured) account.authMethod = "API key configured";
-  else if (loginRevision("antigravity", loginDir)) {
-    account.state = "stored";
-    account.authMethod = "Account";
-  }
-
-  return account;
-}
-
 export function parseClaudeAccount(text: string, configDir: string, secrets: readonly string[]): ProviderAccountStatus {
   const parsed = claudeStatus.safeParse(JSON.parse(text));
 

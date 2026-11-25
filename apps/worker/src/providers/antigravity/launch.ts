@@ -21,7 +21,7 @@ export interface AntigravityInstance {
 interface LaunchOptions extends AntigravityInstance {
   cwd: string;
   permissionMode: PermissionMode;
-  /** Absent during the disposable model catalog probe. */
+  /** Absent during disposable probes. */
   threadId?: string;
   scratch?: boolean;
 }

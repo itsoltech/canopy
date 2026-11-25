@@ -1,28 +1,13 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { AcpClient, sessionSelect } from "@canopy/acp";
-import { PermissionMode } from "@canopy/contracts";
-import { closeAcpResources } from "../acp/cleanup.ts";
+import { sessionSelect } from "@canopy/acp";
 import type { ModelInit } from "../models.ts";
-import { antigravityLaunch, supportsAntigravityVersion, type AntigravityInstance } from "./launch.ts";
+import type { AntigravityInstance } from "./launch.ts";
+import { withAntigravitySession } from "./probe.ts";
 
 /** Query the same authenticated ACP session configuration used to start a turn,
  * without sending a prompt. agy returns the thinking levels for the selected
  * model only. Selection writes to the probe's disposable CLI settings. */
-export async function listAntigravityModels(instance: AntigravityInstance): Promise<{ models: ModelInit[] }> {
-  const cwd = mkdtempSync(join(tmpdir(), "canopy-antigravity-catalog-"));
-  let launch: ReturnType<typeof antigravityLaunch> | undefined;
-  let client: AcpClient | undefined;
-
-  try {
-    launch = antigravityLaunch({ ...instance, cwd, scratch: true, permissionMode: PermissionMode.ASK });
-    client = new AcpClient(launch.options);
-    const info = await client.initialize();
-
-    if (!supportsAntigravityVersion(info.agentInfo?.version))
-      throw new Error("Antigravity CLI 1.5.16 or newer in the 1.x series is required.");
-    const session = await client.newSession(cwd);
+export function listAntigravityModels(instance: AntigravityInstance): Promise<{ models: ModelInit[] }> {
+  return withAntigravitySession(instance, async (client, session) => {
     const select = sessionSelect(session, "model");
 
     if (!select) throw new Error("Antigravity did not report a session model selector.");
@@ -47,11 +32,5 @@ export async function listAntigravityModels(instance: AntigravityInstance): Prom
     }
 
     return { models };
-  } finally {
-    await closeAcpResources([
-      () => client?.dispose(),
-      launch?.cleanup,
-      () => rmSync(cwd, { recursive: true, force: true }),
-    ]);
-  }
+  });
 }

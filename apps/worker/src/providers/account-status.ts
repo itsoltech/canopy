@@ -3,16 +3,17 @@ import { existsSync } from "node:fs";
 import { ProviderAccountStatusSchema, type ProviderAccountStatus } from "@canopy/contracts";
 import type { Harness } from "@canopy/domain/harnesses";
 import { processKey, runProcess, ProcessTimeoutError } from "@canopy/process-governor";
-import { accountResult, antigravityAccount, parseClaudeAccount, parseCodexAccount } from "./account-parser.ts";
+import { accountResult, parseClaudeAccount, parseCodexAccount } from "./account-parser.ts";
 import { accountText, sanitizeAccountStatus } from "@canopy/domain/provider-accounts";
+import { readAntigravityAccount } from "./antigravity/account.ts";
+import type { AntigravityInstance } from "./antigravity/launch.ts";
 
 export interface AccountQuery {
   harness: Harness;
   id: string;
   executable: string;
   configDir: string;
-  /** Empty for Antigravity profiles which use a Gemini API key instead of device credentials. */
-  loginDir?: string;
+  antigravity?: AntigravityInstance;
   env: NodeJS.ProcessEnv;
   args: readonly string[];
   configVersion: bigint;
@@ -53,7 +54,7 @@ export class AccountStatuses {
         query.harness,
         query.id,
         String(query.configVersion),
-        ...(query.loginDir ? [query.loginDir] : []),
+        ...(query.antigravity?.deviceHome ? [query.antigravity.deviceHome] : []),
         String(this.#epoch),
       ],
       env: query.env,
@@ -110,7 +111,9 @@ export class AccountStatuses {
     if (!query.executable) return accountResult("unknown", query.configDir);
 
     if (query.harness === "antigravity")
-      return antigravityAccount(query.configDir, query.loginDir ?? "", Boolean(query.env["GEMINI_API_KEY"]));
+      return query.antigravity
+        ? readAntigravityAccount(query.antigravity, this.timeoutMs, this.#abort.signal)
+        : accountResult("unknown", query.configDir);
 
     // Grok Build 1.0.70 has login/logout but no read-only auth status command, so nothing is launched.
     if (query.harness === "grok") {

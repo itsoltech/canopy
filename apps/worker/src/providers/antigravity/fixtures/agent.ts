@@ -22,6 +22,7 @@ if (!geminiDir || !isAbsolute(geminiDir) || !process.argv.includes("acp"))
   throw new Error("Expected an isolated Antigravity ACP launch");
 
 const conversations = resolve(geminiDir, flag("--app-data-dir") || "antigravity-cli", "conversations");
+const accountStateFile = process.env["TEST_AGY_ACCOUNT_STATE"];
 
 mkdirSync(conversations, { recursive: true });
 
@@ -195,6 +196,21 @@ for await (const line of createInterface({ input: process.stdin })) {
       case "session/load":
       case "session/resume":
         restored = method !== "session/new";
+
+        if (!restored && accountStateFile) {
+          const state = await Bun.file(accountStateFile).text();
+
+          if (state === "signed_out") {
+            send({ id, error: { code: -32000, message: "Authentication required" } });
+            break;
+          }
+
+          if (state === "error") {
+            send({ id, error: { code: -32603, message: "Unexpected provider output" } });
+            break;
+          }
+        }
+
         sessionId = restored ? str(params["sessionId"]) : crypto.randomUUID();
 
         if (restored && !(await stateFile().exists())) {

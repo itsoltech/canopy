@@ -1,6 +1,7 @@
 # Antigravity CLI przez ACP
 
-Status (2026-11-24). Worker obsługuje wątki Google Antigravity przez ACP v1.
+Status (2026-11-25). Worker obsługuje wątki Google Antigravity przez ACP v1
+i sprawdza logowanie urządzenia przez krótkotrwałą sesję ACP.
 Wymaga `agy` z linii 1.x od wersji 1.5.16, która udostępnia używane przez
 Canopy ustawienia izolacji i zgód. Dostępność w kanałach wynika z [promocji wydań](release.md).
 
@@ -9,6 +10,10 @@ Canopy ustawienia izolacji i zgód. Dostępność w kanałach wynika z [promocji
 1. Zainstaluj Antigravity CLI na komputerze workera. Sprawdź `agy --version` i `agy acp --help`. Worker wyszukuje `agy` w PATH i obsługuje ścieżkę wskazaną dla instancji. Do ręcznej aktualizacji służy `agy update`. [Pobieranie CLI](https://antigravity.google/download#antigravity-cli)
 2. Zaloguj się na tym komputerze przez `agy acp --login` jako użytkownik systemowy, który uruchamia worker. Możesz też ustawić sekretną zmienną `GEMINI_API_KEY` natywnej instancji. Przy wyłączonym logowaniu urządzenia wymagany jest klucz. [Logowanie do ACP](https://antigravity.google/docs/ide/extensions/acp/#authentication)
 3. Wybierz Antigravity i model przy tworzeniu wątku. Wbudowaną instancję `antigravity/native` można włączyć dla wybranego workera w Settings → Providers. Worker odczytuje modele i poziomy rozumowania z opcji sesji ACP bez wysyłania promptu.
+
+Jeśli terminal jest już zalogowany, odśwież konto przy instancji Antigravity.
+Gdy lista modeli była niedostępna przed logowaniem, worker pobierze ją ponownie
+po potwierdzeniu dostępu. [Status kont dostawców](provider-accounts.md)
 
 ## Sesje i narzędzia
 
