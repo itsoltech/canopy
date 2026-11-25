@@ -53,10 +53,17 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
       }),
     );
 
-  const context = () => gw.api.getPullRequestCreateContext({ threadId: thread });
+  const context = (threadId = thread) => gw.api.getPullRequestCreateContext({ threadId });
 
-  const request = async () =>
-    createRequest(await context(), crypto.randomUUID(), "feat: reviewed title", "User-edited Markdown", true, false);
+  const request = async (threadId = thread) =>
+    createRequest(
+      await context(threadId),
+      crypto.randomUUID(),
+      "feat: reviewed title",
+      "User-edited Markdown",
+      true,
+      false,
+    );
 
   const prepare = async (r: github.PullRequestMutationRequest) => ({
     ...r,
@@ -209,32 +216,33 @@ describe.skipIf(!dockerAvailable)("Create PR from the thread checkout", () => {
   }, 30_000);
 
   test("an existing PR is verified and suggested without restoring a tombstone or replaying create", async () => {
-    let links = await gw.api.listThreadPullRequests({ threadId: thread });
+    const threadId = await githubThread(gw);
+    let links = await gw.api.listThreadPullRequests({ threadId });
     links = await gw.api.linkThreadPullRequest({
-      threadId: thread,
+      threadId,
       url: "https://github.com/itsoltech/canopy/pull/42",
       expectedRevision: links.revision,
     });
     const ref = links.links.find((l) => l.summary?.ref?.number === 42)!.summary!.ref!;
-    await gw.api.unlinkThreadPullRequest({ threadId: thread, pullRequestId: ref.id, expectedRevision: links.revision });
+    await gw.api.unlinkThreadPullRequest({ threadId, pullRequestId: ref.id, expectedRevision: links.revision });
     state.existing = true;
     state.rejected = true;
     state.existingHead = "f".repeat(40);
     expect(
-      (await gw.api.createPullRequest(await prepare(await request()), browser)).existingPullRequest,
+      (await gw.api.createPullRequest(await prepare(await request(threadId)), browser)).existingPullRequest,
     ).toBeUndefined();
     state.existingHead = "";
-    const r = await prepare(await request());
+    const r = await prepare(await request(threadId));
     const result = await gw.api.createPullRequest(r, browser);
     expect(result.state).toBe("failed");
     expect(result.existingPullRequest?.id).toBe(ref.id);
     expect((await gw.api.createPullRequest(r, browser)).existingPullRequest?.id).toBe(ref.id);
-    links = await gw.api.listThreadPullRequests({ threadId: thread });
+    links = await gw.api.listThreadPullRequests({ threadId });
     expect(links.links.some((l) => l.summary?.ref?.id === ref.id)).toBe(false);
     expect(
       (
         await gw.api.linkThreadPullRequest({
-          threadId: thread,
+          threadId,
           url: "https://github.com/itsoltech/canopy/pull/42",
           expectedRevision: links.revision,
         })

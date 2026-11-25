@@ -155,6 +155,20 @@ describe.skipIf(!dockerAvailable)("automatic archival after every linked PR merg
   });
 
   test("all active links must be merged; closed-only and no links never qualify; unlink removes a blocker", async () => {
+    const closedPr = githubPrData(44, "CLOSED");
+    fixture.intercept((request) => {
+      if (new URL(request.url).pathname !== "/repos/itsoltech/canopy/pulls/44") return;
+
+      return Response.json({
+        node_id: closedPr.id,
+        updated_at: closedPr.updatedAt,
+        state: "closed",
+        merged: false,
+        draft: closedPr.isDraft,
+        head: { sha: closedPr.headRefOid },
+        base: { sha: closedPr.baseRefOid },
+      });
+    });
     await globalPolicy(true);
     const mixed = await linked(43, 44);
     const closed = await linked(44);
