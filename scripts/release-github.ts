@@ -18,13 +18,18 @@ const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 
 const TRANSIENT = /HTTP 5\d\d|unexpected end of JSON|timed? ?out|ECONNRESET|connection reset|EOF/i;
 
+export function transientGitHubError(error: Error): string | undefined {
+  const text = `${error.message}\n${"stderr" in error ? String(error.stderr) : ""}`;
+
+  return text.split("\n").find((line) => TRANSIENT.test(line));
+}
+
 function read<T>(run: () => T): T {
   for (let attempt = 0; ; attempt++) {
     try {
       return run();
     } catch (error) {
-      const text = error instanceof Error ? `${error.message}\n${"stderr" in error ? String(error.stderr) : ""}` : "";
-      const reason = text.split("\n").find((line) => TRANSIENT.test(line));
+      const reason = error instanceof Error ? transientGitHubError(error) : undefined;
       const delay = RETRY_DELAYS_MS[attempt];
 
       if (delay === undefined || reason === undefined) throw error;

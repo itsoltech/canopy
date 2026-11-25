@@ -6,13 +6,14 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { api, git, pages, repository } from "./release-github.ts";
+import { api, git, pages, repository, transientGitHubError } from "./release-github.ts";
 import { NIGHTLY_DESKTOP_FEED, resolveVersion } from "./version.ts";
 import { limitReleaseBody } from "./release-body.mjs";
 import { githubDraft } from "./release-draft.mjs";
 import { requireBetaPublication, requireNightlyPublication, requireStableBeta } from "./release-publication.ts";
 
 const GENERATED = ["checksums.txt", "manifest.json"];
+const UPLOAD_RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
 
 export interface UploadedAsset {
   id: number;
@@ -148,7 +149,7 @@ const github: ReleaseUploadAdapters = {
         path,
         "--silent",
       ],
-      { stdio: "inherit" },
+      { stdio: ["ignore", "ignore", "pipe"], encoding: "utf8" },
     );
   },
   publish: (repo, id, stable) => {
@@ -218,6 +219,36 @@ function matches(expected: Omit<UploadedAsset, "id">, actual: UploadedAsset | un
   return actual?.state === "uploaded" && actual.size === expected.size && actual.digest === expected.digest;
 }
 
+async function uploadDraftAsset(
+  adapters: ReleaseUploadAdapters,
+  repo: string,
+  releaseId: number,
+  directory: string,
+  asset: Omit<UploadedAsset, "id">,
+  previous: UploadedAsset | undefined,
+): Promise<void> {
+  const path = join(directory, asset.name);
+
+  for (let attempt = 0; ; attempt++) {
+    if (previous) adapters.deleteAsset(repo, previous.id);
+
+    try {
+      adapters.upload(repo, releaseId, path);
+
+      return;
+    } catch (error) {
+      const delay = UPLOAD_RETRY_DELAYS_MS[attempt];
+
+      if (delay === undefined || !(error instanceof Error) || !transientGitHubError(error)) throw error;
+      console.warn(`GitHub upload interrupted for ${asset.name}; checking the draft in ${delay / 1000} s`);
+      await Bun.sleep(delay);
+      previous = adapters.assets(repo, releaseId).find((current) => current.name === asset.name);
+
+      if (matches(asset, previous)) return;
+    }
+  }
+}
+
 export async function uploadRelease(
   directory: string,
   options: ReleaseUploadOptions,
@@ -272,12 +303,8 @@ export async function uploadRelease(
     pending.filter((asset) => asset.name.endsWith(".yml")),
     ...GENERATED.map((name) => pending.filter((asset) => asset.name === name)),
   ]) {
-    for (const asset of group) {
-      const previous = uploaded.get(asset.name);
-
-      if (previous) adapters.deleteAsset(repo, previous.id);
-      adapters.upload(repo, release.id, join(directory, asset.name));
-    }
+    for (const asset of group)
+      await uploadDraftAsset(adapters, repo, release.id, directory, asset, uploaded.get(asset.name));
   }
 
   const verified = adapters.assets(repo, release.id);

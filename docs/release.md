@@ -1,8 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
-Aktualizacja (2026-11-25): upload artefaktów kieruje pliki na identyfikator draftu odczytany
-z REST API GitHuba, z pominięciem ponownego wyszukiwania draftu po tagu.
+Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
+Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
 Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
 Desktop jest pakowany w Release, a instalator Windows jest testowany na runnerze, który go zbudował.
 Desktop, gateway i worker mają osobne cele wydania dla macOS Intel i Apple Silicon.
@@ -653,7 +653,8 @@ commity zbiera następny cykl godzinowy lub dispatch, nie sam push.
 3. Kolejność uploadu: binaria/instalatory/blockmapy → feedy `*.yml` → `checksums.txt` → `manifest.json`.
    Skrypt odczytuje identyfikator draftu z paginowanej listy wydań i wysyła pliki przez REST
    bezpośrednio pod ten identyfikator. Przy ponowieniu pomija pasujące pliki, a pozostałe
-   zastępuje wyłącznie na drafcie.
+   zastępuje wyłącznie na drafcie. Po przejściowym błędzie uploadu sprawdza stan i sumę pliku
+   na GitHubie, usuwa ewentualny niekompletny zapis i ponawia tylko brakujący plik.
 4. `publish-desktop` pobiera ponownie artefakt `binaries` i wszystkie gotowe `desktop-*`, scala feedy,
    liczy `checksums.txt`/`manifest.json` od nowa (wpisy serwerowe są identyczne, dochodzą `app: desktop`),
    wgrywa brakujące lub zmienione pliki. `--publish` wymaga wszystkich binariów, instalatorów,
