@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import {
@@ -69,7 +69,13 @@ function fixture() {
     connection: ResolvedProfile,
     previous: ThreadSpec,
     text: string,
-    options: { direct?: boolean; unload?: boolean; imported?: boolean; move?: { cwd: string; text: string } } = {},
+    options: {
+      direct?: boolean;
+      unload?: boolean;
+      imported?: boolean;
+      journal?: string;
+      move?: { cwd: string; text: string };
+    } = {},
   ) => {
     const events: ThreadEvent[] = [];
     const current = { ...previous, providerProfileId: connection.id };
@@ -82,7 +88,9 @@ function fixture() {
         undefined,
         options.direct ? { cliHome: device, privateHome: home } : home,
         {},
-        options.direct ? ["-c", `sqlite_home=${JSON.stringify(home)}`] : [],
+        options.direct
+          ? ["-c", `sqlite_home=${JSON.stringify(home)}`, "-c", "features.background_paginated_rollout_migration=false"]
+          : [],
       ),
       ...(options.direct && { previousPrivateHome: home }),
       ...(options.imported && {
@@ -95,7 +103,7 @@ function fixture() {
       publish: (event) => events.push(event),
       interact: async () => create(InteractionResponseSchema, { allow: false }),
       callTool: async () => create(AgentToolResultSchema, { isError: true }),
-    }).pipe(Layer.provide(Journal.layer(join(root, "journal.db"))));
+    }).pipe(Layer.provide(Journal.layer(join(root, options.journal ?? "journal.db"))));
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -139,7 +147,7 @@ function fixture() {
     );
   };
 
-  return { profile, spec, ask, first, second, device };
+  return { profile, spec, ask, first, second, device, home };
 }
 
 test.skipIf(!codex)(
@@ -194,6 +202,37 @@ test.skipIf(!codex)(
       await expect(ask(native, created, "FIXTURE_BLOCK")).rejects.toThrow("Select the CLI home");
       await ask(native, created, "FIXTURE_CLI_AGAIN", { direct: true });
       expect(second.requests.at(-1)).toContain("FIXTURE_ANSWER FIXTURE_CLI");
+    } finally {
+      await first.stop();
+      await second.stop();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!codex)(
+  "cold resume binds an existing CLI rollout when the worker journal has no home for it",
+  async () => {
+    const { profile, spec, ask, first, second, device, home } = fixture();
+    const native = profile("native");
+    const journal = "restored-worker.db";
+
+    try {
+      const created = await ask(native, spec, "FIXTURE_BEFORE_RESTART", { direct: true, unload: true });
+      const archived = join(device, "archived_sessions");
+      const name = readdirSync(archived).find((entry) => entry.includes(created.providerThreadId))!;
+      const duplicate = join(home, "archived_sessions", name);
+      mkdirSync(join(home, "archived_sessions"), { recursive: true });
+      copyFileSync(join(archived, name), duplicate);
+      await expect(ask(native, created, "FIXTURE_DUPLICATE", { direct: true, journal })).rejects.toThrow(
+        "Both Codex session homes contain this rollout",
+      );
+      unlinkSync(duplicate);
+
+      const resumed = await ask(native, created, "FIXTURE_AFTER_RESTART", { direct: true, journal });
+      expect(resumed.providerThreadId).toBe(created.providerThreadId);
+      expect(second.requests.at(-1)).toContain("FIXTURE_ANSWER FIXTURE_BEFORE_RESTART");
+      await expect(ask(native, resumed, "FIXTURE_WRONG_HOME", { journal })).rejects.toThrow("Select the CLI home");
     } finally {
       await first.stop();
       await second.stop();

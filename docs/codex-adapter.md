@@ -1,5 +1,9 @@
 # Adapter Codex (app-server)
 
+Aktualizacja (2026-11-25): worker wznawia sesje w katalogu CLI także po utracie
+powiązania w dzienniku. Na Windows rozpoznaje ścieżki aktywnych sesji z oboma
+separatorami katalogów.
+
 Aktualizacja (2026-11-24): boty używają bieżącego loginu instancji przez RPC
 i nietrwały magazyn poświadczeń. Migracja logowania instancji izolowanych na
 Windowsie zachowuje dotychczasowe powiązanie przy odmowie utworzenia dowiązania
@@ -422,7 +426,13 @@ pliku `config.toml` użytkownika.
 Proces otrzymuje `sqlite_home` wskazujący prywatny katalog instancji.
 Pozwala to wznowić wcześniejsze zwykłe wątki z ich indeksem i historią.
 Nowo tworzone pliki sesji zapisuje Codex pod wybranym katalogiem CLI.
-Do kontynuacji takiego wątku po przełączeniu instancji na katalog izolowany
+Gdy dla sesji brakuje wpisu w dzienniku workera, worker sprawdza plik wskazany
+przez Codexa względem prywatnego katalogu instancji i aktualnego katalogu CLI.
+Jeśli Codex wskazuje plik w katalogu CLI, worker zapisuje to powiązanie na kolejne
+wznowienia. Jeśli w prywatnym katalogu pozostała kopia tego samego pliku,
+worker zgłasza konflikt przed przypisaniem sesji do CLI. Historię wskazaną przez Codexa
+w prywatnym katalogu worker wznawia z jej dotychczasowej lokalizacji.
+Do kontynuacji wątku zapisanego w katalogu CLI po przełączeniu instancji na katalog izolowany
 trzeba ponownie wybrać jego katalog CLI. Sprzątanie danych Canopy dotyczy
 wyłącznie prywatnych plików zarządzanych przez worker.
 Import w trybie **Use CLI home** zachowuje historię z możliwością kontynuacji

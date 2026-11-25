@@ -1,5 +1,5 @@
-import { existsSync, realpathSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { basename, dirname, join, relative, toNamespacedPath } from "node:path";
 import { Effect } from "effect";
 import type { ThreadSpec } from "@canopy/contracts";
 import { sourceStat } from "../../import/read.ts";
@@ -40,11 +40,14 @@ function readPath(server: CodexAppServer["Service"], id: string) {
   );
 }
 
-function verifiedPath(home: string, path: string, id: string) {
-  const root = realpathSync(home);
-  const native = nativeRollout(path, id);
+const sameHome = (first: string, second: string) => relative(toNamespacedPath(first), toNamespacedPath(second)) === "";
+const selectCliHome = () => new Error("Select the CLI home that contains this Codex thread to continue it.");
 
-  if (!native || relative(root, realpathSync(native.home)) !== "")
+function verifiedPath(homes: readonly string[], path: string, id: string) {
+  const native = nativeRollout(path, id);
+  const root = native && realpathSync(native.home);
+
+  if (!native || !root || !homes.some((home) => sameHome(root, realpathSync(home))))
     throw new Error("The selected Codex rollout is outside its session home.");
   // Codex reports the plain name even for compressed history.
   const plain = join(root, relative(native.home, path)).replace(/\.zst$/, "");
@@ -52,7 +55,16 @@ function verifiedPath(home: string, path: string, id: string) {
 
   if (sourceStat({ root, path: file }).nlink !== 1) throw new Error("The selected Codex rollout has multiple links.");
 
-  return file;
+  return { root, file, native };
+}
+
+/** Codex may index the CLI copy on startup even when the old private rollout still exists. */
+function hasPrivateCopy(home: string, native: NonNullable<ReturnType<typeof nativeRollout>>) {
+  return native.locations.some((directory) => {
+    const plain = join(home, directory, native.name);
+
+    return Boolean(lstatSync(plain, { throwIfNoEntry: false }) || lstatSync(`${plain}.zst`, { throwIfNoEntry: false }));
+  });
 }
 
 /** Unarchive is scoped to the process's sessions directory, including for rollouts from before direct CLI mode. */
@@ -98,31 +110,45 @@ export function previousRollout(ctx: CodexThreadContext, spec: ThreadSpec, id: s
     const cli = ctx.options.launch.env["CODEX_HOME"];
     const activeHome = cli && (yield* Effect.try({ try: () => realpathSync(cli), catch: pathError }));
 
-    if (!previous || !activeHome || (bound && relative(bound, activeHome) !== ""))
-      return yield* Effect.fail(new Error("Select the CLI home that contains this Codex thread to continue it."));
+    if (!previous || !activeHome || (bound && !sameHome(bound, activeHome))) return yield* Effect.fail(selectCliHome());
 
     // A manifest can describe a masked private copy with the same ID as the CLI original.
     yield* importedPath(ctx, { ...spec, providerThreadId: id }, provider);
 
-    const verify = (home: string, candidate: string) =>
-      Effect.try({ try: () => verifiedPath(home, candidate, id), catch: pathError });
+    const verify = (homes: string[], candidate: string) =>
+      Effect.try({ try: () => verifiedPath(homes, candidate, id), catch: pathError });
 
     let path = yield* readPath(ctx.codex, id);
 
-    if (bound) {
-      if (path) yield* verify(bound, path);
+    // Older installations may have a rollout that is absent from Codex's SQLite index.
+    if (!bound && !path && (existsSync(join(previous, "sessions")) || existsSync(join(previous, "archived_sessions"))))
+      path = yield* privateStore(ctx, previous, (server) => readPath(server, id));
+
+    if (!path) return undefined;
+    const checked = yield* verify(bound ? [activeHome] : [activeHome, previous], path);
+
+    if (bound) return undefined;
+
+    if (sameHome(checked.root, activeHome)) {
+      const duplicate = yield* Effect.try({ try: () => hasPrivateCopy(previous, checked.native), catch: pathError });
+
+      if (duplicate)
+        return yield* Effect.fail(
+          new Error(
+            "Both Codex session homes contain this rollout. To resume the CLI copy, move the private copy aside and retry.",
+          ),
+        );
+
+      yield* ctx.journal.rememberCodexCliHome(id, activeHome);
+      // A concurrent resume on another instance can win the journal's insert-once binding.
+      const recorded = yield* ctx.journal.codexCliHome(id);
+
+      if (!recorded || !sameHome(recorded, activeHome)) return yield* Effect.fail(selectCliHome());
 
       return undefined;
     }
 
-    // Older installations may have a rollout that is absent from Codex's SQLite index.
-    if (!path && (existsSync(join(previous, "sessions")) || existsSync(join(previous, "archived_sessions"))))
-      path = yield* privateStore(ctx, previous, (server) => readPath(server, id));
-
-    if (!path) return undefined;
-    const checked = yield* verify(previous, path);
-
-    if (basename(dirname(checked)) !== "archived_sessions") return checked;
+    if (basename(dirname(checked.file)) !== "archived_sessions") return checked.file;
 
     const restored = yield* privateStore(ctx, previous, (server) =>
       server.request("thread/unarchive", { threadId: id }),
@@ -130,7 +156,7 @@ export function previousRollout(ctx: CodexThreadContext, spec: ThreadSpec, id: s
 
     if (!restored.thread.path) return yield* Effect.fail(new Error("Codex did not restore the private rollout."));
 
-    return yield* verify(previous, restored.thread.path);
+    return (yield* verify([previous], restored.thread.path)).file;
   }).pipe(Effect.mapError(fail(spec.threadId, "resume")));
 }
 
