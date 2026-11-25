@@ -1,6 +1,6 @@
 # Konektory Canopy
 
-Aktualizacja (2026-11-25): odpowiedzi MCP z obrazami mają osobny limit, a adaptery
+Aktualizacja (2026-11-25): odpowiedzi MCP z obrazami mają budżet 10 MB, a adaptery
 Codex, Grok i Claude przekazują zachowane obrazy w natywnych blokach MCP.
 
 Status (2026-11-24): w web/desktop **Tool accounts** zawiera konta MCP, a po włączeniu modułu Bots
@@ -356,10 +356,10 @@ Ponowienie call ID po reconnect nie wykonuje ponownie operacji. Nieznany wynik
 po awarii nie powoduje automatycznego powtórzenia zapisu.
 
 Gateway liczy bajty UTF-8 zserializowanej odpowiedzi MCP. Tekst i metadane mają
-budżet 100 000 bajtów, a cała odpowiedź z obrazami 1 000 000 bajtów. Gateway
-zachowuje mieszczące się bloki i wynik strukturalny oraz podaje liczbę pominiętych
-części. Zanim SDK odczyta całą odpowiedź, transport przerywa pobieranie, gdy
-przekroczy 8 000 000 bajtów. Adaptery Codex, Grok i Claude przekazują zachowane
+budżet 100 000 bajtów, a cała odpowiedź z obrazami zakodowanymi w base64 ma
+budżet 10 000 000 bajtów. Gateway zachowuje mieszczące się bloki i wynik
+strukturalny oraz podaje liczbę pominiętych części. Transport przerywa pobieranie, gdy
+przekroczy 20 000 000 bajtów. Adaptery Codex, Grok i Claude przekazują zachowane
 obrazy jako bloki MCP. Metadane trafiają do towarzyszącego bloku tekstowego,
 dzięki czemu Codex odbiera je razem z obrazem. Tekstowy wynik na osi narzędzi
 nie zawiera tych bloków zakodowanych w base64.

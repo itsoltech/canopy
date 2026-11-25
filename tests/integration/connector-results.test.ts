@@ -40,7 +40,9 @@ test("remote MCP results keep bounded screenshots and retain reference metadata 
     expect(JSON.parse(fields.resultJson)).toEqual(result);
     expect(JSON.parse(fields.content)).toEqual({ ...result, content: [caption] });
 
-    result = { ...result, content: [caption, { ...preview, data: "A".repeat(1_010_000) }, preview] };
+    const oversizedImage = { ...preview, data: "A".repeat(10_010_000) };
+
+    result = { ...result, content: [caption, oversizedImage, preview] };
     expect(await call()).toMatchObject({
       content: [caption, preview, { type: "text", text: expect.stringContaining("omitted 1 image") }],
       structuredContent: { references: [reference] },
@@ -52,7 +54,7 @@ test("remote MCP results keep bounded screenshots and retain reference metadata 
       structuredContent: { references: [reference] },
     });
 
-    result = { ...result, content: [caption, { ...preview, data: "A".repeat(1_010_000) }] };
+    result = { ...result, content: [caption, oversizedImage] };
     const metadataOnly = await call();
 
     expect(metadataOnly).toMatchObject({
@@ -71,7 +73,7 @@ test("remote MCP results keep bounded screenshots and retain reference metadata 
     result = { content: [{ type: "text", text: remote.secret }], structuredContent: { references: [reference] } };
     expect(await call()).toEqual({ ...result, content: [{ type: "text", text: "[REDACTED]" }] });
 
-    result = { ...result, content: [{ ...preview, data: "A".repeat(8_000_000) }] };
+    result = { ...result, content: [{ ...preview, data: "A".repeat(20_000_000) }] };
     expect(await call()).toMatchObject({
       isError: true,
       content: [{ type: "text", text: expect.stringContaining("too large") }],

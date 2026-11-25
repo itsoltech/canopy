@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { isDeepStrictEqual } from "node:util";
 import { create, toJson } from "@bufbuild/protobuf";
 import { bots, connectors, MentionKind, PermissionMode, Provider, ProviderProfileKind } from "@canopy/contracts";
 import type { ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { GatewayStore } from "@canopy/gateway/store";
+import type { JsonObject } from "@canopy/domain";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { DEFAULT_OAUTH_REDIRECT_URL, pastedCode, returnState, returnTarget } from "@canopy/domain/oauth-return";
@@ -26,6 +28,7 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
   const seen: ModelInput[] = [];
   const logs: string[] = [];
   let automaticTool = "";
+  let previewResult: JsonObject | undefined;
 
   const query = <A extends object>(text: string, ...params: unknown[]) =>
     gw.runtime.runPromise(
@@ -95,7 +98,12 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     });
 
   beforeAll(async () => {
-    fake = fakeConnector();
+    fake = fakeConnector({
+      response: (method, id) =>
+        method === "tools/call" && previewResult
+          ? Response.json({ jsonrpc: "2.0", id, result: previewResult })
+          : undefined,
+    });
     gw = await startTestGateway({
       log: (message) => {
         if (message.startsWith("connectors: oauth")) logs.push(message);
@@ -251,6 +259,30 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     expect(await query("SELECT 1 FROM connector_audit WHERE thread_id=$1::uuid", t.id)).not.toHaveLength(0);
     expect((await call(t, account.id, read.name)).isError).toBe(true);
   }, 30_000);
+
+  test("the worker link carries multiple MCP images up to the 10 MB result budget", async () => {
+    const account = await grant(await save("previews"));
+    const catalog = await gw.api.testConnector({ accountId: account.id });
+    const read = catalog.tools.find((tool) => tool.remoteName === "read_marker")!;
+    const t = await thread();
+    const structuredContent = { references: [1, 2, 3].map((id) => ({ id })) };
+    const image = { type: "image", mimeType: "image/png", data: "A".repeat(3_330_000) };
+
+    previewResult = { content: [image, image, image], structuredContent };
+
+    try {
+      const result = await call(t, account.id, read.name);
+      const bytes = Buffer.byteLength(result.resultJson);
+
+      expect(result.isError).toBe(false);
+      expect(bytes).toBeGreaterThan(9_990_000);
+      expect(bytes).toBeLessThanOrEqual(10_000_000);
+      expect(isDeepStrictEqual(JSON.parse(result.resultJson), previewResult)).toBe(true);
+      expect(JSON.parse(result.content)).toEqual({ content: [], structuredContent });
+    } finally {
+      previewResult = undefined;
+    }
+  });
 
   test("No project is an independent opt-in for the worker catalog and calls", async () => {
     const scratch = (await gw.api.getOverview({})).projects.find((project) => project.kind === "scratch")!;
