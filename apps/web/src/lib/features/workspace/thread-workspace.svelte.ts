@@ -175,10 +175,14 @@ export class ThreadWorkspace {
     if (this.previewTabActive) this.panelOpen = false;
   }
 
-  openPreview(selection: PreviewSelection): void {
+  openPreview(selection: PreviewSelection, workerId: string): void {
     if (this.previewTabActive) this.view.select("thread");
-    this.previewChoice.selection = selection;
-    this.previewChoice.target = selection.target;
+    const choice = this.previewChoice;
+
+    if (selection.target || choice.workerId !== workerId || this.previewTool !== selection.tool)
+      choice.target = selection.target;
+    choice.workerId = workerId;
+    choice.selection = selection;
     this.view.panel = { open: true, mode: "preview", tool: selection.tool };
     this.panelDraft = undefined;
     workspaceStore.notify(true);

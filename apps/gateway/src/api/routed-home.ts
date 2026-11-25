@@ -12,7 +12,7 @@ import {
   THREAD_MIRROR,
 } from "@canopy/domain/computers";
 import { AsyncChannel } from "@canopy/transport";
-import { WORKSPACE_COPY_CAPABILITY } from "@canopy/domain/release/protocol";
+import { AGENT_PREVIEW_FOLLOW_CAPABILITY, WORKSPACE_COPY_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Match } from "effect";
 import { linkedMessage, mapIds, methodNamed, movedItems, qualify, unqualify } from "../computers/remote.ts";
@@ -303,9 +303,13 @@ async function* send(
   const outbound = clone(method.input, request);
   await restrictLinkedApproval(core.linkedAgents, outbound, nodeId);
 
+  const watch = method.name === "WatchAgentPreview" && linkedMessage(ui.WatchAgentPreviewRequestSchema, request);
+
+  if (watch && watch.followAgent && !computers.capabilities(nodeId).includes(AGENT_PREVIEW_FOLLOW_CAPABILITY))
+    throw new ConnectError("Update Canopy on the linked computer to follow the agent's window", Code.Unimplemented);
+
   if (
-    (method.name === "AckAgentPreview" ||
-      (method.name === "WatchAgentPreview" && linkedMessage(ui.WatchAgentPreviewRequestSchema, request).clientAck)) &&
+    (method.name === "AckAgentPreview" || (watch && watch.clientAck)) &&
     !computers.capabilities(nodeId).includes(AGENT_PREVIEW_CLIENT_ACK)
   )
     throw new ConnectError("Update Canopy on the linked computer to acknowledge preview frames", Code.Unimplemented);

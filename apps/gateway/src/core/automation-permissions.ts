@@ -12,6 +12,7 @@ import {
   ui,
 } from "@canopy/contracts";
 import { Schema } from "effect";
+import { LOCAL_AUTOMATION_COMPLETION_CAPABILITY } from "@canopy/domain/release/protocol";
 import { coreRun } from "./core-broadcast.ts";
 import { corePublishInteraction } from "./core-interactions.ts";
 import { coreState } from "./core-context.ts";
@@ -27,6 +28,7 @@ const Arguments = Schema.fromJsonString(
 );
 
 const inputOf = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
+const MAX_LEASE_MS = 310_000;
 
 const TOOLS = new Map([
   [AgentTool.BROWSER, "agent-browser"],
@@ -41,10 +43,49 @@ interface Authorization {
   cancelled: boolean;
   finished: boolean;
   permissionId?: string;
+  activity?: { threadId: string; value: ui.ThreadAutomationActivity; expires: number };
 }
 
 // Leases are live connection state, never durable permissions or replayable agent-bus results.
 const leases = new WeakMap<WorkerConnection, Map<string, Authorization>>();
+
+function releaseLeases(core: GatewayCore, current: Map<string, Authorization>, expiredAt?: number): void {
+  for (const [id, lease] of current) {
+    if (expiredAt !== undefined && (!lease.finished || (lease.activity?.expires ?? lease.expires) > expiredAt))
+      continue;
+    current.delete(id);
+
+    if (lease.activity) resetActivity(core, lease.activity.threadId, id);
+  }
+}
+
+export function expireLocalAutomationLeases(core: GatewayCore, connection: WorkerConnection, now: number): void {
+  const current = leases.get(connection);
+
+  if (current) releaseLeases(core, current, now);
+}
+
+function resetActivity(core: GatewayCore, threadId: string, callId: string): void {
+  core.hub.publishThread(
+    threadId,
+    create(ui.ThreadUpdateSchema, { change: { case: "automationActivityReset", value: callId } }),
+  );
+}
+
+function connectionLeases(core: GatewayCore, connection: WorkerConnection) {
+  const existing = leases.get(connection);
+
+  if (existing) return existing;
+  const current = new Map<string, Authorization>();
+  leases.set(connection, current);
+  void connection.closed.then(() => {
+    leases.delete(connection);
+    // A replaced link can remain online in overview. Its in-flight calls can no longer report a finish.
+    releaseLeases(core, current);
+  });
+
+  return current;
+}
 
 const refusal = (callId: string) =>
   create(AgentToolResultSchema, {
@@ -165,11 +206,18 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
     allowed = true;
     const activity = automationActivity(request, workerId, args.tool, args.name, input);
 
-    if (activity)
+    if (activity) {
+      activity.reportsCompletion = lease.connection.hello.capabilities.includes(LOCAL_AUTOMATION_COMPLETION_CAPABILITY);
+
+      // Keep only the scope for a full MCP request timeout after admission. Its completion may arrive
+      // after the approval deadline, especially when the worker times out and cancels the call.
+      if (activity.reportsCompletion)
+        lease.activity = { threadId: request.threadId, value: activity, expires: Date.now() + MAX_LEASE_MS };
       core.hub.publishThread(
         request.threadId,
         create(ui.ThreadUpdateSchema, { change: { case: "automationActivity", value: activity } }),
       );
+    }
 
     return create(AgentToolResultSchema, { callId: request.callId, content: "allowed" });
   } catch {
@@ -181,6 +229,22 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
       lease.finished = true;
     }
   }
+}
+
+/** A finish can retire only the activity admitted on this live connection. */
+export function finishLocalAutomation(core: GatewayCore, connection: WorkerConnection, callId: string): void {
+  const lease = leases.get(connection)?.get(callId);
+
+  if (!lease?.activity || !connection.isOpen || core.link.connections.get(connection.workerId) !== connection) return;
+  const { threadId, value, expires } = lease.activity;
+  delete lease.activity;
+
+  if (expires <= Date.now()) return resetActivity(core, threadId, callId);
+
+  core.hub.publishThread(
+    threadId,
+    create(ui.ThreadUpdateSchema, { change: { case: "automationActivityFinished", value } }),
+  );
 }
 
 /** Internal bridge authorization: current grants and one live call, never listed as a model tool. */
@@ -199,17 +263,16 @@ export async function authorizeLocalAutomation(
       request.argumentsJson.length > 100_000 ||
       ![request.callId, request.threadId, request.turnId].every((id) => AGENT_WORKER_ID.test(id)) ||
       !Number.isFinite(expires) ||
-      expires <= now ||
-      expires > now + 310_000
+      (!request.cancelled && expires <= now) ||
+      expires > now + MAX_LEASE_MS
     )
       return refusal(request.callId);
     const workerId = connection.workerId;
 
     if (!connection.isOpen || core.link.connections.get(workerId) !== connection) return refusal(request.callId);
-    const current = leases.get(connection) ?? new Map<string, Authorization>();
-    leases.set(connection, current);
+    const current = connectionLeases(core, connection);
 
-    for (const [id, lease] of current) if (lease.finished && lease.expires <= now) current.delete(id);
+    releaseLeases(core, current, now);
 
     const signature = createHash("sha256")
       .update(
@@ -224,6 +287,8 @@ export async function authorizeLocalAutomation(
 
       if (request.cancelled) {
         known.cancelled = true;
+        // Authorization may already have published its start while the grant was traveling to the worker.
+        finishLocalAutomation(core, connection, request.callId);
         await expirePermission(core, request, known);
 
         return refusal(request.callId);

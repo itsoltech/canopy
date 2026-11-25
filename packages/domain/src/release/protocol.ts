@@ -32,6 +32,12 @@ export const STEER_ATTACHMENTS_CAPABILITY = "steer_attachments_v1";
 /** Connector tool results can carry scoped attachment references. */
 export const AGENT_TOOL_ATTACHMENTS_CAPABILITY = "agent_tool_attachments_v1";
 
+/** Automatic Desktop Preview captures the window targeted by the thread. */
+export const AGENT_PREVIEW_FOLLOW_CAPABILITY = "agent_preview_follow_window_v1";
+
+/** The worker reports when an admitted local automation MCP call settles on its original link. */
+export const LOCAL_AUTOMATION_COMPLETION_CAPABILITY = "local_automation_completion_v1";
+
 /** On-demand checkout summary and owner-requested safe origin fast-forward. */
 export const GIT_STATUS_CAPABILITY = "git_status_v1";
 

@@ -2,46 +2,63 @@ import { z } from "zod";
 import type { AgentPreviewTargetSchema } from "@canopy/contracts";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { PreviewRuntime } from "./runtime.ts";
+import {
+  desktopSelector as selector,
+  desktopWindows as windows,
+  sameDesktopWindow,
+  verifiedDesktopWindow,
+  type DesktopTarget,
+  type DesktopWindow,
+} from "../agent-tools/desktop-window.ts";
 
 export type PreviewTarget = MessageInitShape<typeof AgentPreviewTargetSchema>;
 
 const label = z.string().max(4096);
 
-const selector = z
-  .string()
-  .min(1)
-  .max(16384)
-  .refine(
-    (value) =>
-      !value.startsWith("-") &&
-      [...value].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127),
-  );
+function windowTarget(win: DesktopWindow, selected: DesktopWindow | undefined): PreviewTarget {
+  return {
+    id: win.id,
+    label: `${win.app_name} — ${win.title}`.slice(0, 400),
+    app: win.app_name,
+    windowId: win.id,
+    active: win === selected,
+  };
+}
 
-const bounds = z.object({
-  x: z.number().finite().min(-100_000).max(100_000),
-  y: z.number().finite().min(-100_000).max(100_000),
-  width: z.number().positive().max(8192),
-  height: z.number().positive().max(8192),
-});
+function inventory(runtime: PreviewRuntime, app: string | undefined, signal?: AbortSignal) {
+  return runtime
+    .command(["list-windows", ...(app ? [`--app=${app}`] : []), "--timeout-ms=1500"], {
+      timeoutMs: 2_000,
+      ...(signal && { signal }),
+    })
+    .then(
+      (data) => windows.safeParse(data).data,
+      () => undefined,
+    );
+}
 
-const windows = z
-  .array(
-    z.object({
-      id: selector,
-      title: label,
-      app_name: label,
-      is_focused: z.boolean().default(false),
-      accessible: z.boolean().default(true),
-      // Some windows report zero-sized bounds. Capture can still use the window ID.
-      bounds: bounds.nullish().catch(null),
-    }),
-  )
-  .max(2048);
+export async function lookupDesktopTarget(runtime: PreviewRuntime, target: DesktopTarget, signal: AbortSignal) {
+  if (runtime.desktopTarget() !== target) return undefined;
+  const found = await inventory(runtime, target.app, signal);
+
+  if (!found || signal.aborted || runtime.desktopTarget() !== target) return undefined;
+  const win = verifiedDesktopWindow(found, target);
+
+  if (!win) {
+    runtime.missingDesktopTarget(target);
+    const cursor = runtime.desktopCursor();
+
+    if (cursor && sameDesktopWindow(target.identity, cursor.identity)) runtime.missingCursorWindow(cursor.actionId);
+  }
+
+  return win;
+}
 
 export class DesktopCatalog {
   readonly #runtime: PreviewRuntime;
   readonly #windowId: string;
   #window: z.infer<typeof windows>[number] | undefined;
+  #actionId: string | undefined;
 
   constructor(runtime: PreviewRuntime) {
     this.#runtime = runtime;
@@ -52,15 +69,75 @@ export class DesktopCatalog {
     return Boolean(this.#window);
   }
 
+  get targetId(): string {
+    return this.#window?.id ?? "";
+  }
+
+  get cursorChanged(): boolean {
+    return this.#actionId !== this.#runtime.desktopCursor()?.actionId;
+  }
+
+  cursor() {
+    const sample = this.#runtime.desktopCursor();
+    const win = this.#window;
+
+    if (!sample || !win?.bounds || !sameDesktopWindow(sample.identity, win)) return undefined;
+
+    if (sample.width !== win.bounds.width || sample.height !== win.bounds.height) return undefined;
+
+    return sample;
+  }
+
+  async frameCursor(actionId: string) {
+    const sample = this.cursor();
+
+    if (sample?.actionId !== actionId) return undefined;
+
+    const found = await inventory(this.#runtime, this.#window?.app_name);
+
+    if (!found) return undefined;
+    const matches = found.filter((item) => sameDesktopWindow(sample.identity, item));
+    const win = matches.length === 1 ? matches[0] : undefined;
+
+    if (!win?.accessible) {
+      this.#runtime.missingCursorWindow(actionId);
+
+      return undefined;
+    }
+
+    if (
+      !sameDesktopWindow(sample.identity, win) ||
+      win.bounds?.width !== sample.width ||
+      win.bounds.height !== sample.height
+    )
+      return undefined;
+    const current = this.cursor();
+
+    return current?.actionId === actionId ? current : undefined;
+  }
+
   async refresh() {
+    const initialAction = this.#runtime.desktopCursor()?.actionId;
     const found = windows.parse(await this.#runtime.command(["list-windows"]));
     const scope = this.#runtime.scope;
-    const candidates = found.filter((window) => window.accessible && (!scope.app || window.app_name === scope.app));
+    const fallbackApp = scope.app || this.#runtime.desktopDefaultApp;
+    const candidates = found.filter((window) => window.accessible && (!fallbackApp || window.app_name === fallbackApp));
+    const cursor = this.#runtime.desktopCursor();
+
+    const cursorWindow =
+      cursor && found.find((window) => window.accessible && sameDesktopWindow(cursor.identity, window));
+
+    if (cursor && !cursorWindow && cursor.actionId === initialAction)
+      this.#runtime.missingCursorWindow(cursor.actionId);
+    this.#actionId = cursorWindow ? cursor?.actionId : undefined;
+
+    const preferred = cursorWindow && (!scope.app || cursorWindow.app_name === scope.app) ? cursorWindow : undefined;
 
     const selected = this.#windowId
       ? candidates.find((window) => window.id === this.#windowId)
-      : (candidates.find((window) => window.is_focused) ??
-        (scope.app && candidates.length === 1 ? candidates[0] : undefined));
+      : (preferred ??
+        candidates.find((window) => window.is_focused) ??
+        (fallbackApp && candidates.length === 1 ? candidates[0] : undefined));
 
     this.#window = selected;
 
@@ -70,13 +147,9 @@ export class DesktopCatalog {
       targetId: selected?.id ?? "",
       title: selected ? `${selected.app_name} — ${selected.title}`.slice(0, 4096) : "Choose a window",
       detail: selected ? "" : "Choose an accessible window to start the preview",
-      targets: found.slice(0, 64).map((window): PreviewTarget => ({
-        id: window.id,
-        label: `${window.app_name} — ${window.title}`.slice(0, 400),
-        app: window.app_name,
-        windowId: window.id,
-        active: window.id === selected?.id,
-      })),
+      targets: (selected ? [selected, ...found.filter((win) => win !== selected)] : found)
+        .slice(0, 64)
+        .map((win) => windowTarget(win, selected)),
     };
   }
 

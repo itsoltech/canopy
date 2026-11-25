@@ -1,6 +1,7 @@
 import { ownerModuleEnabled, moduleDisabledMessage } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { ui, type AgentPreviewEvent, type AgentTool } from "@canopy/contracts";
+import { AGENT_PREVIEW_FOLLOW_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { coreSettings } from "./core-settings.ts";
 import { coreRun } from "./core-broadcast.ts";
@@ -20,6 +21,7 @@ interface Preview {
   readonly signal: AbortSignal;
   readonly abort: () => void;
   readonly clientAck: boolean;
+  readonly followAgent: boolean;
   timer?: Timer;
   stopped: boolean;
   terminal: boolean;
@@ -68,6 +70,9 @@ export class AgentPreviews {
   async *watch(request: ui.WatchAgentPreviewRequest, signal: AbortSignal): AsyncIterable<AgentPreviewEvent> {
     const scope = agentPreviewScope(request);
     const worker = await this.#authorize(request.threadId, scope.tool);
+
+    if (request.followAgent && !worker.hello.capabilities.includes(AGENT_PREVIEW_FOLLOW_CAPABILITY))
+      throw new ConnectError("Update this worker to follow the agent's window", Code.Unimplemented);
     const settings = await coreSettings(this.core, (s) => s.user(this.core[coreState].options.userId));
     signal.throwIfAborted();
 
@@ -84,6 +89,7 @@ export class AgentPreviews {
       mailbox: new AgentPreviewMailbox(),
       abort: () => this.#stop(preview),
       clientAck: request.clientAck,
+      followAgent: request.followAgent,
       stopped: false,
       terminal: false,
       checking: false,
@@ -110,6 +116,7 @@ export class AgentPreviews {
               threadId: request.threadId,
               scope,
               maxFps: request.maxFps || 12,
+              followAgent: request.followAgent,
               agentToolDefaults: settings.agentToolDefaults,
             },
           },
@@ -149,7 +156,11 @@ export class AgentPreviews {
 
     if (preview.stopped || preview.terminal) return;
 
-    if (!validPreviewEvent(event) || (event.state === "frame" && event.frameId <= preview.seen)) {
+    if (
+      !validPreviewEvent(event, preview.tool) ||
+      (event.state === "frame" &&
+        (event.frameId <= preview.seen || (event.followingAgent || event.agentObservation) !== preview.followAgent))
+    ) {
       this.#stop(preview, new ConnectError("Invalid preview frame or metadata", Code.DataLoss));
 
       return;
@@ -157,7 +168,10 @@ export class AgentPreviews {
 
     if (event.state === "frame") preview.seen = event.frameId;
     preview.terminal = event.state === "error" || event.state === "closed";
-    preview.mailbox.push(event);
+    const discarded = preview.mailbox.push(event);
+
+    // Release the worker's slot for a superseded target without treating the frame as delivered to the client.
+    if (discarded) this.#ack(preview, discarded);
   }
 
   async input(request: ui.SendAgentPreviewInputRequest): Promise<ui.WorkerOperationResponse> {
@@ -171,6 +185,9 @@ export class AgentPreviews {
 
     if (preview.stopped || preview.terminal || this.#sessions.get(preview.id) !== preview)
       throw new ConnectError("Preview unavailable; reopen it", Code.NotFound);
+
+    if (preview.followAgent)
+      throw new ConnectError("Open the window in interactive Preview to send input", Code.FailedPrecondition);
     const now = Date.now();
     preview.inputTokens = Math.min(256, preview.inputTokens + (now - preview.inputTime) * 0.256);
     preview.inputTime = now;
@@ -218,7 +235,7 @@ export class AgentPreviews {
     return create(ui.WorkerOperationResponseSchema);
   }
 
-  #ack(preview: Preview): void {
+  #ack(preview: Preview, frameId = preview.acknowledged): void {
     preview.worker.send({
       case: "agentPreview",
       value: {
@@ -226,7 +243,7 @@ export class AgentPreviews {
           case: "ack",
           value: {
             previewId: preview.id,
-            frameId: preview.acknowledged,
+            frameId,
           },
         },
       },

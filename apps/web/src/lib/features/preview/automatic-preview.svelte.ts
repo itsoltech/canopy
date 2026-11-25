@@ -1,6 +1,6 @@
-import { untrack } from "svelte";
-import { create, equals } from "@bufbuild/protobuf";
-import { AgentPreviewTargetSchema, type AgentPreviewTarget, type AgentTool, type ui } from "@canopy/contracts";
+import { create } from "@bufbuild/protobuf";
+import { AgentPreviewTargetSchema, AgentTool, type AgentPreviewTarget } from "@canopy/contracts";
+import { SvelteMap } from "svelte/reactivity";
 import type { ThreadState } from "#lib/features/threads/thread-state.svelte.ts";
 import { threadCache } from "#lib/features/threads/thread-cache.ts";
 
@@ -10,14 +10,37 @@ export interface PreviewSelection {
   target?: AgentPreviewTarget;
 }
 
-class PreviewMemory {
-  selection = $state.raw<PreviewSelection>();
-  minimized = $state(false);
-  seen = "";
+// Only a per-thread minimize preference survives leaving the screen. New activity supplies the source.
+const minimized = new SvelteMap<string, string>();
 
-  constructor(readonly workerId: string) {}
+threadCache.onRelease((id) => (id === undefined ? minimized.clear() : minimized.delete(id)));
 
-  follow(activity: ui.ThreadAutomationActivity): void {
+export class AutomaticPreview {
+  constructor(readonly source: () => ThreadState) {}
+
+  readonly #current = $derived.by(() => {
+    const view = this.source();
+    const thread = view.thread;
+    const current = view.previewActivity.current;
+
+    return view.connection === "live" &&
+      thread &&
+      !thread.archivedAt &&
+      !thread.deletedAt &&
+      current?.activity.workerId === thread.workerId
+      ? current
+      : undefined;
+  });
+
+  readonly selection: PreviewSelection | undefined = $derived.by(() => {
+    const activity = this.#current?.activity;
+
+    if (!activity) return;
+    const { id, tool } = activity;
+
+    // Desktop follows one verified worker source through scoped snapshots and qualified ref actions.
+    if (tool === AgentTool.DESKTOP) return { id, tool };
+
     const target = create(AgentPreviewTargetSchema, {
       id: activity.target,
       label: activity.app || activity.deviceId || activity.windowId,
@@ -27,119 +50,40 @@ class PreviewMemory {
       app: activity.app,
     });
 
-    if (
-      this.selection?.tool === activity.tool &&
-      this.selection.target &&
-      equals(AgentPreviewTargetSchema, this.selection.target, target)
-    )
-      return;
+    return { id, tool, target };
+  });
 
-    this.selection = {
-      id: activity.id,
-      tool: activity.tool,
-      target,
-    };
+  get settled(): boolean {
+    return this.#current?.settled ?? false;
   }
-}
-
-// Session metadata only: no frames, snapshots or browser storage. Retained thread views have a
-// separate, smaller budget; replacing one must not lose the user's mini preview choice.
-const memories = new Map<string, PreviewMemory>();
-const MEMORY_LIMIT = 32;
-
-// A retained view can still expose its last live signal after access changes or cache eviction.
-// Do not use that old signal to recreate a discarded selection.
-const observed = new WeakSet<ui.ThreadAutomationActivity>();
-let generation = $state(0);
-
-threadCache.onRelease((id) => {
-  if (id === undefined) memories.clear();
-  else memories.delete(id);
-
-  generation++;
-});
-
-function openMemory(id: string, workerId: string): PreviewMemory {
-  const previous = memories.get(id);
-  const memory = previous?.workerId === workerId ? previous : new PreviewMemory(workerId);
-  memories.delete(id);
-  memories.set(id, memory);
-
-  if (memories.size > MEMORY_LIMIT) {
-    const oldest = memories.keys().next().value;
-
-    if (oldest !== undefined) memories.delete(oldest);
-  }
-
-  return memory;
-}
-
-/** Only live authorized activity can seed a choice; route remounts restore session metadata. */
-export class AutomaticPreview {
-  #memory = $state.raw<PreviewMemory>();
-  readonly #source: () => ThreadState;
-
-  // Route props update before the restoration effect runs. Never expose the previous thread's
-  // choice to a newly rendered mini preview, even when both threads share the same worker.
-  get #current(): PreviewMemory | undefined {
-    void generation;
-    const thread = this.#source().thread;
-    const memory = this.#memory;
-
-    return thread &&
-      !thread.archivedAt &&
-      !thread.deletedAt &&
-      memory?.workerId === thread.workerId &&
-      memories.get(thread.id) === memory
-      ? memory
-      : undefined;
-  }
-
-  get selection(): PreviewSelection | undefined {
-    return this.#current?.selection;
+  get admissionId(): string {
+    return this.#current?.admissionId ?? "";
   }
   get workerId(): string {
-    return this.#current?.workerId ?? "";
+    return this.#current?.activity.workerId ?? "";
+  }
+  get turnId(): string {
+    return this.#current?.activity.turnId ?? "";
   }
   get minimized(): boolean {
-    return this.#current?.minimized ?? false;
+    const thread = this.source().thread;
+
+    return Boolean(thread && minimized.get(thread.id) === thread.workerId);
   }
   set minimized(value: boolean) {
-    const memory = this.#current;
+    const thread = this.source().thread;
 
-    if (memory) memory.minimized = value;
-  }
+    if (!thread) return;
+    minimized.delete(thread.id);
 
-  constructor(source: () => ThreadState) {
-    this.#source = source;
+    if (value) {
+      minimized.set(thread.id, thread.workerId);
 
-    $effect(() => {
-      const view = source();
-      const thread = view.thread;
-      const activity = view.automationActivity;
-      void generation;
+      if (minimized.size > 32) {
+        const oldest = minimized.keys().next().value;
 
-      untrack(() => {
-        if (!thread || thread.archivedAt || thread.deletedAt) {
-          if (thread) memories.delete(thread.id);
-
-          if (thread && activity) observed.add(activity);
-
-          this.#memory = undefined;
-
-          return;
-        }
-
-        const memory = openMemory(thread.id, thread.workerId);
-        this.#memory = memory;
-
-        if (!activity || observed.has(activity)) return;
-        observed.add(activity);
-
-        if (activity.workerId !== thread.workerId || activity.id === memory.seen) return;
-        memory.seen = activity.id;
-        memory.follow(activity);
-      });
-    });
+        if (oldest !== undefined) minimized.delete(oldest);
+      }
+    }
   }
 }

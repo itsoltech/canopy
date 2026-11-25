@@ -16,7 +16,7 @@ export interface PreviewBackend {
 export interface PreviewContext {
   readonly runtime: PreviewRuntime;
   readonly signal: AbortSignal;
-  emit(update: PreviewUpdate): void;
+  emit(update: PreviewUpdate, stillCurrent?: () => boolean): void;
   active(): boolean;
 }
 

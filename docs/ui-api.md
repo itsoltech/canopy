@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Aktualizacja (2026-11-25). Automatyczny mini Preview w web i desktopie śledzi
+trwające wywołania automatyzacji. W Desktop pokazuje zrzut zwrócony agentowi
+lub bieżący obraz potwierdzonego okna z limitem 12 klatek na sekundę.
+
 Status (2026-11-25): web, desktop i mobile zapisują rozwinięcie Working i Snoozed
 w lokalnych preferencjach paska bocznego.
 
@@ -660,20 +664,20 @@ Summary/Timeline/Code i dotychczasowe akcje. Granty connectorów nadal obejmują
 workera i wszystkie jego wątki; sekrety i lineage pozostają w podsumowaniu,
 a oczekujące interakcje przy rozmowie.
 
-`ThreadState` przyjmuje `ThreadUpdate.change = automationActivity` wyłącznie z
-żywego watcha bieżącego wątku. Stan nie jest odtwarzany ze snapshotu,
-przeładowania ani catch-upu historii, więc stare wywołania nie otwierają mini
-Preview. `AutomaticPreview` śledzi ostatnią zatwierdzoną aktywność, a strona
-sprawdza zgodność workera przed pokazaniem `AgentPreviewMini` pod podsumowaniem.
-Mini renderuje nietrwały obraz tylko do odczytu, z limitem 4 klatek na sekundę,
-bez zmiany viewportu, uruchamiania przeglądarki ani automatycznej nawigacji.
-Ten sam zakres zachowuje stream. Minimizacja pozostaje w
-pamięci zamontowanej strony bieżącego wątku przy kolejnych sygnałach; zmiana
-wątku resetuje wybór i minimizację. Jawne otwarcie mini w sidebarze przekazuje ten
-sam wątek, narzędzie, cel i sesję wątku do `AgentPreviewPanel` oraz przenosi fokus
-na pasek narzędzi; sam sygnał nie przejmuje fokusu. Mini watch zatrzymuje się,
-gdy sidebar Preview jest widoczny, i wraca po jego zamknięciu, chyba że został
-zminimalizowany. Ukrycie, offline, odebranie grantu lub archiwizacja kończą watch.
+`ThreadState` przyjmuje początek, zakończenie i reset aktywności automatyzacji
+wyłącznie z żywego watcha bieżącego wątku. `AutomaticPreview` uwzględnia
+trwające wywołania, turę i workera. Zakończenie tury lub przejście agenta do
+innej pracy bez podglądu usuwa miniaturę. Po ponownym połączeniu dopiero
+bieżąca aktywność pozwala ponownie otworzyć Mini.
+
+`AgentPreviewMini` wyświetla obraz tylko do odczytu. Desktop odświeża
+potwierdzone okno do 12 razy na sekundę. Gdy narzędzie zwraca zrzut,
+Mini może pokazać dokładnie ten obraz. Browser i Device mają limit 4 klatek
+na sekundę. Kolejne operacje w tym samym zakresie zachowują subskrypcję.
+Minimizacja pozostaje w pamięci sesji klienta per wątek. Otwarcie Mini
+w sidebarze przekazuje potwierdzony cel do ręcznego Preview i przenosi fokus
+na jego pasek narzędzi. Zrzut bez powiązanego okna pozostaje tylko do odczytu.
+Ukrycie, offline, odebranie grantu lub archiwizacja kończą watch.
 
 Prawy panel web/desktop łączy Files (drzewo otwierające karty plików), Diff
 (lista zmian Git otwierająca wspólną kartę diffów) i Preview
@@ -3063,11 +3067,12 @@ Trasy:
 - Załączniki: `POST api/attachments` (surowe bajty w ciele, nazwa w `x-file-name` zakodowana URI, wymagany nagłówek `x-requested-with: canopy`, a `Origin`, jeśli jest, musi wskazywać ten host → `Attachment`), `GET api/attachments/[id]` (`?thumbnail`, `?download`, `?preview`, `?image`), `GET api/threads/[id]/blobs/[sha256]` (podgląd z transkryptu). Odpowiedzi z bajtami: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: private, immutable`; inline PNG, JPEG, GIF i WebP oraz SVG wyłącznie przez `?image` do elementu `<img>`. Pozostałe pliki mają `Content-Disposition: attachment` (SVG domyślnie jako `application/octet-stream`, tekst i HTML jako `text/plain`). `?preview` zwraca ograniczony prefiks do odczytu jako tekst. `POST api/threads/[id]/messages` przyjmuje `attachmentIds` (tekst może być pusty), formularz nowego wątku pola `attachmentId`.
 - SSE: `api/overview/events`, `api/threads/[id]/events`. Overview po zerwaniu zaczyna od świeżego snapshotu. Watch wątku otwiera nowy `EventSource` z ostatnim atomowym kursorem kopii klienta; gateway zwraca deltę albo pełny snapshot według reguł opisanych wyżej. W `api/threads/[id]/events` BFF łączy kolejne `item_delta` tego samego itemu i pola w jedno zdarzenie (`lib/server/coalesce.ts`): wychodzi, gdy fragment niesie koniec linii, po 200 ms, przed każdą inną zmianą i na końcu strumienia; kolejność i wynik reduktora są te same co dla pojedynczych delt, scalone zdarzenie ma `seq` ostatniej delty i puste `raw_json`.
 
-`ThreadUpdate.change = automationActivity` przechodzi tą samą ścieżką SSE jako
-sygnał tylko na żywo. Nie tworzy wpisu w snapshotach, transkrypcie, journalu,
-lustrze ani replayu. Niesie identyfikatory aktywności i tury, narzędzie, workera
-i bezpieczny cel, bez surowych argumentów, URL-i ani tekstu. Kontrakt i granice
-autoryzacji:
+`automationActivity`, `automationActivityFinished` i `automationActivityReset`
+przechodzą tą samą ścieżką SSE tylko na żywo. Początek i koniec niosą
+identyfikatory aktywności, tury i workera, narzędzie oraz bezpieczny cel.
+Reset usuwa wskazaną aktywność lub wszystkie aktywności bieżącego watcha.
+Sygnały są pomijane w snapshotach, transkrypcie, journalu, lustrze i replayu.
+Szczegóły autoryzacji podaje
 [protocol.md](protocol.md#lokalne-narzędzia-automatyzacji).
 
 Strumieniowany tekst (wiadomość agenta, rozumowanie, wyjście komendy, narzędzia i zadania w tle) pojawia się linia po linii (`lib/shared/ui/streaming`: `LineReveal`, reguła wspólna z mobile w `@canopy/ui/streaming`): stan trzyma pełny tekst, a widok pokazuje go do ostatniego końca linii; niepełna linia pozostaje buforowana aż do zakończenia itemu albo jego tury (`ThreadDirectory.turnEnded`). Kursor streamingu jest inline przy końcu akapitu, nagłówka, listy lub cytatu; dla kodu, tabel i pozostałych bloków zajmuje róg bloku bez dodawania wiersza. Nagłówek tabeli czeka na wiersz separatora, niepełny płot kodu i wiersz tabeli nie są pokazywane jako surowy markdown, otwarty płot renderuje się jako kod. Markdown jest parsowany tylko przy zmianie widocznego tekstu; `StreamingTokens` zachowuje niezależny prefiks i ponownie parsuje ostatni blok. Edycje, zmiana opcji, normalizacja CR i składnia referencji używają pełnego parsera. Niezmienione tokeny niezależnych bloków, punktów list i wierszy tabel zachowują tożsamość (`shareTokens`); późna definicja referencji wymaga odświeżenia także wcześniejszych bloków. Każdy nowy blok, punkt listy, wiersz tabeli i linia kodu (`code/CodeLines`) wchodzi raz przez `t-stream` (wyostrzenie z przenikaniem, `--duration-medium`); przy `prefers-reduced-motion` od razu. `CodeBlock` dzieli zwykłe wyjście na niezmienne grupy 32 linii, zachowując pełny tekst, zaznaczenie i przewijanie bez dodatkowego opóźnienia. Zasady i pomiary: [client-performance.md](client-performance.md#strumieniowanie-osi-czasu).

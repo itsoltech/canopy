@@ -57,7 +57,7 @@ export class ProviderRuntimes {
         return event;
       },
       interact: (request, signal) => ops.interact(request, signal),
-      callTool: (call, signal) => ops.callTool(call, signal),
+      callTool: ops.callTool,
       viewImage: (threadId, cwd, path) => ops.viewImage(threadId, cwd, path),
       localMcpServers: (tools, threadId, defaults) => state.agentTools.localMcpServers(tools, threadId, defaults),
     };

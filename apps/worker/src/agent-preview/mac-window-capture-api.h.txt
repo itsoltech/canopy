@@ -1,0 +1,99 @@
+// Public 64-bit Darwin interfaces used by the SDK-independent Bun FFI helper.
+typedef void *Object;
+typedef unsigned int WindowID;
+typedef struct {
+    double x, y, width, height;
+} Rect;
+extern Object objc_getClass(const char *);
+extern Object sel_registerName(const char *);
+extern void objc_msgSend(void);
+extern Object dlsym(Object, const char *);
+extern void *memcpy(void *, const void *, unsigned long);
+extern Object CFRetain(Object);
+extern void CFRelease(Object);
+extern long CFArrayGetCount(Object);
+extern Object CFArrayGetValueAtIndex(Object, long);
+extern Object CFDictionaryGetValue(Object, Object);
+extern Object CFDataCreateMutable(Object, long);
+extern long CFDataGetLength(Object);
+extern const unsigned char *CFDataGetBytePtr(Object);
+extern _Bool CFStringGetCString(Object, char *, long, unsigned);
+extern Object CGWindowListCopyWindowInfo(unsigned, WindowID);
+extern _Bool CGRectMakeWithDictionaryRepresentation(Object, Rect *);
+extern _Bool CGPreflightScreenCaptureAccess(void);
+extern Object kCGWindowOwnerPID, kCGWindowNumber, kCGWindowOwnerName, kCGWindowName, kCGWindowLayer, kCGWindowBounds;
+extern unsigned long CGImageGetWidth(Object), CGImageGetHeight(Object);
+extern Object CGImageDestinationCreateWithData(Object, Object, unsigned long, Object);
+extern void CGImageDestinationAddImage(Object, Object, Object);
+extern _Bool CGImageDestinationFinalize(Object);
+extern Object kCGImageDestinationLossyCompressionQuality;
+extern Object dispatch_semaphore_create(long);
+extern long dispatch_semaphore_wait(Object, unsigned long long);
+extern long dispatch_semaphore_signal(Object);
+extern unsigned long long dispatch_time(unsigned long long, long long);
+extern void _exit(int);
+extern int proc_pidinfo(int, int, unsigned long long, void *, int);
+
+#define SELECT(name) sel_registerName(name)
+#define SEND(RETURN, ...) ((RETURN (*)(Object, Object, ##__VA_ARGS__))objc_msgSend)
+
+static Object get(Object receiver, const char *selector) { return SEND(Object)(receiver, SELECT(selector)); }
+static Object make(const char *cls) { return get(objc_getClass(cls), "new"); }
+static int responds(Object receiver, const char *name) {
+    return receiver && SEND(_Bool, Object)(receiver, SELECT("respondsToSelector:"), SELECT(name));
+}
+static long integer(Object number) { return SEND(long)(number, SELECT("integerValue")); }
+static void setBool(Object obj, const char *selector, _Bool value) {
+    SEND(void, _Bool)(obj, SELECT(selector), value);
+}
+static void setSize(Object obj, const char *selector, unsigned long value) {
+    SEND(void, unsigned long)(obj, SELECT(selector), value);
+}
+
+static Rect rectProperty(Object obj, const char *selector) {
+#ifdef __x86_64__
+    // The Intel Objective-C ABI uses a hidden destination argument for a CGRect return value.
+    extern void objc_msgSend_stret(void);
+    Rect result;
+    ((void (*)(Rect *, Object, Object))objc_msgSend_stret)(&result, obj, SELECT(selector));
+    return result;
+#else
+    return SEND(Rect)(obj, SELECT(selector));
+#endif
+}
+
+// The public Apple Blocks ABI for a global, capture-free block. ScreenCaptureKit invokes it
+// on a dispatch queue. Only this isolated helper waits. Killing it cancels a pending pull.
+static Object completionGate, completedValue;
+static void complete(Object block, Object value, Object error) {
+    (void)block;
+    completedValue = value && !error ? CFRetain(value) : 0;
+    dispatch_semaphore_signal(completionGate);
+}
+static struct {
+    unsigned long reserved, size;
+} descriptor;
+static struct {
+    Object isa;
+    int flags, reserved;
+    void (*invoke)(Object, Object, Object);
+    Object descriptor;
+} completion;
+
+static int initializeCompletion(void) {
+    completion.isa = dlsym((Object)-2, "_NSConcreteGlobalBlock"); // RTLD_DEFAULT
+    completion.flags = 1 << 28;                                   // BLOCK_IS_GLOBAL
+    completion.invoke = complete;
+    descriptor.size = sizeof(completion);
+    completion.descriptor = &descriptor;
+    completionGate = dispatch_semaphore_create(0);
+    return completion.isa && completionGate;
+}
+static Object waitForCompletion(void) {
+    // Also bound an outstanding system call if the worker itself exits while awaiting a frame.
+    if (dispatch_semaphore_wait(completionGate, dispatch_time(0, 2500000000LL)))
+        _exit(1);
+    Object value = completedValue;
+    completedValue = 0;
+    return value;
+}

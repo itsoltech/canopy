@@ -171,6 +171,12 @@ export class ThreadResources {
 
     for (const [id, pending] of this.ctx.state.toolCalls) {
       if (pending.call.threadId !== threadId) continue;
+
+      if (pending.cancel) {
+        pending.cancel();
+        continue;
+      }
+
       this.ctx.state.toolCalls.delete(id);
       pending.resolve(create(AgentToolResultSchema, { callId: id, isError: true, content: "Thread closed" }));
     }

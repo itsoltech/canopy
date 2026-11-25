@@ -40,13 +40,22 @@ export function previewScope(start: StartAgentPreview) {
   if (![AgentTool.BROWSER, AgentTool.DESKTOP, AgentTool.DEVICE].includes(scope.tool))
     throw new Error("Unknown preview tool");
 
+  if (start.followAgent && scope.tool !== AgentTool.DESKTOP)
+    throw new Error("Only Desktop Preview can follow the agent");
+
   if (scope.target || scope.value || (scope.operation && scope.operation !== "screenshot"))
     throw new Error("Preview scope does not accept operations or action arguments");
 
   if (scope.session && agentToolSession(scope.session) !== agentToolSession(start.threadId))
     throw new Error("Preview must use the current thread session");
 
-  return create(RunAgentToolSchema, { ...scope, operation: "screenshot", session: agentToolSession(start.threadId) });
+  return create(RunAgentToolSchema, {
+    ...scope,
+    // Activity selectors can disappear on the next qualified ref. All passive watches share the native session target.
+    ...(start.followAgent && { app: "", windowId: "" }),
+    operation: "screenshot",
+    session: agentToolSession(start.threadId),
+  });
 }
 
 export function validatePreviewInputs(inputs: readonly AgentPreviewInput[], previewId = ""): void {

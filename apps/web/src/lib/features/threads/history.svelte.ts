@@ -54,6 +54,10 @@ export class ThreadHistory {
       this.view.connection = this.read()?.thread ? "syncing" : "connecting";
       stop = liveSource(`/api/threads/${id}/events`, {
         stableMs: 10_000,
+        onopen: (_, signal) => {
+          // Admissions and completions belong to this live watch and cannot be replayed from a cursor.
+          signal.addEventListener("abort", () => this.view.previewActivity.clear(), { once: true });
+        },
         url: () =>
           `/api/threads/${id}/events?${new URLSearchParams({
             incremental: "1",

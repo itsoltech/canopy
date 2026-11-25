@@ -1,5 +1,5 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";
-import sharp from "sharp";
+import sharp, { type Metadata, type Region, type Sharp } from "sharp";
 import { MAX_FRAME_BYTES, MAX_IMAGE_BYTES } from "./types.ts";
 
 export function readPreviewImage(path: string): Uint8Array {
@@ -27,7 +27,46 @@ export function readPreviewImage(path: string): Uint8Array {
   }
 }
 
-export async function jpegFrame(data: Uint8Array) {
+interface WindowGeometry {
+  readonly windowWidth: number;
+  readonly windowHeight: number;
+  readonly scaleFactor: number;
+}
+
+/** A window screenshot can include an asymmetric translucent shadow around its logical bounds. */
+async function windowRegion(image: Sharp, metadata: Metadata, geometry: WindowGeometry): Promise<Region | undefined> {
+  const width = Math.round(geometry.windowWidth * geometry.scaleFactor);
+  const height = Math.round(geometry.windowHeight * geometry.scaleFactor);
+  const { width: imageWidth, height: imageHeight } = metadata;
+
+  if (!width || !height || width > imageWidth || height > imageHeight || (metadata.orientation ?? 1) !== 1)
+    return undefined;
+
+  if (width === imageWidth && height === imageHeight) return { left: 0, top: 0, width, height };
+
+  if (!metadata.hasAlpha) return undefined;
+  const alpha = await image.clone().extractChannel("alpha").raw({ depth: "uchar" }).toBuffer();
+  const first = alpha.indexOf(255);
+  const top = Math.floor(first / imageWidth);
+  const bottom = Math.floor(alpha.lastIndexOf(255) / imageWidth);
+
+  if (first < 0 || bottom - top + 1 !== height) return undefined;
+  let left = imageWidth;
+  let right = -1;
+
+  for (let y = top; y <= bottom; y++) {
+    const row = alpha.subarray(y * imageWidth, (y + 1) * imageWidth);
+    const start = row.indexOf(255);
+
+    if (start < 0) continue;
+    left = Math.min(left, start);
+    right = Math.max(right, row.lastIndexOf(255));
+  }
+
+  return right - left + 1 === width ? { left, top, width, height } : undefined;
+}
+
+export async function jpegFrame(data: Uint8Array, window?: WindowGeometry) {
   if (!data.byteLength || data.byteLength > MAX_IMAGE_BYTES) throw new Error("Preview image exceeds its input limit");
   const image = sharp(data, { limitInputPixels: 32_000_000, failOn: "warning", animated: false });
   const metadata = await image.metadata();
@@ -42,6 +81,10 @@ export async function jpegFrame(data: Uint8Array) {
   )
     throw new Error("Preview is not a supported bounded image");
 
+  const region = window && (await windowRegion(image, metadata, window));
+
+  if (region && (region.width !== metadata.width || region.height !== metadata.height)) image.extract(region);
+
   const result = await image
     .rotate()
     .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
@@ -51,6 +94,7 @@ export async function jpegFrame(data: Uint8Array) {
   if (result.data.byteLength > MAX_FRAME_BYTES) throw new Error("Preview frame exceeds 2 MiB");
 
   return {
+    ...(window && { windowAligned: Boolean(region) }),
     data: new Uint8Array(result.data),
     mimeType: "image/jpeg",
     width: result.info.width,

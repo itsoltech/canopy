@@ -1,8 +1,5 @@
 import type { Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  AgentToolCall,
-  AgentToolResult,
-  AgentTool,
   InteractionRequest,
   InteractionResponse,
   Mention,
@@ -19,7 +16,7 @@ import type { Env, ProfileUserConfiguration, ResolvedProfile } from "../profiles
 import type { ViewImageResult } from "../../images/index.ts";
 import { ClaudeEventMapper } from "./mapping.ts";
 import type { AutoAllow } from "./permissions.ts";
-import type { LocalAgentToolMcpServer } from "../../agent-tools/index.ts";
+import type { AutomationMcpOptions } from "../local-automation.ts";
 import type { ClaudeUsage } from "./usage.ts";
 import type { claudeSecretHooks } from "./secret-hooks.ts";
 
@@ -29,7 +26,7 @@ export class ClaudeThreadError extends Schema.TaggedError<ClaudeThreadError>()("
   message: Schema.String,
 }) {}
 
-export interface ClaudeThreadsOptions {
+export interface ClaudeThreadsOptions extends AutomationMcpOptions {
   onUsage?(snapshot: import("@canopy/contracts").ProviderUsageSnapshot): void;
   /** Isolated Claude config dir (CLAUDE_CONFIG_DIR, claude/home.ts). */
   readonly home: string;
@@ -63,18 +60,11 @@ export interface ClaudeThreadsOptions {
   /** An event has finished journaling; the host may recheck a pending drain. */
   onActivitySettled?(): void;
   interact(request: InteractionRequest): Promise<InteractionResponse>;
-  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
   /** The thread's attachments directory: readable without a prompt (additionalDirectories). */
   attachmentsDir?(threadId: string): string;
   secretsDir?(threadId: string): string;
   /** The platform's view_image (worker-side; docs/agent-bus.md). */
   viewImage?(threadId: string, cwd: string, path: string): Promise<ViewImageResult>;
-  /** Local automation MCP servers resolved by the worker from gateway-approved tool ids. */
-  localMcpServers?(
-    tools: readonly AgentTool[],
-    threadId: string,
-    defaults?: ThreadSpec["agentToolDefaults"],
-  ): readonly LocalAgentToolMcpServer[];
   /** Prepares image previews and writes the event to the journal. */
   recordEvent?(
     journal: Journal["Service"],

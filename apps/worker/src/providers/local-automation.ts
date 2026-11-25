@@ -17,7 +17,12 @@ export interface AutomationMcpOptions {
     threadId: string,
     defaults?: ThreadSpec["agentToolDefaults"],
   ): readonly LocalAgentToolMcpServer[];
-  callTool(call: AgentToolCall, signal?: AbortSignal): Promise<AgentToolResult>;
+  /** An admitted automation call receives its live connection's one-way completion reporter. */
+  callTool(
+    call: AgentToolCall,
+    signal?: AbortSignal,
+    admitted?: (finish: () => void) => void,
+  ): Promise<AgentToolResult>;
 }
 
 const toolIds = new Map([
@@ -47,6 +52,7 @@ export function automationMcp(
 
       if (!tool || !turn) throw new Error("Automation requires an active turn");
       const callId = Bun.randomUUIDv7();
+      let finish: (() => void) | undefined;
 
       const result = await options.callTool(
         create(AgentToolCallSchema, {
@@ -59,11 +65,19 @@ export function automationMcp(
           expiresAt: timestampFromDate(new Date(Date.now() + 300_000)),
         }),
         signal,
+        (complete) => {
+          finish = complete;
+        },
       );
 
-      if (signal.aborted || turnId() !== turn) throw new Error("Automation turn ended during authorization");
-
       if (result.isError) throw new Error(result.content || "Automation access denied");
+
+      if (turnId() !== turn) {
+        finish?.();
+        throw new Error("Automation turn ended during authorization");
+      }
+
+      return finish;
     },
   });
 }

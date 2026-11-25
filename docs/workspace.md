@@ -1,5 +1,10 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
+Aktualizacja (2026-11-25). Automatyczny mini Preview Desktop pokazuje potwierdzone
+okno agenta także podczas pracy użytkownika w innej aplikacji. Wyświetla również
+zrzuty otrzymane przez agenta bezpośrednio z narzędzia. Mini znika, gdy agent
+przechodzi do pracy w terminalu i zakończył wywołania automatyzacji.
+
 Aktualizacja (2026-11-22): ustawienie dostępu do konektora w wątku obejmuje cały projekt.
 Aktualizacja (2026-11-24): widok PR i `Rendered` plików Markdown korzystają z Thread width w web/desktop.
 Aktualizacja (2026-11-25) — menu kontekstowe PR w podsumowaniu web i desktop pozwala
@@ -31,7 +36,7 @@ zamykanie kart web/desktop środkowym przyciskiem myszy, diagramy Mermaid w tryb
 `Rendered`, bezpieczny HTML i lokalne obrazy w Markdown w web/desktop,
 cytowanie zaznaczeń z plików, przeciąganie plików do wiadomości
 i interaktywny Preview automatyzacji w panelu web/desktop oraz automatyczny mini Preview
-pod podsumowaniem wątku, przywracanie mini Preview oraz osobnego stanu prawego panelu
+pod podsumowaniem wątku, przywracanie minimizacji mini Preview oraz osobnego stanu prawego panelu
 po powrocie do wątku bez animacji panelu, kompaktowe pola wymiarów Preview bez +/−
 oraz kompaktowy przełącznik automatycznej archiwizacji po merge z ikoną informacji w podsumowaniu,
 otwieranie wątku podczas odbudowy strumienia overview, lokalne zmiany Git zapamiętywane przy zmianie wątku i odświeżane w tle
@@ -504,14 +509,18 @@ ukryta razem z rozmową.
 
 Zatwierdzone rzeczywiste wywołanie lokalnego MCP wysyła do bieżącego obserwatora
 wątku przejściową, typowaną aktywność. Mini Preview pojawia się pod kartą albo
-pigułką podsumowania, śledzi najnowsze narzędzie i bezpieczny cel, działa tylko do
-odczytu z limitem 4 klatek na sekundę i nie zmienia viewportu. Czeka na przeglądarkę
-agenta, bez uruchamiania jej ani automatycznej nawigacji. Przeładowanie klienta
-oraz catch-up historii nie odtwarzają starych aktywności. Minimizacja pozostaje
-skuteczna w sesji klienta, także po kolejnych wywołaniach. Powrót do wątku
-przywraca wybór i minimizację z ograniczonej pamięci sesji; nie odtwarza historii
-ani poprzedniej klatki. Sygnał nie przejmuje fokusu, a kolejne aktywności dla tego
-samego zakresu zachowują stream.
+pigułką podsumowania i śledzi najnowsze narzędzie oraz jego cel. Działa tylko do
+odczytu. W trybie Desktop pokazuje obraz otrzymany przez agenta lub potwierdzone
+okno z limitem 12 klatek na sekundę. Nagłówek i obraz pochodzą z tej samej
+klatki. Browser i Device mają limit 4 klatek na sekundę. W trybie Browser Mini
+czeka na przeglądarkę agenta, bez uruchamiania jej ani
+automatycznej nawigacji. Przeładowanie klienta
+oraz catch-up historii nie odtwarzają starych aktywności. Powrót do wątku
+przywraca minimizację z pamięci sesji. Nowe zatwierdzone wywołanie wskazuje
+bieżący cel. Kolejne operacje w tym samym zakresie zachowują subskrypcję.
+Mini znika po zakończeniu tury oraz przy przejściu do innego narzędzia bez
+podglądu. Równoległe zadanie w terminalu nie przerywa obserwacji trwającej
+operacji automatyzacji.
 Rozpoznawanie celu i granice sesji opisuje
 [automation-tools.md](automation-tools.md#automatyczny-mini-preview).
 

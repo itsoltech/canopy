@@ -25,7 +25,7 @@ export interface LocalAutomationMcpOptions {
   env: Record<string, string>;
   toolsListed?: McpToolsListed;
   /** Reject unless this tool is enabled and the thread has a current, permitted active turn. */
-  authorize(name: string, toolName: string, argsJson: string, signal: AbortSignal): Promise<void>;
+  authorize(name: string, toolName: string, argsJson: string, signal: AbortSignal): Promise<void | (() => void)>;
 }
 
 export interface LocalAutomationMcp {
@@ -138,6 +138,7 @@ async function handle(
   const controller = new AbortController();
   endpoint.pending.set(rpc.id, controller);
   const signal = AbortSignal.any([requestSignal, controller.signal]);
+  let finish: (() => void) | undefined;
 
   try {
     if (rpc.method === "ping") return reply(rpc.id, {});
@@ -174,8 +175,15 @@ async function handle(
     }
 
     try {
+      const grant = options.authorize(endpoint.name, effective.name, JSON.stringify(effective.arguments), signal);
       await abortable(
-        options.authorize(endpoint.name, effective.name, JSON.stringify(effective.arguments), signal),
+        grant.then((complete) => {
+          // A grant can arrive after a cancelled HTTP request has already returned.
+          if (!complete) return;
+
+          if (signal.aborted) complete();
+          else finish = complete;
+        }),
         signal,
       );
       signal.throwIfAborted();
@@ -189,6 +197,7 @@ async function handle(
   } catch {
     return failure(rpc.id, -32603, signal.aborted ? "Local automation request cancelled" : "Local automation failed");
   } finally {
+    finish?.();
     endpoint.pending.delete(rpc.id);
   }
 }

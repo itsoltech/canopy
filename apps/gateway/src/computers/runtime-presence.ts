@@ -21,6 +21,7 @@ import { SettingsStore } from "../store/settings.ts";
 import { CANOPY_VERSION } from "@canopy/domain/release/version";
 
 import {
+  AGENT_PREVIEW_FOLLOW_CAPABILITY,
   COMPUTER_LINK_PROTOCOL,
   MIN_COMPUTER_LINK_PROTOCOL,
   PROVIDER_SETTINGS_CAPABILITY,
@@ -145,7 +146,9 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         ...(this.options.serve
           ? [REMOTE_THREAD_PANEL, REMOTE_BRANCH_STASH, REMOTE_WORKSPACE_BRANCH_SWITCH, REMOTE_GIT_STATUS]
           : []),
-        ...(this.options.serve ? ["thread_files_watch_v1", AGENT_PREVIEW_CLIENT_ACK] : []),
+        ...(this.options.serve
+          ? ["thread_files_watch_v1", AGENT_PREVIEW_CLIENT_ACK, AGENT_PREVIEW_FOLLOW_CAPABILITY]
+          : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_v1"] : []),
         ...(this.options.core?.diagnostics.logs.enabled ? [DIAGNOSTICS_LOGS] : []),
         ...(this.options.core?.diagnostics.collector.enabled ? ["diagnostics_trace_v1"] : []),

@@ -1,0 +1,318 @@
+// JavaScript for Automation, executed by the system osascript on macOS.
+ObjC.import("AppKit");
+ObjC.import("CoreGraphics");
+ObjC.bindFunction("proc_pidinfo", ["int", ["int", "int", "unsigned long long", "void *", "int"]]);
+
+const idleMs = 6000;
+const ringMs = 340;
+const now = () => $.NSProcessInfo.processInfo.systemUptime * 1000;
+
+function sameProcess(action, info) {
+  // sys/proc_info.h, PROC_PIDTBSDINFO. Agent Desktop uses these exact kernel start times.
+  const length = 136;
+  if ($.proc_pidinfo(action.pid, 3, 0, info.mutableBytes, length) !== length) return false;
+  const bytes = info.bytes;
+  const data = new DataView(Uint8Array.from({ length }, (_, index) => bytes[index]).buffer);
+  return (
+    data.getUint32(12, true) === action.pid &&
+    action.processInstance === "macos-proc-v1:" + data.getBigUint64(120, true) + ":" + data.getBigUint64(128, true)
+  );
+}
+
+function boundsOf(b) {
+  if (!b || ![b.X, b.Y, b.Width, b.Height].every(Number.isFinite) || b.Width < 0 || b.Height < 0) return null;
+  return { left: b.X, top: b.Y, right: b.X + b.Width, bottom: b.Y + b.Height };
+}
+
+function intersect(a, b) {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+
+function contains(rect, x, y) {
+  return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+}
+
+function screenAt(x, y, desktopTop, screens) {
+  for (let i = 0; i < screens.count; i++) {
+    const f = screens.objectAtIndex(i).frame;
+    const screen = {
+      left: f.origin.x,
+      right: f.origin.x + f.size.width,
+      top: desktopTop - f.origin.y - f.size.height,
+      bottom: desktopTop - f.origin.y,
+    };
+    if (contains(screen, x, y)) return screen;
+  }
+  return null;
+}
+
+function targetStack(targetId, action) {
+  // This snapshot is front to back on the displayed Spaces. Read only geometry, identity and ordering.
+  const list = ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0));
+  const above = [];
+  for (let i = 0; i < list.count; i++) {
+    const entry = list.objectAtIndex(i);
+    const id = ObjC.unwrap(entry.objectForKey("kCGWindowNumber"));
+    const layer = ObjC.unwrap(entry.objectForKey("kCGWindowLayer"));
+    const alpha = ObjC.unwrap(entry.objectForKey("kCGWindowAlpha"));
+    const bounds = boundsOf(ObjC.deepUnwrap(entry.objectForKey("kCGWindowBounds")));
+    if (id === targetId) {
+      if (
+        !bounds ||
+        layer !== 0 ||
+        alpha !== 1 ||
+        ObjC.unwrap(entry.objectForKey("kCGWindowOwnerPID")) !== action.pid ||
+        !ObjC.unwrap(entry.objectForKey("kCGWindowIsOnscreen"))
+      )
+        return null;
+      // AX and Quartz can round a logical dimension differently.
+      if (
+        Math.abs(bounds.right - bounds.left - action.width) > 1 ||
+        Math.abs(bounds.bottom - bounds.top - action.height) > 1
+      )
+        return null;
+      return { bounds, above };
+    }
+    above.push({ id, layer, alpha, bounds });
+  }
+  return null;
+}
+
+function coveredRects(above, panelId, box, x, y) {
+  const covers = [];
+  for (const window of above) {
+    if (window.id === panelId || window.alpha === 0) continue;
+    const { bounds } = window;
+    if (!bounds || contains(bounds, x, y)) return null;
+    // Leave one point for compositor sampling at the cropped texture's edge.
+    const covered = intersect(box, {
+      left: Math.floor(bounds.left) - 1,
+      top: Math.floor(bounds.top) - 1,
+      right: Math.ceil(bounds.right) + 1,
+      bottom: Math.ceil(bounds.bottom) + 1,
+    });
+    if (covered) covers.push(covered);
+  }
+  return covers;
+}
+
+function makePanel(bounds, action) {
+  const x = bounds.left + action.x * (bounds.right - bounds.left);
+  const y = bounds.top + action.y * (bounds.bottom - bounds.top);
+  const primary = $.NSScreen.screens.firstObject.frame;
+  const rect = $.NSMakeRect(x, primary.origin.y + primary.size.height - y - 1, 1, 1);
+  const panel = $.NSPanel.alloc.initWithContentRectStyleMaskBackingDefer(
+    rect,
+    $.NSWindowStyleMaskNonactivatingPanel,
+    $.NSBackingStoreBuffered,
+    false,
+  );
+  panel.level = $.NSNormalWindowLevel;
+  panel.floatingPanel = false;
+  panel.becomesKeyOnlyIfNeeded = true;
+  panel.ignoresMouseEvents = true;
+  panel.hidesOnDeactivate = false;
+  panel.opaque = false;
+  panel.backgroundColor = $.NSColor.clearColor;
+  panel.hasShadow = false;
+  panel.animationBehavior = $.NSWindowAnimationBehaviorNone;
+  panel.collectionBehavior =
+    Number($.NSWindowCollectionBehaviorTransient) | Number($.NSWindowCollectionBehaviorIgnoresCycle);
+  panel.alphaValue = 0;
+  const view = $.NSImageView.alloc.initWithFrame(rect);
+  view.imageScaling = $.NSImageScaleNone;
+  panel.contentView = view;
+  return { panel, view, id: Number(panel.windowNumber) };
+}
+
+function color(hex) {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return $.NSColor.colorWithSRGBRedGreenBlueAlpha(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1);
+}
+
+function drawArrow(glyph, colors, x, y, size) {
+  const arrow = $.NSBezierPath.bezierPath;
+  for (const [i, [dx, dy]] of glyph.points.entries()) {
+    const point = $.NSMakePoint(x + dx * size, y - dy * size);
+    if (i === 0) arrow.moveToPoint(point);
+    else arrow.lineToPoint(point);
+  }
+  arrow.closePath;
+  arrow.lineJoinStyle = $.NSRoundLineJoinStyle;
+
+  // Composite the complete glyph before applying its single shadow inside the image.
+  $.NSGraphicsContext.saveGraphicsState;
+  const context = $.NSGraphicsContext.currentContext.CGContext;
+  const shadow = $.NSShadow.alloc.init;
+  shadow.shadowOffset = $.NSMakeSize(glyph.shadow.x * size, -glyph.shadow.y * size);
+  shadow.shadowBlurRadius = glyph.shadow.blur * size;
+  shadow.shadowColor = $.NSColor.blackColor.colorWithAlphaComponent(glyph.shadow.opacity);
+  shadow.set;
+  $.CGContextBeginTransparencyLayer(context, null);
+  for (const [ink, stroke] of [
+    [colors.rim, glyph.rimStroke],
+    [colors.fill, glyph.fillStroke],
+  ]) {
+    ink.set;
+    arrow.fill;
+    arrow.lineWidth = stroke * size;
+    arrow.stroke;
+  }
+  $.CGContextEndTransparencyLayer(context);
+  $.NSGraphicsContext.restoreGraphicsState;
+}
+
+function paint(box, x, y, covers, glyph, colors, size, ring, reduced) {
+  const image = $.NSImage.alloc.initWithSize($.NSMakeSize(box.right - box.left, box.bottom - box.top));
+  const tipX = x - box.left;
+  const tipY = box.bottom - y;
+  image.lockFocus;
+  try {
+    if (ring >= 0 && ring < 1) {
+      const radius = (reduced ? 15 : 5 + 15 * ring) * size;
+      const path = $.NSBezierPath.bezierPathWithOvalInRect(
+        $.NSMakeRect(tipX - radius, tipY - radius, 2 * radius, 2 * radius),
+      );
+      colors.accent.colorWithAlphaComponent(1 - ring).setStroke;
+      path.lineWidth = 2 * size;
+      path.stroke;
+    }
+    drawArrow(glyph, colors, tipX, tipY, size);
+    // Erase the complete composite, including the arrow shadow and ring beyond the hotspot.
+    for (const c of covers) {
+      $.NSRectFillUsingOperation(
+        $.NSMakeRect(c.left - box.left, box.bottom - c.bottom, c.right - c.left, c.bottom - c.top),
+        $.NSCompositingOperationClear,
+      );
+    }
+  } finally {
+    image.unlockFocus;
+  }
+  return image;
+}
+
+function glyphInsets(glyph, size) {
+  // Allow the outer stroke, four blur radii and anti-aliasing before clipping against the window.
+  const halo = Math.max(glyph.rimStroke, glyph.fillStroke) / 2 + 4 * glyph.shadow.blur;
+  const extent = (axis, sign, offset) => {
+    const edge = Math.max(...glyph.points.map((p) => sign * p[axis])) + halo + sign * offset;
+    return Math.ceil(Math.max(21, edge) * size) + 1; // Maximum click ring including its stroke.
+  };
+  return {
+    left: extent(0, -1, glyph.shadow.x),
+    right: extent(0, 1, glyph.shadow.x),
+    top: extent(1, -1, glyph.shadow.y),
+    bottom: extent(1, 1, glyph.shadow.y),
+  };
+}
+
+function visibleFrame(bounds, point, insets, above, panelId, targetId) {
+  const screens = $.NSScreen.screens;
+  // The first screen has the menu-bar coordinate origin, even when the key window is on another screen.
+  const primary = screens.firstObject.frame;
+  const desktopTop = primary.origin.y + primary.size.height;
+  const x = Math.floor(bounds.left + point.x * (bounds.right - bounds.left));
+  const y = Math.floor(bounds.top + point.y * (bounds.bottom - bounds.top));
+  const screen = screenAt(x, y, desktopTop, screens);
+  if (!screen || !contains(bounds, x, y)) return null;
+  const hitsTarget = (px, py) =>
+    Number($.NSWindow.windowNumberAtPointBelowWindowWithWindowNumber($.NSMakePoint(px, desktopTop - py), 0)) ===
+    targetId;
+  if (!hitsTarget(x + 0.5, y + 0.5)) return null;
+
+  const footprint = { left: x - insets.left, top: y - insets.top, right: x + insets.right, bottom: y + insets.bottom };
+  const box = intersect(intersect(footprint, bounds), screen);
+  const covers = coveredRects(above, panelId, box, x, y);
+  if (!covers) return null;
+  // A Quartz bounding box can also contain rounded or transparent corners. Suppress ambiguous footprints.
+  for (const px of [box.left + 0.5, box.right - 0.5]) {
+    for (const py of [box.top + 0.5, box.bottom - 0.5]) {
+      if (!covers.some((c) => contains(c, px, py)) && !hitsTarget(px, py)) return null;
+    }
+  }
+  return { x, y, box, covers, desktopTop };
+}
+
+function showFrame(marker, frame, glyph, colors, style, ring, reduced) {
+  const { box, covers, x, y, desktopTop } = frame;
+  const signature = JSON.stringify([frame, ring]);
+  if (marker.lastPaint !== signature) {
+    const image = paint(box, x, y, covers, glyph, colors, style.size, ring, reduced);
+    const rect = $.NSMakeRect(box.left, desktopTop - box.bottom, box.right - box.left, box.bottom - box.top);
+    marker.panel.setFrameDisplay(rect, false);
+    if (!$.NSEqualRects(marker.panel.frame, rect)) {
+      marker.panel.alphaValue = 0;
+      marker.lastPaint = null;
+      return;
+    }
+    marker.view.image = image;
+    marker.panel.display;
+    marker.lastPaint = signature;
+  }
+  marker.panel.alphaValue = 1;
+}
+
+function animate(action, targetId, marker, info) {
+  const { panel, id } = marker;
+  const { glyph, style } = action;
+  const insets = glyphInsets(glyph, style.size);
+  const from = action.from || action;
+  const distance = Math.hypot((action.x - from.x) * action.width, (action.y - from.y) * action.height);
+  const reduced = $.NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
+  const travel =
+    reduced || !distance
+      ? 0
+      : style.travelMinMs + (style.travelMaxMs - style.travelMinMs) * Math.min(1, distance / 600);
+  const colors = { fill: color(style.fill), rim: color(style.rim), accent: color(style.accent) };
+  const start = now();
+  while (now() - start < travel + idleMs && sameProcess(action, info)) {
+    const stack = targetStack(targetId, action);
+    if (!stack) return;
+
+    const elapsed = now() - start;
+    // The panel stays transparent until WindowServer confirms adjacency at the target's ordinary level.
+    const neighbor = stack.above[stack.above.length - 1];
+    if (!neighbor || neighbor.id !== id || neighbor.layer !== 0 || !panel.onActiveSpace) {
+      panel.alphaValue = 0;
+      panel.orderWindowRelativeTo($.NSWindowAbove, targetId);
+    } else {
+      const t = travel ? Math.min(1, elapsed / travel) : 1;
+      const ease = t * t * (3 - 2 * t);
+      const point = { x: from.x + (action.x - from.x) * ease, y: from.y + (action.y - from.y) * ease };
+      const frame = visibleFrame(stack.bounds, point, insets, stack.above, id, targetId);
+      const ring =
+        action.click && style.ripple && elapsed >= travel && elapsed < travel + ringMs
+          ? (elapsed - travel) / ringMs
+          : -1;
+      if (frame) showFrame(marker, frame, glyph, colors, style, ring, reduced);
+      else panel.alphaValue = 0;
+    }
+    const frameMs = elapsed < travel + ringMs ? 1000 / 60 : 1000 / 30;
+    $.NSRunLoop.currentRunLoop.runUntilDate(
+      $.NSDate.dateWithTimeIntervalSinceNow(Math.max(0.001, (frameMs - (now() - start - elapsed)) / 1000)),
+    );
+  }
+}
+
+function run(argv) {
+  const action = JSON.parse(argv[0]);
+  const match = /^w-([1-9][0-9]{0,9})$/.exec(action.windowId);
+  if (!match) return;
+  const targetId = Number(match[1]);
+  if (targetId > 0xffffffff) return;
+  const info = $.NSMutableData.dataWithLength(136);
+  if (!sameProcess(action, info)) return;
+  $.NSApplication.sharedApplication.setActivationPolicy($.NSApplicationActivationPolicyProhibited);
+  const initial = targetStack(targetId, action);
+  if (!initial) return;
+  const marker = makePanel(initial.bounds, action);
+  try {
+    animate(action, targetId, marker, info);
+  } finally {
+    marker.panel.orderOut(null);
+  }
+}

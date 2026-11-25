@@ -218,7 +218,7 @@ export class CodexRuntimes {
         if (this.ctx.state.staleRuntimes.has(`codex/${name}`)) void this.ctx.ops.reconcileRuntimes().catch(() => {});
       },
       interact: (request) => this.ctx.ops.interact(request),
-      callTool: (call, signal) => this.ctx.ops.callTool(call, signal),
+      callTool: this.ctx.ops.callTool,
       viewImage: (threadId, path) => this.ctx.ops.viewImage(threadId, this.ctx.state.cwds.get(threadId) ?? "", path),
       localMcpServers: (tools, threadId, defaults) =>
         this.ctx.state.agentTools.localMcpServers(tools, threadId, defaults),

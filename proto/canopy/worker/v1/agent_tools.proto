@@ -124,6 +124,8 @@ message StartAgentPreview {
   RunAgentTool scope = 3;
   uint32 max_fps = 4;
   AgentToolSessionDefaults agent_tool_defaults = 5;
+  // Wait for the agent's target instead of capturing the foreground window.
+  bool follow_agent = 6;
 }
 
 message StopAgentPreview { string preview_id = 1; }
@@ -165,6 +167,15 @@ message AgentPreviewCommand {
   }
 }
 
+// Position of an agent action in the captured Desktop window, in [0, 1]
+// from the top left. Consecutive frames can describe the same action.
+message AgentPreviewCursor {
+  string action_id = 1;
+  double x = 2;
+  double y = 3;
+  bool click = 4;
+}
+
 message AgentPreviewEvent {
   string preview_id = 1;
   string state = 2; // connecting | ready | frame | error | closed
@@ -181,4 +192,8 @@ message AgentPreviewEvent {
   repeated AgentPreviewTarget targets = 13;
   string target_id = 14;
   string mode = 15; // stream | screenshots
+  AgentPreviewCursor cursor = 16; // Only on a Desktop frame for the action's window.
+  bool following_agent = 17; // This frame captured the verified window of an automatic Desktop watch.
+  // Still image returned to the agent by its authorized Desktop call. It may show a display or region with no window ID.
+  bool agent_observation = 18;
 }

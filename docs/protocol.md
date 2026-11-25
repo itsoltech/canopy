@@ -1,5 +1,10 @@
 # Protokół gateway ↔ worker
 
+Aktualizacja (2026-11-25). Automatyczny mini Preview Desktop może śledzić okno
+agenta dzięki capability `agent_preview_follow_window_v1`.
+Worker może też przesłać obraz zwrócony agentowi przez narzędzie. Capability
+`local_automation_completion_v1` umożliwia zakończenie obserwacji wywołania w UI.
+
 Aktualizacja (2026-11-25): `Welcome.thread_video_replies_v1` ogłasza obsługę
 narzędzia `show_video`. Implementacja korzysta z tego samego ograniczonego
 eksportu `ExportThreadImage` co obrazy.
@@ -380,16 +385,47 @@ wszystkich dostawców korzystających ze wspólnego bridge'a; jawna obca sesja l
 nieobsługiwane nadpisanie sesji w MCP tłumi sygnał. Klient sprawdza zgodność
 workera ze swoim bieżącym wątkiem przed użyciem aktywności.
 
+Przy capability `local_automation_completion_v1` gateway ustawia
+`ThreadAutomationActivity.reports_completion` (pole 10). Po wywołaniu MCP,
+również po błędzie lub anulowaniu, worker wysyła na tym samym łączu
+`WorkerMessage.local_automation_finished` (pole 824) z `call_id`. Gateway
+wiąże go z udzieloną autoryzacją i publikuje `automation_activity_finished`
+(pole 817) z oryginalnym identyfikatorem aktywności, turą i workerem.
+`automation_activity_reset` (pole 818) pozwala usunąć porzucone wywołanie po
+utracie łącza. Pusta wartość czyści aktywności danego odbiorcy po przepełnieniu
+bufora. W obu przypadkach dalsze zdarzenia transkryptu płyną zwykłą drogą.
+Przy starszym workerze klient korzysta z dostępnych zdarzeń tury.
+
 Aktywność jest wyłącznie fan-outem na żywo: nie wchodzi do `ThreadSnapshot`,
 transkryptu, journala, replayu ani lustra i nie jest zwracana przez catch-up
 historii. Nowa strona i przeładowanie nie wywołują mini podglądu na podstawie
 starych wywołań. Gateway zachowuje istniejące sprawdzanie właściciela, workera,
 grantu, stanu wątku i łącza; mini podgląd używa tych samych limitów Preview, z
-limitem klienta 4 klatek na sekundę.
+limitem klienta 12 klatek na sekundę dla Desktop i 4 dla Browser i Device.
 Zasady rozpoznawania celu i przekazania do interaktywnego panelu:
 [automation-tools.md](automation-tools.md#automatyczny-mini-preview).
 
 ### Interaktywny podgląd wątku
+
+Aktualizacja (2026-11-25). Klatka Desktop może zawierać `AgentPreviewEvent.cursor`
+(pole 16). Worker podaje położenie akcji względem lewego górnego rogu obrazu
+okna (`x` i `y` od 0 do 1). Pole `click` uruchamia animację kliknięcia,
+a `action_id` pozwala rozpoznać tę samą akcję na kolejnych klatkach.
+Gateway sprawdza rodzaj narzędzia, klatkę, obecność celu i zakres współrzędnych.
+Starszy klient pomija to pole. Animacja u odbiorcy korzysta z dotychczasowego
+strumienia i potwierdzeń klatek.
+
+Mini Preview ustawia `WatchAgentPreviewRequest.follow_agent` (pole 5). Gateway
+sprawdza capability `agent_preview_follow_window_v1` workera, a przy przekazaniu
+żądania także połączonego gatewaya. Przekazuje tryb w
+`StartAgentPreview.follow_agent` (pole 6). Worker oznacza klatkę potwierdzonego
+okna przez `AgentPreviewEvent.following_agent` (pole 17). Gateway i klient
+sprawdzają tę informację przed przekazaniem lub wyświetleniem obrazu. Obraz
+zwrócony agentowi ma osobne oznaczenie `agent_observation` (pole 18). Taka
+klatka może mieć pusty `target_id`, np. dla jednorazowego zrzutu ekranu.
+Powrót do stanu oczekiwania usuwa również oczekujący obraz z narzędzia. Gateway
+odrzuca próby wysłania wejścia do tej subskrypcji tylko do odczytu.
+Pusty wybór w ręcznym Desktop Preview zachowuje dotychczasowy tryb obserwacji.
 
 Status (2026-11-17): potwierdzenia klienta web/desktop po narysowaniu klatki
 zaimplementowane w kodzie; dostępność kanałów wynika z promocji wydań
@@ -419,7 +455,7 @@ i komendy wybranego backendu. Wyjątek nie obejmuje MCP/modelu ani `RunAgentTool
 |---|---|
 | Sesje | Najwyżej 4 watchy na worker, 64 łącznie w gatewayu; podglądy tego samego celu współdzielą backend workera. |
 | Częstotliwość | `max_fps` 1–20, domyślnie 12; faktyczna częstotliwość zależy od backendu i odbiorcy. |
-| Klatki | Do 2 MiB PNG/JPEG; wymiary obrazu i viewportu do 8192 na oś. Worker normalizuje obrazy do JPEG o dłuższej krawędzi najwyżej 1600 px. |
+| Klatki | Do 2 MiB PNG/JPEG, wymiary obrazu i viewportu do 8192 na oś. Zrzuty na żywo mają dłuższą krawędź do 1600 px. Obraz z wyniku MCP zachowuje oryginalne bajty w limicie 2 MiB. Większy obraz worker skaluje i kompresuje do JPEG. |
 | Metadane | Do 32 KiB bez bajtów obrazu, najwyżej 64 cele. |
 | Wejście | Do 64 zdarzeń i 32 KiB zakodowanej partii, tekst pojedynczego zdarzenia do 8 KiB, `key`/`code` do 128 B. |
 | Wskaźnik | Współrzędne znormalizowane 0–1 względem obrazu bez letterboxingu; skończone delty kółka o wartości bezwzględnej do 100 000, `button` 0–2, maska `buttons` do 7, `modifiers` do 15. |

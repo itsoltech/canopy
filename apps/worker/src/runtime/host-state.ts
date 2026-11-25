@@ -104,7 +104,10 @@ export class HostState {
   admitting = 0;
 
   readonly interactions = new Map<string, { request: InteractionRequest; resolve: (r: InteractionResponse) => void }>();
-  readonly toolCalls = new Map<string, { call: AgentToolCall; resolve: (r: AgentToolResult) => void }>();
+  readonly toolCalls = new Map<
+    string,
+    { call: AgentToolCall; resolve: (r: AgentToolResult) => void; cancel?: () => void }
+  >();
   /** Last model catalog (ModelCatalog), re-sent after a reconnect. */
   catalog: { configVersion: bigint; profiles: ProfileModelsInit[] } | undefined;
   catalogRun = 0;

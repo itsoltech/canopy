@@ -91,7 +91,7 @@
       connected = navigator.onLine;
     };
 
-    const observer = new IntersectionObserver(([entry]) => (visible = Boolean(entry?.isIntersecting)));
+    const observer = new IntersectionObserver((entries) => (visible = Boolean(entries.at(-1)?.isIntersecting)));
     const fullscreenChanged = () => (expanded = document.fullscreenElement === root);
 
     if (root) observer.observe(root);

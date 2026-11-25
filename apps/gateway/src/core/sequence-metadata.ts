@@ -7,6 +7,25 @@ import { coreState } from "./core-context.ts";
 // Fan-out shares immutable envelopes; charge their size once without retaining bytes or keys.
 const metadataSizes = new WeakMap<ui.ThreadUpdate, number>();
 
+function metadataKey(change: ui.ThreadUpdate["change"]): string | undefined {
+  switch (change.case) {
+    case "secret":
+      return `secret:${change.value.requestId}`;
+    case "schedule":
+      return `schedule:${change.value.id}`;
+    case "event":
+      return change.value.event?.body.case === "usageUpdated" ? "usage" : undefined;
+    case "automationActivity":
+      return change.value.reportsCompletion ? `activity:start:${change.value.id}` : "automation";
+    case "automationActivityFinished":
+      return `activity:finish:${change.value.id}`;
+    case "automationActivityReset":
+      return `activity:reset:${change.value}`;
+    default:
+      return undefined;
+  }
+}
+
 /** Permission-bearing controls stay at the home and outside the replication journal. */
 export async function sequenceControls(core: GatewayCore, threadId: string) {
   const schedules = await core.listSchedules(create(ui.ListSchedulesRequestSchema, { threadId }));
@@ -20,6 +39,7 @@ export function sequenceMetadata(core: GatewayCore, thread: string) {
   let pendingBytes = 0;
   let version = 0;
   let closed = false;
+  let lostActivity = false;
   const wake = new Set<() => void>();
 
   const unsubscribe = core.hub.observeThread(thread, (update) => {
@@ -27,18 +47,7 @@ export function sequenceMetadata(core: GatewayCore, thread: string) {
     version++;
 
     for (const notify of wake) notify();
-    const change = update.change;
-
-    const key =
-      change.case === "secret"
-        ? `secret:${change.value.requestId}`
-        : change.case === "schedule"
-          ? `schedule:${change.value.id}`
-          : change.case === "event" && change.value.event?.body.case === "usageUpdated"
-            ? "usage"
-            : change.case === "automationActivity"
-              ? "automation"
-              : undefined;
+    const key = metadataKey(update.change);
 
     if (!key) return;
     let bytes = metadataSizes.get(update);
@@ -51,8 +60,9 @@ export function sequenceMetadata(core: GatewayCore, thread: string) {
     pendingBytes += bytes - (pending.get(key)?.bytes ?? 0);
     pending.set(key, { update, bytes });
 
-    // A periodic authoritative control refresh repairs overflow; never retain an unbounded fan-out queue.
+    // Controls refresh periodically. This subscriber must forget calls whose boundaries were lost.
     if (pending.size > 128 || pendingBytes > 64 * 1024) {
+      lostActivity ||= [...pending.keys()].some((key) => key.startsWith("activity:"));
       pending.clear();
       pendingBytes = 0;
     }
@@ -82,6 +92,11 @@ export function sequenceMetadata(core: GatewayCore, thread: string) {
       const updates = [...pending.values()].map((entry) => entry.update);
       pending.clear();
       pendingBytes = 0;
+
+      if (lostActivity) {
+        lostActivity = false;
+        updates.unshift(create(ui.ThreadUpdateSchema, { change: { case: "automationActivityReset", value: "" } }));
+      }
 
       return updates;
     },

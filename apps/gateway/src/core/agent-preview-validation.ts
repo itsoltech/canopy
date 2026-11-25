@@ -34,6 +34,10 @@ const MAX_FRAME = 2 * 1024 * 1024;
 const MAX_METADATA = 32 * 1024;
 const invalid = (message: string) => new ConnectError(message, Code.InvalidArgument);
 
+function normalized(value: number): boolean {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
 function text(value: string, bytes: number, multiline = false): boolean {
   return (
     Buffer.byteLength(value) <= bytes &&
@@ -52,6 +56,9 @@ export function agentPreviewScope(request: ui.WatchAgentPreviewRequest) {
     throw invalid("Choose a preview tool and target without command or session arguments");
 
   if (request.maxFps > 20) throw invalid("Preview frame rate must be between 1 and 20");
+
+  if (request.followAgent && scope.tool !== AgentTool.DESKTOP)
+    throw invalid("Choose Desktop to follow the agent's window");
   // Catalog-selected Linux/Web previews use --device; the manual adapter has no such selector.
   const catalogDevice = scope.tool === AgentTool.DEVICE && ["linux", "web"].includes(scope.platform);
 
@@ -79,7 +86,7 @@ export function validatePreviewInputs(inputs: AgentPreviewInput[]): void {
   for (const input of inputs) {
     if (
       !INPUTS.has(input.kind) ||
-      ![input.x, input.y].every((n) => Number.isFinite(n) && n >= 0 && n <= 1) ||
+      ![input.x, input.y].every(normalized) ||
       ![input.deltaX, input.deltaY].every((n) => Number.isFinite(n) && Math.abs(n) <= 100_000) ||
       input.button > 2 ||
       input.buttons > 7 ||
@@ -115,7 +122,7 @@ export function validatePreviewInputs(inputs: AgentPreviewInput[]): void {
 }
 
 /** Worker data is validated before it can enter the single-frame mailbox. */
-export function validPreviewEvent(event: AgentPreviewEvent): boolean {
+export function validPreviewEvent(event: AgentPreviewEvent, tool: AgentTool): boolean {
   if (
     !STATES.has(event.state) ||
     event.targets.length > 64 ||
@@ -128,6 +135,28 @@ export function validPreviewEvent(event: AgentPreviewEvent): boolean {
     (event.mimeType && !["image/jpeg", "image/png"].includes(event.mimeType)) ||
     (event.mode && !["stream", "screenshots"].includes(event.mode))
   )
+    return false;
+
+  const cursor = event.cursor;
+
+  if (
+    event.agentObservation &&
+    (tool !== AgentTool.DESKTOP ||
+      event.state !== "frame" ||
+      event.mode !== "screenshots" ||
+      event.followingAgent ||
+      cursor ||
+      (!event.targetId && event.targets.length))
+  )
+    return false;
+
+  if (
+    (event.followingAgent || cursor) &&
+    (tool !== AgentTool.DESKTOP || event.state !== "frame" || event.mode !== "screenshots" || !event.targetId)
+  )
+    return false;
+
+  if (cursor && (!/^[a-zA-Z0-9_-]{1,64}$/.test(cursor.actionId) || ![cursor.x, cursor.y].every(normalized)))
     return false;
 
   if (

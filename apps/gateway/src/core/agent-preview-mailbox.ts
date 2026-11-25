@@ -8,14 +8,28 @@ export class AgentPreviewMailbox {
   #closed = false;
   #cause: Error | undefined;
 
-  push(event: AgentPreviewEvent): void {
+  push(event: AgentPreviewEvent): bigint | undefined {
     if (this.#closed) return;
+    let discarded: bigint | undefined;
 
     if (event.state === "frame") this.#frame = event;
-    else this.#metadata = event;
+    else {
+      this.#metadata = event;
+
+      if (
+        event.state === "ready" &&
+        (this.#frame?.followingAgent || this.#frame?.agentObservation) &&
+        (!event.targetId || this.#frame.targetId !== event.targetId)
+      ) {
+        discarded = this.#frame.frameId;
+        this.#frame = undefined;
+      }
+    }
 
     if (event.state === "closed" || event.state === "error") this.#frame = undefined;
     this.#notify();
+
+    return discarded;
   }
 
   async next(): Promise<AgentPreviewEvent | undefined> {

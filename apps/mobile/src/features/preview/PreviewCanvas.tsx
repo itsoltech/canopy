@@ -6,7 +6,8 @@ import { GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { scheduleOnUI } from "react-native-worklets";
 import { styles, useColors } from "../../ui/theme";
-import type { Point } from "../attachments/image-zoom";
+import type { Point, Size } from "../attachments/image-zoom";
+import { PreviewCursor } from "./PreviewCursor";
 import { usePreviewGestures } from "./preview-gestures";
 import { usePreviewZoom } from "./preview-zoom";
 
@@ -28,8 +29,8 @@ export function PreviewCanvas({
   if (uri && frame) {
     return (
       <PreviewImage
-        width={frame.width}
-        height={frame.height}
+        key={`${frame.previewId}:${frame.targetId}`}
+        frame={frame}
         uri={uri}
         enabled={enabled}
         inspecting={inspecting}
@@ -48,23 +49,23 @@ export function PreviewCanvas({
 }
 
 function PreviewImage({
-  width,
-  height,
+  frame,
   uri,
   enabled,
   inspecting,
   input,
 }: {
-  width: number;
-  height: number;
+  frame: AgentPreviewEvent;
   uri: string;
   enabled: boolean;
   inspecting: boolean;
   input: (value: AgentPreviewInput) => void;
 }) {
   const c = useColors();
-  const [loaded, setLoaded] = useState(false);
-  const model = usePreviewZoom(width, height);
+  const [loadedUri, setLoadedUri] = useState<string>();
+  const [fitted, setFitted] = useState<Size>({ width: 0, height: 0 });
+  const loaded = Boolean(loadedUri);
+  const model = usePreviewZoom(frame.width, frame.height);
   const { geometry, read, viewport, adjust } = model;
   const remote = useRef<typeof input | undefined>(undefined);
 
@@ -121,15 +122,29 @@ function PreviewImage({
           backgroundColor: c.well,
         }}
       >
-        <Animated.View pointerEvents="none" style={imageStyle}>
+        <Animated.View
+          pointerEvents="none"
+          onLayout={({ nativeEvent: { layout } }) => setFitted({ width: layout.width, height: layout.height })}
+          style={[imageStyle, { overflow: "hidden" }]}
+        >
           <Image
             source={{ uri }}
             resizeMode="contain"
             fadeDuration={0}
-            onLoad={() => setLoaded(true)}
-            onError={() => setLoaded(false)}
+            onLoad={({ nativeEvent }) => {
+              if (nativeEvent.source.uri === uri) setLoadedUri(uri);
+            }}
+            onError={() => setLoadedUri(undefined)}
             style={{ width: "100%", height: "100%" }}
           />
+          {loaded && frame.mode === "screenshots" && fitted.width > 0 && fitted.height > 0 && (
+            <PreviewCursor
+              cursor={frame.cursor}
+              loaded={loadedUri === uri}
+              width={fitted.width}
+              height={fitted.height}
+            />
+          )}
         </Animated.View>
       </View>
     </GestureDetector>
