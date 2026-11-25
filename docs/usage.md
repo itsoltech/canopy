@@ -1,11 +1,11 @@
 # Statystyki zużycia tokenów i kosztów
 
-Aktualizacja (2026-11-24): wątki Antigravity raportują tokeny z odpowiedzi ACP
-`session/prompt`, w tym oddzielnie tokeny cache i rozumowania, gdy CLI je zwraca.
-Statystyki zachowują nieznany koszt dla tego dostawcy. [Adapter Antigravity](antigravity-adapter.md)
+Aktualizacja (2026-11-25): raporty tokenów Antigravity z odpowiedzi ACP
+`session/prompt` zawierają szacunki według cenników API Google i Anthropic
+dla rozpoznanych modeli. [Adapter Antigravity](antigravity-adapter.md)
 
-Status (2026-11-24): zaimplementowane agregaty zużycia w gatewayu, raporty
-harnessów, niezależne szacunki ekwiwalentu API OpenAI i xAI, wybór kosztu per licznik,
+Status (2026-11-25): zaimplementowane agregaty zużycia w gatewayu, raporty
+harnessów, niezależne szacunki według stawek API modeli, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów,
 a także podsumowanie w stopce sidebara z miejscem na liczniki i informację o pokryciu rezerwowanym przy otwarciu.
@@ -46,7 +46,8 @@ usuwa zużycia już zgłoszonego przez harness.
   Starsze nieopcjonalne `cost_usd` nie dowodzi znajomości ceny i nie zasila agregatów.
 - `estimated_cost_usd` jest osobnym, opcjonalnym szacunkiem wartości tokenów
   według cen API. Worker wycenia odpowiedzi Codexa według cennika OpenAI,
-  a sumy promptów Groka według podstawowych stawek API xAI z models.dev.
+  sumy promptów Groka według podstawowych stawek API xAI, a sumy promptów
+  Antigravity według podstawowych stawek API Google lub Anthropic z models.dev.
   Brak modelu w cenniku, poprawnych tokenów lub odpowiedniej stawki oznacza
   nieznany szacunek. Kwota opisuje wartość tokenów, niezależnie od rozliczeń konta.
   Jawne zero jest znane. `pricing_version` zachowuje zwarty opis pochodzenia cen
@@ -62,9 +63,9 @@ Codex `usageMetadata.amount` jest kwotą USD jednej odpowiedzi; adapter sumuje
 ją per tura/model z deduplikacją ID odpowiedzi. Jawne zero jest znaną ceną,
 a brak lub niepoprawna kwota pozostają nieznane. Wycena jest kompletna dopiero,
 gdy obejmuje wszystkie zaobserwowane tokeny i odpowiedzi danego licznika.
-Grok rozlicza jawne metadane zakończenia promptu. ACP podaje sumy dla modelu,
-które mogą obejmować kilka wywołań, więc szacunek stosuje stawki podstawowe
-do tokenów wejścia, odczytu cache i wyjścia. Dopłaty za długi kontekst,
+Grok i Antigravity rozliczają jawne metadane zakończenia promptu. Sumy ACP mogą
+obejmować kilka wywołań, więc szacunek stosuje stawki podstawowe do tokenów
+wejścia, cache i wyjścia. Dopłaty za długi kontekst,
 region i osobno rozliczane narzędzia są poza tym szacunkiem. Szczegóły
 źródeł i granic opisują adaptery.
 
@@ -75,8 +76,8 @@ do wybranego modelu: po reroutingu mogłoby to ponownie rozliczyć zużycie
 już zapisane pod rzeczywistym modelem. Bez dowodu modelu obsługującego wywołanie
 takie zużycie pozostaje poza agregatami. Brak raportu nie oznacza zera.
 
-Worker utrzymuje trwałe lokalne cache cenników OpenAI i xAI z models.dev i współdzieli
-odświeżenia w toku; nie wykonuje HTTP dla każdej inferencji. Nieznany model może
+Worker utrzymuje trwałe lokalne cache cenników OpenAI, xAI, Google i Anthropic
+z models.dev i współdzieli odświeżenia w toku. Nieznany model może
 wywołać odświeżenie z cooldownem. Nowy cennik służy kolejnym obserwacjom:
 wcześniejsze odpowiedzi zachowują swoje ceny i nie są przeliczane wstecz.
 Gateway nie pobiera cenników i przechowuje wynik obliczenia workera. Koszt zgłoszony

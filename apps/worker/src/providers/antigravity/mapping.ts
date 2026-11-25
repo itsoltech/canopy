@@ -5,6 +5,7 @@ import type { ThreadEventInit } from "../../journal/index.ts";
 import { AcpEventMapper } from "../acp/mapping.ts";
 import { emptyUsage } from "../token-usage.ts";
 import { antigravityToolName } from "./permissions.ts";
+import type { AntigravityPricing } from "./pricing.ts";
 
 const Input = Schema.decodeUnknownOption(Schema.JsonObject);
 const Count = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
@@ -38,6 +39,7 @@ export class AntigravityEventMapper extends AcpEventMapper {
     turnId: string,
     cwd: string,
     readonly model: string,
+    readonly pricing?: AntigravityPricing,
   ) {
     super(turnId, cwd, "antigravity");
   }
@@ -53,16 +55,26 @@ export class AntigravityEventMapper extends AcpEventMapper {
     // agy's prompt totals report cache reads/writes separately from input. Output already includes thought tokens.
     const cached = BigInt(totals.cachedReadTokens ?? 0);
     const written = BigInt(totals.cachedWriteTokens ?? 0);
+    const input = BigInt(totals.inputTokens) + cached + written;
+
+    const quote = await this.pricing?.quote(this.model, {
+      inputTokens: Number(input),
+      outputTokens: totals.outputTokens,
+      cachedInputTokens: totals.cachedReadTokens ?? 0,
+      cacheWriteInputTokens: totals.cachedWriteTokens ?? 0,
+      reasoningOutputTokens: totals.thoughtTokens ?? 0,
+    });
 
     const usage = {
       ...emptyUsage(),
       model: this.model,
       requestedServiceTier: "default",
-      inputTokens: BigInt(totals.inputTokens) + cached + written,
+      inputTokens: input,
       outputTokens: BigInt(totals.outputTokens),
       cachedInputTokens: cached,
       cacheWriteInputTokens: written,
       reasoningOutputTokens: BigInt(totals.thoughtTokens ?? 0),
+      ...(quote && { estimatedCostUsd: quote.usd, pricingVersion: quote.version }),
     };
 
     this.usage = [usage];

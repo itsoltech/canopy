@@ -35,6 +35,7 @@ import { AccountStatuses } from "../providers/account-status.ts";
 import { resolveWorktreeRoots, type WorktreeRoots } from "../git/worktree-roots.ts";
 import { ThreadAdmissions } from "./thread-admissions.ts";
 import { OpenAiPricingCatalog, XaiPricingCatalog } from "../providers/pricing/model-catalog.ts";
+import { AntigravityPricing } from "../providers/antigravity/pricing.ts";
 
 import type { ProviderRuntimeHandle, ProfileModelsInit, WorkerHostOptions } from "./host-types.ts";
 import type { UsageObserver } from "./usage-limits.ts";
@@ -42,6 +43,7 @@ import type { UsageObserver } from "./usage-limits.ts";
 export class HostState {
   readonly pricing: OpenAiPricingCatalog;
   readonly xaiPricing: XaiPricingCatalog;
+  readonly antigravityPricing: AntigravityPricing;
   readonly usage = new Map<string, ProviderUsageReport>();
   readonly usageRefreshers = new Map<string, () => void>();
   readonly usageObservers = new Map<string, UsageObserver>();
@@ -178,6 +180,7 @@ export class HostState {
     this.options = options;
     this.pricing = new OpenAiPricingCatalog(options.dataDir);
     this.xaiPricing = new XaiPricingCatalog(options.dataDir);
+    this.antigravityPricing = new AntigravityPricing(options.dataDir);
     this.secrets = new ThreadSecretFiles(options.dataDir);
     const claude = deviceClaudeHome(process.env);
 

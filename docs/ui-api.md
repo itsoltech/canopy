@@ -140,7 +140,7 @@ Slack Bot do konfiguracji wiadomości. Bot settings → Messengers wybiera konto
 Slack Bot i trasy przez owner-scoped RPC i BFF; instrukcje tras określają
 trwałe zachowanie dla źródła, a rozmowy korzystają z narzędzi przyznanych botowi;
 web/desktop ma osobny modal Usage z kosztami raportowanymi przez providerów
-i estymowaną równowartością API według cen OpenAI, wyświetlanymi z dokładnością do centa,
+i szacunkami według stawek API dla modeli, wyświetlanymi z dokładnością do centa,
 tokenami, zakresem rejestrowania i filtrami czasu, providera, komputera, żądanej
 szybkości oraz aktywności, w tym z podziałem według bota;
 nowy wątek web/desktop i natywnego mobile od razu pokazuje prompt i rzeczywisty postęp przygotowania worktree;
@@ -498,7 +498,7 @@ o częściowym pokryciu. Brak znanej kwoty jest widoczny jako **Unknown** i
 przerwa w serii. Znane zero jest widoczne jako kwota zerowa.
 
 Odpowiedź BFF przenosi również niezależne sumy zgłoszonych kosztów i szacunków
-równowartości OpenAI API. Przeglądarka nie przelicza kwot ani nie pobiera cennika.
+według stawek API modeli. Przeglądarka nie przelicza kwot ani nie pobiera cennika.
 Zmiana Cost / Tokens używa jednej odpowiedzi.
 Liczniki Input, Output, Cache read, Cache write i Reasoning nie są sumowane podwójnie: cache jest
 częścią input, reasoning częścią output, a Total tokens to input + output.

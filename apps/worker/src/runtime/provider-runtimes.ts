@@ -64,7 +64,12 @@ export class ProviderRuntimes {
 
     const start = {
       grok: () => new GrokThreads({ ...options, pricing: state.xaiPricing }),
-      antigravity: () => new AntigravityThreads({ ...options, deviceHome: state.deviceHomes.antigravity }),
+      antigravity: () =>
+        new AntigravityThreads({
+          ...options,
+          deviceHome: state.deviceHomes.antigravity,
+          pricing: state.antigravityPricing,
+        }),
     } satisfies Record<AcpHarness, () => AcpThreads>;
 
     state.acp.set(`${harness}/${profile.id}`, { key, runtime: start[harness]() });

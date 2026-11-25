@@ -6,9 +6,11 @@ import { listAntigravityModels } from "./catalog.ts";
 import { antigravityPermission } from "./permissions.ts";
 import { AntigravityEventMapper, antigravityPlatformUse } from "./mapping.ts";
 import { checkAntigravityMode, configureAntigravitySession } from "./session.ts";
+import type { AntigravityPricing } from "./pricing.ts";
 
 interface Options extends AcpThreadOptions {
   deviceHome?: string | undefined;
+  pricing?: AntigravityPricing | undefined;
 }
 
 export class AntigravityThreads extends AcpThreads<Options> {
@@ -43,7 +45,7 @@ export class AntigravityThreads extends AcpThreads<Options> {
             await configureAntigravitySession(client, session, settings);
             model = sessionSelect(session, "model")?.currentValue || session.models?.currentModelId || model;
           },
-          mapper: (turnId) => new AntigravityEventMapper(turnId, spec.cwd, model),
+          mapper: (turnId) => new AntigravityEventMapper(turnId, spec.cwd, model, options.pricing),
         };
       },
     });
