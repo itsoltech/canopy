@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-25): w sidebarze web i desktop grupy projektu i worktree mają
+osobne miejsce między prowadnicą a tytułem na ikonę aktywności i licznik zadań w tle.
+
 Status (2026-11-25): Working i Snoozed w pasku bocznym zachowują stan rozwinięcia
 po powrocie z Bots i po ponownym uruchomieniu klienta web, desktop, iOS lub Android.
 
@@ -215,7 +218,8 @@ linie: tytuł ze statusem oraz metadane ze znakiem dostawcy. Ikona projektu pozo
 w nagłówku. Wcięcia i pionowe linie pokazują hierarchię projekt → worktree → wątki;
 bez podziału worktree wątki są wcięte bezpośrednio pod projektem. Zwykły wątek nie
 ma ikony chmurki. Praca jest opisana statusem po prawej bez spinnera przy linii.
-Oczekiwanie i zadania w tle zachowują swoje oznaczenia przy linii bez przesuwania tytułu.
+Ikona oczekiwania lub pracy w tle i licznik zadań mieszczą się po wewnętrznej stronie
+prowadnicy. Zarezerwowane miejsce wyrównuje tytuły i metadane także w kartach bez oznaczenia.
 Przy podziale worktree karta pomija też katalog i gałąź, które określa nagłówek.
 Dla jedynego lokalnego workera tytuł, status i dostawca mieszczą się w jednej linii
 (34 / 28 px). Oznaczenia celu, pull requestów, szkicu, harmonogramu i wątków bocznych
