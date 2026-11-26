@@ -12,6 +12,8 @@
   import { colorSchemePreference, deviceAppearanceDefaults, threadWidthPreference } from "@canopy/domain";
   import ThemePreview from "#lib/features/settings/ThemePreview.svelte";
   import ThemePicker from "#lib/features/settings/ThemePicker.svelte";
+  import ThemeBuilder from "#lib/features/settings/ThemeBuilder.svelte";
+  import { themeCustomizationDefaults, themeOverridesOf } from "#lib/features/settings/theme-customization.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Select from "#lib/shared/ui/Select.svelte";
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
@@ -28,6 +30,7 @@
   const scheme = $derived(schemeOf(settings.appearance));
   const chatWidth = $derived(chatWidthOf(settings.appearance));
   const schemes = namesOf(schemeChoices);
+  let builder = $state<ThemeBuilder>();
 </script>
 
 <svelte:head><title>Appearance · Settings · {applicationName}</title></svelte:head>
@@ -38,7 +41,8 @@
     size="sm"
     icon="arrow-path"
     onclick={() => {
-      settings.updateAppearance(deviceAppearanceDefaults);
+      settings.updateAppearance({ ...deviceAppearanceDefaults, ...themeCustomizationDefaults });
+      builder?.discard();
       devicePreferences.reset(appearanceDeviceKeys);
       setAnimatedMascots(true);
     }}>Reset appearance</Button
@@ -49,6 +53,12 @@
   label="Appearance settings"
   topics={[
     { id: "themes", label: "Themes", content: themes },
+    {
+      id: "theme-builder",
+      label: "Theme builder",
+      keywords: "custom theme color palette accent corner radius rounding rounded spacing density compact spacious",
+      content: themeBuilder,
+    },
     { id: "interface", label: "Interface", content: interfaceOptions },
     { id: "typography", label: "Typography", content: typography },
   ]}
@@ -65,6 +75,7 @@
       {#snippet control()}
         <div class="grid w-80 max-w-full grid-cols-3 gap-2" role="radiogroup" aria-label={colorSchemePreference.label}>
           {#each schemes as mode (mode)}
+            {@const paletteMode = mode === "dark" ? "dark" : "light"}
             <OptionTile
               checked={scheme === mode}
               label={schemeChoices[mode].label}
@@ -73,11 +84,16 @@
             >
               <div class="relative overflow-hidden rounded-lg">
                 <ThemePreview
-                  theme={themeOf(settings.appearance, mode === "dark" ? "dark" : "light")}
-                  mode={mode === "dark" ? "dark" : "light"}
+                  theme={themeOf(settings.appearance, paletteMode)}
+                  mode={paletteMode}
+                  overrides={themeOverridesOf(settings.appearance, paletteMode)}
                 />
                 {#if mode === "system"}<div class="absolute inset-0 [clip-path:inset(0_0_0_50%)]">
-                    <ThemePreview theme={themeOf(settings.appearance, "dark")} mode="dark" />
+                    <ThemePreview
+                      theme={themeOf(settings.appearance, "dark")}
+                      mode="dark"
+                      overrides={themeOverridesOf(settings.appearance, "dark")}
+                    />
                   </div>{/if}
               </div>
               <div class="text-center font-medium">{schemeChoices[mode].label}</div>
@@ -89,6 +105,10 @@
   </SettingsGroup>
 
   <ThemePicker />
+{/snippet}
+
+{#snippet themeBuilder()}
+  <ThemeBuilder bind:this={builder} />
 {/snippet}
 
 {#snippet interfaceOptions()}

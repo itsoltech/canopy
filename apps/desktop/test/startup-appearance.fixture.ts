@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
+import { packThemeColors } from "@canopy/ui/theme-builder";
 import { DocumentPolicy } from "../src/document-policy.ts";
 import { isTrustedDesktopEvent } from "../src/desktop-window.ts";
 import { initialStatus } from "../src/runtime/config.ts";
@@ -17,8 +18,21 @@ const system = process.env["CANOPY_TEST_SYSTEM_SCHEME"]!;
 const version = process.env["CANOPY_TEST_DESKTOP_VERSION"] ?? "";
 const profile = join(directory, `${scheme}-${system}`);
 const cache = join(profile, "appearance-cache.json");
-const saved = JSON.stringify({ scheme, light: "fern", dark: "heather" });
-const expected = (scheme === "system" ? system : scheme) === "dark" ? "rgb(27, 18, 35)" : "rgb(251, 254, 249)";
+const base = { scheme, light: "fern", dark: "heather" };
+const custom = process.env["CANOPY_TEST_CUSTOM_THEME"] === "1";
+const dark = (scheme === "system" ? system : scheme) === "dark";
+const lightCanvas = "#eff6fd";
+const darkCanvas = "#161c28";
+
+const saved = JSON.stringify({
+  ...base,
+  ...(custom && {
+    lightAccent: "violet",
+    darkAccent: "orange",
+    lightColors: packThemeColors({ canvas: lightCanvas }),
+    darkColors: packThemeColors({ canvas: darkCanvas }),
+  }),
+});
 
 mkdirSync(profile);
 
@@ -41,6 +55,11 @@ async function smoke() {
       sandbox: true,
     },
   });
+
+  if (custom) {
+    assert.equal(target.getBackgroundColor().toLowerCase(), dark ? darkCanvas : lightCanvas, "Native startup canvas");
+    assert.equal(windowColors().accent, dark ? "#ffb86a" : "#7008e7", "Native startup accent");
+  }
 
   const appearanceWritten = Promise.withResolvers<void>();
   registerAppearanceIpc((event) => {
@@ -100,17 +119,38 @@ async function smoke() {
 
     await target.loadURL(origin + "/desktop/migration");
     await assertPalette(target, "/desktop/migration");
+
+    if (custom) await assertOverrideUpdates(target);
   } finally {
     target.destroy();
   }
 }
 
 async function assertPalette(target: BrowserWindow, path: string) {
+  const light = custom ? "rgb(239, 246, 253)" : "rgb(251, 254, 249)";
+  const darkColor = custom ? "rgb(22, 28, 40)" : "rgb(27, 18, 35)";
+
   assert.equal(
     await target.webContents.executeJavaScript("getComputedStyle(document.documentElement).backgroundColor"),
-    expected,
+    dark ? darkColor : light,
     path,
   );
+}
+
+async function assertOverrideUpdates(target: BrowserWindow) {
+  const invalid = JSON.stringify({ ...base, lightColors: "00ab;cde" });
+  assert.match(
+    await target.webContents.executeJavaScript(
+      `window.canopyDesktop.setAppearance(${invalid}).then(() => "", (error) => error.message)`,
+    ),
+    /Invalid appearance/,
+  );
+  assert.equal(readFileSync(cache, "utf8"), saved, "Invalid overrides must leave the startup cache intact");
+
+  const cleared = JSON.stringify({ ...base, lightColors: "", darkColors: "" });
+  await target.webContents.executeJavaScript(`window.canopyDesktop.setAppearance(${cleared})`);
+  assert.equal(readFileSync(cache, "utf8"), JSON.stringify(base), "Clearing overrides must remove them from the cache");
+  assert.equal(target.getBackgroundColor().toLowerCase(), dark ? "#1b1223" : "#fbfef9", "Restored native canvas");
 }
 
 void smoke().then(

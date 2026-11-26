@@ -1,12 +1,9 @@
 import type { ui } from "@canopy/contracts";
-import {
-  deviceAppearanceDefaults,
-  legacyDeviceAppearance,
-  parseDeviceAppearance,
-  type DeviceAppearance,
-} from "@canopy/domain";
+import { deviceAppearanceDefaults, legacyDeviceAppearance } from "@canopy/domain";
 import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { appearanceCookie, appearanceFromDocument, applyAppearance } from "./appearance.ts";
+import { parseWebAppearance, serializeWebAppearance, type WebAppearance } from "./theme-customization.ts";
+import type { ThemePreview } from "./settings-theme-preview.ts";
 
 const cookiePrefix = `${appearanceCookie}=`;
 
@@ -17,16 +14,17 @@ function savedCookie(): string | undefined {
     ?.slice(cookiePrefix.length);
 }
 
-function readAppearance(): DeviceAppearance | undefined {
+function readAppearance(): WebAppearance | undefined {
   try {
-    return parseDeviceAppearance(decodeURIComponent(savedCookie() ?? ""));
+    return parseWebAppearance(decodeURIComponent(savedCookie() ?? ""));
   } catch {
     return undefined;
   }
 }
 
 class AppearanceState {
-  values = $state.raw<DeviceAppearance>(deviceAppearanceDefaults);
+  values = $state.raw<WebAppearance>(deviceAppearanceDefaults);
+  preview = $state.raw<ThemePreview>();
   connected = $state(false);
   #initialized = false;
   #changes: BroadcastChannel | undefined;
@@ -35,6 +33,11 @@ class AppearanceState {
     const saved = readAppearance();
     this.values = saved ?? appearanceFromDocument();
     this.#initialized = !!saved;
+    const startup = window.canopyDesktop?.startupAppearance;
+
+    if (!saved && (startup?.lightColors || startup?.darkColors || startup?.lightAccent || startup?.darkAccent))
+      this.#save(this.values);
+
     this.connected = true;
 
     const refresh = () => {
@@ -49,7 +52,11 @@ class AppearanceState {
     this.#changes = new BroadcastChannel(appearanceCookie);
     this.#changes.addEventListener("message", refresh);
     const system = matchMedia("(prefers-color-scheme: dark)");
-    const follow = () => applyAppearance(this.values);
+
+    const follow = () => {
+      if (!this.preview) applyAppearance(this.values);
+    };
+
     system.addEventListener("change", follow);
 
     return () => {
@@ -72,14 +79,14 @@ class AppearanceState {
     }
   }
 
-  update(change: Partial<DeviceAppearance>): void {
-    this.#save({ ...this.values, ...change });
+  update(change: Partial<WebAppearance>): boolean {
+    return this.#save({ ...this.values, ...change });
   }
 
-  #save(next: DeviceAppearance): void {
+  #save(next: WebAppearance): boolean {
     this.#initialized = true;
     this.values = next;
-    const encoded = encodeURIComponent(JSON.stringify(next));
+    const encoded = encodeURIComponent(serializeWebAppearance(next));
     const secure = location.protocol === "https:" ? "; Secure" : "";
 
     try {
@@ -87,8 +94,12 @@ class AppearanceState {
 
       if (savedCookie() !== encoded) throw new Error("Browser did not retain the appearance cookie");
       this.#changes?.postMessage(null);
+
+      return true;
     } catch {
       toast("Could not save appearance. Allow cookies to keep your changes after reloading.", { tone: "error" });
+
+      return false;
     }
   }
 }

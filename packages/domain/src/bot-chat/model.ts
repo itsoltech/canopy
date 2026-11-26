@@ -99,6 +99,7 @@ export interface ChatEventView {
   /** Who did it (a bot id), for the colour of the line. */
   actorId?: string | undefined;
   changes?: readonly { field: string; before: string; after: string }[] | undefined;
+  themeBuilderPatch?: string | undefined;
 }
 
 export interface QuestionOptionView {

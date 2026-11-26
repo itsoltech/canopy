@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-26): kolory własnego motywu i wybrany akcent obejmują natywne tło okna,
+ekrany startowe oraz elementy powłoki korzystające z palety Desktopu.
+
 Status (2026-11-26): menu kontekstowe pola wiadomości korzysta z aktywnej palety Canopy.
 
 Status (2026-11-26): popover aktualizacji w stopce paska bocznego oferuje sprawdzanie,
@@ -422,14 +425,17 @@ ekran pomija cały wiersz z numerem.
 ### Kolory okna i paski tytułu
 
 Pełne palety Light / Dark z Settings → Appearance obejmują też tło okna.
-Main zachowuje opcjonalny `appearance-cache.json` w userData (wyłącznie nazwy
-motywów i schemat), aby dobrać tło przed utworzeniem BrowserWindow. Preload
-odczytuje go przez walidowane synchroniczne IPC. Przed pierwszym renderem
-powłoka aplikacji oraz ekrany `/desktop` i `/desktop/migration` stosują paletę
-z profilu Electron lub z pliku startowego. Zmiany w Appearance aktualizują
-profil, kolory okna i plik startowy. Ustawienia właściciela z gatewaya służą
-do pierwszego importu przy braku zapisu lokalnego. Błąd zapisu cache nie
-blokuje zmiany kolorów.
+Main zachowuje opcjonalny `appearance-cache.json` w userData, aby dobrać tło przed
+utworzeniem BrowserWindow. Plik zawiera schemat, nazwy motywów, opcjonalne akcenty
+i spakowane nadpisania kolorów. Main waliduje te pola przy odczycie pliku i przy
+aktualizacji przez IPC, przyjmuje też starszy format bez nadpisań. Wyczyszczenie
+kolorów w Appearance usuwa je z pliku. Preload odczytuje paletę startową przez
+autoryzowane synchroniczne IPC. Przed pierwszym renderem powłoka aplikacji oraz
+ekrany `/desktop` i `/desktop/migration` używają preferencji z cookie profilu
+Electron lub palety startowej z preloadu. Cookie przechowuje też pozostałe
+ustawienia motywu. Zmiany w Appearance aktualizują profil, kolory okna i plik
+startowy. Ustawienia właściciela z gatewaya służą do pierwszego importu przy
+braku zapisu lokalnego. Błąd zapisu pliku nie blokuje zmiany kolorów.
 Szczegóły kontraktu i pomiarów opisuje [appearance.md](appearance.md).
 
 Linux i Windows używają `titleBarStyle: hidden` bez natywnego overlay. Minimize,

@@ -346,7 +346,7 @@
      The shell fills the window and clips: only its own panes scroll, so nothing inside (a live region, an easing
      panel) can give the window a page scrollbar. -->
 <div
-  class="t-sidebar-shell relative isolate flex h-dvh overflow-clip bg-canvas text-ink"
+  class="t-sidebar-shell relative isolate flex h-[calc(100dvh-var(--settings-theme-preview-height,0px))] overflow-clip bg-canvas text-ink"
   data-sidebar={!focused && wide.current && !sidebar.collapsed ? "shown" : "hidden"}
   data-sidebar-collapsed={focused || sidebar.collapsed || undefined}
   data-sidebar-settling={sidebar.settling || undefined}

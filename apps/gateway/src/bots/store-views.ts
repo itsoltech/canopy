@@ -10,6 +10,7 @@ import { approvalFields, threadSharingNotice } from "./approval-fields.ts";
 import type { BotRow } from "./types.ts";
 import { decodedRules } from "./store-rules.ts";
 import { toUiAttachment, type StoredAttachment } from "../store/attachments.ts";
+import { THEME_PROPOSAL_EVENT } from "./activity-event.ts";
 
 export interface WakeupRow {
   id: string;
@@ -98,15 +99,23 @@ export function botReactionActor(message: ReactionTarget) {
   return undefined;
 }
 
-export const messageView = (row: MessageRow) =>
-  create(bots.BotMessageSchema, {
+export function messageView(row: MessageRow) {
+  // The reserved event key distinguishes the encoded patch from ordinary chat text.
+  const themeBuilderPatch =
+    row.sender_id === "activity" &&
+    row.kind === "event" &&
+    row.message_key?.startsWith(`activity:${THEME_PROPOSAL_EVENT}:`)
+      ? row.text
+      : "";
+
+  return create(bots.BotMessageSchema, {
     id: row.id,
     seq: BigInt(row.seq),
     botId: row.bot_id,
     senderId: row.sender_id,
     recipientId: row.recipient_id,
     kind: row.kind,
-    text: row.text,
+    text: themeBuilderPatch ? "Theme proposal available in web and desktop" : row.text,
     exchangeId: row.exchange_id ?? "",
     createdAt: timestampFromDate(new Date(row.created_at)),
     failed: row.kind === "event" && row.message_key === "answer" && row.turn_status === "failed",
@@ -118,7 +127,9 @@ export const messageView = (row: MessageRow) =>
     reactions: row.reactions,
     reactionsAvailable: !!botReactionActor(row),
     attachments: (row.attachments ?? []).map(toUiAttachment),
+    themeBuilderPatch,
   });
+}
 
 export const approvalView = (row: ApprovalRow) =>
   create(bots.BotApprovalSchema, {

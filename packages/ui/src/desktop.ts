@@ -1,5 +1,5 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
-import type { ThemeName } from "./themes.ts";
+import type { ThemeAccent, ThemeName } from "./themes.ts";
 import type { DesktopHtmlStart, DesktopHtmlCommand, DesktopHtmlEvent } from "./desktop-html.ts";
 
 export type {
@@ -36,6 +36,11 @@ export interface DesktopAppearance {
   scheme: "system" | "light" | "dark";
   light: ThemeName;
   dark: ThemeName;
+  lightAccent?: ThemeAccent | undefined;
+  darkAccent?: ThemeAccent | undefined;
+  /** Packed token overrides from packThemeColors. An empty string clears the overrides. */
+  lightColors?: string | undefined;
+  darkColors?: string | undefined;
 }
 
 export type DesktopMode = "local" | "remote";
@@ -251,12 +256,7 @@ export interface DesktopBridge {
   /** Package version of the running desktop app, including its prerelease suffix. */
   readonly startupVersion?: string;
   /** Local startup palette, also used by the setup page before its first paint. */
-  readonly startupAppearance?: {
-    scheme: DesktopAppearance["scheme"];
-    light: ThemeName;
-    dark: ThemeName;
-    style: string;
-  };
+  readonly startupAppearance?: DesktopAppearance & { style: string };
   /** Apply local color preferences to native chrome and remember them for startup. */
   setAppearance?(appearance: DesktopAppearance): Promise<void>;
   windowState(): Promise<DesktopWindowState>;

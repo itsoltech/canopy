@@ -10,6 +10,7 @@ import type { bots } from "@canopy/contracts";
 import { BOT_FILE_TOOLS } from "./tools/workspace.ts";
 import { areaTool, areaTools } from "./tools/index.ts";
 import { accountPreferenceTools } from "./tools/account-preferences.ts";
+import { proposeCanopyTheme } from "./tools/theme-proposal.ts";
 import { alwaysAsk } from "./approval-rules.ts";
 import { Invalid } from "../store/errors.ts";
 import { SLACK_POST_ACTION } from "../connectors/slack-post-tool.ts";
@@ -45,6 +46,7 @@ const EXTERNAL_WORK_TOOLS = new Set([
 ]);
 
 const accountPreferenceNames = new Set(accountPreferenceTools.map(({ spec }) => spec.name));
+const ownerInputTools = new Set(["react_to_message", proposeCanopyTheme.spec.name]);
 
 export async function currentBotTools(
   options: BotRuntimeOptions,
@@ -62,7 +64,7 @@ export async function currentBotTools(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
       (tool.name !== SKIP_SLACK_REPLY || !!turn.conversation_id) &&
-      (tool.name !== "react_to_message" || memory.ownerInput) &&
+      (!ownerInputTools.has(tool.name) || memory.ownerInput) &&
       (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
@@ -98,6 +100,7 @@ export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject =
       "delete_routine",
       "message_user",
       "react_to_message",
+      proposeCanopyTheme.spec.name,
       SKIP_SLACK_REPLY,
     ].includes(tool.name)
   )

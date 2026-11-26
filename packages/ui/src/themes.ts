@@ -1,4 +1,7 @@
 import { palette } from "./tokens.ts";
+import { neutralSteps, themeStatusTones, type ThemeColors, type ThemeTokenName } from "./theme-builder.ts";
+
+export { neutralSteps };
 
 export const themeNames = ["birch", "fern", "lagoon", "cedar", "heather", "blossom", "ash"] as const;
 
@@ -6,7 +9,9 @@ export type ThemeName = (typeof themeNames)[number];
 
 export type ThemeMode = "light" | "dark";
 
-export const neutralSteps = [0, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950, 1000] as const;
+export const themeAccentNames = ["neutral", "blue", "emerald", "sky", "orange", "violet", "pink"] as const;
+
+export type ThemeAccent = (typeof themeAccentNames)[number];
 
 type NeutralScale = readonly [
   string,
@@ -27,7 +32,7 @@ type NeutralScale = readonly [
 interface ColorTheme {
   label: string;
   description: string;
-  accent: "blue" | "emerald" | "sky" | "orange" | "violet" | "pink" | "neutral";
+  accent: ThemeAccent;
   light: NeutralScale;
   dark: NeutralScale;
 }
@@ -313,15 +318,22 @@ const neutralAccent = {
 
 export const isThemeName = (name: string | undefined): name is ThemeName => themeNames.some((value) => value === name);
 
-/** CSS values are trusted literals; callers never interpolate persisted free-form CSS. */
-export function themeVariables(name: ThemeName, mode: ThemeMode) {
+export interface ThemeOverrides {
+  accent?: ThemeAccent | undefined;
+  colors?: ThemeColors | undefined;
+}
+
+/** Callers pass only checked hex values over the built-in palette. */
+export function themeVariables(name: ThemeName, mode: ThemeMode, overrides?: ThemeOverrides) {
   const theme = themes[name];
   const neutral = theme[mode];
   const colors = Object.fromEntries(neutralSteps.map((step, index) => [`zinc-${step}`, neutral[index]!]));
-  const accent = theme.accent === "neutral" ? neutralAccent[mode] : palette[theme.accent];
+  const tone = overrides?.accent ?? theme.accent;
+  const accent = tone === "neutral" ? neutralAccent[mode] : palette[tone];
   const dark = mode === "dark";
   const tint = dark ? neutral[10] : neutral[2];
 
+  // SAFETY: the neutral, accent and status scales enumerate all tone tokens, and the semantic tokens are literal.
   return {
     ...colors,
     ...Object.fromEntries(Object.entries(accent).map(([step, color]) => [`brand-${step}`, color])),
@@ -332,25 +344,30 @@ export function themeVariables(name: ThemeName, mode: ThemeMode) {
     ink: dark ? neutral[0] : neutral[11],
     muted: dark ? neutral[4] : neutral[6],
     border: dark ? neutral[8] : neutral[3],
-    accent: accent[dark ? 400 : 700],
+    accent: accent[dark ? (overrides?.accent && tone !== "neutral" ? 300 : 400) : 700],
     action: accent[700],
     "action-hover": accent[800],
-    "on-accent": theme.accent === "neutral" && dark ? "#000000" : "#ffffff",
-    "on-control": theme.accent === "neutral" && dark ? "#000000" : neutral[0],
+    "on-accent": tone === "neutral" && dark ? "#000000" : "#ffffff",
+    "on-control": tone === "neutral" && dark ? "#000000" : neutral[0],
     ...Object.fromEntries(
-      (["emerald", "amber", "rose", "sky", "orange", "violet"] as const).flatMap((tone) =>
+      themeStatusTones.flatMap((tone) =>
         Object.entries(palette[tone]).map(([step, color]) => [
           `${tone}-${step}`,
           `color-mix(in oklab, ${dark && step === "400" ? palette[tone][300] : !dark && (step === "600" || step === "700") ? palette[tone][800] : color} 94%, ${tint})`,
         ]),
       ),
     ),
-  };
+    ...overrides?.colors,
+  } as Record<ThemeTokenName, string>;
 }
 
-export function paletteStyle(light: ThemeName, dark: ThemeName): string {
+export function paletteStyle(
+  light: ThemeName,
+  dark: ThemeName,
+  overrides?: Partial<Record<ThemeMode, ThemeOverrides>>,
+): string {
   const variants = (["light", "dark"] as const).flatMap((mode) =>
-    Object.entries(themeVariables(mode === "light" ? light : dark, mode)).map(
+    Object.entries(themeVariables(mode === "light" ? light : dark, mode, overrides?.[mode])).map(
       ([key, value]) => `--${mode}-${key}:${value}`,
     ),
   );

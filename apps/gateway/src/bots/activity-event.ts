@@ -1,5 +1,7 @@
 import type { SqlClient } from "effect/sql";
 
+export const THEME_PROPOSAL_EVENT = "theme-proposal";
+
 /** Keep user-chosen source names on one line in activity labels. */
 export const activityLabel = (text: string) => text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").trim();
 

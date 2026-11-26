@@ -168,7 +168,7 @@
         <div
           {...anchorOnly(props)}
           class={[
-            "min-w-[var(--chat-stream-width,0px)] px-4 py-2 wrap-anywhere select-text",
+            "min-w-[var(--chat-stream-width,0px)] px-[calc(var(--theme-space)*4)] py-[calc(var(--theme-space)*2)] wrap-anywhere select-text",
             mine ? "max-w-[min(100%,var(--chat-user-bubble-width))]" : "w-fit max-w-(--chat-bubble-width)",
             corners,
             mine

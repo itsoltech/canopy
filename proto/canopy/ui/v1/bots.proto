@@ -78,6 +78,8 @@ message BotMessage {
   // Emoji selected by the other participant in the private chat.
   repeated string reactions = 453;
   bool reactions_available = 454;
+  // Zakodowana propozycja motywu do podglądu w ustawieniach web/desktop.
+  string theme_builder_patch = 455;
 }
 message BotSettingChange {
   string field = 1;

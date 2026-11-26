@@ -157,7 +157,7 @@
     {:else}
       <div
         class={[
-          "max-w-[min(85%,42rem)] min-w-0 rounded-2xl rounded-br-md px-4 py-2.5 text-base/6 break-words ring-1 ring-inset sm:text-sm/6",
+          "max-w-[min(85%,42rem)] min-w-0 rounded-2xl rounded-br-md theme-message-padding text-base/6 break-words ring-1 ring-inset sm:text-sm/6",
           tone === "amber"
             ? "bg-amber-50 text-amber-950 ring-amber-600/15 dark:bg-amber-400/10 dark:text-amber-50 dark:ring-amber-400/20"
             : tone === "sky"

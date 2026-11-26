@@ -151,7 +151,9 @@
   needsAttention={needsYou(thread) || subagentsNeedingInput.length > 0}
   class={[
     "sidebar-row-padding grid gap-0.5",
-    groupedProject ? "sidebar-group-thread rounded-lg py-1.5 sm:py-1" : "rounded-xl py-2",
+    groupedProject
+      ? "sidebar-group-thread rounded-lg py-1.5 sm:py-1 pointer-fine:py-[calc(var(--theme-space)*1.5)] sm:pointer-fine:py-(--theme-space)"
+      : "rounded-xl py-2 pointer-fine:py-[calc(var(--theme-space)*2)]",
   ]}
 >
   <span class={["relative flex min-w-0 items-center", groupedProject ? "gap-2" : "gap-1"]}>
