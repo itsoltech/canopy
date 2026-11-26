@@ -3,6 +3,8 @@
 Status (2026-11-26): w web i desktop docelowe szerokości paneli wyznaczają
 zadokowanie podsumowania od początku przejścia, bez synchronicznego pomiaru
 przesuwających się kolumn.
+Zadokowane Thread details zachowuje położenie podczas zwijania i rozwijania,
+a zamiana karty z pigułką odbywa się kolejno w tym samym rogu.
 
 Aktualizacja (2026-11-25). Automatyczny mini Preview Desktop pokazuje potwierdzone
 okno agenta także podczas pracy użytkownika w innej aplikacji. Wyświetla również
@@ -470,6 +472,8 @@ oraz liczba subagentów. Ma wewnętrzny scroll i jest niemodalna.
   rozwinięta karta ma wysokość swojej treści, najwyżej do dołu obszaru (wtedy
   przewija się w środku), niezależnie od sidebara; zwinięta to pigułka.
   Pigułka rozwija, przycisk `Collapse thread details` lub Escape zwijają.
+  Karta i pigułka zanikają i pojawiają się kolejno, ze stałą górną i prawą
+  krawędzią. Przy ograniczonym ruchu zamiana jest natychmiastowa.
 - **Popover:** gdy miejsca jest mniej, podsumowanie jest zawsze pigułką, bez
   względu na zapisany wybór. Pigułka otwiera kartę jako popover pod sobą, z cieniem
   (w ciemnym motywie jaśniejszą powierzchnią) i wewnętrznym scrollem. Zamykają go
