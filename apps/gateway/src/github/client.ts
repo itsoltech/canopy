@@ -4,7 +4,7 @@ import { githubMetrics } from "./metrics.ts";
 import type { GitHubAccess } from "./access.ts";
 import { GitHubHttpFailure } from "./http.ts";
 import { reconnect, type AccountRow } from "./records.ts";
-import type { BudgetRow, CacheRow } from "./store-cache.ts";
+import type { BudgetRow, CachePayloadVersion, CacheRow } from "./store-cache.ts";
 import { GitHubMemoryCache } from "./memory-cache.ts";
 import { addAbortListener } from "node:events";
 
@@ -38,7 +38,7 @@ export interface GitHubRead {
   ttl?: number;
   background?: boolean;
   /** A bounded batch already fetched this envelope through the same account and budget. */
-  prefetched?: { payload: Schema.JsonObject; revision: bigint };
+  prefetched?: { payload: Schema.JsonObject; revision: bigint; source: CachePayloadVersion };
   signal?: AbortSignal;
   project?: (value: Schema.JsonObject, headers: Headers) => Promise<Schema.JsonObject>;
 }
@@ -195,13 +195,16 @@ export class GitHubClient {
           response.headers.get("etag") ?? previous?.etag ?? "",
           http.now(),
           Math.max(read.ttl ?? 60_000, (Number(response.headers.get("x-poll-interval")) || 0) * 1000),
+          read.prefetched?.source,
         ),
       );
 
       if (!saved.length) throw reconnect();
+      const committed = await this.cached(row, read.key);
 
-      // SAFETY: the fenced finish above created this exact cache entry.
-      return (await this.cached(row, read.key))!;
+      if (!committed?.payload) throw reconnect();
+
+      return committed;
     } finally {
       await run((s) => s.cacheRelease(row, read.key, lease));
     }

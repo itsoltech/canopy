@@ -17,6 +17,12 @@ export interface StoredCacheRow extends Omit<CacheRow, "payload"> {
   serialized_payload: string | null;
 }
 
+export interface CachePayloadVersion {
+  key: string;
+  generation: bigint;
+  payload: Schema.JsonObject;
+}
+
 export interface BudgetRow {
   used: number;
   remaining: number;
@@ -34,6 +40,10 @@ export interface BudgetUpdate {
   failed: boolean;
   cost: number;
 }
+
+/** Serialize a cache fill with deletion of multiple cache rows for the same owner. */
+export const lockGitHubCache = (sql: SqlClient.SqlClient, owner: string) =>
+  sql`SELECT pg_advisory_xact_lock(hashtext(${`github-cache:${owner}`}))`;
 
 export function githubCache(sql: SqlClient.SqlClient) {
   return {
@@ -58,10 +68,21 @@ export function githubCache(sql: SqlClient.SqlClient) {
       etag: string,
       now: number,
       ttl: number,
+      source?: CachePayloadVersion,
     ) =>
       sql.withTransaction(
         Effect.gen(function* () {
-          yield* sql`SELECT pg_advisory_xact_lock(hashtext(${`github-cache:${row.owner_user_id}`}))`;
+          yield* lockGitHubCache(sql, row.owner_user_id);
+
+          // A batch may have lost access before its cached response was split into individual summaries.
+          if (source) {
+            const current = yield* sql`SELECT 1 FROM github_pr_cache
+              WHERE owner_user_id=${row.owner_user_id}::uuid AND account_id=${row.id}::uuid
+              AND access_revision=${row.revision}::bigint AND cache_key=${source.key}
+              AND generation=${source.generation}::bigint AND payload=${JSON.stringify(source.payload)}::jsonb FOR SHARE`;
+
+            if (!current.length) return [];
+          }
 
           const size = (yield* sql<{
             bytes: string;
@@ -100,6 +121,7 @@ export function githubCache(sql: SqlClient.SqlClient) {
     cacheInvalidate: (owner: string, account: string) =>
       sql.withTransaction(
         Effect.gen(function* () {
+          yield* lockGitHubCache(sql, owner);
           yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${owner}::uuid AND account_id=${account}::uuid`;
           yield* sql`UPDATE github_pull_requests SET summary=NULL,summary_account_id=NULL
             WHERE owner_user_id=${owner}::uuid AND summary_account_id=${account}::uuid`;

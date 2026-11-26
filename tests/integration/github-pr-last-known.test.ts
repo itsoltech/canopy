@@ -191,7 +191,7 @@ describe.skipIf(!dockerAvailable)("linked pull requests keep their last known su
           (e) => ConnectError.from(e).code,
         ),
       ).toBe(Code.NotFound);
-      await foreign.run((s) => s.prRemember(other, pr, account, { title: "Foreign" }));
+      await foreign.run((s) => s.prRemember(other, pr, account, { title: "Foreign" }, 1n));
       expect(await foreign.run((s) => s.prRefreshFailed(other, "itsoltech/canopy", 42, "Foreign", true))).toHaveLength(
         0,
       );

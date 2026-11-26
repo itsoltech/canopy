@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { inspect } from "node:util";
+import { toJson } from "@bufbuild/protobuf";
+import { github } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
+import { refreshLinkedBatch } from "../../apps/gateway/src/github/linked-batch.ts";
 import { GatewayStore } from "@canopy/gateway/store";
 import { connectGitHub, githubPrData, githubPrFixture, githubThread } from "./support/github-pr.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -407,17 +410,69 @@ describe.skipIf(!dockerAvailable)("manual GitHub PRs over gRPC and controlled HT
     for (const secret of fixture.secrets.slice(-2)) expect(inspect(redacted, { depth: null })).not.toContain(secret);
     fixture.echoText("");
     await gw.api.disconnectGitHubAccount({ accountId: otherAccount });
-    expect((await list()).links.every((l) => !l.summary?.title)).toBe(true);
+    const storedLinks = () => gw.core.github.prs.list(thread);
+    expect((await storedLinks()).links.every((l) => !l.summary?.title)).toBe(true);
     const fallback = await gw.api.getPullRequest({ pullRequestId: pr });
     expect(fallback.accountId).toBe(account);
     expect(fallback.summary!.title).toContain("account 101");
-    expect((await list()).links.every((l) => !l.summary?.title.includes("account 202"))).toBe(true);
+    expect((await storedLinks()).links.every((l) => !l.summary?.title.includes("account 202"))).toBe(true);
     const restored = await connectGitHub(gw, fixture, 202);
     expect(restored).toBe(otherAccount);
-    expect((await gw.api.getPullRequest({ pullRequestId: pr })).accountId).toBe(account);
-    fixture.status(403);
-    expect(await failure(gw.api.refreshPullRequest({ pullRequestId: pr }))).toContain("permissions");
-    expect((await list()).links.every((l) => !l.summary?.title)).toBe(true);
-    fixture.status(200);
+    const beforeDenial = await gw.api.getPullRequest({ pullRequestId: pr });
+    expect(beforeDenial.accountId).toBe(account);
+    const refs = (await storedLinks()).links.flatMap((link) => (link.summary?.ref ? [link.summary.ref] : []));
+    expect(refs.map((ref) => ref.number).sort()).toEqual([42, 43]);
+    await gw.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql`UPDATE github_pull_requests SET refreshed_at=NULL
+        WHERE owner_user_id=${gw.userId}::uuid AND repository_name='itsoltech/canopy' AND number IN (42,43)`,
+      ),
+    );
+
+    const prs = gw.core.github.prs;
+    const load = prs.load.bind(prs);
+    const resume = Promise.withResolvers<void>();
+    let receivedBatch = false;
+
+    // Pause after the batch reply has been cached, before its summaries get their own cache rows.
+    const paused = spyOn(prs, "load").mockImplementation(async (...args) => {
+      if (args[5]) {
+        receivedBatch = true;
+        await resume.promise;
+      }
+
+      return load(...args);
+    });
+
+    const batch = refreshLinkedBatch(prs, refs);
+
+    try {
+      expect(await eventually(async () => receivedBatch, Boolean)).toBe(true);
+      fixture.status(403);
+      const denied = await gw.api.refreshPullRequest({ pullRequestId: pr }).catch(ConnectError.from);
+      expect(ConnectError.from(denied).code).toBe(Code.PermissionDenied);
+      expect((await storedLinks()).links.map((link) => link.summary?.title)).toEqual(["", ""]);
+
+      resume.resolve();
+      await batch;
+      const summary = beforeDenial.summary;
+
+      if (!summary) throw new Error("Expected the previously verified summary");
+      await gw.core.github.run((s) =>
+        s.prRemember(
+          gw.userId,
+          pr,
+          account,
+          toJson(github.PullRequestSummarySchema, summary),
+          beforeDenial.accessRevision,
+        ),
+      );
+      expect((await list()).links.map((link) => link.summary?.title)).toEqual(["", ""]);
+    } finally {
+      resume.resolve();
+      await Promise.allSettled([batch]);
+      paused.mockRestore();
+      fixture.status(200);
+    }
   });
 });

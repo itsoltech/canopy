@@ -3,6 +3,7 @@ import { github } from "@canopy/contracts";
 import { Code, type ConnectError } from "@connectrpc/connect";
 import type { GitHubAccounts } from "./service.ts";
 import type { GitHubPullRequests } from "./pull-requests.ts";
+import type { AccountRow } from "./records.ts";
 
 /** A specific, actionable reason for the linked pull request row; never a vendor body or credential. */
 export function refreshReason(name: string, error: ConnectError) {
@@ -12,12 +13,13 @@ export function refreshReason(name: string, error: ConnectError) {
 }
 
 /** Complete reads become the last known summary; partial ones keep the previous complete summary. */
-export async function rememberSummary(accounts: GitHubAccounts, account: string, snapshot: github.PullRequestSnapshot) {
+export async function rememberSummary(accounts: GitHubAccounts, row: AccountRow, snapshot: github.PullRequestSnapshot) {
   const summary = snapshot.summary;
 
   if (!summary?.ref?.id || snapshot.completeness === "partial") return;
+  const id = summary.ref.id;
   const value = toJson(github.PullRequestSummarySchema, summary);
-  await accounts.run((s) => s.prRemember(accounts.owner, summary.ref!.id, account, value));
+  await accounts.run((s) => s.prRemember(accounts.owner, id, row.id, value, BigInt(row.revision)));
 }
 
 /** One claimed attempt per pull request and interval, including publication of any changed summary. */

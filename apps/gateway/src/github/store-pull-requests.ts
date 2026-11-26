@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import type { SqlClient, Statement } from "effect/sql";
 import type { AccountRow } from "./records.ts";
+import { lockGitHubCache } from "./store-cache.ts";
 import { githubPrList } from "./store-pr-list.ts";
 import { githubPrSummaries } from "./store-pr-summary.ts";
 
@@ -134,6 +135,7 @@ export function githubPullRequests(sql: SqlClient.SqlClient) {
         WHERE github_repository_accounts.revision=${expected}::bigint RETURNING *`;
 
           if (!result[0]) return yield* Effect.fail(conflict());
+          yield* lockGitHubCache(sql, row.owner_user_id);
           yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${row.owner_user_id}::uuid
         AND account_id<>${row.id}::uuid AND cache_key LIKE ${`%:${repo}:%`}`;
           yield* sql`UPDATE github_pull_requests SET summary=NULL,summary_account_id=NULL

@@ -2,6 +2,7 @@ import { Array, Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import type { AccountRow } from "./records.ts";
 import type { Installation, Repository } from "./schemas.ts";
+import { lockGitHubCache } from "./store-cache.ts";
 
 export interface InstallationRow {
   installation_id: string;
@@ -72,8 +73,10 @@ export function githubCatalogue(sql: SqlClient.SqlClient) {
             revision=revision+${changed ? 1 : 0}
             WHERE owner_user_id=${row.owner_user_id}::uuid AND id=${row.id}::uuid`;
 
-          if (changed)
+          if (changed) {
+            yield* lockGitHubCache(sql, row.owner_user_id);
             yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${row.owner_user_id}::uuid AND account_id=${row.id}::uuid`;
+          }
 
           return { changed };
         }),
