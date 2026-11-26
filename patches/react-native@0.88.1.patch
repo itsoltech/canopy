@@ -22,3 +22,113 @@ diff --git a/Libraries/Components/TextInput/TextInput.js b/Libraries/Components/
          selection={selection}
          selectionColor={selectionColor}
          style={StyleSheet.compose(
+diff --git a/React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm b/React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm
+--- a/React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm
++++ b/React/Fabric/Mounting/ComponentViews/ScrollView/RCTScrollViewComponentView.mm
+@@ -112,6 +112,10 @@
+   CGRect _prevFirstVisibleFrame;
+   __weak UIView *_firstVisibleView;
+   NSInteger _firstVisibleViewTag;
++
++  __weak UIView *_disclosureHeader;
++  NSInteger _disclosureHeaderTag;
++  CGFloat _disclosureOffsetFromHeader;
+
+   CGFloat _endDraggingSensitivityMultiplier;
+
+@@ -286,14 +290,20 @@
+ - (void)mountingTransactionWillMount:(const facebook::react::MountingTransaction &)transaction
+                 withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
+ {
+-  [self _prepareForMaintainVisibleScrollPosition];
++  if (_disclosureHeaderTag == 0) {
++    [self _prepareForMaintainVisibleScrollPosition];
++  }
+ }
+
+ - (void)mountingTransactionDidMount:(const MountingTransaction &)transaction
+                withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
+ {
+   [self _remountChildren];
+-  [self _adjustForMaintainVisibleContentPosition];
++  if (_disclosureHeaderTag != 0) {
++    [self _adjustForDisclosureHeader];
++  } else {
++    [self _adjustForMaintainVisibleContentPosition];
++  }
+ }
+
+ #pragma mark - RCTComponentViewProtocol
+@@ -710,6 +720,8 @@
+   _prevFirstVisibleFrame = CGRectZero;
+   _firstVisibleView = nil;
+   _firstVisibleViewTag = 0;
++  _disclosureHeader = nil;
++  _disclosureHeaderTag = 0;
+   _virtualViewContainerState = nil;
+ }
+
+@@ -785,6 +797,8 @@
+
+ - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
+ {
++  _disclosureHeader = nil;
++  _disclosureHeaderTag = 0;
+   [self _forceDispatchNextScrollEvent];
+
+   if (!_eventEmitter) {
+@@ -921,6 +935,22 @@
+
+ - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
+ {
++  if ([commandName isEqualToString:@"setCanopyDisclosureHeader"]) {
++    NSInteger tag = [args.firstObject integerValue];
++    UIView *header = tag > 0 ? [_contentView viewWithTag:tag] : nil;
++    if (header != nil && header == _disclosureHeader && tag == _disclosureHeaderTag) {
++      return;
++    }
++
++    _disclosureHeader = header;
++    _disclosureHeaderTag = header == nil ? 0 : tag;
++    if (header != nil) {
++      CGRect frame = [header convertRect:header.bounds toView:_contentView];
++      // The logical bottom of a header is its visual top in an inverted list.
++      _disclosureOffsetFromHeader = _scrollView.contentOffset.y - CGRectGetMaxY(frame);
++    }
++    return;
++  }
+   RCTScrollViewHandleCommand(self, commandName, args);
+ }
+
+@@ -1056,6 +1086,31 @@
+ }
+
+ #pragma mark - Maintain visible content position
++
++// The layout and offset must be committed together before UIKit draws the next frame.
++- (void)_adjustForDisclosureHeader
++{
++  UIView *header = _disclosureHeader;
++  if (header == nil || header.tag != _disclosureHeaderTag || ![header isDescendantOfView:_contentView]) {
++    _disclosureHeader = nil;
++    _disclosureHeaderTag = 0;
++    return;
++  }
++  if (_avoidAdjustmentForMaintainVisibleContentPosition) {
++    return;
++  }
++
++  CGRect frame = [header convertRect:header.bounds toView:_contentView];
++  UIEdgeInsets insets = _scrollView.adjustedContentInset;
++  CGFloat minimum = -insets.top;
++  CGFloat maximum = MAX(minimum, _scrollView.contentSize.height - _scrollView.bounds.size.height + insets.bottom);
++  CGPoint offset = _scrollView.contentOffset;
++  CGFloat next = MIN(maximum, MAX(minimum, _disclosureOffsetFromHeader + CGRectGetMaxY(frame)));
++  if (fabs(next - offset.y) > 0.5) {
++    [self _forceDispatchNextScrollEvent];
++    _scrollView.contentOffset = CGPointMake(offset.x, next);
++  }
++}
+
+ - (void)_prepareForMaintainVisibleScrollPosition
+ {

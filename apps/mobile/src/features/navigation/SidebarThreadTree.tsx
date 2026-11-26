@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import type { ui } from "@canopy/contracts";
 import { sidebarChildren } from "@canopy/domain/sidebar-threads";
@@ -9,7 +10,8 @@ import { isCalm, threadRowLabel } from "@canopy/domain/thread-activity";
 import { formatAge } from "@canopy/domain/format";
 import { useLayout } from "../../state/layout";
 import { styles, useColors } from "../../ui/theme";
-import { Chevron, Expand } from "../../ui/MotionViews";
+import { Chevron } from "../../ui/MotionViews";
+import { motion, smoothOut, useReducedMotion } from "../../ui/motion";
 import { Icon } from "../../ui/Icon";
 import { SidebarThread } from "./SidebarThread";
 import { SidebarThreadStatus } from "./SidebarThreadStatus";
@@ -36,6 +38,7 @@ interface TreeProps {
 }
 
 const openTree = (current: ui.Thread | undefined) => current && (isSide(current) ? current.parentThreadId : current.id);
+const revealSides = FadeIn.duration(motion.quick).easing(smoothOut);
 
 /**
  * Every overview event renders the list again; a row renders only when what it shows changed: its thread, side
@@ -77,8 +80,20 @@ function SidebarThreadTree({
   const [expanded, setExpanded] = useState<boolean>();
   const [previousOpen, setPreviousOpen] = useState(false);
   const open = showSides || (expanded ?? (archived || openTree(current) === thread.id));
+  const entering = useReducedMotion() ? undefined : revealSides;
   const c = useColors("sidebar-list");
   const hasSides = sides.active.length + sides.previous.length > 0;
+
+  const headingStyle = ({ pressed }: { pressed: boolean }) => [
+    styles.row,
+    {
+      minHeight: 48,
+      gap: 4,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      backgroundColor: pressed ? c.pressed : "transparent",
+    },
+  ];
 
   return (
     <View>
@@ -102,7 +117,7 @@ function SidebarThreadTree({
             accessibilityState={{ expanded: open, disabled: showSides }}
             disabled={showSides}
             onPress={() => setExpanded(!open)}
-            style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
+            style={headingStyle}
           >
             <Chevron open={open} size={16} />
             <Text numberOfLines={1} style={[type.meta, { flexShrink: 1, color: c.muted }]}>
@@ -111,8 +126,11 @@ function SidebarThreadTree({
                 : "Side threads"}
             </Text>
           </Pressable>
-          <Expand open={open}>
-            <View style={{ borderLeftWidth: 1, borderColor: c.rule, paddingLeft: 6 }}>
+          {open && (
+            <Animated.View
+              entering={expanded === true ? entering : undefined}
+              style={{ borderLeftWidth: 1, borderColor: c.rule, paddingLeft: 6 }}
+            >
               {sides.active.map((side) => (
                 <ThreadArchiveSwipe key={side.id} thread={side}>
                   <SidebarSideThread thread={side} snoozed={snoozed} />
@@ -123,25 +141,27 @@ function SidebarThreadTree({
                   <Pressable
                     accessibilityRole="button"
                     accessibilityState={{ expanded: previousOpen }}
-                    onPress={() => setPreviousOpen(!previousOpen)}
-                    style={[styles.row, { minHeight: 48, gap: 4, paddingHorizontal: 8 }]}
+                    onPress={() => setPreviousOpen((current) => !current)}
+                    style={headingStyle}
                   >
                     <Chevron open={previousOpen} size={16} />
                     <Text numberOfLines={1} style={[type.meta, { flexShrink: 1, color: c.muted }]}>
                       Previous agents · {sides.previous.length}
                     </Text>
                   </Pressable>
-                  <Expand open={previousOpen}>
-                    {sides.previous.map((side) => (
-                      <ThreadArchiveSwipe key={side.id} thread={side}>
-                        <SidebarSideThread thread={side} snoozed={snoozed} previous />
-                      </ThreadArchiveSwipe>
-                    ))}
-                  </Expand>
+                  {previousOpen && (
+                    <Animated.View entering={entering}>
+                      {sides.previous.map((side) => (
+                        <ThreadArchiveSwipe key={side.id} thread={side}>
+                          <SidebarSideThread thread={side} snoozed={snoozed} previous />
+                        </ThreadArchiveSwipe>
+                      ))}
+                    </Animated.View>
+                  )}
                 </>
               )}
-            </View>
-          </Expand>
+            </Animated.View>
+          )}
         </View>
       )}
     </View>

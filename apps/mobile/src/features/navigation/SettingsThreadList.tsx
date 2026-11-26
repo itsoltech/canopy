@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { FlatList, Text } from "react-native";
 import { ui } from "@canopy/contracts";
 import { visibleSidebarEntries } from "@canopy/domain/sidebar-groups";
@@ -14,7 +14,7 @@ import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
 import { SidebarArchivedHeader, SidebarArchivedStatus, useArchivedThreads } from "./SidebarArchivedThreads";
 import { useSnoozedThreads } from "./SidebarSnoozedThreads";
-import { SidebarDisclosureRow, SidebarThreadDisclosure, useSidebarDisclosureMotion } from "./SidebarThreadDisclosure";
+import { SidebarThreadDisclosure } from "./SidebarThreadDisclosure";
 import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
 import { GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSidebarOrder } from "./sidebar-order";
@@ -41,20 +41,27 @@ export function SettingsThreadList({
 }) {
   const { rise, layout } = useMotion();
   const { view, setView } = useDevicePreferences();
-  const workingOpen = view.workingThreadsExpanded;
-  const working = useSidebarDisclosureMotion(workingOpen);
+  const { workingThreadsExpanded: workingOpen, groupByWorktree } = view;
   const snoozed = useSnoozedThreads(navigation);
-  const disclosing = working.animating || snoozed.animating;
-  const { filtered, settings, choices } = navigation;
-  const grouping = { groupByWorktree: view.groupByWorktree };
-  const entries = sidebarEntries(filtered, settings, choices, working.rendered, grouping);
+  const previous = useRef({ workingOpen, snoozedOpen: snoozed.expanded });
+  const workingChanged = previous.current.workingOpen !== workingOpen;
+  const snoozedChanged = previous.current.snoozedOpen !== snoozed.expanded;
+  const disclosing = workingChanged || snoozedChanged;
 
-  const natural = sidebarEntries(
-    { ...filtered, pins: new Set<string>() },
-    settings,
-    choices,
-    working.rendered,
-    grouping,
+  useLayoutEffect(() => {
+    previous.current = { workingOpen, snoozedOpen: snoozed.expanded };
+  }, [workingOpen, snoozed.expanded]);
+
+  const { filtered, settings, choices } = navigation;
+
+  const entries = useMemo(
+    () => sidebarEntries(filtered, settings, choices, workingOpen, { groupByWorktree }),
+    [filtered, settings, choices, workingOpen, groupByWorktree],
+  );
+
+  const natural = useMemo(
+    () => sidebarEntries({ ...filtered, pins: new Set() }, settings, choices, workingOpen, { groupByWorktree }),
+    [filtered, settings, choices, workingOpen, groupByWorktree],
   );
 
   const visible = visibleSidebarEntries(entries, view.collapsedSidebarGroups, Boolean(navigation.query.trim()));
@@ -64,7 +71,7 @@ export function SettingsThreadList({
   const drag = useSidebarDrag(
     dragItems(visible, natural, settings.pinnedThreadIds),
     settings.groupByProject,
-    custom && !disclosing,
+    custom,
     order,
     header.offset,
     header.listTop,
@@ -85,6 +92,7 @@ export function SettingsThreadList({
     ...archivedEntries(archive),
   ];
 
+  // Insert or remove the section in one layout without gliding other cells over the new rows.
   const data = disclosing ? rows.map((row) => ({ ...row, disclosing: true })) : rows;
 
   const rootIds = new Set(filtered.roots.map((t) => t.id));
@@ -114,15 +122,17 @@ export function SettingsThreadList({
                 onEndReached={archive.more}
                 onEndReachedThreshold={0.4}
                 renderItem={({ item }) => {
-                  const disclosure =
-                    item.section === "working" ? working : item.section === "snoozed" ? snoozed : undefined;
+                  const workingRow = item.section === "working";
+                  const snoozedRow = item.section === "snoozed";
+                  const disclosureRow = workingRow || snoozedRow;
+                  const toggled = (workingRow && workingChanged) || (snoozedRow && snoozedChanged);
 
                   return (
-                    <SidebarDisclosureRow
-                      disclosure={disclosure}
-                      entering={disclosure?.animating ? undefined : arrival(item.key)}
-                      exiting={disclosure?.animating ? undefined : rise.exiting}
+                    <Animated.View
+                      entering={toggled ? undefined : arrival(item.key)}
+                      exiting={disclosureRow ? undefined : rise.exiting}
                       layout={!disclosing && item.section === "archived-heading" ? layout : undefined}
+                      style={disclosureRow && { paddingTop: 2 }}
                     >
                       <SidebarNesting depth={item.depth}>
                         <SidebarListEntryView
@@ -130,7 +140,7 @@ export function SettingsThreadList({
                           onWorking={() => setView({ workingThreadsExpanded: !workingOpen })}
                         />
                       </SidebarNesting>
-                    </SidebarDisclosureRow>
+                    </Animated.View>
                   );
                 }}
               />

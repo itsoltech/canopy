@@ -22,8 +22,13 @@ Status (2026-11-25): filmy publikowane przez agenta pojawiają się pod odpowied
 po zakończeniu tury. Filmy agenta i zwykłe załączniki otwierają wspólny odtwarzacz
 z kontrolkami Canopy. Nowe karty visuals również pojawiają się po zakończeniu tury.
 
-Status (2026-11-25): Working i Snoozed zapamiętują rozwinięcie po zmianie zakładki
+Status (2026-11-26): Working, Snoozed i wątki boczne reagują bez animowania wysokości
+treści klatka po klatce. Working i Snoozed zapamiętują rozwinięcie po zmianie zakładki
 i ponownym uruchomieniu aplikacji. [Sekcje wątków](threads.md#usypianie)
+
+Status (2026-11-26): na iOS ręczne przełączenie sekcji osi czasu koryguje pozycję
+dotkniętego nagłówka w tej samej transakcji Fabric co zmiana wysokości.
+[Kotwiczenie osi czasu](timeline-folding.md#pozycja-przy-ręcznym-przełączaniu)
 
 Status (2026-11-25): na liście Bots akcja „Create bot” ma widoczną etykietę i ikonę
 plusa po prawej stronie wyszukiwarki, w tym samym miejscu co „New thread” w Threads.
@@ -2786,9 +2791,10 @@ więc przejścia web z rozmyciem są tu bez niego.
 Fold pracy i grupy narzędzi korzystają z `features/timeline/TimelineDisclosure`: leniwy
 montaż, zachowanie treści po zamknięciu, naturalna wysokość po otwarciu oraz przejście
 wysokości na UI przez `fast` / `smoothOut` (250 ms w obie strony). Ograniczenie ruchu
-pomija przejście. Kotwica ręcznego przełączenia mierzy nagłówek względem rzeczywistej
+pomija przejście. Na iOS natywny scroll view ustawia offset względem dotkniętego
+nagłówka podczas zatwierdzania układu. Android mierzy nagłówek względem rzeczywistej
 komórki na UI i ustawia bezwzględny offset, niezależny od opóźnienia checkpointu
-przewijania Fabric. Natywna kotwica pozostaje włączona, bez autoscrollu podczas ruchu.
+przewijania Fabric.
 Dotyczy to także ostatniej tury; szczegóły i granice
 zakresu przewijania opisuje [timeline-folding.md](timeline-folding.md).
 
@@ -2817,15 +2823,19 @@ animują się dopiero późniejsze zmiany. Listy wirtualne (`useArrivals`) animu
 naprawdę doszły; wiersz zamontowany ponownie przy przewijaniu pojawia się od razu. Oś czasu wątku
 oraz czat bota używają trybu `newestFirst`: animują nowe klucze przed pierwszym
 znanym wierszem, a doczytane starsze strony na drugim końcu listy pokazują od razu.
-Zastąpienie całego okna bez wspólnych kluczy również nie animuje historii. Oś czasu wątku
-nie animuje wysokości (odwrócona lista z kotwicą foldu, `feed-anchor.tsx`): nowe wiersze i otwarta
-praca tylko się rozjaśniają, jak `t-rise` w web.
+Zastąpienie całego okna bez wspólnych kluczy również nie animuje historii. Nowe komórki
+tur tylko się rozjaśniają, jak `t-rise` w web. Wysokość przy ręcznym przełączeniu zmienia
+`TimelineDisclosure` wewnątrz komórki z kotwicą foldu (`feed-anchor.tsx`).
 
 Ruch nie zmienia układu długich treści klatka po klatce. Panel boczny na szerokim oknie wjeżdża
 i odjeżdża (`translateX` i przezroczystość), a kolumna bierze szerokość przed wjazdem i oddaje ją
 po odjeździe: ekran obok układa się raz, a nie w każdej klatce (długi wątek przelicza wtedy cały tekst).
 Przejścia układu (`layout`) mają tylko krótkie listy i wiersze listy wątków; wiersze list wirtualnych
 nie mają animacji wyjścia, bo wirtualizacja też je odmontowuje.
+Przełączenie Working lub Snoozed od razu aktualizuje układ wirtualnej listy, a chevron
+obraca się na wątku UI. Wątki boczne i Previous agents montują treść w naturalnym
+rozmiarze i przy ręcznym otwarciu rozjaśniają ją przez `quick` (150 ms). Przy ograniczeniu
+ruchu sekcje przełączają się od razu.
 
 ## Markdown
 

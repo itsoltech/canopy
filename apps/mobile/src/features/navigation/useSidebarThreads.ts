@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { create } from "@bufbuild/protobuf";
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { ui } from "@canopy/contracts";
 import { expandProjectIds } from "@canopy/domain/projects";
@@ -13,11 +14,42 @@ export function useSidebarThreads(query: string) {
   const { threads, projectChoices: choices, workers, computers, setWarmQuery } = useOverview();
   const { sidebar, updateSidebar } = useAppearance();
   const { client } = useSession();
-  const { view } = useDevicePreferences();
+
+  const {
+    view: { threadSortMode: sortMode },
+  } = useDevicePreferences();
+
   const params = useGlobalSearchParams<{ id?: string }>();
   const id = usePathname().startsWith("/thread/") ? params.id : undefined;
   const [fetchedCurrent, setFetchedCurrent] = useState<ui.Thread>();
-  const settings = { ...sidebar, projectIds: expandProjectIds(sidebar.projectIds, choices) };
+  const { groupByProject, pinnedThreadIds, projectIds, projectOrder, workingSection } = sidebar;
+
+  const settings = useMemo(
+    () =>
+      create(ui.SidebarSettingsSchema, {
+        groupByProject,
+        pinnedThreadIds,
+        projectIds: expandProjectIds(projectIds, choices),
+        projectOrder,
+        workingSection,
+      }),
+    [choices, groupByProject, pinnedThreadIds, projectIds, projectOrder, workingSection],
+  );
+
+  const projectName = useCallback(
+    (id: string) => {
+      const choice = choices.find((p) => p.projectIds.includes(id));
+
+      return choice ? [choice.name, ...choice.aliases].join(" ") : "";
+    },
+    [choices],
+  );
+
+  const filtered = useMemo(
+    () => sidebarThreads(threads, settings, query, projectName, sortMode),
+    [threads, settings, query, projectName, sortMode],
+  );
+
   const current = threads.find((t) => t.id === id) ?? (fetchedCurrent?.id === id ? fetchedCurrent : undefined);
 
   useEffect(() => {
@@ -42,20 +74,14 @@ export function useSidebarThreads(query: string) {
     };
   }, [client, id]);
 
-  const projectName = (id: string) => {
-    const choice = choices.find((p) => p.projectIds.includes(id));
-
-    return choice ? [choice.name, ...choice.aliases].join(" ") : "";
-  };
-
   return {
     query,
     current,
     choices,
     projectAway: (project: ui.Project) => projectAwayReason(project, workers, computers),
     settings,
-    sortMode: view.threadSortMode,
-    filtered: sidebarThreads(threads, settings, query, projectName, view.threadSortMode),
+    sortMode,
+    filtered,
     projectName,
     setProjectId: (id: string) => updateSidebar({ projectIds: id ? [id] : [] }),
   };

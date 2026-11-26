@@ -54,6 +54,17 @@ const answerEnd = (body: readonly BodyRow[], at: number | undefined) => {
   return row?.kind === "item" ? row.completedAt : undefined;
 };
 
+function foldState(
+  segment: ReturnType<typeof segmentsOf>[number] | undefined,
+  body: readonly BodyRow[],
+): WorkFoldState {
+  return {
+    live: segment?.live ?? false,
+    answered: segment?.answered ?? false,
+    answerSeq: segment ? body[segment.answerBoundary]?.seq : undefined,
+  };
+}
+
 /** Only seed the disclosure that contains the saved row; later toggles retain normal fold rules. */
 function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], context: TurnContext, target?: string) {
   const saved = context.foldChoices.get(turn.id);
@@ -65,15 +76,7 @@ function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], contex
   segmentsOf(turn, body, () => false).forEach((segment, index) => {
     const work = body.slice(segment.start + segment.inputs, segment.end);
 
-    if (work.some((row) => row.key === target))
-      choices.set(index, {
-        open: true,
-        state: {
-          live: segment.live,
-          answered: segment.answered,
-          answerSeq: body[segment.answerBoundary]?.seq,
-        },
-      });
+    if (work.some((row) => row.key === target)) choices.set(index, { open: true, state: foldState(segment, body) });
   });
 
   return choices;
@@ -112,18 +115,7 @@ export function TimelineTurn({
   const ended = turnProgress(turn.status) !== "live";
   const plan = segmentsOf(turn, body, () => false);
 
-  const state = (index: number): WorkFoldState => {
-    const segment = plan[index];
-    const answer = segment ? body[segment.answerBoundary] : undefined;
-
-    return {
-      live: segment?.live ?? false,
-      answered: segment?.answered ?? false,
-      answerSeq: answer?.seq,
-    };
-  };
-
-  const open = (index: number) => workFoldOpen(state(index), workFold, folds.get(index));
+  const open = (index: number) => workFoldOpen(foldState(plan[index], body), workFold, folds.get(index));
 
   const segments = segmentsOf(turn, body, open);
   const hasInput = Boolean(turn.inputText || turn.messageText || turn.attachments.length || turn.quotes.length);
@@ -176,7 +168,10 @@ export function TimelineTurn({
                     starting={turn.status === "queued" && turn.dispatched}
                     open={isOpen}
                     onToggle={() => {
-                      const next = new Map(folds).set(index, { open: !isOpen, state: state(index) });
+                      const choices = context.foldChoices.get(turn.id) ?? folds;
+                      const currentState = foldState(plan[index], body);
+                      const expanded = workFoldOpen(currentState, workFold, choices.get(index));
+                      const next = new Map(choices).set(index, { open: !expanded, state: currentState });
                       context.foldChoices.set(turn.id, next);
                       setFolds(next);
                     }}
