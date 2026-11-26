@@ -116,13 +116,14 @@ export async function scanWorktree(managedRoots: readonly string[], target: Work
   }
 
   const base = target.baseRef.startsWith(`${remote}/`) ? target.baseRef : `refs/remotes/${remote}/${target.baseRef}`;
+  const baseRef = remotes.includes(remote) ? base : target.baseRef;
   const remoteUrl = await git(repo, ["config", "--get", `remote.${remote}.url`]);
   const repository = remoteUrl.ok ? githubRepository(remoteUrl.stdout.trim()) : "";
 
   const merged =
     (repository !== "" && target.mergedPrRepository === repository && target.mergedPrHead === head) ||
     (await mergedInto(repo, defaultBranch, head)) ||
-    (await mergedInto(repo, remotes.includes(remote) ? base : target.baseRef, head));
+    (baseRef !== defaultBranch && (await mergedInto(repo, baseRef, head)));
 
   let activity = statSync(path).mtimeMs;
 

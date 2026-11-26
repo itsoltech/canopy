@@ -1,6 +1,7 @@
 # Worktrees (git)
 
-Status (2026-11-26): gateway przy zamykaniu przerywa [okresowy skan worktree](#sprzątanie-etap-2).
+Status (2026-11-26): [okresowe sprzątanie worktree](#sprzątanie-etap-2) skanuje tylko kandydatów,
+współdzieli udany fetch podczas ich oceny i przerywa skan przy zamykaniu gatewaya.
 `start_thread` może utworzyć worktree w projekcie
 docelowym. Gateway przypina lokalny commit bazowy, a worker używa checkoutu
 agenta bez hooków i filtrów. [Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
@@ -693,6 +694,17 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   współdzielących wątków, plików, indeksu i refloga worktree. Przy zamykaniu gateway kończy
   okresowy przegląd przed kolejnym worktree. Może przerwać oczekiwanie na odczyt statusu
   lub potwierdzenie merge. Jeśli już zarezerwował usunięcie, rozlicza je według zapisanej komendy.
+- Harmonogram ponawia zarezerwowane usunięcia na dostępnych workerach, również po zmianie reguł.
+  Przy wyborze nowych kandydatów pomija zewnętrzne i zajęte worktree, ochronę po archiwizacji oraz
+  workery offline lub bez obsługi sprzątania. Dla każdego zakresu projektu i workera odczytuje reguły.
+  Jeśli żadna nie może zadziałać, pomija skan Git. Przy regule nieaktywności wystarczy niedawna
+  aktywność zapisana w gatewayu. Reguły merged i unchanged wymagają sprawdzenia checkoutu.
+  Dla wybranego wpisu gateway ponownie odczytuje ustawienia przed oceną.
+- W jednym przebiegu udany skan odświeża refy dla kolejnych kandydatów z tej samej ścieżki
+  repozytorium i remote na tym samym połączeniu workera. Każdy kandydat ma osobny odczyt statusu
+  i dowodu scalenia. Po błędzie pierwszego skanu kolejny kandydat ponawia fetch.
+  Merge w trakcie przebiegu może zostać zauważony przy kolejnym odświeżeniu.
+  Przed usunięciem checkoutu worker wykonuje własny fetch i ponownie sprawdza HEAD oraz stan lokalny.
 - Archiwizacja dowolnego nieusuniętego wątku chroni współdzielone worktree przez **24 godziny**.
   Ochrona blokuje wszystkie reguły, również merged, unchanged i inactive, niezależnie od włączenia
   „Archived threads”. Obowiązuje przy starcie, połączeniu workera oraz „Run cleanup”; preview pokazuje
@@ -722,7 +734,8 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
   Błąd konektora zostawia niezależny wynik gita; błąd fetch blokuje usunięcie. Commity potwierdzone
   jako scalone nie są traktowane jako niewypchnięta praca.
 - W web/desktop **Settings → Worktrees → Manage worktrees → Preview cleanup** pokazuje wynik
-  reguł dla każdego worktree. Po podglądzie można wybrać **Run cleanup now**.
+  reguł dla każdego worktree, także pomijanego przez harmonogram. Ręczny podgląd i **Run cleanup now**
+  odświeżają każdy skanowany checkout.
 - Gateway rezerwuje rekord w transakcji z blokadami wątków i worktree, a triggery blokują wyścig
   z nową turą/wątkiem/celem. Przed utrwaleniem komendy w rezerwacji ponownie sprawdza zgodę reguły zamkniętych wątków;
   okres ochronny po archiwizacji jest również sprawdzany pod blokadą przed zapisem automatycznej komendy.
