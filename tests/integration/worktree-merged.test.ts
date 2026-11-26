@@ -20,8 +20,8 @@ describe.skipIf(!dockerAvailable)("squash/rebase cleanup over gateway-worker gRP
   test("scheduled cleanup shares the initial fetch and checks the remote again before each removal", async () => {
     const head = commit(f.repo, "scheduled.txt");
     const trees = [await f.tree(), await f.tree()];
-    // Publish by URL so only a fetch can tell the worker that origin/main contains these checkouts.
-    git(f.repo, "push", "-q", f.origin, "main");
+    // Advance the bare repository without updating the worker's remote-tracking ref.
+    git(f.origin, "fetch", "-q", f.repo, "refs/heads/main:refs/heads/main");
     expect(git(f.repo, "rev-parse", "origin/main")).not.toBe(head);
     const unavailable = join(f.dir, "offline.git");
     const handle = f.host.handleCommand.bind(f.host);
