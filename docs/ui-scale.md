@@ -11,6 +11,8 @@ Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy 
 Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
 Aktualizacja (2026-11-26): composer w web/desktop ustawia czasy przejść raz na
 odcinek ruchu sterowany przewijaniem.
+Aktualizacja (2026-11-26): listy sidebara web/desktop mają mniejszy odstęp po prawej
+i zachowują szerokość po pojawieniu się paska przewijania.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -263,8 +265,10 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   treść wierszy, nagłówki grup, ikonę wyszukiwania i ikony dolnego paska. Tło wiersza
   ma inset `--sidebar-row-inset` (4 px), a padding wiersza to różnica tych tokenów
   (8 px). Wyszukiwarka i dolny pasek korzystają z tego samego insetu. Odstęp między
-  lupą a tekstem wyszukiwania wynosi 0,25 rem (4 px) w Threads i Bots. Lista rezerwuje
-  scrollbar tylko po prawej, bez dodatkowego pustego guttera po lewej.
+  lupą a tekstem wyszukiwania wynosi 0,25 rem (4 px) w Threads i Bots. Listy Threads
+  i Bots zachowują 0,25 rem insetu z lewej i mają 0,125 rem z prawej. Pasek przewijania
+  rezerwuje stałe miejsce po prawej. W Chromium i Safari jego obszar ma 6 px,
+  a widoczny uchwyt zachowuje 4 px szerokości.
   Wspólne klasy `sidebar-swap-resting` / `sidebar-swap-action` zamieniają status/czas
   na „…” oraz znak dostawcy/licznik na Archive. Oba sloty używają tego samego
   przenikania, skali i rozmycia (`--duration-fast`, `--ease-in-out`, `--scale-large`,
