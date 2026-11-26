@@ -1,19 +1,20 @@
 import { isOAuthState, pastedCode, returnTarget } from "../../packages/domain/src/oauth-return.ts";
 
 /**
- * Sends a sign-in back to its Canopy. A browser may block opening the desktop app without a click, so an
- * "Open Canopy" link and the code to paste show right away; the status line changes once the automatic return
- * had time to happen.
+ * Sends a sign-in back to its Canopy. A browser may block opening the desktop app without a click, so the
+ * page offers an "Open Canopy" link and a disclosure for the sign-in code.
  */
 const params = new URLSearchParams(location.search);
 const target = returnTarget(location.search);
 
 // Only the callback for registered clients can forward codes to a web installation.
 const webReturn = document.body.hasAttribute("data-web-return");
+const automaticReturn = target && (webReturn || target.desktop) ? target : undefined;
 const status = document.getElementById("status");
 const manual = document.getElementById("manual");
 const output = document.getElementById("code");
 const copy = document.getElementById("copy");
+const copyFeedback = document.getElementById("copy-feedback");
 const open = document.getElementById("open");
 
 // The code must not stay in history or a restored session.
@@ -23,7 +24,7 @@ function fallback() {
   const state = params.get("state");
   const code = params.get("code");
 
-  if (!status || !manual || !output || !copy) return;
+  if (!status || !(manual instanceof HTMLDetailsElement) || !output || !copy || !copyFeedback) return;
 
   // A plain nonce has no forwarding destination. The originating client accepts a manual return.
   const manualReturn = state && isOAuthState(state) && !state.includes(".");
@@ -39,32 +40,41 @@ function fallback() {
 
   const text = pastedCode(state, code);
   output.textContent = text;
+
+  if (!automaticReturn) {
+    const summary = manual.querySelector("summary");
+
+    if (summary) summary.hidden = true;
+
+    manual.open = true;
+    status.hidden = true;
+  }
+
   manual.hidden = false;
 
-  if (manualReturn || (!webReturn && !target?.desktop))
-    status.textContent = "Copy this code and paste it into the sign-in form in Canopy.";
-
-  copy.addEventListener("click", () => {
-    void navigator.clipboard.writeText(text).then(
-      () => (copy.textContent = "Copied"),
-      () => (status.textContent = "Copying is not allowed here. Select the code and copy it."),
-    );
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = "Copied";
+      copyFeedback.textContent = "";
+    } catch {
+      copy.textContent = "Copy code";
+      copyFeedback.textContent = "Couldn’t copy the code. Select and copy it manually.";
+    }
   });
 }
 
-const missed = "If Canopy did not open, select Open Canopy, or copy this code and paste it in the Connect dialog.";
-
 fallback();
 
-if (target && (webReturn || target.desktop)) {
-  if (open && target.desktop) {
-    open.setAttribute("href", target.url);
+if (automaticReturn) {
+  if (open && automaticReturn.desktop) {
+    open.setAttribute("href", automaticReturn.url);
     open.hidden = false;
   }
 
-  if (target.desktop) location.href = target.url;
-  else location.replace(target.url);
+  if (automaticReturn.desktop) location.href = automaticReturn.url;
+  else location.replace(automaticReturn.url);
   setTimeout(() => {
-    if (status && params.get("code")) status.textContent = missed;
+    if (status && params.get("code")) status.textContent = "Continue in Canopy to connect your account.";
   }, 3000);
 }

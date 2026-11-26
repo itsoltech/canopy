@@ -9,10 +9,13 @@
     <title>Canopy</title>
     <style>
       :root {
+        /* __THEME__ */
         color-scheme: light dark;
         font-family: InterVariable, Inter, ui-sans-serif, system-ui, sans-serif;
-        color: #18181b;
-        background: #fff;
+        font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+        color: var(--ink);
+        background: var(--canvas);
+        --line: color-mix(in oklab, var(--ink) 14%, transparent);
         -webkit-font-smoothing: antialiased;
       }
       * {
@@ -22,112 +25,199 @@
         margin: 0;
         min-height: 100dvh;
         display: grid;
-        place-items: center;
-        padding: 1.5rem;
+        place-items: start center;
+        padding: 1rem;
+        padding-block-start: max(1.25rem, calc(50dvh - 12rem));
+        background: radial-gradient(
+          ellipse min(45rem, 90vw) 24rem at 50% 0,
+          color-mix(in oklab, var(--accent) 10%, transparent),
+          transparent
+        );
       }
       main {
         width: 100%;
-        max-width: 26rem;
+        max-width: 29rem;
         display: grid;
-        gap: 1rem;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.25rem;
+        padding: clamp(1.25rem, 5vw, 2rem);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: var(--surface);
+        box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.05);
+      }
+      header {
+        display: grid;
+        gap: 0.5rem;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(1.5rem, 5vw, 1.875rem);
+        font-weight: 600;
+        line-height: 1.2;
+        letter-spacing: -0.035em;
       }
       p {
         margin: 0;
-        color: #52525b;
+        color: var(--muted);
         font-size: 1rem;
         line-height: 1.5;
         text-wrap: pretty;
       }
-      .brand {
-        color: inherit;
-        font-size: 0.875rem;
-        font-weight: 600;
+      .brand svg {
+        display: block;
+        width: 7rem;
+        height: auto;
       }
       [hidden] {
         display: none !important;
       }
-      .code {
+      .open:not([hidden]) + details {
+        padding-block-start: 0.5rem;
+        border-block-start: 1px solid var(--line);
+      }
+      summary {
         display: flex;
-        align-items: flex-start;
-        gap: 0.5rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        min-height: 2.5rem;
+        padding-inline: 0.5rem;
         border-radius: 0.5rem;
-        padding: 0.375rem 0.375rem 0.375rem 0.75rem;
-        box-shadow: inset 0 0 0 1px rgb(9 9 11 / 0.1);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        list-style: none;
+      }
+      summary:hover {
+        background: var(--panel);
+      }
+      summary::-webkit-details-marker {
+        display: none;
+      }
+      summary::after {
+        content: "";
+        flex: none;
+        width: 0.375rem;
+        height: 0.375rem;
+        margin-inline-end: 0.25rem;
+        color: var(--muted);
+        border: solid currentColor;
+        border-width: 0 1.5px 1.5px 0;
+        transform: rotate(-45deg);
+      }
+      details[open] summary::after {
+        transform: rotate(45deg);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        summary::after {
+          transition: transform var(--duration-fast) var(--ease-smooth-out);
+        }
+      }
+      .manual-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      summary:not([hidden]) + .manual-panel {
+        margin-block-start: 0.5rem;
+      }
+      #copy-feedback:not(:empty) {
+        margin-block-start: 0.5rem;
       }
       code {
-        min-width: 0;
-        flex: 1;
-        padding-block: 0.25rem;
-        font-size: 0.875rem;
-        line-height: 1.5;
+        margin-block-start: 0.75rem;
+        max-block-size: 8rem;
+        overflow: auto;
+        padding: 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 0.75rem;
+        background: var(--panel);
+        font:
+          0.8125rem/1.6 ui-monospace,
+          "SF Mono",
+          Menlo,
+          Consolas,
+          monospace;
         overflow-wrap: anywhere;
-        color: #3f3f46;
         user-select: all;
       }
       button,
       .open {
-        flex: none;
-        border: 0;
-        border-radius: 0.5rem;
-        padding: 0.375rem 0.75rem;
-        background: #18181b;
-        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding-inline: 0.875rem;
         font: inherit;
         font-size: 0.875rem;
         font-weight: 500;
         cursor: pointer;
       }
+      button {
+        justify-self: end;
+        margin-block-start: 0.75rem;
+        min-width: 6rem;
+        min-height: 2.25rem;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background: var(--surface);
+        color: var(--ink);
+      }
       .open {
         justify-self: start;
+        min-height: 2.75rem;
+        padding-inline: 1.125rem;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--on-accent);
         text-decoration: none;
       }
-      button:hover,
-      .open:hover {
-        background: #3f3f46;
+      button:hover {
+        background: var(--hover);
       }
-      button:focus-visible {
-        outline: 2px solid #0d9488;
+      .open:hover {
+        background: color-mix(in oklab, var(--accent) 86%, var(--ink));
+      }
+      :is(button, .open, summary):focus-visible {
+        outline: 2px solid var(--accent);
         outline-offset: 3px;
+      }
+      @media (width < 28rem) {
+        body {
+          padding-block-start: clamp(1.25rem, 12dvh, 6rem);
+        }
       }
       @media (min-width: 40rem) {
         p {
           font-size: 0.875rem;
         }
+        summary {
+          min-height: 2rem;
+        }
       }
       @media (prefers-color-scheme: dark) {
-        :root {
-          background: #18181b;
-          color: #fafafa;
-        }
-        p {
-          color: #a1a1aa;
-        }
-        .code {
-          box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
-        }
-        code {
-          color: #d4d4d8;
-        }
-        button,
-        .open {
-          background: #fafafa;
-          color: #18181b;
-        }
-        button:hover,
-        .open:hover {
-          background: #d4d4d8;
+        .brand svg g {
+          fill: #dfecd0;
         }
       }
     </style>
   </head>
   <body>
     <main>
-      <p class="brand">Canopy</p>
-      <p id="status" role="status">Returning to Canopy…</p>
+      <div class="brand">__WORDMARK__</div>
+      <header>
+        <h1>Finish signing in</h1>
+        <p id="status" role="status">Returning to Canopy…</p>
+      </header>
       <a id="open" class="open" hidden>Open Canopy</a>
-      <div id="manual" hidden>
-        <div class="code"><code id="code"></code><button id="copy" type="button">Copy code</button></div>
-      </div>
+      <details id="manual" hidden>
+        <summary>Use a sign-in code</summary>
+        <div class="manual-panel">
+          <p>Paste the code into the sign-in form in Canopy.</p>
+          <code id="code"></code>
+          <button id="copy" type="button">Copy code</button>
+          <p id="copy-feedback" role="status"></p>
+        </div>
+      </details>
     </main>
     <script>
       __SCRIPT__;
