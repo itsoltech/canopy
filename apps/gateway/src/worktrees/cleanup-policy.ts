@@ -16,6 +16,20 @@ export function closedThreadCleanup(row: WorktreeLifecycleRow, settings: ui.Work
   return Boolean((settings.cleanupDeletedThreads && row.all_deleted) || (settings.cleanupSettled && row.all_archived));
 }
 
+function inactive(row: WorktreeLifecycleRow, days: number | undefined, status?: WorktreeStatus, now = new Date()) {
+  return Boolean(days && now.getTime() - lastActivity(row, status).getTime() >= days * 86_400_000);
+}
+
+/** Worker activity can only shorten the period of inactivity recorded by the gateway. */
+export function mayMatchCleanup(row: WorktreeLifecycleRow, settings: ui.WorktreeSettings): boolean {
+  return Boolean(
+    closedThreadCleanup(row, settings) ||
+    settings.cleanupMerged ||
+    settings.cleanupUnchanged ||
+    inactive(row, settings.cleanupInactiveDays),
+  );
+}
+
 /** Rules are alternatives; active resources and worktree boundaries always block removal. */
 export function cleanupReason(
   row: WorktreeLifecycleRow,
@@ -32,10 +46,7 @@ export function cleanupReason(
 
   if (settings.cleanupMerged && status.merged) return "Branch merged into the default or base branch";
 
-  if (
-    settings.cleanupInactiveDays &&
-    now.getTime() - lastActivity(row, status).getTime() >= settings.cleanupInactiveDays * 86_400_000
-  )
+  if (inactive(row, settings.cleanupInactiveDays, status, now))
     return `Inactive for ${settings.cleanupInactiveDays} days`;
 
   if (settings.cleanupUnchanged && status.unchanged) return "Unchanged since creation";

@@ -4,11 +4,41 @@ import { ui } from "@canopy/contracts";
 import { coreState, InvalidError } from "../core/core-context.ts";
 import { coreRun } from "../core/core-broadcast.ts";
 import type { GatewayCore } from "../core/core.ts";
+import type { WorktreeLifecycleRow } from "../store/worktree-lifecycle.ts";
+import type { WorkerConnection } from "../worker-link/index.ts";
 import { deliverRemoval, pendingRemoval, removeEntry, scanEntry, worktreeTarget } from "./lifecycle.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
 import { cleanupRemovedBranches } from "./removed-branch-cleanup.ts";
 import { appendDiscovered } from "./discovery.ts";
-import { toUiWorktree } from "./core-worktrees.ts";
+import { coreWorktreeScope, toUiWorktree } from "./core-worktrees.ts";
+import { mayMatchCleanup } from "./cleanup-policy.ts";
+
+async function scheduledCandidate(
+  core: GatewayCore,
+  row: WorktreeLifecycleRow,
+  scopes: Map<string, ui.WorktreeSettings>,
+): Promise<boolean> {
+  const connection = core.link.connections.get(row.worker_id);
+
+  if (row.external || !connection?.isOpen) return false;
+
+  // A durable command must be reconciled even if the policy no longer matches.
+  if (row.removal_command) return true;
+
+  if (row.busy || row.archive_grace_period || !connection.hello.capabilities.includes("worktree_lifecycle"))
+    return false;
+
+  const scope = `${row.project_id}:${row.worker_id}`;
+  let settings = scopes.get(scope);
+
+  if (!settings) {
+    settings = (await coreWorktreeScope(core, row.project_id, row.worker_id)).effective;
+    scopes.set(scope, settings);
+  }
+
+  // These settings only shortlist rows. scanEntry resolves current settings for the removal decision.
+  return mayMatchCleanup(row, settings);
+}
 
 export interface CoreWorktreeLifecycleMethods {
   listWorktrees(request: ui.ListWorktreesRequest): Promise<ui.ListWorktreesResponse>;
@@ -79,13 +109,18 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
 
     const entries = [];
 
+    const scheduled = scheduledStop && {
+      stop: scheduledStop,
+      scopes: new Map<string, ui.WorktreeSettings>(),
+      fetched: new Map<string, WorkerConnection>(),
+    };
+
     for (const row of rows) {
       scheduledStop?.throwIfAborted();
 
-      // Only the manual inventory shows checkouts that Canopy cannot remove.
-      if (scheduledStop && row.external) continue;
-
       try {
+        if (scheduled && !(await scheduledCandidate(this, row, scheduled.scopes))) continue;
+
         if (!(await enabled())) return create(ui.ListWorktreesResponseSchema, { entries });
         scheduledStop?.throwIfAborted();
         const pending = pendingRemoval(row);
@@ -103,7 +138,7 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
           continue;
         }
 
-        const { entry, settings } = await scanEntry(this, row, true, scheduledStop);
+        const { entry, settings } = await scanEntry(this, row, true, scheduled);
         scheduledStop?.throwIfAborted();
 
         if (!request.dryRun && entry.wouldRemove && entry.status) {

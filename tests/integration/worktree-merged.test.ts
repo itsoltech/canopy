@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, renameSync } from "node:fs";
+import { join } from "node:path";
 import { dockerAvailable } from "@canopy/db/testing";
 import { tempDir } from "@canopy/testing";
 import { eventually } from "./support/gateway.ts";
@@ -14,6 +15,61 @@ describe.skipIf(!dockerAvailable)("squash/rebase cleanup over gateway-worker gRP
   }, 60_000);
   afterAll(async () => {
     await f?.close();
+  });
+
+  test("scheduled cleanup shares the initial fetch and checks the remote again before each removal", async () => {
+    const head = commit(f.repo, "scheduled.txt");
+    const trees = [await f.tree(), await f.tree()];
+    // Publish by URL so only a fetch can tell the worker that origin/main contains these checkouts.
+    git(f.repo, "push", "-q", f.origin, "main");
+    expect(git(f.repo, "rev-parse", "origin/main")).not.toBe(head);
+    const unavailable = join(f.dir, "offline.git");
+    const handle = f.host.handleCommand.bind(f.host);
+    let firstRemoval: ReturnType<typeof handle> | undefined;
+    let rejectedId = "";
+
+    f.host.handleCommand = async (command) => {
+      const target = command.kind.case === "removeWorktree" && command.kind.value.target;
+
+      if (!target || !trees.some((tree) => tree.worktree!.id === target.id)) return handle(command);
+
+      if (!firstRemoval) {
+        firstRemoval = handle(command).then((result) => {
+          if (result?.ok) renameSync(f.origin, unavailable);
+
+          return result;
+        });
+
+        return firstRemoval;
+      }
+
+      await firstRemoval;
+      const result = await handle(command);
+
+      if (result?.errorCode === "FETCH_FAILED") rejectedId = target.id;
+
+      return result;
+    };
+
+    try {
+      await f.gw.core.worktreeCleanup.tick(f.workerId);
+      expect(rejectedId).not.toBe("");
+
+      for (const tree of trees) expect(existsSync(tree.cwd)).toBe(tree.worktree!.id === rejectedId);
+
+      const rows = await f.sql(
+        (sql) => sql`SELECT removed_at, removal_token, removal_started_at, removal_command
+          FROM worktrees WHERE id=${rejectedId}::uuid`,
+      );
+
+      expect(rows).toEqual([
+        { removed_at: null, removal_token: null, removal_started_at: null, removal_command: null },
+      ]);
+    } finally {
+      f.host.handleCommand = handle;
+
+      if (existsSync(unavailable)) renameSync(unavailable, f.origin);
+    }
   });
 
   test("a multi-commit squash is merged even without the branch upstream; cleanup removes its checkout", async () => {

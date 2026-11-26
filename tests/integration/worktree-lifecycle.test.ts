@@ -33,6 +33,48 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
     });
   });
 
+  test("scheduled cleanup skips ineligible worktrees before scanning while manual preview reports their Git status", async () => {
+    const thread = await f.tree();
+    const id = thread.worktree!.id;
+    const head = git(thread.cwd, "rev-parse", "HEAD");
+    const handle = f.host.handleCommand.bind(f.host);
+    let scanned = false;
+    f.host.handleCommand = (command) => {
+      if (command.kind.case === "scanWorktrees" && command.kind.value.targets.some((target) => target.id === id))
+        scanned = true;
+
+      return handle(command);
+    };
+
+    const expectSkipped = async (detail: string) => {
+      scanned = false;
+      await f.gw.core.worktreeCleanup.tick(f.workerId);
+      expect(scanned).toBe(false);
+      const preview = (await f.cleanup()).entries.find((entry) => entry.worktree?.id === id);
+      expect(preview).toMatchObject({ detail, wouldRemove: false, status: { headCommit: head, unchanged: true } });
+      expect(scanned).toBe(true);
+    };
+
+    try {
+      await f.settings({ cleanupSettled: true, cleanupDeletedThreads: true, cleanupInactiveDays: 7 });
+      await expectSkipped("No cleanup policy matches");
+      await f.settings({ cleanupUnchanged: true });
+      await f.sql(
+        (sql) => sql`INSERT INTO interaction_requests (id, thread_id, kind, request, routed_to)
+          VALUES (${Bun.randomUUIDv7()}::uuid, ${thread.id}::uuid, 'permission', '{}'::jsonb, 'human')`,
+      );
+      await expectSkipped("A thread is still using this worktree");
+      await f.gw.api.setThreadArchived({ threadId: thread.id, archived: true });
+      await expectSkipped("Kept: archived less than 24 hours ago");
+
+      await f.sql((sql) => sql`UPDATE threads SET archived_at=now()-interval '25 hours' WHERE id=${thread.id}::uuid`);
+      await f.gw.core.worktreeCleanup.tick(f.workerId);
+      expect(existsSync(thread.cwd)).toBe(false);
+    } finally {
+      f.host.handleCommand = handle;
+    }
+  });
+
   test.each(["archived", "merged", "unchanged", "inactive"])(
     "archive grace blocks %s cleanup until the 24-hour boundary",
     async (rule) => {

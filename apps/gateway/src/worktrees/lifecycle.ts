@@ -4,6 +4,7 @@ import { currentProcessPriority } from "@canopy/process-governor";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { CommandSchema, WorktreeTargetSchema, ui, type Command, type WorktreeStatus } from "@canopy/contracts";
 import type { WorktreeLifecycleRow } from "../store/worktree-lifecycle.ts";
+import type { WorkerConnection } from "../worker-link/index.ts";
 import { coreState, InvalidError, UnavailableError } from "../core/core-context.ts";
 import { coreBroadcastThread, coreRun } from "../core/core-broadcast.ts";
 import { coreWorkerQuery } from "../core/core-mentions.ts";
@@ -133,7 +134,15 @@ export async function deliverRemoval(core: GatewayCore, row: WorktreeLifecycleRo
   return result.worktreeBranchDeleted;
 }
 
-export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fetch: boolean, stop?: AbortSignal) {
+export async function scanEntry(
+  core: GatewayCore,
+  row: WorktreeLifecycleRow,
+  fetch: boolean,
+  scheduled?: { stop: AbortSignal; fetched: Map<string, WorkerConnection> },
+) {
+  const settings = (await coreWorktreeScope(core, row.project_id, row.worker_id)).effective;
+  const stop = scheduled?.stop;
+  stop?.throwIfAborted();
   const connection = core.link.connections.get(row.worker_id);
   const online = Boolean(connection?.isOpen);
 
@@ -144,8 +153,6 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
     busy: row.busy,
     lastActivityAt: timestampFromDate(new Date(row.last_activity_at)),
   });
-
-  const settings = (await coreWorktreeScope(core, row.project_id, row.worker_id)).effective;
 
   if (row.external) {
     const { workspace } = await ownWorkspace(core, row.workspace_id);
@@ -165,14 +172,17 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
     entry.detail = "Update this worker to manage worktrees";
   else if (row.removal_token) entry.detail = "Cleanup in progress; waiting for the worker's result";
   else {
+    const target = worktreeTarget(row, settings);
+    const key = JSON.stringify([row.worker_id, target.repoRoot, target.remote]);
+
     const result = await coreWorkerQuery(
       core,
       row.worker_id,
       {
         case: "scanWorktrees",
         value: {
-          targets: [worktreeTarget(row, settings)],
-          fetch,
+          targets: [target],
+          fetch: scheduled ? scheduled.fetched.get(key) !== connection : fetch,
           background: currentProcessPriority() === "background",
         },
       },
@@ -182,6 +192,8 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
 
     entry.status = result.worktreeStatuses.find((s) => s.id === row.id);
     entry.detail = entry.status?.detail || (entry.status ? "" : "Worker did not return a worktree status");
+
+    if (entry.status && !entry.status.missing && !entry.detail) scheduled?.fetched.set(key, connection);
 
     if (
       entry.status &&
