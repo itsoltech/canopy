@@ -3,6 +3,10 @@
 Aktualizacja (2026-11-26): odświeżenie listy w tle może zapisać podsumowanie tylko
 z odpowiedzi, która nadal znajduje się w cache bieżącej rewizji dostępu (§3).
 
+Status (2026-11-26): odczyt jobs i logów rozpoznaje workflow wskazany przez check PR-a,
+gdy GitHub pomija listę powiązanych PR-ów. Web i desktop pokazują zadania i logi
+we wciętych sekcjach (§6).
+
 Status (2026-11-25): natywny mobilny Code pokazuje kompaktowe wiersze diffu z numerami
 obu wersji pliku i automatycznym zawijaniem układu Stacked (§8).
 
@@ -974,7 +978,12 @@ i używa animacji zamiany, z uwzględnieniem ograniczenia ruchu. Web wstrzymuje 
 poza widocznym obszarem i w ukrytej karcie; mobile zatrzymuje go w tle aplikacji.
 
 Check run kojarzymy z GitHub Actions job/run/attempt po zweryfikowanych danych GitHub i repo/SHA,
-nie po parsowaniu dowolnego `details_url`. Jobs: strony po 30 (maks. 100); logi dopiero po
+nie po parsowaniu dowolnego `details_url`. Gdy REST zwraca pustą listę PR-ów dla run,
+odczyt jobs i logów wymaga zgodnego identyfikatora run w checkach bieżącego commita PR-a.
+Jawna lista PR-ów musi zawierać numer bieżącego PR-a. Web/desktop pokazuje rozwinięte
+zadania pod checkiem, a otwarty log pod jego zadaniem, z osobnym komunikatem i ponowieniem
+dla każdej sekcji. W wąskim widoku lista checków przewija się razem z podsumowaniem PR-a.
+Jobs: strony po 30 (maks. 100); logi dopiero po
 **View logs** przy checku/jobie. GitHub zwraca plik logu joba przez krótkotrwały redirect,
 nie strony tekstu. Gateway pobiera go strumieniowo do ograniczonego cache, a API Canopy
 wydaje strony do 64 KiB lub 1000 linii z kursorem związanym z owner/account/job/attempt/snapshot.

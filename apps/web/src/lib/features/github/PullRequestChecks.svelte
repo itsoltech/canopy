@@ -173,7 +173,7 @@
   </div>
   <ul
     role="list"
-    class="max-h-96 min-w-0 scroll-stable divide-y divide-zinc-950/5 overflow-y-auto rounded-lg border border-zinc-950/10 dark:divide-white/5 dark:border-white/10"
+    class="min-w-0 divide-y divide-zinc-950/5 rounded-lg border border-zinc-950/10 sm:max-h-96 sm:scroll-stable sm:overflow-y-auto dark:divide-white/5 dark:border-white/10"
   >
     {#each checks.slice(0, visible) as check (check.nodeId || `${check.runId}:${check.provider}:${check.name}`)}<PullRequestCheckRow
         {snapshot}

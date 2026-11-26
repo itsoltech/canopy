@@ -17,9 +17,9 @@
     class: className,
   }: { snapshot: github.PullRequestSnapshot; check: github.PullRequestCheck; class?: ClassValue } = $props();
 
-  const id = $derived(snapshot.summary?.ref?.id ?? "");
   let open = $state(false);
   const look = $derived(checkLook(check.state));
+  const providerUrl = $derived(safeHref(check.url));
 </script>
 
 <li class={["group/pr min-w-0 text-sm/5 sm:text-xs/5", className]}>
@@ -53,14 +53,19 @@
         : undefined}
     />
   </div>
-  {#if open}
-    {#if check.runId}<PullRequestJobs {snapshot} runId={check.runId} />
-    {:else if check.output}<div class="p-3"><Markdown text={check.output} /></div>{/if}
-    {#if safeHref(check.url)}<a
-        href={safeHref(check.url)}
-        target="_blank"
-        rel="noreferrer"
-        class="flex min-h-9 items-center px-3 text-zinc-500 hover:underline">Open check on provider</a
-      >{/if}
+  {#if open && (check.runId || check.output || providerUrl)}
+    <div
+      class="mx-3 mt-1 mb-3 grid min-w-0 gap-2 border-s border-zinc-950/15 ps-3 sm:ms-5 sm:ps-4 dark:border-white/15"
+    >
+      {#if check.runId}<PullRequestJobs {snapshot} runId={check.runId} />
+      {:else if check.output}<Markdown text={check.output} />{/if}
+      {#if providerUrl}<a
+          href={providerUrl}
+          target="_blank"
+          rel="noreferrer"
+          class="flex min-h-9 w-fit items-center text-zinc-500 hover:underline dark:text-zinc-400"
+          >Open check on provider</a
+        >{/if}
+    </div>
   {/if}
 </li>
