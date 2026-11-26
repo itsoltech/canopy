@@ -98,6 +98,7 @@ const script = `
     badge.hidden = true;
     badge.setAttribute("aria-hidden", "true");
     label.className = "truncate";
+    label.dir = "auto";
     status.className = "row-status";
     status.setAttribute("aria-hidden", "true");
     for (const [state, { label }] of Object.entries(statuses)) {
@@ -164,16 +165,17 @@ const script = `
     }
 
     let nextItem = list.firstElementChild;
-    for (const { id, kind, number, state, projectMark } of rows) {
+    for (const { id, label, state, projectMark } of rows) {
       const view = rowViews.get(id) ?? createRow(id);
       rowViews.set(id, view);
-      const mark = kind === "Thread" ? projectMark : undefined;
-      const label = kind + " " + numbers.format(number);
       const status = statuses[state].label;
-      updateProjectMark(view, mark);
-      if (view.label.textContent !== label) view.label.textContent = label;
+      updateProjectMark(view, projectMark);
+      if (view.label.textContent !== label) {
+        view.label.textContent = label;
+        view.label.title = label;
+      }
       showState(view.status.children, state);
-      const project = mark ? ", project " + mark.initials : "";
+      const project = projectMark ? ", project " + projectMark.initials : "";
       const accessibleLabel = "Open " + label + project + ", " + status;
       if (view.button.getAttribute("aria-label") !== accessibleLabel) {
         view.button.setAttribute("aria-label", accessibleLabel);

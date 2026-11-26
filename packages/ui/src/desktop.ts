@@ -28,6 +28,7 @@ export interface ActivityNotchProjectMark {
 export interface ActivityNotchItem {
   path: string;
   state: "working" | "approval" | "answer" | "completed" | "failed";
+  title?: string | undefined;
   projectMark?: ActivityNotchProjectMark | undefined;
 }
 

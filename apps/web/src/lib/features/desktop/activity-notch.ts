@@ -82,12 +82,17 @@ export function activityNotchSnapshot({
   markForProject: (id: string) => ActivityNotchProjectMark | undefined;
   now: number;
 }) {
-  const activities: (Activity & { path: string; projectId: string | undefined })[] = [];
+  const activities: (Activity & { path: string; title?: string; projectId?: string })[] = [];
   let expiresAt = Infinity;
 
-  function add(path: string, activity: Activity | undefined, projectId?: string) {
+  function add(path: string, activity: Activity | undefined, thread?: ui.Thread) {
     if (!activity || !isDesktopActivityRoute(path)) return;
-    activities.push({ path, projectId, ...activity });
+    activities.push({
+      path,
+      ...(thread?.title && { title: thread.title }),
+      ...(thread?.projectId && { projectId: thread.projectId }),
+      ...activity,
+    });
     expiresAt = Math.min(expiresAt, activity.expiresAt ?? Infinity);
   }
 
@@ -108,7 +113,7 @@ export function activityNotchSnapshot({
         isThreadSnoozed(thread, (id) => threads.get(id))
       )
         continue;
-      add(`/threads/${thread.id}`, threadActivity(thread), thread.projectId);
+      add(`/threads/${thread.id}`, threadActivity(thread), thread);
     }
 
   for (const bot of bots) {
@@ -121,11 +126,13 @@ export function activityNotchSnapshot({
 
   activities.sort((a, b) => priority[a.state] - priority[b.state] || b.at - a.at || a.path.localeCompare(b.path));
 
-  const items = activities.slice(0, maxActivityNotchItems).map(({ path, state, projectId }) => {
-    const projectMark = projectId ? markForProject(projectId) : undefined;
+  const items: ActivityNotchItem[] = activities
+    .slice(0, maxActivityNotchItems)
+    .map(({ path, state, title, projectId }) => {
+      const projectMark = projectId ? markForProject(projectId) : undefined;
 
-    return projectMark ? { path, state, projectMark } : { path, state };
-  });
+      return { path, state, ...(title && { title }), ...(projectMark && { projectMark }) };
+    });
 
   return { items, expiresAt };
 }
