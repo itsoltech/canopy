@@ -145,6 +145,7 @@ test("stable reports the failed Release attempt and its required job once the pu
             conclusion: "failure",
             html_url: `${runUrl}/job/2`,
           },
+          { name: "desktop (linux-arm64) / package", conclusion: "failure", html_url: `${runUrl}/job/3` },
           { name: "publish-desktop", conclusion: "success" },
           { name: "backmerge / backmerge", conclusion: "failure", html_url: `${runUrl}/job/4` },
         ],
@@ -167,6 +168,7 @@ test("stable reports the failed Release attempt and its required job once the pu
   expect(result.plan.reason).toContain(
     `Optional job [desktop-smoke (linux-arm64, ubuntu-24.04-arm, true)](${runUrl}/job/2) failed.`,
   );
+  expect(result.plan.reason).toContain(`Optional job [desktop (linux-arm64) / package](${runUrl}/job/3) failed.`);
   expect(result.plan.sha).toBe(f.baseline);
   expect(f.git("ls-remote", "origin", "refs/heads/main")).toStartWith(f.baseline);
   expect(f.writes).toEqual([]);

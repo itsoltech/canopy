@@ -4,6 +4,9 @@ inputs:
   install:
     description: Run bun install --frozen-lockfile
     default: "true"
+  workspace:
+    description: Install only this workspace and use a separate package cache.
+    default: ""
 runs:
   using: composite
   steps:
@@ -14,8 +17,13 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.bun/install/cache
-        key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-        restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-
+        key: ${{ inputs.workspace && format('bun-workspace-{0}', inputs.workspace) || 'bun' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: ${{ inputs.workspace && format('bun-workspace-{0}', inputs.workspace) || 'bun' }}-${{ runner.os }}-${{ runner.arch }}-
     - if: inputs.install == 'true'
+      env:
+        BUN_WORKSPACE: ${{ inputs.workspace }}
       shell: bash
-      run: bun install --frozen-lockfile
+      run: |
+        filters=()
+        if [[ -n "$BUN_WORKSPACE" ]]; then filters+=(--filter "$BUN_WORKSPACE"); fi
+        bun install --frozen-lockfile "${filters[@]}"
