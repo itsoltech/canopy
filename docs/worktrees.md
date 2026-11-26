@@ -1,6 +1,7 @@
 # Worktrees (git)
 
-Status (2026-11-26): `start_thread` może utworzyć worktree w projekcie
+Status (2026-11-26): gateway przy zamykaniu przerywa [okresowy skan worktree](#sprzątanie-etap-2).
+`start_thread` może utworzyć worktree w projekcie
 docelowym. Gateway przypina lokalny commit bazowy, a worker używa checkoutu
 agenta bez hooków i filtrów. [Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
 
@@ -689,7 +690,9 @@ pokazuje pełną ścieżkę i osobny picker gałęzi opisany wyżej; „Manage w
 - Silnik działa w **gatewayu** przy starcie, co 1 h i przy połączeniu workera. Rozstrzyga ustawienia
   właściciela × projektu × komputera, pyta właściciela katalogu przez `ScanWorktrees` po fetch,
   stosuje alternatywne reguły i wysyła `RemoveWorktree`. Inaktywność uwzględnia aktywność wszystkich
-  współdzielących wątków, plików, indeksu i refloga worktree.
+  współdzielących wątków, plików, indeksu i refloga worktree. Przy zamykaniu gateway kończy
+  okresowy przegląd przed kolejnym worktree. Może przerwać oczekiwanie na odczyt statusu
+  lub potwierdzenie merge. Jeśli już zarezerwował usunięcie, rozlicza je według zapisanej komendy.
 - Archiwizacja dowolnego nieusuniętego wątku chroni współdzielone worktree przez **24 godziny**.
   Ochrona blokuje wszystkie reguły, również merged, unchanged i inactive, niezależnie od włączenia
   „Archived threads”. Obowiązuje przy starcie, połączeniu workera oraz „Run cleanup”; preview pokazuje

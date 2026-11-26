@@ -1,3 +1,4 @@
+import { closeGatewayStep, closeGatewaySteps } from "../shutdown.ts";
 import { create } from "@bufbuild/protobuf";
 import { CommandSchema, ui, type Command } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -420,8 +421,6 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
   },
 
   async stopSweep(this: GatewayCore): Promise<void> {
-    await this.githubDetection.stop();
-    const sourcesStopped = Promise.all([this.environment.sources.stop(), this.environment.marketplaces.stop()]);
     this.cli.stop();
     this.proxyAccounts.stop();
     this.connectors.stop();
@@ -429,15 +428,22 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
 
     if (this[coreState].sweepTimer) clearInterval(this[coreState].sweepTimer);
     this[coreState].sweepTimer = undefined;
-    await Promise.all([
-      sourcesStopped,
-      this.worktreeCleanup.stop(),
-      this.imports.runner.stop(),
-      this.copyJobs.stop(),
-      this.checkWatches.stop(),
-      this.snoozes.stop(),
-      this.github.stop(),
-    ]);
+    await closeGatewaySteps({
+      "environment sources": () => this.environment.sources.stop(),
+      "environment marketplaces": () => this.environment.marketplaces.stop(),
+      "worktree cleanup": () => this.worktreeCleanup.stop(),
+      imports: () => this.imports.runner.stop(),
+      "workspace copies": () => this.copyJobs.stop(),
+      "PR check watches": () => this.checkWatches.stop(),
+      "thread snoozes": () => this.snoozes.stop(),
+      GitHub: async () => {
+        try {
+          await closeGatewayStep("GitHub PR detection", () => this.githubDetection.stop());
+        } finally {
+          await this.github.stop();
+        }
+      },
+    });
   },
 
   /** Starts the next queued turn of a thread when it is ready and nothing else runs. */

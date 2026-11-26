@@ -13,7 +13,7 @@ import {
 import { coreWorktreeScope } from "./core-worktrees.ts";
 import { mergedProof } from "./lifecycle.ts";
 
-async function cleanupCandidate(core: GatewayCore, row: RemovedBranchRow) {
+async function cleanupCandidate(core: GatewayCore, row: RemovedBranchRow, stop?: AbortSignal) {
   const connection = core.link.connections.get(row.worker_id);
 
   if (!connection?.isOpen || !connection.hello.capabilities.includes("archived_branch_cleanup")) return;
@@ -47,8 +47,9 @@ async function cleanupCandidate(core: GatewayCore, row: RemovedBranchRow) {
 
   const verified =
     target.mergedPrRepository &&
-    (await mergedProof(core, row, target.mergedPrRepository, target.branch, expectedHeadCommit));
+    (await mergedProof(core, row, target.mergedPrRepository, target.branch, expectedHeadCommit, stop));
 
+  stop?.throwIfAborted();
   const attempt = Bun.randomUUIDv7();
 
   if (!(await actions.run(reserveRemovedBranch(row, attempt))).length) return;
@@ -77,15 +78,22 @@ async function cleanupCandidate(core: GatewayCore, row: RemovedBranchRow) {
   });
 }
 
-export async function cleanupRemovedBranches(core: GatewayCore, projectId: string, workerId: string) {
+export async function cleanupRemovedBranches(
+  core: GatewayCore,
+  projectId: string,
+  workerId: string,
+  stop?: AbortSignal,
+) {
   const { actions, options } = core[coreState];
   const candidates = await actions.run(removedBranchCandidates(options.userId, projectId, workerId));
 
   for (const row of candidates) {
+    stop?.throwIfAborted();
+
     try {
-      await cleanupCandidate(core, row);
+      await cleanupCandidate(core, row, stop);
     } catch {
-      coreLog(core, `Deferred branch cleanup for worktree ${row.id} will retry later`);
+      if (!stop?.aborted) coreLog(core, `Deferred branch cleanup for worktree ${row.id} will retry later`);
     }
   }
 }

@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-26), w tym postępu pobierania binarek
+Status: opis zaimplementowanego kodu (2026-11-26), w tym przerywania okresowego skanu
+worktree przy zamykaniu gatewaya oraz postępu pobierania binarek
 workerów i samodzielnego gatewaya w web i Electronie, animacji cyfr procentu
 pobierania aplikacji desktopowej, szybkich akcji w popoverze
 web i Electron oraz wspólnej sekcji App updates w web, Electronie i na telefonie,
@@ -863,8 +864,11 @@ executable ani jego `.bak`, `.next` lub rekordu aktualizacji obok binarki.
    pracy w trwałych kolejkach. Czeka na bieżące tury workerów i botów, pobiera
    wydanie i weryfikuje je. Kolejki ruszają po restarcie albo po niepowodzeniu
    aktualizacji. Gateway wymienia własną binarkę przed wysłaniem workerom
-   poleceń przejścia na tę wersję. Etapy zamykania dłuższe niż 5 sekund podają
-   nazwę operacji i czas w logach gatewaya.
+   poleceń przejścia na tę wersję. Przy zamykaniu zarówno serwerowy gateway, jak i lokalny
+   gateway Desktopu przestają czekać na odczyt statusu worktree w okresowym przeglądzie.
+   Rozpoczęte usunięcie worktree lub gałęzi jest rozliczane jak dotychczas. Po starcie
+   gateway ponownie sprawdza stan worktree. Gdy zamykanie zadania trwa dłużej niż
+   5 sekund, log gatewaya podaje nazwę zadania, a po jego zakończeniu także czas oczekiwania.
 3. Po restarcie worker otwiera Watch. Gateway zapisuje trwałe polecenie przejścia
    na **swoją uruchomioną wersję**; zastępuje polecenie do poprzedniej wersji.
    Offline worker odbierze je przy następnym połączeniu. Ręczne **Update worker**

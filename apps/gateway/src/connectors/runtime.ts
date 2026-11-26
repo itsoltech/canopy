@@ -69,6 +69,7 @@ export class ConnectorsRuntime {
     repository: string,
     branch: string,
     head: string,
+    signal?: AbortSignal,
   ) {
     if (userId !== this.options.userId || !projectId || !repository || !head) return false;
 
@@ -81,6 +82,7 @@ export class ConnectorsRuntime {
       repository,
       branch,
       head,
+      signal,
     );
   }
   searchIssues(request: ui.SearchIssuesRequest, signal: AbortSignal) {

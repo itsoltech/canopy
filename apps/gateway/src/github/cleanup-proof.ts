@@ -11,6 +11,7 @@ export async function githubCleanupProof(
   name: string,
   branch: string,
   head: string,
+  signal?: AbortSignal,
 ) {
   if (owner !== accounts.owner || !branch || !/^[0-9a-f]{40,64}$/.test(head)) return false;
 
@@ -31,6 +32,7 @@ export async function githubCleanupProof(
       {
         key: `cleanup:${mapping.repository_id}:${branch}:${head}`,
         path: `/repos/${name}/pulls?${params}`,
+        ...(signal && { signal }),
       },
       true,
     );
@@ -54,6 +56,7 @@ export async function githubCleanupProof(
         {
           key: `cleanup-pr:${mapping.repository_id}:${pull.number}:${head}`,
           path: `/repos/${name}/pulls/${pull.number}`,
+          ...(signal && { signal }),
         },
         true,
       );
