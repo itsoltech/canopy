@@ -79,7 +79,7 @@
     if (docked) device.setView({ threadPanelCollapsed: false });
     else popover = true;
     await tick();
-    card?.querySelector<HTMLElement>("[data-summary-collapse] button")?.focus();
+    card?.querySelector<HTMLButtonElement>("[data-summary-collapse]")?.focus();
   }
 
   async function hide(returnFocus: boolean) {
@@ -153,7 +153,7 @@
 </div>
 <div
   class="pointer-events-none absolute inset-y-3 right-4 z-30 w-80 max-w-[calc(100%-2rem)] [--summary-card-top:--spacing(10)] sm:[--summary-card-top:--spacing(9)]"
-  style:--summary-card-top={pinned ? "0px" : undefined}
+  style:--summary-card-top={docked ? "0px" : undefined}
 >
   {#if floating}
     <section
@@ -163,10 +163,11 @@
       aria-label="Thread details"
       class={[
         "t-summary pointer-events-auto absolute right-0 flex w-full flex-col overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:shadow-none",
-        pinned
+        docked
           ? "top-0 max-h-full shadow-sm dark:bg-zinc-900 dark:ring-white/10"
           : "top-10 max-h-[max(16rem,calc(100%-14rem))] shadow-xl sm:top-9 dark:bg-zinc-800 dark:ring-white/15",
       ]}
+      data-docked={docked || undefined}
       data-hidden={!open || undefined}
       style:max-height={preview
         ? `max(0px, calc(100% - ${previewHeight + 12}px - var(--summary-card-top)))`
@@ -174,7 +175,7 @@
       inert={!open}
       {@attach escapeCloses}
     >
-      <ThreadSummaryHeader {pinned} controls={id} onclose={() => void hide(true)} />
+      <ThreadSummaryHeader {docked} controls={id} onclose={() => void hide(true)} />
       <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">{@render children()}</div>
     </section>
   {/if}

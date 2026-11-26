@@ -383,24 +383,31 @@
   transition: none;
 }
 
-/* --- Thread summary (popover pattern 03, kept mounted): the card grows from its pill's corner on --duration-fast
- * and shrinks back on --duration-quick; the pill fades out under the card and back in. Hidden layers keep their
- * place (no layout change) and leave the tab order once faded. */
-.t-summary,
-.t-summary-pill {
+/* --- Thread summary (menu dropdown 05): a mounted surface scales from its top-right corner.
+ * In the dock, the two labels share that corner. Fade out the departing surface before revealing the next. */
+.t-summary {
   transform-origin: top right;
   transition-property: opacity, scale, visibility;
   transition-duration: var(--duration-fast), var(--duration-fast), 0s;
   transition-timing-function: var(--ease-smooth-out);
 }
-.t-summary[data-hidden],
-.t-summary-pill[data-hidden] {
+.t-summary[data-docked]:not([data-hidden]) {
+  transition-delay: var(--duration-micro), var(--duration-micro), 0s;
+}
+.t-summary[data-hidden] {
   opacity: 0;
-  scale: var(--scale-large);
+  scale: var(--scale-tiny);
   visibility: hidden;
   pointer-events: none;
   transition-duration: var(--duration-quick), var(--duration-quick), 0s;
   transition-delay: 0s, 0s, var(--duration-quick);
+}
+.t-summary-pill {
+  transition: opacity var(--duration-micro) var(--ease-smooth-out) var(--duration-quick);
+}
+.t-summary-pill[data-hidden] {
+  opacity: 0;
+  transition-delay: 0s;
 }
 /* The chat column eases to its new place when the docked summary opens or closes: the card's space
  * (`--chat-card-space`, layout.css, its transition above with the sidebar's) eases, and the column's place follows
