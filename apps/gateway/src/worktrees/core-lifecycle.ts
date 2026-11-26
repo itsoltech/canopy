@@ -12,7 +12,7 @@ import { toUiWorktree } from "./core-worktrees.ts";
 
 export interface CoreWorktreeLifecycleMethods {
   listWorktrees(request: ui.ListWorktreesRequest): Promise<ui.ListWorktreesResponse>;
-  cleanupWorktrees(request: ui.CleanupWorktreesRequest): Promise<ui.ListWorktreesResponse>;
+  cleanupWorktrees(request: ui.CleanupWorktreesRequest, scheduledStop?: AbortSignal): Promise<ui.ListWorktreesResponse>;
   removeWorktree(request: ui.RemoveWorktreeRequest): Promise<ui.WorktreeEntry>;
   revealWorktree(request: ui.RemoveWorktreeRequest): Promise<void>;
 }
@@ -65,7 +65,7 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
     return create(ui.ListWorktreesResponseSchema, { entries });
   },
 
-  async cleanupWorktrees(this: GatewayCore, request) {
+  async cleanupWorktrees(this: GatewayCore, request, scheduledStop) {
     const { actions, options } = this[coreState];
     const enabled = () => actions.run(ownerModuleEnabled(options.userId, "threads"));
 
@@ -75,13 +75,19 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
       s.worktreeInventory(this[coreState].options.userId, request.projectId, request.workerId),
     );
 
-    if (!request.dryRun) await cleanupRemovedBranches(this, request.projectId, request.workerId);
+    if (!request.dryRun) await cleanupRemovedBranches(this, request.projectId, request.workerId, scheduledStop);
 
     const entries = [];
 
     for (const row of rows) {
+      scheduledStop?.throwIfAborted();
+
+      // Only the manual inventory shows checkouts that Canopy cannot remove.
+      if (scheduledStop && row.external) continue;
+
       try {
         if (!(await enabled())) return create(ui.ListWorktreesResponseSchema, { entries });
+        scheduledStop?.throwIfAborted();
         const pending = pendingRemoval(row);
 
         if (!request.dryRun && pending && this.link.connections.get(row.worker_id)?.isOpen) {
@@ -97,7 +103,8 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
           continue;
         }
 
-        const { entry, settings } = await scanEntry(this, row, true);
+        const { entry, settings } = await scanEntry(this, row, true, scheduledStop);
+        scheduledStop?.throwIfAborted();
 
         if (!request.dryRun && entry.wouldRemove && entry.status) {
           entry.branchDeleted = await removeEntry(
@@ -108,6 +115,7 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
             false,
             entry.status.headCommit,
             true,
+            scheduledStop,
           );
           entry.removed = true;
           entry.detail = "Removed";
@@ -124,7 +132,8 @@ export const coreWorktreeLifecycleMethods: CoreWorktreeLifecycleMethods = {
       }
     }
 
-    if (await enabled()) await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
+    if (!scheduledStop && (await enabled()))
+      await appendDiscovered(this, entries, rows, request.projectId, request.workerId);
 
     return create(ui.ListWorktreesResponseSchema, { entries });
   },

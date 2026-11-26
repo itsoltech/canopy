@@ -37,11 +37,14 @@ export async function worktreeMerged(
   repository: string,
   branch: string,
   head: string,
+  signal?: AbortSignal,
 ) {
   const readGrants = () => runtime.run((s) => s.list(userId, { projectId, connectorType: "github" }));
   const rows = await readGrants();
 
   for (const row of rows.filter((r) => r.status === "connected")) {
+    signal?.throwIfAborted();
+
     try {
       const connection = await connect(userId, row.id);
 
@@ -52,7 +55,7 @@ export async function worktreeMerged(
 
       if (!(await stillGranted())) continue;
 
-      const merged = await mergedPullRequest(connection.server, repository, branch, head);
+      const merged = await mergedPullRequest(connection.server, repository, branch, head, signal);
 
       if (merged && !(await stillGranted())) continue;
       await runtime.run((s) =>
@@ -68,12 +71,20 @@ export async function worktreeMerged(
   return false;
 }
 
-export async function mergedPullRequest(server: McpConnection, repository: string, branch: string, head: string) {
+export async function mergedPullRequest(
+  server: McpConnection,
+  repository: string,
+  branch: string,
+  head: string,
+  signal?: AbortSignal,
+) {
   const [owner, repo] = repository.split("/");
 
   if (!owner || !repo || !/^[\w.-]+\/[\w.-]+$/.test(repository)) return false;
 
-  return withMcp(server, AbortSignal.timeout(20_000), async (client) => {
+  const timeout = AbortSignal.timeout(20_000);
+
+  return withMcp(server, signal ? AbortSignal.any([signal, timeout]) : timeout, async (client) => {
     const pulls = Schema.decodeUnknownSync(Schema.Array(Pull))(
       payload(
         await client.callTool({

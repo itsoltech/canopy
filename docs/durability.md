@@ -25,6 +25,8 @@ doręczenie zamiast przenosić je do prywatnego czatu.
 Status: **w części zaimplementowany** (2026-11-21), w tym jednokrotna kontynuacja rozmowy po potwierdzonym OOM usługi workera, trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge, zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI oraz trwała blokada startu i opróżnianie pracy przy przeniesieniu gatewaya (§4.6.1). Pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
 Aktualizacja (2026-11-26): zapis próby dostarczenia `StartTurn` i `SteerTurn` blokuje wątek przed komendą (§4.2).
 
+Aktualizacja (2026-11-26): przy zamykaniu gateway przerywa okresowy skan worktree (§4.6).
+
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
 ## 1.1 Oczyszczanie lokalnego magazynu po trwałym usunięciu
@@ -395,6 +397,13 @@ sequenceDiagram
 ```
 
 Przy jednej instancji kroki są te same, tylko workery i UI łączą się z nową wersją po jej starcie. Agenci na workerach pracują dalej, a zdarzenia czekają w dzienniku.
+
+Gateway serwerowy i lokalny zatrzymują harmonogram sprzątania worktree i przerywają odczyt stanu
+od workera oraz sprawdzanie merge przez GitHub lub konektor. Pozostałe worktree zostaną ocenione
+przy kolejnym starcie lub po ponownym połączeniu workera. Jeśli gateway rozpoczął już rezerwację
+usunięcia worktree lub gałęzi, czeka na wynik tej operacji. Po utracie łącza rezerwacja umożliwia
+rozliczenie polecenia po jego identyfikatorze. Gdy zatrzymywanie zadania w tle trwa co najmniej
+5 s, gateway zapisuje w logu nazwę zadania i czas zakończenia.
 
 ### 4.6.1 Przeniesienie całej instalacji gatewaya
 

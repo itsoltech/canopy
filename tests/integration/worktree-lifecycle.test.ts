@@ -1,3 +1,4 @@
+import { WorktreeCleanupSchedule } from "../../apps/gateway/src/worktrees/cleanup-schedule.ts";
 import { setModules } from "./support/module-settings.ts";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
@@ -649,4 +650,94 @@ describe.skipIf(!dockerAvailable)("worktree lifecycle over gRPC", () => {
 
     expect(existsSync(t.cwd)).toBe(true);
   });
+
+  test("scheduled cleanup commits an already reserved removal while shutting down", async () => {
+    const tree = await f.tree();
+    await f.settings({ cleanupUnchanged: true });
+    const handle = f.host.handleCommand.bind(f.host);
+    const removed = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    f.host.handleCommand = async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "removeWorktree" && command.kind.value.target?.id === tree.worktree!.id) {
+        removed.resolve();
+        await release.promise;
+      }
+
+      return result;
+    };
+
+    const schedule = new WorktreeCleanupSchedule(f.gw.core);
+    const cleanup = schedule.tick(f.workerId);
+
+    const removal = () =>
+      f.sql(
+        (sql) => sql<{ finished: boolean }>`SELECT removed_at IS NOT NULL AS finished
+      FROM worktrees WHERE id=${tree.worktree!.id}::uuid`,
+      );
+
+    try {
+      await Promise.race([
+        removed.promise,
+        cleanup.then(() => {
+          throw new Error("Cleanup finished before the worker removed the worktree");
+        }),
+      ]);
+      const shutdown = schedule.stop().then(removal);
+      expect(await removal()).toEqual([{ finished: false }]);
+      release.resolve();
+      expect(await shutdown).toEqual([{ finished: true }]);
+    } finally {
+      release.resolve();
+      await cleanup;
+      f.host.handleCommand = handle;
+    }
+  });
+
+  test("gateway shutdown leaves a scheduled worktree scan for the next cleanup pass", async () => {
+    const first = await f.tree();
+    const second = await f.tree();
+    await f.settings({ cleanupUnchanged: true });
+    const handle = f.host.handleCommand.bind(f.host);
+    const scanning = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    let scans = 0;
+
+    f.host.handleCommand = async (command) => {
+      const result = await handle(command);
+
+      if (command.kind.case === "scanWorktrees" && command.kind.value.background) {
+        scans++;
+        scanning.resolve();
+        await release.promise;
+      }
+
+      return result;
+    };
+
+    const cleanup = f.gw.core.worktreeCleanup.tick(f.workerId);
+    let stopped: Promise<void> | undefined;
+
+    try {
+      await Promise.race([
+        scanning.promise,
+        cleanup.then(() => {
+          throw new Error("Cleanup finished before scanning a worktree");
+        }),
+      ]);
+      let finished = false;
+      stopped = f.gw.core.stopSweep().then(() => {
+        finished = true;
+      });
+      expect(await eventually(async () => finished, Boolean, 2000)).toBe(true);
+      expect(scans).toBe(1);
+      expect(existsSync(first.cwd) && existsSync(second.cwd)).toBe(true);
+      expect(await eventually(async () => f.gw.core.link.connections.get(f.workerId)?.idle, Boolean)).toBe(true);
+    } finally {
+      release.resolve();
+      await Promise.all([cleanup, stopped]);
+      f.host.handleCommand = handle;
+    }
+  }, 15_000);
 });

@@ -170,7 +170,9 @@ export class WorkerConnection {
     commandId = Bun.randomUUIDv7(),
     progress?: (progress: CloneProgress) => void,
     queryProgress?: (progress: QueryProgress) => void,
+    signal?: AbortSignal,
   ): Promise<CommandResult> {
+    if (signal?.aborted) return Promise.reject(signal.reason);
     const problem = antigravityCommandProblem(command, this.hello.capabilities);
 
     if (problem)
@@ -213,7 +215,20 @@ export class WorkerConnection {
       reject(error);
     }
 
-    return promise;
+    if (!signal) return promise;
+
+    // Only transient queries pass a signal. A late result follows the same path as a timed-out query.
+    const cancel = () => {
+      if (this.#pending.get(commandId)?.promise !== promise) return;
+      clearTimeout(timer);
+      this.#pending.delete(commandId);
+      observation?.finish(Code.Canceled);
+      reject(signal.reason);
+    };
+
+    signal.addEventListener("abort", cancel, { once: true });
+
+    return promise.finally(() => signal.removeEventListener("abort", cancel));
   }
 
   /** Ends the stream from the gateway side (e.g. credential revoked, replaced by a newer connection). */

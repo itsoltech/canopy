@@ -8,27 +8,31 @@ import { coreLog } from "../core/core-broadcast.ts";
 export class WorktreeCleanupSchedule {
   #timer: ReturnType<typeof setInterval> | undefined;
   #running = new Map<string, Promise<void>>();
-  #stopped = false;
+  #stop = new AbortController();
 
   constructor(readonly core: GatewayCore) {}
 
   start(): void {
-    this.#stopped = false;
+    if (this.#stop.signal.aborted) this.#stop = new AbortController();
     this.#timer ??= setInterval(() => void this.tick(), 60 * 60_000);
     void this.tick();
   }
 
   tick(workerId = ""): Promise<void> {
-    if (this.#stopped) return Promise.resolve();
+    const signal = this.#stop.signal;
+
+    if (signal.aborted) return Promise.resolve();
     const existing = this.#running.get(workerId) ?? this.#running.get("");
 
     if (existing) return existing;
 
     const run = withProcessPriority("background", () =>
-      this.core.cleanupWorktrees(create(ui.CleanupWorktreesRequestSchema, { workerId, dryRun: false })),
+      this.core.cleanupWorktrees(create(ui.CleanupWorktreesRequestSchema, { workerId, dryRun: false }), signal),
     )
       .then(() => {})
-      .catch(() => coreLog(this.core, "worktree cleanup unavailable; will retry later"))
+      .catch(() => {
+        if (!signal.aborted) coreLog(this.core, "worktree cleanup unavailable; will retry later");
+      })
       .finally(() => this.#running.delete(workerId));
 
     this.#running.set(workerId, run);
@@ -37,7 +41,7 @@ export class WorktreeCleanupSchedule {
   }
 
   async stop(): Promise<void> {
-    this.#stopped = true;
+    this.#stop.abort();
 
     if (this.#timer) clearInterval(this.#timer);
     this.#timer = undefined;

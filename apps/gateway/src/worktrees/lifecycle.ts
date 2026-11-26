@@ -14,15 +14,28 @@ import { discoverWorkspace, mergeWorktrees } from "./discovery.ts";
 import { ownWorkspace } from "./core-worktrees.ts";
 import { githubCleanupProof } from "../github/cleanup-proof.ts";
 
-export const mergedProof = async (
+export async function mergedProof(
   core: GatewayCore,
   row: Pick<WorktreeLifecycleRow, "owner_user_id" | "project_id" | "worker_id">,
   repository: string,
   branch: string,
   head: string,
-) =>
-  (await githubCleanupProof(core.github, row.owner_user_id, row.project_id, repository, branch, head)) ||
-  core.connectors.worktreeMerged(row.owner_user_id, row.project_id, row.worker_id, repository, branch, head);
+  signal?: AbortSignal,
+) {
+  if (await githubCleanupProof(core.github, row.owner_user_id, row.project_id, repository, branch, head, signal))
+    return true;
+  signal?.throwIfAborted();
+
+  return core.connectors.worktreeMerged(
+    row.owner_user_id,
+    row.project_id,
+    row.worker_id,
+    repository,
+    branch,
+    head,
+    signal,
+  );
+}
 
 export function worktreeTarget(
   row: WorktreeLifecycleRow,
@@ -120,7 +133,7 @@ export async function deliverRemoval(core: GatewayCore, row: WorktreeLifecycleRo
   return result.worktreeBranchDeleted;
 }
 
-export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fetch: boolean) {
+export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fetch: boolean, stop?: AbortSignal) {
   const connection = core.link.connections.get(row.worker_id);
   const online = Boolean(connection?.isOpen);
 
@@ -164,6 +177,7 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
         },
       },
       60_000,
+      { signal: stop },
     );
 
     entry.status = result.worktreeStatuses.find((s) => s.id === row.id);
@@ -173,7 +187,7 @@ export async function scanEntry(core: GatewayCore, row: WorktreeLifecycleRow, fe
       entry.status &&
       !entry.detail &&
       !entry.status.merged &&
-      (await mergedProof(core, row, entry.status.githubRepository, entry.status.branch, entry.status.headCommit))
+      (await mergedProof(core, row, entry.status.githubRepository, entry.status.branch, entry.status.headCommit, stop))
     ) {
       entry.status.merged = true;
       entry.status.unpushed = false;
@@ -211,6 +225,7 @@ export async function removeEntry(
   confirmation = false,
   expectedHead = status.headCommit,
   policy = false,
+  stop?: AbortSignal,
 ) {
   if (row.external) throw new InvalidError("Canopy cannot remove worktrees created outside Canopy.");
 
@@ -227,7 +242,7 @@ export async function removeEntry(
 
   const confirmedPr =
     status.githubRepository &&
-    (await mergedProof(core, row, status.githubRepository, status.branch, status.headCommit));
+    (await mergedProof(core, row, status.githubRepository, status.branch, status.headCommit, stop));
 
   const trackBranch = Boolean(
     settings.deleteLocalBranch &&
@@ -257,6 +272,8 @@ export async function removeEntry(
       },
     },
   });
+
+  stop?.throwIfAborted();
 
   const current = await coreRun(core, (s) =>
     s.reserveWorktreeRemoval(

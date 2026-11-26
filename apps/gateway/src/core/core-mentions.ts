@@ -99,6 +99,7 @@ export async function coreWorkerQuery(
   options?: {
     commandId?: string;
     requiredCapability?: string;
+    signal?: AbortSignal | undefined;
     progress?: (progress: CloneProgress) => void;
     queryProgress?: (progress: QueryProgress) => void;
   },
@@ -122,6 +123,7 @@ export async function coreWorkerQuery(
     options?.commandId,
     options?.progress,
     options?.queryProgress,
+    options?.signal,
   );
 
   if (!result.ok) {
