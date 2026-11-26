@@ -13,7 +13,7 @@ import type { ActivityNotchProbe } from "./activity-notch-probe.ts";
 
 const route = "/threads/synthetic-activity";
 const mac = process.platform === "darwin";
-const working = { path: route, state: "working", title: "Synthetic private title" } as const;
+const working = { path: route, state: "working", title: "Restore focus" } as const;
 const rgba = [38, 128, 198, 255];
 
 const logoMark = {
@@ -168,7 +168,13 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
     projectMark: { ...logoMark, foreground: "url(https://fixture.invalid/mark)" },
   } as const;
 
-  const bot = { path: "/bots/synthetic-activity", state: "completed", projectMark: logoMark } as const;
+  const bot = {
+    path: "/bots/synthetic-activity",
+    state: "completed",
+    title: "Synthetic bot title",
+    projectMark: logoMark,
+  } as const;
+
   const markedThread = { ...working, projectMark: unredactedMark };
   const rows = await publishRows(overlay, source, [markedThread, invalidColor, bot]);
   const [, approvalRow, botRow] = rows;
@@ -176,14 +182,14 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
   assert.ok(botRow && Number.isSafeInteger(botRow.id));
 
   const otherRows: readonly ActivityNotchRow[] = [
-    { id: approvalRow.id, kind: "Thread", number: 2, state: "approval" },
-    { id: botRow.id, kind: "Bot", number: 1, state: "completed" },
+    { id: approvalRow.id, label: "Untitled thread", state: "approval" },
+    { id: botRow.id, label: "Bot 1", state: "completed" },
   ];
 
   assert.deepEqual(rows, [{ ...workingRow, projectMark: logoMark }, ...otherRows]);
-  const otherLabels = ["Open Thread 2, Needs approval", "Open Bot 1, Completed"];
+  const otherLabels = ["Open Untitled thread, Needs approval", "Open Bot 1, Completed"];
   const logo = { width: activityNotchLogoSize, height: activityNotchLogoSize, rgba };
-  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, project NB, Working", ...otherLabels]), [
+  assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, project NB, Working", ...otherLabels]), [
     { initials: undefined, logo },
     noMark,
     noMark,
@@ -194,7 +200,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
   const invalidLogo = { ...initialsMark, pixels: `${logoMark.pixels.slice(0, -2)}--` };
   const changed = await publishRows(overlay, source, [{ ...working, projectMark: invalidLogo }, invalidColor, bot]);
   assert.deepEqual(changed, [{ ...workingRow, projectMark: initialsMark }, ...otherRows]);
-  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, project DN, Working", ...otherLabels]), [
+  assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, project DN, Working", ...otherLabels]), [
     { initials: "DN", logo: undefined },
     noMark,
     noMark,
@@ -203,13 +209,17 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
   stage = "removing the project mark without changing activity";
   const cleared = await publishRows(overlay, source, [working, invalidColor, bot]);
   assert.deepEqual(cleared, [workingRow, ...otherRows]);
-  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, Working", ...otherLabels]), [noMark, noMark, noMark]);
+  assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, Working", ...otherLabels]), [
+    noMark,
+    noMark,
+    noMark,
+  ]);
   await toggleOverlay(overlay);
 }
 
 async function checkPreloadRedaction(overlay: BrowserWindow) {
   stage = "checking the overlay preload redaction";
-  const row = { id: 170, kind: "Thread", number: 1, state: "answer" } as const;
+  const row = { id: 170, label: working.title, state: "answer" } as const;
 
   const projected = overlay.webContents.executeJavaScript(`new Promise((resolve) => {
     window.canopyActivityNotch.onRows((rows) => {
@@ -219,7 +229,7 @@ async function checkPreloadRedaction(overlay: BrowserWindow) {
 
   // Inject synthetic extra fields after main's projection to exercise the preload independently.
   overlay.webContents.send("canopy:activity-notch-rows", [
-    { ...row, path: route, title: working.title, projectMark: unredactedMark },
+    { ...row, path: route, transcript: "Synthetic private content", projectMark: unredactedMark },
   ]);
   assert.deepEqual(await projected, [{ ...row, projectMark: logoMark }]);
 }
@@ -240,9 +250,9 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   assert.equal(first.contextIsolated, true);
   const row = first.rows[0];
   assert.ok(row && Number.isSafeInteger(row.id));
-  const workingRow = { id: row.id, kind: "Thread", number: 1, state: "working" } as const;
+  const workingRow = { id: row.id, label: working.title, state: "working" } as const;
   assert.deepEqual(first.rows, [workingRow]);
-  assert.deepEqual(await waitForRows(overlay, ["Open Thread 1, Working"]), [noMark]);
+  assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, Working"]), [noMark]);
 
   await settings.loadURL(`${origin}/settings`);
   await assert.rejects(publish(settings, []), /Untrusted activity notch request/);
@@ -253,10 +263,24 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   assert.equal(overlay.isVisible(), true, "rejected updates leave the overlay visible");
 
   await checkProjectMarks(overlay, source, workingRow);
+
+  stage = "updating the thread title";
+  const renamed = { ...working, title: "Review <desktop> & restore focus" };
+  const titled = await publishRows(overlay, source, [renamed]);
+  assert.deepEqual(titled, [{ ...workingRow, label: renamed.title }]);
+  await waitForRows(overlay, ["Open Review <desktop> & restore focus, Working"]);
+
+  const renderedTitle = await overlay.webContents.executeJavaScript(`(() => {
+    const label = document.querySelector(".row .truncate");
+    return { text: label.textContent, tooltip: label.title, children: label.childElementCount };
+  })()`);
+
+  assert.deepEqual(renderedTitle, { text: renamed.title, tooltip: renamed.title, children: 0 });
+
   stage = "updating the activity status";
   const updated = await publishRows(overlay, source, [{ ...working, state: "approval" }]);
   assert.deepEqual(updated, [{ ...workingRow, state: "approval" }]);
-  await waitForRows(overlay, ["Open Thread 1, Needs approval"]);
+  await waitForRows(overlay, ["Open Restore focus, Needs approval"]);
 
   return overlay;
 }

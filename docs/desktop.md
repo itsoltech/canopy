@@ -6,7 +6,7 @@ instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok s
 Status (2026-11-26): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
 płynnie rozwija i zwija listę oraz animuje zmiany stanu aktywności.
-W rozwiniętej liście wątki projektowe mają logo lub inicjały projektu.
+Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
@@ -459,14 +459,16 @@ pozycji, wyłączeniu ustawienia albo zamknięciu głównego okna.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
-W rozwiniętej liście obok numerowanej etykiety wątku pojawia się logo projektu.
-Jeśli projekt nie ma obrazu, nakładka pokazuje jego inicjały w kolorach z listy
-wątków. Boty i wątki bez projektu mają samą etykietę i stan. Okno dostaje
-identyfikator i numer wiersza, typ, stan oraz opcjonalny znak projektu.
-Logo trafia do nakładki jako miniatura 36 × 36 pikseli. Pełne nazwy projektów,
-tytuły i treść rozmów pozostają poza nakładką. Trasy rozmów zostają w procesie
-głównym. Przy utracie połączenia lub zmianie gatewaya Canopy czyści dostępne
-pozycje. Powiadomienia systemowe i ich preferencje działają niezależnie.
+Rozwinięta lista pokazuje bieżący tytuł wątku z listy Threads. Wątek bez tytułu
+ma etykietę **Untitled thread**. Długi tytuł mieści się w jednym wierszu, a pełna
+wersja jest dostępna w podpowiedzi i nazwie dostępnej przycisku. Obok tytułu
+pojawia się logo projektu lub inicjały w kolorach z listy wątków. Boty zachowują
+numerowaną etykietę. Okno dostaje identyfikator wiersza, etykietę, stan i
+opcjonalny znak projektu. Logo trafia do nakładki jako miniatura 36 × 36
+pikseli. Pełne nazwy projektów i treść rozmów pozostają poza nakładką. Trasy
+rozmów zostają w procesie głównym. Przy utracie połączenia lub zmianie gatewaya
+Canopy czyści dostępne pozycje. Powiadomienia systemowe i ich preferencje
+działają niezależnie.
 
 Na macOS nieaktywujący panel Electron sięga do górnej krawędzi ekranu. AppKit
 podaje wymiary fizycznego wycięcia, dzięki czemu jego środek pozostaje pusty.

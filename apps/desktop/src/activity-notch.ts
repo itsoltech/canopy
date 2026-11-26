@@ -28,11 +28,15 @@ const projectMark = Schema.Struct({
   pixels: Schema.optionalKey(pixels.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
 });
 
+const threadTitle = Schema.String.check(Schema.isMaxLength(200));
+const numbers = new Intl.NumberFormat("en");
+
 const decodeItems = Schema.decodeUnknownSync(
   Schema.Array(
     Schema.Struct({
       path: Schema.String,
       state: Schema.Literals(["working", "approval", "answer", "completed", "failed"]),
+      title: Schema.optionalKey(threadTitle.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
       projectMark: Schema.optionalKey(projectMark.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
     }),
   ).check(Schema.isMaxLength(maxActivityNotchItems)),
@@ -42,8 +46,7 @@ export const activityNotchSupported = process.platform === "darwin" || process.p
 
 export interface ActivityNotchRow {
   id: number;
-  kind: "Thread" | "Bot";
-  number: number;
+  label: string;
   state: ActivityNotchItem["state"];
   projectMark?: ActivityNotchProjectMark | undefined;
 }
@@ -75,7 +78,7 @@ export class ActivityNotch {
   #status: DesktopStatus | undefined;
   #entries: Entry[] = [];
   #nextId = 0;
-  #numbers = { Thread: 0, Bot: 0 };
+  #botNumber = 0;
   #expanded = false;
   #loaded = false;
   #layout: ActivityNotchLayout | undefined;
@@ -167,7 +170,7 @@ export class ActivityNotch {
 
   clear() {
     this.#entries = [];
-    this.#numbers = { Thread: 0, Bot: 0 };
+    this.#botNumber = 0;
     this.#destroyWindow();
   }
 
@@ -187,17 +190,20 @@ export class ActivityNotch {
 
     const previous = new Map(this.#entries.map((entry) => [entry.path, entry]));
 
-    const entries = Array.from(byPath.values(), ({ path, state, projectMark }): Entry => {
+    const entries = Array.from(byPath.values(), ({ path, state, title, projectMark }): Entry => {
       const before = previous.get(path);
-      const kind = path.startsWith("/threads/") ? "Thread" : "Bot";
+      const isThread = path.startsWith("/threads/");
+
+      const label = isThread
+        ? title?.trim() || "Untitled thread"
+        : (before?.label ?? `Bot ${numbers.format(++this.#botNumber)}`);
 
       return {
         path,
         state,
-        kind,
+        label,
         id: before?.id ?? ++this.#nextId,
-        number: before?.number ?? ++this.#numbers[kind],
-        ...(kind === "Thread" && projectMark && { projectMark }),
+        ...(isThread && projectMark && { projectMark }),
       };
     });
 
@@ -206,7 +212,12 @@ export class ActivityNotch {
       entries.every((entry, index) => {
         const old = this.#entries[index];
 
-        return old?.id === entry.id && old.state === entry.state && sameProjectMark(old.projectMark, entry.projectMark);
+        return (
+          old?.id === entry.id &&
+          old.label === entry.label &&
+          old.state === entry.state &&
+          sameProjectMark(old.projectMark, entry.projectMark)
+        );
       })
     )
       return;
@@ -230,10 +241,9 @@ export class ActivityNotch {
   #sendRows() {
     if (!this.#loaded) return;
 
-    const rows: ActivityNotchRow[] = this.#entries.map(({ id, kind, number, state, projectMark }) => ({
+    const rows: ActivityNotchRow[] = this.#entries.map(({ id, label, state, projectMark }) => ({
       id,
-      kind,
-      number,
+      label,
       state,
       ...(projectMark && { projectMark }),
     }));
