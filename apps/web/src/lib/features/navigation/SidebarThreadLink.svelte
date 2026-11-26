@@ -147,7 +147,7 @@
             data-unread={(!snoozed && thread.markedUnread) || undefined}
             data-draft={(!snoozed && !current && !away && !needsAttention && draft.current) || undefined}
             class={[
-              "sidebar-row group focus-ring [-webkit-touch-callout:none]",
+              "sidebar-row group focus-ring [-webkit-touch-callout:none] desktop:cursor-default",
               !snoozed &&
                 !away &&
                 needsAttention &&
