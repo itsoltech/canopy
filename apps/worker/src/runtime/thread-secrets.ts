@@ -3,10 +3,12 @@ import {
   closeSync,
   constants,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   openSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -242,6 +244,29 @@ export class ThreadSecretFiles {
         entry.expires > Date.now() &&
         existsSync(entry.file),
     );
+  }
+
+  readManualSecret(threadId: string, requestId: string): string | undefined {
+    if (!UUID.test(threadId) || !UUID.test(requestId) || this.#closed.has(threadId)) return;
+    const entry = this.#entries.get(`${threadId}/${requestId}`);
+
+    if (!entry || entry.turnId || entry.revoked || entry.expires <= Date.now()) return;
+
+    try {
+      const fd = openSync(entry.file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+
+      try {
+        const stat = fstatSync(fd);
+
+        if (stat.isFile() && stat.size <= 32768) return readFileSync(fd, "utf8");
+      } finally {
+        closeSync(fd);
+      }
+    } catch {
+      // The secret may have been removed or replaced before it was read.
+    }
+
+    return undefined;
   }
 
   fenceProjectTurn(threadId: string, turnId: string): void {

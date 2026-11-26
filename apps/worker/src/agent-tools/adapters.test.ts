@@ -273,9 +273,15 @@ test("MCP descriptors bind all automation tools to deterministic per-thread sess
   const again = manager.localMcpServers([browser], "thread/one --config=other");
   const other = manager.localMcpServers([browser], "thread/two");
 
-  expect(first).toEqual(again);
+  expect(first[0]?.args).toEqual(again[0]?.args);
   expect(first).toHaveLength(1);
-  expect(first[0]?.args).toEqual(["--session", expect.stringMatching(/^canopy-[a-f0-9]{32}$/), "mcp"]);
+  expect(first[0]?.args).toEqual([
+    "--session",
+    expect.stringMatching(/^canopy-[a-f0-9]{32}$/),
+    "mcp",
+    "--tools",
+    "core,tabs",
+  ]);
   expect(first[0]?.args).not.toEqual(other[0]?.args);
   const deviceServer = manager.localMcpServers([device], "thread/one --config=other")[0];
 
@@ -312,7 +318,13 @@ test("explicit sessions and selectors map to supported CLI arguments and UI/MCP 
   const result = await manager.run(readBrowser);
 
   expect(JSON.parse(result.text).data).toEqual(["--json", "--session", session, "snapshot"]);
-  expect(manager.localMcpServers([browser], session)[0]?.args).toEqual(["--session", session, "mcp"]);
+  expect(manager.localMcpServers([browser], session)[0]?.args).toEqual([
+    "--session",
+    session,
+    "mcp",
+    "--tools",
+    "core,tabs",
+  ]);
 
   const cases = [
     {

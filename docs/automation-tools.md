@@ -1,5 +1,10 @@
 # Narzędzia automatyzacji agentów
 
+Aktualizacja (2026-11-26). Agent Browser udostępnia stan i obsługę dialogów
+JavaScript oraz otwieranie stron z HTTP Basic Auth przez prywatny sekret wątku.
+Dialog podczas nawigacji jest zgłaszany agentowi jeszcze przed zakończeniem
+ładowania. [Dialogi i Basic Auth](#dialogi-i-basic-auth)
+
 Aktualizacja (2026-11-25). Wątek może włączyć animowany kursor Agent Desktop
 na pulpicie workera i w podglądzie wybranego okna. Automatyczny mini Preview
 pokazuje zrzut otrzymany przez agenta, a podczas pracy w oknie może odświeżać
@@ -559,6 +564,33 @@ nawigację i wpisywanie tekstu. Powiększenie i przesuwanie obrazu działają lo
 a zdalne stuknięcia i przeciągnięcia trafiają w odpowiadające im punkty klatki.
 Mobile nie ma automatycznego mini Preview ani zmiany
 wymiarów viewportu; szczegóły: [mobile.md](mobile.md#podgląd-automatyzacji-i-limity-kont).
+
+## Dialogi i Basic Auth
+
+Gdy strona otworzy dialog JavaScript, agent może użyć
+`agent_browser_dialog_status` do odczytania rodzaju, treści i domyślnej
+wartości, `agent_browser_dialog_accept` do potwierdzenia (z opcjonalnym
+`text` dla `prompt()`) lub `agent_browser_dialog_dismiss` do anulowania.
+Domyślne zachowanie silnika zamyka `alert()` i `beforeunload`
+automatycznie. Gdy konfiguracja Agent Browser na workerze wyłącza automatyczne
+rozstrzyganie dialogów, agent może je odczytać i obsłużyć tymi samymi narzędziami.
+`confirm()` i `prompt()` czekają na decyzję. Gdy dialog
+wstrzyma otwarcie, przeładowanie lub nawigację w historii, bridge zwraca
+informację o dialogu, a operacja w Chrome może się dokończyć po jego
+rozstrzygnięciu. Przed jej powtórzeniem agent powinien sprawdzić stan strony.
+
+Przy wyzwaniu HTTP Basic Auth agent prosi o ręczny sekret przez `request_secret`.
+W opisie prywatnej karty podaje stronę docelową i prosi o JSON w formacie
+`{"username":"…","password":"…"}`. Następnie wywołuje
+`agent_browser_open_with_basic_auth` z adresem `url` i identyfikatorem
+`requestId` z wyniku `request_secret`. Worker odczytuje aktualny sekret tego
+wątku i podaje dane w odpowiedzi na wyzwanie Basic Auth od serwera o tym samym
+originie (schemacie, hoście i porcie) co podany URL. Wartości pozostają poza
+argumentami MCP, linią poleceń, URL-em i transkryptem. Chrome może ponownie
+użyć zaakceptowanych danych w tej sesji. [Sekrety wątków](secrets.md)
+
+Obsługa dialogów jest dostępna agentowi przez MCP. Ręczny Preview pokazuje
+obraz strony.
 
 ## Automatyczny mini Preview
 
