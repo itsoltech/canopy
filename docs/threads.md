@@ -1,5 +1,9 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-26): w web i desktop gałąź wątków bocznych rozwija się i zwija
+przez animację toru siatki CSS bez synchronicznego pomiaru wysokości. Przy
+włączonym ograniczeniu ruchu gałąź przełącza się od razu.
+
 Status (2026-11-26): agent może uruchomić samodzielny wątek główny w wybranym
 projekcie i na wybranym workerze, podając ich nazwy. [Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
 

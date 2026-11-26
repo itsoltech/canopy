@@ -122,6 +122,20 @@ export function expandGrid(node: HTMLElement): TransitionConfig {
   };
 }
 
+/** A naturally sized grid whose single child can shrink to zero. No synchronous layout read. */
+export function expandTrack(
+  _node: HTMLElement,
+  { easing = smoothOut }: { easing?: TransitionConfig["easing"] } = {},
+): TransitionConfig {
+  if (prefersReducedMotion.current) return { duration: 0 };
+
+  return {
+    duration: duration("fast"),
+    easing,
+    css: (t) => `grid-template-rows: ${t}fr; overflow-x: visible; overflow-y: clip; opacity: ${t}`,
+  };
+}
+
 /**
  * Quiet fade for things that appear on their own (a button over the timeline, a new list row).
  * No travel or blur: rows and any controls inside keep their position. In on --duration-fast,
