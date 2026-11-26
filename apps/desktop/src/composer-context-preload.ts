@@ -63,6 +63,17 @@ export function trackComposerContext() {
   window.addEventListener("pointerdown", forgetInvocation, true);
   window.addEventListener("keydown", forgetInvocation, true);
 
+  window.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.isTrusted) return;
+
+      if (current) ipcRenderer.send("canopy:composer-menu-outside-scroll", current.id);
+      forgetInvocation(event);
+    },
+    { capture: true, passive: true },
+  );
+
   ipcRenderer.on("canopy:composer-menu-probe", (_event, id: number) => {
     const input = invocation;
     invocation = undefined;

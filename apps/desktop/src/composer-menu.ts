@@ -118,7 +118,7 @@ export class ComposerMenu {
       if (isMainFrame) this.clear();
     });
     contents.on("before-mouse-event", (_event, mouse) => {
-      if (mouse.type === "mouseDown" || mouse.type === "mouseWheel") this.clear();
+      if (mouse.type === "mouseDown") this.clear();
     });
     contents.on("before-input-event", (_event, key) => {
       if (key.type === "keyDown") this.clear();
@@ -151,6 +151,14 @@ export class ComposerMenu {
 
       if (edit) edit.run(this.contents);
       else request.item.click({}, this.target, this.contents);
+    });
+    contents.ipc.on("canopy:composer-menu-outside-scroll", (event, id: number) => {
+      const request = this.pending;
+
+      if (!request || request.id !== id || request.frame !== event.senderFrame || request.phase === "focus") return;
+      this.clear();
+
+      if (request.phase === "open" && target.isFocused()) contents.focus();
     });
   }
 
@@ -234,9 +242,7 @@ export class ComposerMenu {
 
     contents.on("render-process-gone", () => {
       if (this.overlay?.view !== view) return;
-      this.overlay = undefined;
-      this.target.contentView.removeChildView(view);
-      contents.close();
+      this.dropOverlay(view);
       const request = this.pending;
 
       if (request?.phase === "render" || request?.phase === "open") this.fallback(request);
@@ -262,7 +268,21 @@ export class ComposerMenu {
       if (request) this.choose(request, index);
     });
 
-    return { view, ready: contents.loadURL(composerMenuUrl) };
+    const ready = contents.loadURL(composerMenuUrl).catch((error) => {
+      this.dropOverlay(view);
+      throw error;
+    });
+
+    return { view, ready };
+  }
+
+  private dropOverlay(view: WebContentsView) {
+    if (this.overlay?.view !== view) return;
+    this.overlay = undefined;
+
+    if (!this.target.isDestroyed()) this.target.contentView.removeChildView(view);
+
+    if (!view.webContents.isDestroyed()) view.webContents.close();
   }
 
   private choose(request: PendingMenu, index: number | null) {
