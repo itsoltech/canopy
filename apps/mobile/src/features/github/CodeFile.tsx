@@ -62,6 +62,10 @@ export function CodeFileHeader({
   const type = useTypography();
   const look = fileLook(file);
   const href = safeHref(file.url);
+  const slash = file.path.lastIndexOf("/");
+  const name = file.path.slice(slash + 1);
+  const directory = file.path.slice(0, Math.max(0, slash));
+  const subtitle = file.previousPath ? `${file.previousPath} → ${file.path}` : depth === 0 ? directory : "";
 
   return (
     <View
@@ -70,14 +74,12 @@ export function CodeFileHeader({
         alignItems: "center",
         gap: 6,
         backgroundColor: c.background,
-        borderBottomWidth: 1,
-        borderColor: c.line,
         paddingLeft: Math.min(depth, 6) * 12,
       }}
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${look.label}: ${file.previousPath ? `${file.previousPath} → ` : ""}${file.path}`}
+        accessibilityLabel={`${look.label}: ${file.previousPath ? `${file.previousPath} → ` : ""}${file.path}, +${file.additions}, −${file.deletions}`}
         accessibilityState={{ expanded: active }}
         onPress={onPress}
         onLongPress={() => toast(look.label)}
@@ -85,14 +87,22 @@ export function CodeFileHeader({
       >
         <Icon name={active ? "chevron-down" : "chevron-right"} size={12} />
         <Icon name={look.icon} color={toneColor(c, look.tone)} />
-        <Text numberOfLines={1} ellipsizeMode="middle" style={[type.mono, { flex: 1, color: c.text }]}>
-          {file.previousPath ? `${file.previousPath} → ` : ""}
-          {file.path}
-        </Text>
+        <View style={{ flex: 1, minWidth: 0, paddingVertical: 4 }}>
+          <Text numberOfLines={2} style={[type.mono, { color: c.text }]}>
+            {name}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {!!subtitle && (
+              <Text numberOfLines={1} ellipsizeMode="head" style={[type.meta, { flexShrink: 1, color: c.muted }]}>
+                {subtitle}
+              </Text>
+            )}
+            <Text style={[type.meta, { color: c.success }]}>+{file.additions}</Text>
+            <Text style={[type.meta, { color: c.danger }]}>−{file.deletions}</Text>
+          </View>
+        </View>
       </Pressable>
-      <Text style={[type.meta, { color: c.success }]}>+{file.additions}</Text>
-      <Text style={[type.meta, { color: c.danger }]}>−{file.deletions}</Text>
-      {active && !!href && (
+      {!!href && (
         <IconAction
           icon="arrow-top-right-on-square"
           label="Open file on GitHub"

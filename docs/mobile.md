@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-25): Code w pull requestach używa kompaktowych wierszy. Tryb Automatic
+w ustawieniu Wrap diffs zawija kod w układzie Stacked. [Mobilny widok PR](github.md#8-mobile-ten-sam-zakres)
+
 Status (2026-11-25). Ustawienia powiadomień telefonu mają własną sekcję Notifications.
 Threads zawiera ustawienia listy i potwierdzenia. App updates skupia aktualizacje Canopy
 na telefonie, gatewayu, workerach i połączonych komputerach. Dostępność w kanałach określa
