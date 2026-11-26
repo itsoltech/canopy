@@ -46,6 +46,7 @@ export function workerUpdateSnapshot(
                 : ""),
         }),
     targetVersion: targetVersion ?? "",
+    downloadProgress: state === "downloading" ? w.status.downloadProgress : undefined,
     connected,
   });
 }

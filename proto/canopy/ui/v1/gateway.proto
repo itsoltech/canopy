@@ -578,6 +578,8 @@ message WorkerUpdate {
   bool bundled = 10;
   // Release selected by the worker's current update command.
   string target_version = 11;
+  // Percentage of the binary received, when the worker reports it.
+  optional uint32 download_progress = 12;
 }
 message UpdatesSnapshot {
   string gateway_version = 1;
@@ -607,6 +609,8 @@ message UpdatesSnapshot {
   string computer_name = 20;
   // Release selected for the current gateway update, independent of feed checks.
   string gateway_target_version = 21;
+  // Percentage of the gateway binary received, once its transfer begins.
+  optional uint32 gateway_download_progress = 22;
 }
 // A linked computer's Canopy app and what runs on it. Its ids are qualified with its node.
 message ComputerUpdate {

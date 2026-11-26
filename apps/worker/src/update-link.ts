@@ -17,6 +17,8 @@ import {
   SUPERVISOR_HANDOVER_EXIT_CODE,
   whenIdle,
   type InstallKind,
+  type ReleaseAsset,
+  type ReleaseManifest,
   type ReleaseSourceOptions,
 } from "@canopy/updater";
 
@@ -144,7 +146,7 @@ export class WorkerUpdates {
       backoffMs = Math.min(backoffMs * 2, 30_000);
     }
   }
-  async #report(command: update.UpdateCommand, state: string, reason = ""): Promise<void> {
+  async #report(command: update.UpdateCommand, state: string, reason = "", timeoutMs = 10_000): Promise<void> {
     await this.#client.report(
       {
         workerId: this.options.workerId,
@@ -153,7 +155,7 @@ export class WorkerUpdates {
         state,
         reason: reason.slice(0, 2000),
       },
-      { headers: this.#headers, signal: this.options.signal, timeoutMs: 10_000 },
+      { headers: this.#headers, signal: this.options.signal, timeoutMs },
     );
   }
   async #reportResults(): Promise<void> {
@@ -249,33 +251,7 @@ export class WorkerUpdates {
             "Waiting for active turns and background work to finish; new turns are paused",
           ),
         apply: async () => {
-          await this.#report(command, "downloading");
-
-          const client = this.#client,
-            options = this.options,
-            headers = this.#headers;
-
-          const chunks = command.preferGatewayMirror
-            ? (async function* () {
-                for await (const chunk of client.fetchArtifact(
-                  { workerId: options.workerId, version: command.version, os: asset.os, arch: asset.arch },
-                  { headers, signal: options.signal },
-                ))
-                  yield chunk.data;
-              })()
-            : undefined;
-
-          await stageBinaryUpdate({
-            binaryPath: this.options.binaryPath ?? process.execPath,
-            currentVersion: this.#version,
-            version: manifest.version,
-            commit: manifest.commit,
-            commandId: command.id,
-            asset,
-            ...(chunks && { chunks }),
-            source: this.#source,
-            allowDowngrade: command.allowDowngrade,
-          });
+          await this.#download(command, manifest, asset);
           // Once replacement is committed, lost connectivity must not leave the old process running forever.
           await this.#report(command, "restarting").catch(() => {});
           await this.options.restart();
@@ -292,6 +268,49 @@ export class WorkerUpdates {
       this.#handled.add(command.id);
 
       if (this.#handled.size > 256) this.#handled.delete(this.#handled.values().next().value!);
+    }
+  }
+  async #download(command: update.UpdateCommand, manifest: ReleaseManifest, asset: ReleaseAsset): Promise<void> {
+    await this.#report(command, "downloading");
+    const client = this.#client;
+    const { workerId, signal, binaryPath = process.execPath } = this.options;
+    const headers = this.#headers;
+
+    const chunks = command.preferGatewayMirror
+      ? (async function* () {
+          for await (const chunk of client.fetchArtifact(
+            { workerId, version: command.version, os: asset.os, arch: asset.arch },
+            { headers, signal },
+          ))
+            yield chunk.data;
+        })()
+      : undefined;
+
+    let reporting: Promise<void> | undefined;
+
+    try {
+      await stageBinaryUpdate({
+        binaryPath,
+        currentVersion: this.#version,
+        version: manifest.version,
+        commit: manifest.commit,
+        commandId: command.id,
+        asset,
+        ...(chunks && { chunks }),
+        source: this.#source,
+        allowDowngrade: command.allowDowngrade,
+        onDownloadProgress: (percent) => {
+          if (reporting) return;
+          // ReportRequest is frozen. Keep the phase and carry the percentage in its existing reason.
+          reporting = this.#report(command, "downloading", `${percent}%`, 1_000)
+            .catch(() => {})
+            .finally(() => {
+              reporting = undefined;
+            });
+        },
+      });
+    } finally {
+      await reporting;
     }
   }
 }

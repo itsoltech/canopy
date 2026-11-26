@@ -29,6 +29,7 @@ export async function stageGatewayRelease(options: {
   binaryPath: string;
   currentVersion: string;
   allowDowngrade: boolean;
+  onDownloadProgress: (percent: number) => void;
 }): Promise<void> {
   const { manifest, source } = options;
   const mirror = new GatewayReleaseMirror(options.cache, manifest.version, source);
@@ -52,5 +53,6 @@ export async function stageGatewayRelease(options: {
     asset: releaseAsset(manifest, "gateway", process.platform === "win32" ? "windows" : process.platform, process.arch),
     source,
     allowDowngrade: options.allowDowngrade,
+    onDownloadProgress: options.onDownloadProgress,
   });
 }

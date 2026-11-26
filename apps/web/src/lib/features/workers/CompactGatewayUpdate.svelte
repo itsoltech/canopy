@@ -66,6 +66,7 @@
         : ""}
     error={status === "failed" ? reason || snapshot.run?.steps[step]?.reason || "The gateway update failed." : ""}
     busy={inProgress}
+    progress={status === "downloading" ? snapshot.gatewayDownloadProgress : undefined}
     class={className}
   >
     {#snippet action()}
