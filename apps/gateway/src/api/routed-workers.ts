@@ -16,7 +16,7 @@ import { forward, peerOf } from "./routed-home.ts";
  * The worker's home applies the edit with its own handlers over a link that carries configuration; nothing is
  * queued for an unreachable home. Both computers audit the edit, without values.
  */
-const READ_ONLY = new Set(["GetWorktreeSettings", "GetInstanceWorker", "GetWorkerEnvironment"]);
+const READ_ONLY = new Set(["GetWorktreeSettings", "GetInstanceWorker", "GetWorkerEnvironment", "PreviewWorkerSkill"]);
 
 /** The worker ids a request names at its top level (`worker_id`, `worker_ids`). */
 export function workerIdsOf(desc: DescMessage, message: Message): string[] {
@@ -74,7 +74,8 @@ export async function auditWorkerEdit(
 export async function settled<A>(core: GatewayCore, method: DescMethod | undefined, response: Promise<A>): Promise<A> {
   const value = await response;
 
-  if (!method || WORKER_SETTINGS.has(method.name)) await core.computers?.config?.publishWorkers().catch(() => false);
+  if (!method || (WORKER_SETTINGS.has(method.name) && !READ_ONLY.has(method.name)))
+    await core.computers?.config?.publishWorkers().catch(() => false);
 
   return value;
 }
@@ -151,6 +152,7 @@ export async function receiveWorkerSetting(
 
 /** After the home applied a linked computer's worker setting: its records follow, and the edit is audited. */
 export async function receivedWorkerSetting(core: GatewayCore, method: DescMethod, request: Message, peer: string) {
+  if (READ_ONLY.has(method.name)) return;
   await core.computers?.config?.publishWorkers().catch(() => false);
   await auditWorkerEdit(core, "received", method.name, peer, workerIdsOf(method.input, request));
 }

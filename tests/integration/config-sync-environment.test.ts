@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { computerLink, ui } from "@canopy/contracts";
@@ -73,6 +73,40 @@ describe.skipIf(!dockerAvailable)("agent environment library across separate lin
     await worker?.runtime.dispose();
     await a?.close();
     await b?.close();
+  }, 30_000);
+
+  test("previews a CLI link to a local skill through the selected worker's home", async () => {
+    const name = "linked-import";
+    const workerId = qualifyId(worker.workerId, b.node);
+    const folder = join(worker.deviceHomes.agents, name);
+    const claude = join(worker.deviceHomes.claude, "skills");
+    const link = join(claude, name);
+    const content = skillFiles(name, "Read through the worker's home.")[0]!.content;
+    mkdirSync(folder, { recursive: true });
+    mkdirSync(claude, { recursive: true });
+    writeFileSync(join(folder, "SKILL.md"), content);
+    symlinkSync(folder, link, "dir");
+    worker.host.environment.refresh(true);
+
+    const state = await eventually(
+      () => a.gateway.api.getWorkerEnvironment({ workerId }),
+      (r) =>
+        r.worker?.report?.revision === r.revision &&
+        !!r.worker.report.skills.find((s) => s.path === link && s.localLink)?.archiveToken,
+    );
+
+    const file = state.worker?.report?.skills.find((s) => s.path === link);
+    expect(file?.localLink).toBe(true);
+
+    const result = await a.gateway.api.previewWorkerSkill({
+      workerId,
+      targetId: file!.targetId,
+      archiveToken: file!.archiveToken,
+      expectedRevision: state.revision,
+    });
+
+    expect(result.artifact?.name).toBe(name);
+    expect(Buffer.from(result.artifact!.files[0]!.content)).toEqual(Buffer.from(content));
   }, 30_000);
 
   test("a linked archive checks the home worker and its current report, then removes only that device copy", async () => {

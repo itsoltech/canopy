@@ -21,8 +21,15 @@
     workerId,
     readOnly,
     preview = true,
+    onadd,
     class: className,
-  }: { workerId: string; readOnly: string; preview?: boolean; class?: ClassValue } = $props();
+  }: {
+    workerId: string;
+    readOnly: string;
+    preview?: boolean;
+    onadd?: (file: EnvironmentSkillStatus, revision: bigint) => void;
+    class?: ClassValue;
+  } = $props();
 
   const path = $derived(`/api/workers/${workerId}/environment`);
   const read = $derived(sharedRead(`GetWorkerEnvironment:${workerId}`, ui.WorkerEnvironmentResponseSchema, path));
@@ -194,7 +201,7 @@
     {#if worker.compositionError}<Alert tone="error">{worker.compositionError}</Alert>
     {:else if !worker.supported}<Alert tone="warning">Update this worker to sync its agent environment.</Alert>{/if}
     {#if preview}
-      <ComputerSkills {worker} {library} busy={busy || !!query?.stale || !!query?.error} onarchive={archive} />
+      <ComputerSkills {worker} {library} {onadd} busy={busy || !!query?.stale || !!query?.error} onarchive={archive} />
       <div class="grid min-w-0 divide-y divide-divider border-y border-divider">
         <Disclosure class="py-3">
           {#snippet summary()}<span class="font-medium">Instruction files and preview</span>{/snippet}

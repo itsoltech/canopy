@@ -33,6 +33,13 @@ export function deviceSkillRoots(homes: EnvironmentHomes) {
   };
 }
 
+export function deviceSkillInventoryRoots(homes: EnvironmentHomes): ReadonlyMap<string, string> {
+  const roots = new Map(Object.entries(deviceSkillRoots(homes)).map(([harness, root]) => [root, harness]));
+  roots.set(join(homes.deviceHomes.codex, "skills"), "codex");
+
+  return roots;
+}
+
 export function skillTargets(
   desired: AgentEnvironmentDesired,
   homes: EnvironmentHomes,

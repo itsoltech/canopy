@@ -1,6 +1,6 @@
 import { HostState } from "./host-state.ts";
 import type { ConfigAppliedInit } from "./host-types.ts";
-import type { WorkerConfig, ThreadEvent } from "@canopy/contracts";
+import type { PreviewLocalSkill, SkillArtifact, WorkerConfig, ThreadEvent } from "@canopy/contracts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { HostCatalog } from "./host-catalog.ts";
 import { HostFiles } from "./host-files.ts";
@@ -23,6 +23,7 @@ import { ThreadResources } from "./thread-resources.ts";
 export interface HostHooks {
   applyConfig(message: WorkerConfig): Promise<ConfigAppliedInit>;
   sendPreviews(link: GatewayLink, event: ThreadEvent): void;
+  previewLocalSkill?(request: PreviewLocalSkill): SkillArtifact;
   stopThreadPreviews?(threadId: string): Promise<void>;
 }
 

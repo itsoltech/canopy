@@ -180,6 +180,17 @@ export class CommandHandlers {
     if (kind.case === "readImportLibraryItem")
       return { importLibraryContent: readImportLibraryItem(this.ctx.state.imports, kind.value) };
 
+    if (kind.case === "previewLocalSkill") {
+      if (!this.ctx.ops.previewLocalSkill || (link && link !== this.ctx.state.link))
+        throw new CommandError(
+          "LOCAL_SKILL_UNAVAILABLE",
+          "The computer connection changed. Refresh and try again.",
+          false,
+        );
+
+      return { localSkillPreview: this.ctx.ops.previewLocalSkill(kind.value) };
+    }
+
     if (kind.case === "readImportPage") return { importPage: readImportPage(this.ctx.state.imports, kind.value) };
 
     if (kind.case === "adoptImportedSession" || kind.case === "removeImportedCopy")
@@ -204,13 +215,17 @@ export class CommandHandlers {
 
     if (kind.case === "interruptTurn") return this.ctx.ops.interruptTurn(kind);
 
+    return this.#executeConfigured(command);
+  }
+
+  async #executeConfigured({ kind, commandId }: Command): Promise<CommandOutput> {
     const config = this.ctx.state.config;
 
     if (!config) throw new CommandError("WORKER_NOT_CONFIGURED", "the worker has no configuration yet", false);
 
     switch (kind.case) {
       case "runBotTurn":
-        return this.ctx.ops.runBotTurn(kind.value, command.commandId);
+        return this.ctx.ops.runBotTurn(kind.value, commandId);
       case "steerBotTurn":
         return this.ctx.ops.steerBotTurn(kind.value);
       case "botFile":
@@ -220,15 +235,15 @@ export class CommandHandlers {
       case "rewindThread":
         return this.ctx.ops.rewindThread(kind.value);
       case "startTurn":
-        return this.ctx.ops.startTurn(kind, command.commandId);
+        return this.ctx.ops.startTurn(kind, commandId);
       case "steerTurn":
-        return this.ctx.ops.steerTurn(kind, command.commandId);
+        return this.ctx.ops.steerTurn(kind, commandId);
       case "updateTurnPermissions":
         return updateTurnPermissions(this.ctx, kind.value);
       case "listModels":
         return this.ctx.ops.listModelsCommand(kind);
       case "generateText":
-        return this.ctx.ops.generateText(kind, config, command.commandId);
+        return this.ctx.ops.generateText(kind, config, commandId);
       case "probeProviders":
         return this.ctx.ops.probeProviders();
       case "startLogin":

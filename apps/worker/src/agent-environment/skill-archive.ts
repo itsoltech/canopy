@@ -1,20 +1,31 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { environmentDigest } from "@canopy/domain/agent-environment";
-import { withSkillDirectory, type SkillDirectory, type SkillEntry } from "./skill-directory.ts";
+import {
+  copyChanged,
+  sameSkillEntry,
+  withSkillDirectory,
+  type SkillDirectory,
+  type SkillEntry,
+} from "./skill-directory.ts";
 
-const changed = () => new Error("This copy changed. Refresh the list and review it again.");
-const maxEntries = 4096;
+export const SKILL_INVENTORY_ENTRY_LIMIT = 4096;
 const archiveDirectory = ".canopy-skill-archive";
 
 export interface InventoryBudget {
   remaining: number;
 }
 
-export function inspectSkillCopy(parent: SkillDirectory, name: string, targetId: string, budget: InventoryBudget) {
+export function inspectSkillCopy(
+  parent: SkillDirectory,
+  name: string,
+  targetId: string,
+  budget: InventoryBudget,
+  onChild?: (directory: SkillDirectory, name: string, entry: SkillEntry, path: string) => void,
+) {
   const root = parent.entry(name);
 
-  if (!root || !(root.kind === "directory" || root.kind === "link")) throw changed();
+  if (!root || !(root.kind === "directory" || root.kind === "link")) throw copyChanged();
   const hash = createHash("sha256");
   let count = 0;
 
@@ -24,35 +35,38 @@ export function inspectSkillCopy(parent: SkillDirectory, name: string, targetId:
 
   spend();
 
-  const visit = (directory: SkillDirectory, child: string, entry: SkillEntry, depth: number) => {
-    if (++count > maxEntries || depth > 48) throw new Error("This copy is too large to verify for removal.");
+  const visit = (directory: SkillDirectory, child: string, entry: SkillEntry, depth: number, prefix: string) => {
+    if (++count > SKILL_INVENTORY_ENTRY_LIMIT || depth > 48)
+      throw new Error("This copy is too large to verify for removal.");
     hash.update(JSON.stringify([depth, child, entry.kind, entry.identity, entry.version, depth ? entry.changed : ""]));
+    const path = depth ? (prefix ? `${prefix}/${child}` : child) : "";
+
+    if (depth) onChild?.(directory, child, entry, path);
 
     if (entry.kind !== "directory") return;
     const pin = directory.child(child);
 
     try {
-      for (const leaf of pin.names(maxEntries - count, spend)) {
+      if (!sameSkillEntry(pin.entry("."), entry)) throw copyChanged();
+
+      for (const leaf of pin.names(SKILL_INVENTORY_ENTRY_LIMIT - count, spend)) {
         const before = pin.entry(leaf);
 
-        if (!before) throw changed();
-        visit(pin, leaf, before, depth + 1);
+        if (!before) throw copyChanged();
+        visit(pin, leaf, before, depth + 1, path);
       }
     } finally {
       pin.close();
     }
 
-    const after = directory.entry(child);
-
-    if (after?.identity !== entry.identity || after.version !== entry.version || after.changed !== entry.changed)
-      throw changed();
+    if (!sameSkillEntry(directory.entry(child), entry)) throw copyChanged();
   };
 
-  visit(parent, name, root, 0);
+  visit(parent, name, root, 0, "");
   const digest = hash.digest("hex");
   const token = environmentDigest(JSON.stringify([targetId, parent.entry(".")?.identity, root.changed, digest]));
 
-  return { digest, token };
+  return { digest, token, kind: root.kind };
 }
 
 /** The entry is renamed without replacement on the same volume. Check the captured tree again at its
@@ -72,15 +86,16 @@ export function archiveSkillCopy(
 
     try {
       if (slot.entry(".archived")) throw new Error("This removal was already completed. Review the current copy.");
-      const before = inspectSkillCopy(root, name, targetId, { remaining: maxEntries });
+      const before = inspectSkillCopy(root, name, targetId, { remaining: SKILL_INVENTORY_ENTRY_LIMIT });
 
-      if (before.token !== expected || !stillPinned(root) || !stillPinned(slot)) throw changed();
+      if (before.token !== expected || !stillPinned(root) || !stillPinned(slot)) throw copyChanged();
       root.move(name, slot);
 
       try {
-        if (!stillPinned(root) || !stillPinned(slot)) throw changed();
+        if (!stillPinned(root) || !stillPinned(slot)) throw copyChanged();
 
-        if (inspectSkillCopy(slot, name, targetId, { remaining: maxEntries }).digest !== before.digest) throw changed();
+        if (inspectSkillCopy(slot, name, targetId, { remaining: SKILL_INVENTORY_ENTRY_LIMIT }).digest !== before.digest)
+          throw copyChanged();
         // Remember a consumed preview even after a manual restore on a filesystem with coarse timestamps.
         slot.child(".archived", true).close();
       } catch (error) {

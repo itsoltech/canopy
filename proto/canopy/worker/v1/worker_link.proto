@@ -543,6 +543,8 @@ message Command {
     CleanupRemovedBranch cleanup_removed_branch = 237;
     // Transient, capability failed_worktree_cleanup_v1. Empty token inspects the locked entry.
     FailedWorktreeCleanup failed_worktree_cleanup = 238;
+    // Transient, capability agent_local_skill_import_v1. Never persisted in the outbox.
+    PreviewLocalSkill preview_local_skill = 239;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.
@@ -898,6 +900,7 @@ message CommandResult {
   bool worktree_branch_cleanup_candidate = 238;
   bool worktree_branch_cleanup_finished = 239;
   FailedWorktreeCleanupInspection failed_worktree_cleanup = 240;
+  SkillArtifact local_skill_preview = 241;
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
   // Credential-free clone URL; only requested by GetWorkspaceCloneSource, never persisted.

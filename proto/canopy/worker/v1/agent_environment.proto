@@ -1,6 +1,13 @@
 syntax = "proto3";
 package canopy.worker.v1;
 
+// Transient read of a reported device copy. Never carries a caller-supplied path.
+message PreviewLocalSkill {
+  string target_id = 1;
+  string archive_token = 2;
+  uint64 expected_revision = 3;
+}
+
 // Capability agent_environment_v1. Complete desired state, never an outbox of stale commands.
 message EnvironmentInstruction {
   string harness = 1; // claude | codex

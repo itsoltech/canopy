@@ -22,6 +22,7 @@
     onadd?: (() => void) | undefined;
   } = $props();
 
+  const pathId = $props.id();
   const conflict = $derived(file.status === "drift" && !file.owned);
   const keep = $derived(conflict && !!onresolve);
   const archive = $derived(canArchive(file) && !!onarchive);
@@ -48,11 +49,17 @@
       <span class="font-medium">{skillLocation(file)}</span>
       <span class="text-muted">{state}</span>
     </p>
-    <p class="font-mono text-sm leading-5 wrap-anywhere text-muted select-text">{file.path}</p>
+    <p id={pathId} class="font-mono text-sm leading-5 wrap-anywhere text-muted select-text">{file.path}</p>
   {/if}
   {#if !waiting && (onadd || keep || archive)}
     <div class="mt-1 flex max-w-full flex-wrap items-center gap-x-2 gap-y-1">
-      {#if onadd}<Button size="sm" onclick={onadd}>Add to library</Button>{/if}
+      {#if onadd}<Button
+          size="sm"
+          disabled={busy}
+          aria-label={`Add to library from ${skillLocation(file)}`}
+          aria-describedby={pathId}
+          onclick={onadd}>Add to library</Button
+        >{/if}
       {#if keep}<Button size="sm" disabled={busy} onclick={() => onresolve?.(file, "keep")}>Keep local copy</Button
         >{/if}
       {#if archive}<Button

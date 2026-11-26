@@ -1,6 +1,7 @@
 import type { GatewayCore } from "../core/core.ts";
 import { workerGuard } from "../core/worker-administration.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { previewWorkerSkill } from "../agent-environment/local-skill-preview.ts";
 import {
   archiveWorkerSkill,
   setWorkerEnvironmentOverride,
@@ -33,9 +34,11 @@ export function agentEnvironmentHandlers(
   | "getWorkerEnvironment"
   | "setWorkerEnvironmentOverride"
   | "archiveWorkerSkill"
+  | "previewWorkerSkill"
 > {
   return {
     archiveWorkerSkill: (r) => workerGuard(() => archiveWorkerSkill(core.environment, r)),
+    previewWorkerSkill: (r) => workerGuard(() => previewWorkerSkill(core.environment, r)),
     getWorkerEnvironment: (r) => workerGuard(() => workerEnvironment(core.environment, r.workerId)),
     setWorkerEnvironmentOverride: (r) => workerGuard(() => setWorkerEnvironmentOverride(core.environment, r)),
     getAgentEnvironment: (r) => workerGuard(() => core.environment.snapshot(r)),

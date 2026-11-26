@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ui } from "@canopy/contracts";
+  import type { EnvironmentSkillStatus, ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -18,7 +18,7 @@
   }: {
     worker: ui.EnvironmentWorker;
     state: EnvironmentState;
-    onadd?: (name: string) => void;
+    onadd?: (file: EnvironmentSkillStatus, revision: bigint) => void;
     class?: ClassValue;
   } = $props();
 

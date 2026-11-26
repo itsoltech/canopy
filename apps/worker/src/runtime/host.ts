@@ -39,7 +39,7 @@ import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
 import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
 import { WorkerPreviewCleanup } from "./preview-cleanup.ts";
-import { NOT_REMEMBERED, rememberSuccess } from "./command-policy.ts";
+import { NOT_REMEMBERED, recordedResult, rememberSuccess } from "./command-policy.ts";
 import { normalizeSandboxCommand, requireSandboxSupport } from "./sandbox-command.ts";
 import { migrateCodexLogins } from "./codex-login-migration.ts";
 
@@ -101,6 +101,7 @@ export class WorkerHost {
     this.#ctx = new HostContext(state, {
       applyConfig: (message) => this.applyConfig(message),
       sendPreviews: (link, event) => this.sendPreviews(link, event),
+      previewLocalSkill: (request) => this.environment.previewLocalSkill(request),
       stopThreadPreviews: (threadId) => this.previews.stopThread(threadId),
     });
     this.storage = new WorkerStorageCleanup(this.#ctx);
@@ -362,9 +363,7 @@ export class WorkerHost {
     link: GatewayLink | undefined,
     current?: () => boolean,
   ): Promise<CommandResultInit | undefined> {
-    const known = await this.#ctx.state.options.runtime.runPromise(
-      Journal.use((j) => j.commandResult(command.commandId)),
-    );
+    const known = await recordedResult(command, this.#ctx.state.options.runtime);
 
     if (known) return known;
 

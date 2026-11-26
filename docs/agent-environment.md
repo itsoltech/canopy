@@ -20,6 +20,8 @@ Git obsługuje filtrowanie obiektów.
 Aktualizacja (2026-11-24): zakładka **Computers** w web/desktop pokazuje status każdego skilla na wspólnej liście, wyróżnia konflikty
 i pozwala odłożyć wybraną kopię do archiwum na komputerze.
 Aktualizacja (2026-11-24): biblioteka skilli ma osobne cele dla CLI Antigravity na urządzeniu i dla izolowanych sesji Canopy.
+Aktualizacja (2026-11-26): web/desktop importuje wybraną kopię skilla z raportu komputera
+bez ręcznego uploadu. Kreator pokazuje pliki tej kopii przed zapisaniem w bibliotece.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -81,9 +83,10 @@ Na początku listy są skille z konfliktem, błędem, lokalnymi zmianami lub pow
 lokalizacją. Rozwinięcie nazwy pokazuje ścieżki w CLI i sesjach Canopy oraz akcje
 dla konkretnej kopii. Menu przypisanego skilla pozwala go wyłączyć na tym komputerze.
 **Not in library** oznacza lokalny skill bez odpowiednika o tej nazwie w bibliotece.
-Podgląd instrukcji, pluginy i tagi mają osobne sekcje. Z komputera obsługiwanego
-przez bieżący gateway można otworzyć formularz dodawania lokalnego skilla. W nim
-użytkownik wybiera folder lub ZIP i przegląda pliki przed zapisaniem w bibliotece.
+Podgląd instrukcji, pluginy i tagi mają osobne sekcje. **Add to library** przy
+wykrytej kopii pobiera jej pliki z komputera i otwiera ich przegląd. Gdy kilka CLI
+ma kopię o tej samej nazwie, akcja znajduje się przy każdej dostępnej ścieżce.
+Po przeglądzie można wybrać przypisanie i zapisać pliki w bibliotece.
 Wiersz przypisanego pluginu lub harnessu instrukcji pokazuje **Error**, gdy raport zawiera problem. Błąd wyznaczenia celów
 dla całej kategorii dotyczy wszystkich jej wierszy na tym komputerze.
 **Synced** wymaga aktualnego raportu zastosowania. Wiersz bez potwierdzenia
@@ -420,13 +423,24 @@ są jednorazowe; ponowna identyczna lokalna edycja wymaga nowej decyzji.
 ### Lokalne kopie skilli
 
 Worker raportuje również nazwy i lokalizacje skilli wykrytych w katalogach CLI
-Claude, Codexa i Groka. Skan obejmuje katalog `skills` w domu Codexa i wspólny
+Claude, Codexa, Groka i Antigravity. Skan obejmuje katalog `skills` w domu Codexa i wspólny
 `~/.agents/skills`. Wpisy spoza biblioteki nie uczestniczą w obliczaniu stanu
 synchronizacji przypisań. Worker sprawdza metadane katalogów i dowiązań. Raport inwentaryzacji nie zawiera treści prywatnych plików.
 Pole `skill_inventory_scanned` pozwala odróżnić pełny skan od niepełnych danych
 lub raportu starszego workera. Worker pomija ukryte wpisy, ogranicza liczbę
 raportowanych lokalizacji do 512 i nie wystawia tokenu do przeniesienia kopii,
 której metadanych nie udało się sprawdzić w budżecie skanu.
+
+Import korzysta z `PreviewWorkerSkill` i capability `agent_local_skill_import_v1`.
+Gateway sprawdza właściciela, bieżące połączenie, rewizję raportu i token wybranej
+kopii. Worker ustala ścieżkę z własnej inwentaryzacji i sprawdza, czy wpis nie zmienił
+się przed odczytem lub w jego trakcie. Dowiązanie na poziomie skilla może prowadzić
+do folderu w znanym katalogu skilli CLI. Dowiązania wewnątrz skilla są odrzucane.
+Odczyt korzysta z limitów artefaktu skilla.
+Odpowiedź zawiera pliki do przeglądu. Dopiero potwierdzenie w kreatorze zapisuje
+te pliki jako wersję biblioteki, bez ponownego odczytu z dysku. Import nie przenosi
+lokalnej kopii. Na połączonym komputerze z włączonym udostępnianiem konfiguracji
+odczyt przechodzi przez gateway, który obsługuje tego workera.
 
 Archiwizacja wymaga potwierdzenia wybranej ścieżki i aktualnego tokenu
 `archive_token` wystawionego przez workera. Gateway sprawdza właściciela i raport z bieżącego połączenia. Wysyła

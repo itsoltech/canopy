@@ -4,7 +4,7 @@ import { environmentDigest } from "@canopy/domain/agent-environment";
 import { copyStatus, localCopy } from "./local-skill.ts";
 import type { InventoryBudget } from "./skill-archive.ts";
 import { withSkillDirectory, type SkillDirectory } from "./skill-directory.ts";
-import { deviceSkillRoots, skillTargets, type SkillTarget } from "./skill-targets.ts";
+import { deviceSkillInventoryRoots, skillTargets, type SkillTarget } from "./skill-targets.ts";
 import { reconcileSkill } from "./skill-reconcile.ts";
 import type { EnvironmentHomes } from "./targets.ts";
 import type { SkillLedger } from "./skill-ledger.ts";
@@ -79,10 +79,7 @@ export function inventorySkills(
   previousLocal: readonly EnvironmentSkillStatus[] = [],
 ) {
   const targets = skillTargets(desired, homes, ledger);
-  const roots = new Map<string, string>();
-
-  for (const [harness, root] of Object.entries(deviceSkillRoots(homes))) roots.set(root, harness);
-  roots.set(join(homes.deviceHomes.codex, "skills"), "codex");
+  const roots = deviceSkillInventoryRoots(homes);
   const budget = { remaining: 8192 };
   const actions = new Map(desired.skillResolutions.map((action) => [action.targetId, action]));
   const skills: EnvironmentSkillStatus[] = [];

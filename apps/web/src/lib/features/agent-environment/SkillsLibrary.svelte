@@ -40,18 +40,6 @@
   let removalRevision = $state(0n);
   const chosen = $derived(environment.snapshot.skills.filter((s) => selected.includes(s.id)));
 
-  export function addLocalSkill(name: string, workerId: string) {
-    environment.error = "";
-    controller.edit();
-    const draft = controller.draft;
-
-    if (draft?.selector) {
-      draft.name = name;
-      draft.selector.everyone = false;
-      draft.selector.workerIds = [workerId];
-    }
-  }
-
   async function removeSelected() {
     deleting = true;
     let count = 0;

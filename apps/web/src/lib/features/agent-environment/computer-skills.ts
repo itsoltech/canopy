@@ -145,6 +145,10 @@ export function canArchive(file: EnvironmentSkillStatus) {
   );
 }
 
+export function canImportLocalSkill(file: EnvironmentSkillStatus) {
+  return file.status === "local" && !file.skillId && !file.localLink && canArchive(file);
+}
+
 /** The gateway consumes this token before the worker reports the outcome. */
 export function awaitingArchive(file: EnvironmentSkillStatus, request: EnvironmentSkillStatus) {
   return (
