@@ -7,7 +7,9 @@ instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok s
 
 Status (2026-11-26): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
-płynnie rozwija i zwija listę oraz animuje zmiany stanu aktywności.
+odsłania listę, gdy mieści się w rozwijanym obrysie, i rozpoczyna jej wygaszanie
+przed zwijaniem obrysu. Animuje zmiany liczby, stanów aktywności i kolejności wierszy.
+Ikony stanów i kolory etykiet odpowiadają liście wątków.
 Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
@@ -456,13 +458,23 @@ Dopóki są pozycje do pokazania, czarne wycięcie jest widoczne u góry główn
 ekranu również wtedy, gdy Canopy ma fokus. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
-widoczne w nakładce pozycje. Najechanie kursorem lub kliknięcie rozwija listę.
-Powyżej siedmiu wierszy można ją przewijać, do 24 pozycji. Po odsunięciu
-kursora lista się zwija. Nakładka płynnie zmienia szerokość i wysokość, a ikona
-i etykiety płynnie zmieniają się wraz ze stanem aktywności. Systemowe ograniczenie
-ruchu wyłącza te animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno
-i otwiera odpowiedni wątek lub rozmowę bota. Nakładka znika po wyczerpaniu
-pozycji, wyłączeniu ustawienia albo zamknięciu głównego okna.
+widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
+dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Etykieta stanu
+w wierszu ma kolor tego stanu. Najechanie kursorem lub kliknięcie rozwija obrys
+bez odbicia poza docelowy rozmiar okna. Lista pojawia się z lekkim rozmyciem
+i powiększeniem od kamery dopiero wtedy, gdy również siódmy wiersz mieści się
+w obrysie. Powyżej siedmiu wierszy można ją przewijać, do 24 pozycji.
+Lista zachowuje szerokość i położenie rozwiniętej nakładki, więc ruch krawędzi
+nie skraca tytułów. Po odsunięciu kursora lista zaczyna wygasać, a obrys rusza
+z krótkim opóźnieniem i łagodnym startem, dzięki czemu tekst zdąży zniknąć przed
+dotarciem krawędzi. Ponowne najechanie w trakcie zwijania odwraca ruch od bieżącego
+kształtu. W rozwiniętej liście nowe i usuwane wiersze zmieniają przezroczystość,
+a pozostałe przesuwają się na nowe miejsca. Ikona i etykiety płynnie reagują na
+zmianę stanu aktywności, a w liczniku animują się tylko zmienione cyfry. Systemowe ograniczenie ruchu
+wyłącza animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno i otwiera
+odpowiedni wątek lub rozmowę bota. Nakładka stopniowo pojawia się przy pierwszej
+pozycji i wygasa po wyczerpaniu pozycji lub wyłączeniu ustawienia. Zamknięcie
+głównego okna od razu usuwa nakładkę.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
@@ -486,8 +498,9 @@ pasku zadań umieszczonym u góry. Canopy dopasowuje nagłówek do wysokości
 zwiniętego okna, jaką dopuścił system. Aktualizacja i rozwinięcie nakładki
 zachowują fokus aktywnej aplikacji.
 Test integracyjny Electron sprawdza widoczność przy aktywnym oknie Canopy,
-zwijanie po animacji, IPC, przejście po kliknięciu w rendererze i sprzątanie po
-zmianie połączenia lub zamknięciu okna. Pełną obsługę
+zwijanie po animacji, wygaszanie i powrót aktywności podczas wygaszania, IPC,
+przejście po kliknięciu w rendererze i sprzątanie po zmianie połączenia lub
+zamknięciu okna. Pełną obsługę
 wejścia i zachowanie systemu trzeba sprawdzić w sesji graficznej na obu
 platformach:
 

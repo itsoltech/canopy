@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { motion } from "@canopy/ui";
 import { activityNotchLogoSize } from "@canopy/ui/desktop";
-import { icons } from "@canopy/ui/icons";
-import { activityNotchStyles } from "./activity-notch-styles.ts";
+import { icons, iconStyle } from "@canopy/ui/icons";
+import { threadSpinner } from "@canopy/ui/thread-row";
+import { activityNotchPanelDelay, activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
 
 const statuses = {
@@ -13,19 +14,23 @@ const statuses = {
   completed: { label: "Completed", one: "completed", many: "completed" },
 } satisfies Record<ActivityNotchRow["state"], { label: string; one: string; many: string }>;
 
+// The same marks as the thread list: a raised hand when someone has to act, the shared ring while working.
 const activityGlyphs = {
-  approval: icons["shield-exclamation"],
-  answer: icons["chat-bubble-bottom-center-text"],
+  approval: icons["hand-raised"],
+  answer: icons["hand-raised"],
   failed: icons["x-circle"],
   working: [],
   completed: icons["check-circle"],
 } satisfies Record<ActivityNotchRow["state"], readonly string[]>;
 
+const { center, radius: ring, strokeWidth, trackOpacity, path } = threadSpinner;
+const spinner = `<svg class="spinner" viewBox="${threadSpinner.viewBox}" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round"><circle cx="${center}" cy="${center}" r="${ring}" opacity="${trackOpacity}"/><path d="${path}"/></svg>`;
+
 const glyphs = Object.entries(activityGlyphs)
   .map(([state, paths]) => {
     const icon = paths.length
-      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths.map((path) => `<path d="${path}"/>`).join("")}</svg>`
-      : '<span class="spinner"></span>';
+      ? `<svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`
+      : spinner;
 
     return `<span class="state-layer" data-state="${state}">${icon}</span>`;
   })
@@ -43,14 +48,20 @@ const script = `
   const glyphs = summary.querySelectorAll("[data-state]");
   const total = document.getElementById("activity-count");
   const list = document.querySelector(".rows");
+  const leavingRows = document.querySelector(".leaving-rows");
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const statuses = ${JSON.stringify(statuses)};
   const logoSize = ${activityNotchLogoSize};
   const logoBytes = logoSize * logoSize * 4;
   const encodedLogoLength = Math.ceil(logoBytes / 3) * 4;
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
+  const rowAnimations = new Set();
   let collapseTimer;
   let openedByHover = false;
+  let layoutRevision;
+  let layoutHeight;
+  let count = 0;
 
   function setExpanded(expanded) {
     clearTimeout(collapseTimer);
@@ -58,6 +69,7 @@ const script = `
     if (notch.dataset.open === String(expanded)) return false;
 
     if (!expanded && panel.contains(document.activeElement)) toggle.focus({ preventScroll: true });
+    if (!expanded) panel.removeAttribute("data-visible");
     notch.dataset.open = String(expanded);
     toggle.setAttribute("aria-expanded", String(expanded));
     toggleAction.textContent = expanded ? "Hide activity" : "Show activity";
@@ -75,15 +87,58 @@ const script = `
   }
 
   function applyLayout({ center, width, height, headerHeight, revision }) {
+    layoutRevision = revision;
     if (notch.hasAttribute("data-layout")) notch.dataset.animate = "";
+    notch.toggleAttribute("data-shrinking", height < (layoutHeight ?? height));
+    layoutHeight = height;
+    // The list fades in once the outline has nearly its open size; the stylesheet holds that delay.
+    panel.toggleAttribute("data-visible", height > headerHeight && notch.dataset.open === "true");
     notch.style.setProperty("--notch-center", center + "px");
     notch.style.setProperty("--notch-width", width + "px");
     notch.style.setProperty("--notch-size", height + "px");
     notch.style.setProperty("--notch-height", headerHeight + "px");
+    if (height > headerHeight) notch.style.setProperty("--open-width", width + "px");
     notch.dataset.layout = "";
 
     const animations = [...notch.getAnimations(), ...surface.getAnimations()];
-    void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => bridge.layoutSettled(revision));
+    void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
+      if (revision === layoutRevision) bridge.layoutSettled(revision);
+    });
+  }
+
+  function renderCount(next) {
+    const formatted = next ? numbers.format(next) : "";
+    if (count === next) return formatted;
+
+    const previous = count;
+    count = next;
+    if (reducedMotion.matches) {
+      total.textContent = formatted;
+      return formatted;
+    }
+
+    const old = previous ? numbers.format(previous) : "";
+    const places = Math.max(old.length, formatted.length);
+    const before = old.padStart(places);
+    total.style.setProperty("--count-direction", next > previous ? "1" : "-1");
+    total.replaceChildren(...Array.from(formatted.padStart(places), (digit, index) => {
+      const slot = document.createElement("span");
+      slot.className = "count-slot";
+      if (digit === before[index]) {
+        slot.textContent = digit;
+        return slot;
+      }
+
+      const outgoing = document.createElement("span");
+      const incoming = document.createElement("span");
+      outgoing.className = "count-out";
+      incoming.className = "count-in";
+      outgoing.textContent = before[index];
+      incoming.textContent = digit;
+      slot.append(outgoing, incoming);
+      return slot;
+    }));
+    return formatted;
   }
 
   function createRow(id) {
@@ -153,14 +208,73 @@ const script = `
     view.projectMark = mark;
   }
 
-  function renderRows(rows) {
+  function animateRow(item, frames, duration, delay = 0) {
+    const animation = item.animate(frames, {
+      duration, delay, fill: "backwards", easing: "cubic-bezier(${motion.smoothOut.join(", ")})",
+    });
+    rowAnimations.add(animation);
+    const forget = () => rowAnimations.delete(animation);
+    void animation.finished.then(forget, forget);
+    return animation;
+  }
+
+  function removeRow(item, position, viewport) {
+    if (!position || position.rect.bottom <= viewport.top || position.rect.top >= viewport.bottom) {
+      item.remove();
+      return;
+    }
+
+    const origin = leavingRows.getBoundingClientRect();
+    const { left, top, width, bottom } = position.rect;
+    item.getAnimations().forEach((animation) => animation.cancel());
+    item.style.left = left - origin.left + "px";
+    item.style.top = top - origin.top + "px";
+    item.style.width = width + "px";
+    item.style.clipPath = "inset(" + Math.max(0, viewport.top - top) + "px 0 " + Math.max(0, bottom - viewport.bottom) + "px)";
+    leavingRows.append(item);
+    const remove = () => item.remove();
+    void animateRow(item, { opacity: [position.opacity, 0] }, ${motion.micro}).finished.then(remove, remove);
+  }
+
+  function animateList(positions) {
+    const items = Array.from(list.children);
+    for (const item of items) item.getAnimations().forEach((animation) => animation.cancel());
+
+    const bottom = surface.getBoundingClientRect().bottom;
+    const moved = items.map((item) => ({ item, current: item.getBoundingClientRect(), previous: positions.get(item) }));
+    for (const { item, current, previous } of moved) {
+      if (!previous) {
+        const delay = current.bottom > bottom ? ${activityNotchPanelDelay} : 0;
+        animateRow(item, { opacity: [0, 1], translate: ["0 ${motion.distance.micro}px", "0 0"] }, ${motion.micro}, delay);
+      } else {
+        const offset = previous.rect.top - current.top;
+        if (Math.abs(offset) >= 0.5 || previous.opacity < 1) {
+          animateRow(item, { opacity: [previous.opacity, 1], translate: ["0 " + offset + "px", "0 0"] }, ${motion.quick});
+        }
+      }
+    }
+  }
+
+  function renderRows(rows, revision) {
+    notch.toggleAttribute("data-active", rows.length > 0);
+    if (!rows.length) {
+      setExpanded(false);
+      const fades = notch.getAnimations().filter((animation) => animation.transitionProperty === "opacity");
+      void Promise.allSettled(fades.map((animation) => animation.finished)).then(() => bridge.hidden(revision));
+    }
+
     const counts = new Map();
     const activeRow = document.activeElement;
     const ids = new Set(rows.map((row) => row.id));
+    const orderChanged = rows.length !== list.children.length || rows.some(({ id }, index) => rowViews.get(id)?.item !== list.children[index]);
+    const positions = orderChanged && panel.hasAttribute("data-visible") && !reducedMotion.matches
+      ? new Map(Array.from(list.children, (item) => [item, { rect: item.getBoundingClientRect(), opacity: Number(getComputedStyle(item).opacity) }]))
+      : undefined;
+    const viewport = positions && list.getBoundingClientRect();
     for (const [id, view] of rowViews) {
       if (ids.has(id)) continue;
       if (view.button === activeRow) toggle.focus({ preventScroll: true });
-      view.item.remove();
+      removeRow(view.item, positions?.get(view.item), viewport);
       rowViews.delete(id);
     }
 
@@ -185,23 +299,25 @@ const script = `
       counts.set(state, (counts.get(state) ?? 0) + 1);
     }
     if (list.contains(activeRow) && document.activeElement !== activeRow) activeRow.focus({ preventScroll: true });
+    if (positions) animateList(positions);
 
     const state = Object.keys(statuses).find((candidate) => counts.has(candidate));
-    total.textContent = state ? numbers.format(rows.length) : "";
+    const formattedCount = renderCount(rows.length);
     let description = "No activity";
     if (state) {
       const count = counts.get(state);
       const status = statuses[state][count === 1 ? "one" : "many"];
-      const itemCount = total.textContent + (rows.length === 1 ? " item" : " items");
+      const itemCount = formattedCount + (rows.length === 1 ? " item" : " items");
       description = itemCount + ". " + numbers.format(count) + " " + status + ".";
-    } else {
-      requestExpanded(false);
     }
     if (summaryText.textContent !== description) summaryText.textContent = description;
     showState(glyphs, state);
     toggle.disabled = !state;
   }
 
+  reducedMotion.addEventListener("change", () => {
+    if (reducedMotion.matches) rowAnimations.forEach((animation) => animation.cancel());
+  });
   surface.addEventListener("pointerenter", (event) => {
     if (event.pointerType !== "mouse" || toggle.disabled) return;
     clearTimeout(collapseTimer);
@@ -253,11 +369,12 @@ export function activityNotchPage(): string {
       <button class="notch-toggle" type="button" aria-expanded="false" aria-controls="activity-panel" aria-describedby="activity-description" disabled>
         <span id="toggle-action" class="sr-only">Show activity</span>
         <span id="activity-summary" class="wing" aria-hidden="true">${glyphs}</span>
-        <span id="activity-count" class="wing count" aria-hidden="true"></span>
+        <span class="wing count" aria-hidden="true"><span id="activity-count"></span></span>
       </button>
       <p id="activity-description" class="sr-only" role="status">No activity</p>
       <div id="activity-panel" class="panel" aria-hidden="true" inert>
         <ul class="rows" aria-label="Activity"></ul>
+        <ul class="leaving-rows" aria-hidden="true" inert></ul>
       </div>
     </div>
   </main>

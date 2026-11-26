@@ -228,9 +228,11 @@ async function checkPreloadRedaction(overlay: BrowserWindow) {
   })`);
 
   // Inject synthetic extra fields after main's projection to exercise the preload independently.
-  overlay.webContents.send("canopy:activity-notch-rows", [
-    { ...row, path: route, transcript: "Synthetic private content", projectMark: unredactedMark },
-  ]);
+  overlay.webContents.send(
+    "canopy:activity-notch-rows",
+    [{ ...row, path: route, transcript: "Synthetic private content", projectMark: unredactedMark }],
+    1,
+  );
   assert.deepEqual(await projected, [{ ...row, projectMark: logoMark }]);
 }
 
@@ -337,6 +339,38 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
   assert.equal(source.isFocused(), true, "toggling the overlay preserves the source's focus");
 }
 
+async function clearActivity(overlay: BrowserWindow, source: BrowserWindow) {
+  const reducedMotion: boolean = await overlay.webContents.executeJavaScript(
+    `matchMedia("(prefers-reduced-motion: reduce)").matches`,
+  );
+
+  if (!reducedMotion) {
+    await overlay.webContents.executeJavaScript(`{
+      const notch = document.querySelector('.notch');
+      window.pausedFade = new Promise((resolve) => {
+        const observer = new MutationObserver(() => {
+          if (notch.hasAttribute('data-active')) return;
+          observer.disconnect();
+          const fade = notch.getAnimations().find((animation) => animation.transitionProperty === 'opacity');
+          fade?.pause();
+          resolve(Boolean(fade));
+        });
+        observer.observe(notch, { attributeFilter: ['data-active'] });
+      });
+    }`);
+
+    assert.deepEqual(await publishRows(overlay, source, []), []);
+    assert.equal(await overlay.webContents.executeJavaScript("window.pausedFade"), true);
+    assert.equal(overlay.isVisible(), true, "the native window stays visible during its fade");
+
+    await Promise.all([once(ipcMain, "canopy:activity-notch-hidden"), publishRows(overlay, source, [working])]);
+    assert.equal(overlay.isDestroyed(), false, "the old fade cannot close a window with new activity");
+  }
+
+  await Promise.all([once(overlay, "closed"), publish(source, [])]);
+  assert.equal(overlay.isDestroyed(), true);
+}
+
 async function smoke() {
   const server = createServer((_request, response) => {
     response.writeHead(200, { "Content-Type": "text/html" }).end("<!doctype html><title>Activity fixture</title>");
@@ -411,8 +445,7 @@ async function smoke() {
     assertNativeBounds(overlay, 0, layout.headerHeight);
 
     stage = "clearing activity";
-    await Promise.all([once(overlay, "closed"), publish(source, [])]);
-    assert.equal(overlay.isDestroyed(), true);
+    await clearActivity(overlay, source);
     stage = "switching the gateway";
     const [beforeTargetChange] = await Promise.all([showOverlay(), publish(source, [working])]);
     const changed = once(beforeTargetChange, "closed");
