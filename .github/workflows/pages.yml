@@ -6,6 +6,7 @@ on:
     branches: [dev]
     paths:
       - site/**
+      - design/brand/canopy-wordmark.svg
       - scripts/build-site.ts
       - scripts/release-index.ts
       - scripts/release-notes.ts
@@ -13,6 +14,9 @@ on:
       - packages/domain/src/release/version.ts
       - packages/domain/src/release/catalog.ts
       - packages/domain/src/oauth-return.ts
+      - packages/ui/src/palette.json
+      - packages/ui/src/themes.ts
+      - packages/ui/src/tokens.ts
       - .github/workflows/pages.yml
   workflow_dispatch:
   workflow_call:

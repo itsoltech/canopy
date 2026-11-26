@@ -10,6 +10,8 @@ import {
   OAUTH_CLIENT_METADATA_REDIRECT_URL,
   OAUTH_CLIENT_METADATA_URL,
 } from "@canopy/domain/oauth-return";
+import { motion, palette } from "@canopy/ui";
+import { themeVariables } from "@canopy/ui/themes";
 
 const root = join(import.meta.dir, "..");
 const out = join(root, "dist/site");
@@ -25,11 +27,30 @@ const built = await Bun.build({
 if (!built.success) throw new AggregateError(built.logs, "Could not build the OAuth redirect page");
 
 const script = (await built.outputs[0]!.text()).trim();
-const template = await readFile(join(root, "site/oauth/callback.html"), "utf8");
 
-// The script is inlined first (replacement patterns like `$&` in minified code must not be expanded), then the CSP
-// hashes the exact text between the tags, including the template's indentation, as the browser does.
-const inlined = template.replace("__SCRIPT__", () => script);
+const [template, wordmark] = await Promise.all([
+  readFile(join(root, "site/oauth/callback.html"), "utf8"),
+  readFile(join(root, "design/brand/canopy-wordmark.svg"), "utf8"),
+]);
+
+const light = themeVariables("birch", "light");
+const dark = themeVariables("birch", "dark");
+const surfaces = ["canvas", "surface", "panel", "hover", "ink", "muted"] as const;
+
+const theme = [
+  ...surfaces.map((token) => `--${token}: light-dark(${light[token]}, ${dark[token]});`),
+  `--accent: light-dark(${palette.emerald[700]}, ${palette.emerald[400]});`,
+  `--on-accent: light-dark(#fff, ${dark.canvas});`,
+  `--duration-fast: ${motion.fast}ms;`,
+  `--ease-smooth-out: cubic-bezier(${motion.smoothOut.join(", ")});`,
+].join("\n        ");
+
+// Hash the final inline script and style, including indentation, as the browser does. Function replacements
+// keep literal patterns such as `$&` in the minified script.
+const inlined = template
+  .replace("__SCRIPT__", () => script)
+  .replace("/* __THEME__ */", () => theme)
+  .replace("__WORDMARK__", () => wordmark.trim());
 
 const body = (tag: string) => {
   const match = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(inlined);

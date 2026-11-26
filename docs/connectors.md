@@ -1,5 +1,10 @@
 # Konektory Canopy
 
+Aktualizacja (2026-11-26): strona powrotu OAuth chowa kod pod „Use a sign-in code”,
+gdy może automatycznie wrócić do Canopy. Przy powrocie ręcznym pokazuje kod od razu.
+Używa logotypu Canopy i palety Birch z zielonym akcentem, w jasnym lub ciemnym wariancie
+zgodnym z preferencją systemową.
+
 Aktualizacja (2026-11-26): zapisana aplikacja OAuth typu Custom MCP ma
 pierwszeństwo dla pasującego wystawcy. Dla pozostałych wystawców gateway
 korzysta z automatycznej konfiguracji OAuth, jeśli ją obsługują.
@@ -239,6 +244,7 @@ na `http:`/`https:` ze ścieżką dokładnie `/api/connectors/oauth/callback`, b
 logowania, query i fragmentu; inaczej pokazuje błąd (brak open redirect). Ma
 `referrer: no-referrer`, CSP `default-src 'none'` ze skryptem i stylem dopuszczonymi
 hashem, nie ładuje skryptów zewnętrznych ani analityki i usuwa query z historii.
+Logotyp jest osadzony w dokumencie.
 
 Dlaczego to bezpieczne: przez przeglądarkę przechodzi tylko jednorazowy, krótko ważny
 kod, bezużyteczny bez weryfikatora PKCE, który ma wyłącznie gateway
@@ -258,9 +264,12 @@ Trzy drogi powrotu:
    Settings → Connectors, które odbiera kod mostem desktopu (`takeConnectorOAuth`) i kończy
    logowanie przez `POST /api/connectors/oauth/code`. Przeglądarka nie łączy się z
    `http://127.0.0.1`.
-3. **Ręcznie, zawsze dostępne** — po 3 s strona pokazuje „Copy code”: `state` i `code` jako
-   jeden nieprzezroczysty ciąg. Dialog Connect ma pole „Sign-in code” (w desktopie pojawia
-   się po 5 s oczekiwania albo na żądanie). Gateway (`pasted_code`) sprawdza state tak samo
+3. **Ręcznie, zawsze dostępne** — przy automatycznym powrocie „Use a sign-in code” rozwija
+   instrukcję i kod. Przycisk „Copy code” znajduje się pod przewijanym polem z kodem.
+   Gdy wklejenie kodu jest jedyną drogą, instrukcja i kod są widoczne od razu.
+   Kod zawiera `state` i `code` jako jeden nieprzezroczysty ciąg. Dialog Connect ma pole
+   „Sign-in code” (w desktopie pojawia się po 5 s oczekiwania albo na żądanie).
+   Gateway (`pasted_code`) sprawdza state tak samo
    jak callback i wymienia kod tak samo. Powrót przez deep link zamyka otwarty dialog
    tego konta i odświeża listę. Ponowne wklejenie po udanym powrocie potwierdza
    „Already connected”; nie wymienia kodu ponownie. Migracja `0081_connector_oauth_completion`

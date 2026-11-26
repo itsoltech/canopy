@@ -1,6 +1,7 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
+Aktualizacja (2026-11-26): Pages przebudowuje stronę OAuth także po zmianach logotypu i tokenów wyglądu.
 Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis cache Bun.
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
@@ -371,11 +372,12 @@ Kontroler desktopu, katalogi `runtime/` i `sidecars/`, pakowanie, kod natywny, w
 pakiety, kontrakty, lockfile oraz usunięcia i przeniesienia kodu wybierają pełne CI.
 Kontroler uruchamia osobne procesy i ładuje gotowy BFF. Te zależności wykraczają poza graf importów.
 
-`.github/workflows/pages.yml` (push do `dev` zmieniający `site/`, `scripts/build-site.ts` albo
-`packages/domain/src/oauth-return.ts`; ręczny dispatch) buduje `site/` skryptem
-`scripts/build-site.ts` do `dist/site` i publikuje go `actions/deploy-pages`. Strona
+`.github/workflows/pages.yml` uruchamia się po zmianach źródeł strony, skryptów budowania,
+logotypu, wspólnych tokenów wyglądu lub `packages/domain/src/oauth-return.ts` na `dev`.
+Można go też uruchomić ręcznie. Workflow buduje `site/` skryptem `scripts/build-site.ts`
+do `dist/site` i publikuje wynik przez `actions/deploy-pages`. Strona
 przekierowania OAuth trafia pod `https://itsoltech.github.io/canopy/oauth/callback`
-([konektory](connectors.md#stały-redirect-zarejestrowanych-aplikacji)).
+([konektory](connectors.md#stały-redirect-oauth)).
 Katalog `site/demo/` trafia w całości do `dist/site/demo/`. README prowadzi do
 [filmu 16:9](https://itsoltech.github.io/canopy/demo/canopy-demo.mp4).
 [Montaż 4:5](https://itsoltech.github.io/canopy/demo/canopy-demo-mobile.mp4) ma ten sam dźwięk i czas trwania,
