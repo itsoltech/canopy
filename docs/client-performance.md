@@ -476,6 +476,12 @@ zmienionych wierszy, nie z liczbą wątków:
   Puste listy dzieci to jedna stała, nie nowa tablica przy każdym przeliczeniu.
 - `{#each}` z `animate:` mierzy wszystkie elementy przy każdej zmianie tablicy. `reorder`
   nie animuje wierszy, które przed i po przestawieniu są poza ekranem.
+- Gałąź wątków bocznych animuje tor siatki od `0fr` do `1fr`. Rozmiar treści
+  wylicza CSS, więc montowanie gałęzi nie wymusza dodatkowego layoutu przez
+  odczyt `offsetHeight`. Przy analizie przełączenia między dwiema otwartymi
+  wcześniej rozmowami z wątkami bocznymi sprawdź pierwszą klatkę i dalszy ruch.
+  Wpisy Long Task i Long Animation Frame obejmują dopiero pracę rzędu 50 ms.
+  Odstępy rAF ujawniają także krótsze przerwy w pracy renderera.
 - Wiersze poza ekranem mają `content-visibility: auto` z `contain-intrinsic-size: auto`
   równym wysokości wiersza dla danego breakpointu i `overflow-clip-margin` na pierścień
   fokusu. Chromium obserwuje każdy taki element wewnętrznym IntersectionObserverem
