@@ -8,8 +8,10 @@ Aktualizacja (2026-11-26): natywne CI macOS wykonuje jeden wariant testu pakowan
 Aktualizacja (2026-11-26): Release uruchamia pakowanie osobno dla każdego gotowego runtime’u Desktop.
 Job pakowania macOS instaluje zależności z workspace’u Desktop i ma osobny cache Bun.
 Wagi shardów można odświeżyć medianą z pełnych przebiegów po weryfikacji raportów.
+Pełne CI używa dwunastu shardów z wagami odświeżonymi z pomiarów po skróceniu fixture.
 Natywne testy źródłowe PR-a startują równolegle z buildem. Smoke pobiera wyłącznie
 binaria dla własnego systemu i architektury.
+Instalacja zależności testów natywnych na Windows pomija skrypty pakietów.
 Zaplanowane nightly raz ponawia nieudane zadania po potwierdzonej utracie łączności runnera
 lub wyczerpaniu prób utworzenia artefaktu wskutek timeoutu GitHub Actions.
 Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
@@ -42,9 +44,7 @@ otwiera kolejną serię nightly. Stable zachowuje wersję bazową i SHA przetest
 Do serii 0.7 przeniesiono przekazywanie klucza do Back-merge oraz zapis SHA wydawanych źródeł w adnotacjach manifestów i indeksów OCI.
 CI dla PR-ów dobiera testy mobile, interfejsu web i powłoki Electron według zmian.
 Release ponawia pakowanie macOS i Windows po błędzie. Beta publikuje zgodne OTA
-i pomija build oraz wysyłkę iOS do TestFlight. Pełne CI ma osiem shardów i wagi
-odświeżone z pełnych raportów CI. Pomiary poniżej opisują przebieg sprzed zmiany shardów;
-wpływ na czas CI wymaga pomiaru kolejnych przebiegów. Kod sprawdza rewizję
+i pomija build oraz wysyłkę iOS do TestFlight. Kod sprawdza rewizję
 Release przed checkoutem źródeł, a podpisywanie i publikacja działają na artefaktach
 w środowiskach chronionych. Push CI wykonuje smoke binariów i obrazów bez sekretów podpisu.
 Konfigurację środowisk utrzymuje maintainer.
@@ -365,7 +365,7 @@ importach ze wszystkich workspace’ów względem bazy PR-a. Jawnie uruchomione 
 są wyłączone z tego przebiegu. Dla zmian źródeł TS/Svelte CI dołącza testy, które
 czytają pliki aplikacji z dysku i sprawdzają reguły dostępu do modeli oraz do sekretów BFF.
 Przykładowo zmiana koloru w `shared/ui/button.ts` uruchamia build web. CI pomija wtedy
-osiem shardów platformy, kompilację gatewaya i workera oraz natywne smoke.
+shardy platformy, kompilację gatewaya i workera oraz natywne smoke.
 Kontroler desktopu, katalogi `runtime/` i `sidecars/`, pakowanie, kod natywny, wspólne
 pakiety, kontrakty, lockfile oraz usunięcia i przeniesienia kodu wybierają pełne CI.
 Kontroler uruchamia osobne procesy i ładuje gotowy BFF. Te zależności wykraczają poza graf importów.
@@ -395,20 +395,24 @@ wersję zapisaną w buildzie z wersją binarki. `canopy-worker self-check` uruch
 każdym systemie natywne API obrazów przez `bun:ffi`. Windows sprawdza też odpowiedź
 wbudowanego webu. W Push CI joby smoke pobierają parę gateway–worker dla swojego
 celu, a natywne testy źródłowe wykonują się równolegle.
+Na Windows instalacja pod testy źródłowe pomija skrypty pakietów. Test powłoki
+pobiera binarkę dla wersji Electron zapisanej w lockfile, a smoke dostaje skompilowane
+binaria z joba `builds`. Eliminuje to kompilację opcjonalnych modułów SSH na
+runnerze testowym.
 
 `scripts/test-shards.ts` przypisuje najdłuższe pliki do najmniej obciążonego sharda,
 z deterministycznym rozstrzyganiem remisów i jawną listą ścieżek dla Bun.
 `scripts/test-timings.json` zawiera zmierzone czasy całych plików w milisekundach,
 łącznie z hookami; nowy plik dostaje domyślnie 1000 ms i automatycznie trafia do podziału.
 Do diagnozowania konkretnego błędu CI można lokalnie uruchomić dany shard przez
-`bun scripts/test-shards.ts 1` (analogicznie 2–8). Nie jest to obowiązkowa kontrola
+`bun scripts/test-shards.ts 1` (analogicznie 2–12). Nie jest to obowiązkowa kontrola
 przed PR; lokalną weryfikację dobieramy według [AGENTS.md](../AGENTS.md#testing-policy).
-`--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza osiem raportów
-`timings-1.json` … `timings-8.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
+`--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza dwanaście raportów
+`timings-1.json` … `timings-12.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
 `test-profile-<numer>` (7 dni).
 
 Odśwież wagi, gdy pomiary pokazują nierówny rozkład pracy, zwłaszcza po skróceniu
-długiego scenariusza albo dodaniu grupy integracji. Zbierz osiem plików
+długiego scenariusza albo dodaniu grupy integracji. Zbierz dwanaście plików
 `timings-*.json` z jednego udanego, pełnego CI w osobnym katalogu. Możesz użyć
 kilku takich katalogów z tym samym zestawem plików. Polecenie odrzuca brakujące
 lub powtórzone pliki i zapisuje do `scripts/test-timings.json` medianę dla każdego
@@ -418,17 +422,12 @@ testu. Porównuj czas najdłuższego sharda z innymi jobami, w tym natywnymi i s
 bun scripts/test-shards.ts --refresh-timings /tmp/ci-first /tmp/ci-second
 ```
 
-Podział na osiem shardów obowiązuje w pełnym CI PR-ów i chronionych gałęzi. Każdy plik nadal
-wykonuje się dokładnie raz; nie filtrujemy testów według zmienionych pakietów.
-Podwojenie liczby runnerów skraca najdłuższy job testowy, ale zwiększa łączny koszt
-checkoutów, instalacji i uruchomienia baz; rzeczywisty czas zależy też od kolejki runnerów.
-Statyczne checki i buildy pozostają równoległe; końcowa bramka nadal wymaga wszystkich
-ośmiu raportów oraz sukcesu każdej wybranej części CI.
-Pełne CI ostatnich PR-ów przed zmianą trwało około 11–12 minut
-([przykładowy przebieg](https://github.com/itsoltech/canopy/actions/runs/43827887639));
-statyczne checki i buildy kończyły się po około 2–3 minutach od startu jobów.
-Szacunek 5–7 minut dla pełnego CI na PR zakładał osiem shardów i dostępne od razu runnery.
-Po pushu ten zestaw obejmuje też smoke binariów i obrazów uruchamiane równolegle z testami.
+Pełne CI PR-ów i chronionych gałęzi przypisuje każdy plik do jednego z dwunastu shardów.
+Końcowa bramka wymaga kompletu raportów oraz sukcesu każdej wybranej części CI.
+Statyczne checki i buildy biegną równolegle, a Push CI dodaje smoke binariów i obrazów.
+Większa liczba shardów skraca testy na ścieżce krytycznej i zwiększa liczbę checkoutów,
+instalacji i osobnych baz. Pomiary po zmianie obejmują czas kolejki i najdłuższy job,
+w tym równoległe kontrole natywne.
 
 `check:tmp` zarządza jednym PostgreSQL 17 na przebieg/shard i usuwa kontener po zakończeniu
 procesu testowego. Każdy fixture dostaje osobną bazę. Gatewaye klonują niemodyfikowalny,

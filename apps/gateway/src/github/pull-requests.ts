@@ -3,7 +3,7 @@ import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import type { GitHubAccounts } from "./service.ts";
-import { GitHubClient } from "./client.ts";
+import { GitHubClient, type GitHubRead } from "./client.ts";
 import { GitHubRepositoryAccounts, pullRequestUrl } from "./repository-accounts.ts";
 import { SUMMARY_QUERY, summarySnapshot, pullRequestCreatedAt, partialSnapshot } from "./pull-request-query.ts";
 import { githubFailure } from "./http.ts";
@@ -11,7 +11,7 @@ import { uuid } from "./records.ts";
 import { refreshLinked, refreshReason, rememberSummary } from "./last-known.ts";
 import { refreshLinkedBatch } from "./linked-batch.ts";
 
-type PrefetchedSummary = { accountId: string; revision: bigint; payload: Schema.JsonObject };
+type PrefetchedSummary = NonNullable<GitHubRead["prefetched"]> & { accountId: string };
 
 const viewerPermission = Schema.decodeUnknownSync(
   Schema.Struct({
@@ -217,7 +217,7 @@ export class GitHubPullRequests {
 
       const read = {
         background,
-        ...(prefetched && { prefetched: { payload: prefetched.payload, revision: prefetched.revision } }),
+        ...(prefetched && { prefetched }),
         ttl: ["merged", "closed"].includes(previous?.summary?.state ?? "") ? 300_000 : 60_000,
         key,
         path: "/graphql",
@@ -267,7 +267,7 @@ export class GitHubPullRequests {
         const result = await this.client.read(row.id, read, force);
         await this.validate(name, row.id, BigInt(row.revision), BigInt(mapping.revision));
         const snapshot = fromJsonString(github.PullRequestSnapshotSchema, JSON.stringify(result.payload));
-        await rememberSummary(this.accounts, row.id, snapshot);
+        await rememberSummary(this.accounts, row, snapshot);
 
         return snapshot;
       };
@@ -312,6 +312,10 @@ export class GitHubPullRequests {
       }
     } catch (cause) {
       const error = githubFailure(cause);
+
+      // A superseded batch must leave the current refresh reason in place.
+      if (prefetched && error.code === Code.FailedPrecondition) throw cause;
+
       await run((s) =>
         s.prRefreshFailed(owner, name, number, refreshReason(name, error), error.code === Code.PermissionDenied),
       ).catch(() => []);

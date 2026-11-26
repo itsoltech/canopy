@@ -1,5 +1,8 @@
 # Konto GitHub i pull requesty
 
+Aktualizacja (2026-11-26): odświeżenie listy w tle może zapisać podsumowanie tylko
+z odpowiedzi, która nadal znajduje się w cache bieżącej rewizji dostępu (§3).
+
 Status (2026-11-25): natywny mobilny Code pokazuje kompaktowe wiersze diffu z numerami
 obu wersji pliku i automatycznym zawijaniem układu Stacked (§8).
 
@@ -324,6 +327,10 @@ zapisywanych atomowo. Nieudane odświeżenie
 zapisuje konkretny powód (`detail` linku) z Retry. Utrata dostępu (403/404) unieważnia cache
 konta razem z ostatnimi znanymi podsumowaniami, które odczytało, i pokazuje
 `No access to <repo>. Check the GitHub App installation.`; błąd sieci lub limit zachowują je.
+Zapis z odświeżenia zbiorczego sprawdza, czy odpowiedź, z której pochodzą dane,
+nadal jest w cache. Zapis ostatniego znanego podsumowania wymaga odpowiadającego
+mu zatwierdzonego wpisu. Odczyt rozpoczęty przed unieważnieniem nie przywraca
+usuniętych danych.
 Rozłączenie konta także je usuwa. Repozytorium usunięte z instalacji unieważnia tylko własne
 wpisy cache i podsumowania, nie całe konto.
 

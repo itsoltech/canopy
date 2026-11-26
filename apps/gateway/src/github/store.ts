@@ -4,7 +4,7 @@ import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.t
 import { accountView, notFound, TokenPair, type AccountRow } from "./records.ts";
 import { githubAttempts } from "./store-attempts.ts";
 import { githubCatalogue } from "./store-catalogue.ts";
-import { githubCache } from "./store-cache.ts";
+import { githubCache, lockGitHubCache } from "./store-cache.ts";
 import { githubPullRequests } from "./store-pull-requests.ts";
 import { githubDetectionStore } from "./store-detection.ts";
 import { githubUpdateStore } from "./update-account.ts";
@@ -45,6 +45,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
 
         if (!rows[0]) return yield* Effect.fail(notFound());
         yield* sql`DELETE FROM github_installations WHERE owner_user_id=${owner}::uuid AND account_id=${id}::uuid`;
+        yield* lockGitHubCache(sql, owner);
         yield* sql`DELETE FROM github_pr_cache WHERE owner_user_id=${owner}::uuid AND account_id=${id}::uuid`;
         yield* sql`UPDATE github_pull_requests SET summary=NULL,summary_account_id=NULL
           WHERE owner_user_id=${owner}::uuid AND summary_account_id=${id}::uuid`;

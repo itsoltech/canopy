@@ -1,11 +1,10 @@
-import { afterAll, beforeAll, describe, expect, setSystemTime, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { toJsonString } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { usageSummary } from "@canopy/domain/usage-summary";
-import { Effect, Match } from "effect";
-import { SqlClient } from "effect/sql";
+import { Match } from "effect";
 import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const KEY = "fixture-management-key";
@@ -31,6 +30,7 @@ const files = [
 
 let used = 83;
 let reset = RESET;
+let now = NOW.getTime();
 let mode = "ok";
 let requests: string[] = [];
 let calls = 0;
@@ -38,13 +38,8 @@ let gw: TestGateway;
 let proxyId: string;
 let management: ReturnType<typeof Bun.serve>;
 
-async function refresh() {
-  await gw.runtime.runPromise(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      yield* sql`UPDATE proxies SET management_read_at = NULL WHERE id = ${proxyId}::uuid`;
-    }),
-  );
+function refresh(at = now + 5_001) {
+  now = at;
 
   return gw.api.refreshProxyAccounts({ id: proxyId, force: true });
 }
@@ -97,8 +92,7 @@ describe.skipIf(!dockerAvailable)("Claude usage through the proxy management API
         });
       },
     });
-    gw = await startTestGateway();
-    setSystemTime(NOW);
+    gw = await startTestGateway({ proxyAccountsClock: () => new Date(now) });
 
     const saved = await gw.api.saveProxy({
       name: "Live usage proxy",
@@ -112,13 +106,13 @@ describe.skipIf(!dockerAvailable)("Claude usage through the proxy management API
   }, 60_000);
 
   afterAll(async () => {
-    setSystemTime();
     await gw?.close();
     await management?.stop(true);
   });
 
   test("vendor usage replaces stale passive headers and is shared with clients without credentials", async () => {
-    const accounts = await refresh();
+    // Saving starts a read. Join it or reuse its committed result without opening another lease.
+    const accounts = await gw.api.refreshProxyAccounts({ id: proxyId, force: true });
     const oauth = accounts.accounts.find((account) => account.id === "oauth")!;
 
     expect(accounts.state).toBe("ok");
@@ -142,20 +136,14 @@ describe.skipIf(!dockerAvailable)("Claude usage through the proxy management API
     const afterReset = new Date("2026-11-16T10:00:01Z");
     used = 0;
     reset = "2026-11-21T10:00:00Z";
-    setSystemTime(afterReset);
+    const accounts = await refresh(afterReset.getTime());
+    const weekly = accounts.accounts.find((account) => account.id === "oauth")?.windows[0];
+    const cached = accounts.accounts.find((account) => account.id === "key")?.windows[0];
 
-    try {
-      const accounts = await refresh();
-      const weekly = accounts.accounts.find((account) => account.id === "oauth")?.windows[0];
-      const cached = accounts.accounts.find((account) => account.id === "key")?.windows[0];
-
-      expect(weekly).toMatchObject({ key: "seven_day", usedPercent: 0, reached: false });
-      expect(weekly?.resetsAt?.seconds).toBe(BigInt(Date.parse(reset) / 1000));
-      expect(weekly?.observedAt && timestampDate(weekly.observedAt)).toEqual(afterReset);
-      expect(cached?.observedAt && timestampDate(cached.observedAt)).toEqual(NOW);
-    } finally {
-      setSystemTime(NOW);
-    }
+    expect(weekly).toMatchObject({ key: "seven_day", usedPercent: 0, reached: false });
+    expect(weekly?.resetsAt?.seconds).toBe(BigInt(Date.parse(reset) / 1000));
+    expect(weekly?.observedAt && timestampDate(weekly.observedAt)).toEqual(afterReset);
+    expect(cached?.observedAt && timestampDate(cached.observedAt)).toEqual(NOW);
   });
 
   test("an exhausted model allowance does not erase the shared weekly balance", async () => {
@@ -170,7 +158,7 @@ describe.skipIf(!dockerAvailable)("Claude usage through the proxy management API
     const rows = usageSummary(
       [],
       [{ ...proxy, usedBy: ["claude/native"], accounts: { ...proxy.accounts!, accounts: [oauth] } }],
-      NOW.getTime(),
+      now,
     );
 
     expect(oauth.windows.find((window) => window.key === "seven_day_opus")?.reached).toBe(true);

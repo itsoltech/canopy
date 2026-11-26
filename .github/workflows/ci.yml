@@ -90,7 +90,7 @@ jobs:
         run: bun run --filter @canopy/desktop build:shell
 
   tests:
-    name: Tests (${{ matrix.shard }}/8)
+    name: Tests (${{ matrix.shard }}/12)
     needs: changes
     if: needs.changes.outputs.scope == 'full'
     runs-on: ubuntu-24.04
@@ -98,7 +98,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - uses: actions/checkout@v5
         with:

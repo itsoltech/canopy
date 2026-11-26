@@ -66,8 +66,11 @@ export async function refreshLinkedBatch(prs: GitHubPullRequests, refs: readonly
 
         if (selected.row.id !== account) continue;
 
+        // Include each repository so repository-scoped invalidation also removes the batch.
+        const key = `linked-batch:${batch.map((r) => `${r.repositoryId}:${r.id}`).join(":")}`;
+
         const result = await prs.client.read(account, {
-          key: `linked-batch:${batch.map((r) => r.id).join(":")}`,
+          key,
           path: "/graphql",
           query: query(batch),
           variables,
@@ -75,12 +78,16 @@ export async function refreshLinkedBatch(prs: GitHubPullRequests, refs: readonly
           ttl: 60_000,
         });
 
-        const envelope = Schema.decodeUnknownSync(Schema.Struct({ data: Schema.JsonObject }))(result.payload);
+        const parent = result.payload;
+
+        if (!parent) continue;
+        const envelope = Schema.decodeUnknownSync(Schema.Struct({ data: Schema.JsonObject }))(parent);
+        const source = { key, generation: BigInt(result.generation), payload: parent };
 
         for (const [i, ref] of batch.entries()) {
           const payload = {
             data: { repository: envelope.data[`pr${i}`] ?? null },
-            errors: result.payload?.["errors"] ?? [],
+            errors: parent["errors"] ?? [],
           };
 
           // load validates identity, access revisions and partial/error envelopes before saving each cache entry.
@@ -89,6 +96,7 @@ export async function refreshLinkedBatch(prs: GitHubPullRequests, refs: readonly
               accountId: account,
               revision: BigInt(selected.row.revision),
               payload,
+              source,
             })
             .then(() => prs.pullRequestChanged(ref.id))
             .catch(() => {});
