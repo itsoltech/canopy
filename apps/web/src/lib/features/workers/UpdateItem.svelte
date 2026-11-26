@@ -5,6 +5,7 @@
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import type { UpdateStatus } from "@canopy/domain/release/update-status";
   import UpdateBadge from "./UpdateBadge.svelte";
+  import UpdatePercent from "./UpdatePercent.svelte";
   import UpdateProgress from "./UpdateProgress.svelte";
 
   /**
@@ -19,6 +20,7 @@
     target = "",
     status,
     line = "",
+    linePercent,
     lineTone,
     error = "",
     busy = false,
@@ -37,6 +39,7 @@
     status: UpdateStatus | string;
     /** More detail about this update state. */
     line?: string;
+    linePercent?: number | undefined;
     lineTone?: "amber" | undefined;
     error?: string;
     busy?: boolean;
@@ -96,6 +99,9 @@
             ]}
           >
             {line}
+            {#if linePercent !== undefined}
+              · <UpdatePercent value={linePercent} />
+            {/if}
           </p>{/key}
       {/if}
     </div>

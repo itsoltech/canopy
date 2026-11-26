@@ -129,14 +129,13 @@
     {target}
     status={row}
     line={downloading
-      ? status.progress === undefined
-        ? "Downloading"
-        : `Downloading · ${Math.round(status.progress)}%`
+      ? "Downloading"
       : row === "waiting"
         ? "Restarts after its current turns end."
         : row === "queued" && ready && !worker
           ? "Restarts after the other Canopy updates finish."
           : ""}
+    linePercent={downloading ? status.progress : undefined}
     error={row === "failed" ? error : ""}
     busy={updateInProgress(row)}
     progress={status.phase === "downloading"

@@ -3,7 +3,8 @@
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
 Status: opis zaimplementowanego kodu (2026-11-26), w tym postępu pobierania binarek
-workerów i samodzielnego gatewaya w web i Electronie, szybkich akcji w popoverze
+workerów i samodzielnego gatewaya w web i Electronie, animacji cyfr procentu
+pobierania aplikacji desktopowej, szybkich akcji w popoverze
 web i Electron oraz wspólnej sekcji App updates w web, Electronie i na telefonie,
 kolejkowania tur od przyjęcia aktualizacji
 gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
@@ -227,6 +228,10 @@ Samodzielny gateway pokazuje postęp pobierania własnej binarki po przygotowani
 mirrora. Przed otrzymaniem pierwszych bajtów i przy starszym workerze bez pomiaru
 pasek sygnalizuje aktywność bez wskazania ilości. Pasek zbiorczy nadal liczy
 zakończone kroki Update all.
+
+W wierszu pobierania bieżącej aplikacji desktopowej zmieniające się cyfry procentu
+wysuwają się do góry, a nowe sprężyście wskakują od dołu. Etykieta i znak
+procentu pozostają na miejscu. Przy ograniczonym ruchu procent odświeża się od razu.
 
 Zamrożony `canopy.update.v1` przenosi procent jako `N%` w istniejącym polu `reason`
 raportu `downloading`. Gateway przyjmuje rosnący postęp bieżącego polecenia
