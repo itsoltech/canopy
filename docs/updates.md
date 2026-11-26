@@ -2,8 +2,9 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-25), w tym wspólnej sekcji App updates
-w web, Electronie i na telefonie, kolejkowania tur od przyjęcia aktualizacji
+Status: opis zaimplementowanego kodu (2026-11-26), w tym szybkich akcji w popoverze
+web i Electron oraz wspólnej sekcji App updates w web, Electronie i na telefonie,
+kolejkowania tur od przyjęcia aktualizacji
 gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
 desktopu, kompaktowego powiadomienia po aktualizacji, raportowania startu i zamykania gatewaya oraz etapów przygotowania,
 pobierania i ponownego łączenia workera,
@@ -132,10 +133,15 @@ przywracał odrzuconego błędu.
 Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
 
 W web i Electronie ikona Updates w stopce wskazuje dostępność, postęp pobierania,
-gotowość do restartu lub błąd. Najechanie albo kliknięcie otwiera podsumowanie.
-Odnośnik prowadzi do Status w Settings → App updates. Nieobejrzane notatki można
-otworzyć bezpośrednio z podsumowania. Pozostałe panele stopki (Usage, Workers
-i Provider usage) współdzielą z nim obsługę najechania, przypinania i zamknięcia.
+gotowość do restartu lub błąd. Kliknięcie albo najechanie myszą w szerszym oknie
+otwiera popover. W nagłówku **Check now** sprawdza te same instalacje co przycisk
+w ustawieniach, także samą aplikację przy niezgodnym gatewayu. Przewijana lista
+pokazuje wersje, postęp i akcje poszczególnych instalacji. Stopka udostępnia
+**Update all**, **Retry failed** albo **Restart to update** dla pobranej lokalnej
+aplikacji. Akcje korzystają z tych samych warunków i potwierdzeń co ustawienia.
+**Settings** otwiera Status w **App updates**, a **What's new** pokazuje
+nieobejrzane notatki. Pozostałe panele stopki (Usage, Workers i Provider usage)
+współdzielą z popoverem obsługę najechania, przypinania i zamknięcia.
 
 Telefon, web i zdalny tryb Electron pokazują nazwę podłączonego komputera oraz te same
 akcje i stany aplikacji co dla partnerów. `UpdatesSnapshot.app_update_supported`

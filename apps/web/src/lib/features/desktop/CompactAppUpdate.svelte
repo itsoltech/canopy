@@ -16,6 +16,8 @@
     center,
     bundled = false,
     worker,
+    compact = false,
+    restartInFooter = false,
     class: className,
   }: {
     updates: DesktopUpdatesState;
@@ -24,6 +26,8 @@
     bundled?: boolean;
     /** This app's worker on a remote gateway, matched by the enrolled worker ID. */
     worker?: ui.WorkerUpdate | undefined;
+    compact?: boolean;
+    restartInFooter?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -119,6 +123,7 @@
 {#if status}
   <UpdateItem
     name={worker?.name || (bundled ? "This Canopy app" : "This computer")}
+    wrapName={compact}
     icon="computer-desktop"
     current={status.version}
     {target}
@@ -143,17 +148,19 @@
   >
     {#snippet action()}
       {#if row === "downloaded" || (ready && (row === "failed" || downloading))}
-        <IconButton
-          icon="power"
-          size="sm"
-          label="Restart to update"
-          tooltipText={status.phase === "checking" || status.phase === "downloading"
-            ? "Restart to update after this download. Agents running on this computer stop."
-            : "Restart to update. Agents running on this computer stop."}
-          disabled={!!status.changingChannel || gatewayBusy}
-          loading={updates.restarting}
-          onclick={() => void updates.run()}
-        />
+        {#if !restartInFooter}
+          <IconButton
+            icon="power"
+            size="sm"
+            label="Restart to update"
+            tooltipText={status.phase === "checking" || status.phase === "downloading"
+              ? "Restart to update after this download. Agents running on this computer stop."
+              : "Restart to update. Agents running on this computer stop."}
+            disabled={!!status.changingChannel || gatewayBusy}
+            loading={updates.restarting}
+            onclick={() => void updates.run()}
+          />
+        {/if}
       {:else if row === "failed" && step < 0}
         <IconButton
           icon="repeat"
@@ -207,23 +214,27 @@
       {/if}
     {/snippet}
   </UpdateItem>
-  <div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
-    <p>{status.buildChannel} build{bundled ? " · Includes this computer’s gateway and worker." : ""}</p>
-    {#if info}<p class="break-anywhere">{info}</p>{/if}
-    {#if ready}
-      <p>
-        {downloading
-          ? "Restart waits for the download, then stops agents running on this computer."
-          : "Restarting stops the agents running on this computer."}
-      </p>
-    {/if}
-    {#if row !== "failed" && (updates.error || status.error)}<p
-        class="break-anywhere text-rose-600 dark:text-rose-400"
-        role="status"
-      >
-        {updates.error || status.error}
-      </p>{/if}
-  </div>
+  {#if !compact || info || ready || (row !== "failed" && (updates.error || status.error))}
+    <div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
+      {#if !compact}<p>
+          {status.buildChannel} build{bundled ? " · Includes this computer’s gateway and worker." : ""}
+        </p>{/if}
+      {#if info}<p class="break-anywhere">{info}</p>{/if}
+      {#if ready}
+        <p>
+          {downloading
+            ? "Restart waits for the download, then stops agents running on this computer."
+            : "Restarting stops the agents running on this computer."}
+        </p>
+      {/if}
+      {#if row !== "failed" && (updates.error || status.error)}<p
+          class="break-anywhere text-rose-600 dark:text-rose-400"
+          role="status"
+        >
+          {updates.error || status.error}
+        </p>{/if}
+    </div>
+  {/if}
 {:else if updates.error}<p
     class={["break-anywhere text-sm/5 text-rose-600 dark:text-rose-400", className]}
     role="status"

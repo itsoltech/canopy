@@ -2,14 +2,14 @@
   import type { ClassValue } from "svelte/elements";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
   import { isRateLimitMessage } from "@canopy/domain/release/http";
   import UpdateActionButton from "./UpdateActionButton.svelte";
+  import UpdateCheckButton from "./UpdateCheckButton.svelte";
   import UpdateRows from "./UpdateRows.svelte";
   import UpdateRun from "./UpdateRun.svelte";
-  import { type UpdatesState, updateBusy } from "./updates.svelte.ts";
+  import type { UpdatesState } from "./updates.svelte.ts";
   import { updatesHeadline } from "./updates-headline.ts";
 
   let {
@@ -29,42 +29,6 @@
   const error = $derived(
     (updates.readable && (updates.error || (!updates.gatewayTransition && snapshot?.checkError))) || "",
   );
-
-  const canCheckGateway = $derived(
-    updates.readable &&
-      !updates.gatewayTransition &&
-      !updates.pending &&
-      !snapshot?.checking &&
-      !updateBusy(snapshot?.gatewayState ?? ""),
-  );
-
-  const canCheckApp = $derived(
-    (!!app.status || !!window.canopyDesktop?.checkForUpdates) &&
-      !app.pending &&
-      !app.restarting &&
-      !app.status?.changingChannel &&
-      !["disabled", "downloading", "checking"].includes(app.status?.phase ?? ""),
-  );
-
-  let checkingAll = $state(false);
-
-  async function check() {
-    if (checkingAll) return;
-    checkingAll = true;
-
-    try {
-      await Promise.all([
-        canCheckGateway
-          ? updates.writable && (snapshot?.admin || snapshot?.gatewayBundled)
-            ? updates.manage({ action: "check" })
-            : updates.reload()
-          : undefined,
-        canCheckApp ? app.check() : undefined,
-      ]);
-    } finally {
-      checkingAll = false;
-    }
-  }
 </script>
 
 {#if updates.readable || app.status || app.error}
@@ -72,12 +36,7 @@
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2">
       <p class="min-w-0 text-sm/5 font-medium tabular-nums" role="status">{headline.text}</p>
       <div class="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          disabled={!canCheckGateway && !canCheckApp}
-          loading={checkingAll || (checking && !canCheckGateway && !canCheckApp)}
-          onclick={() => void check()}>Check for updates</Button
-        >
+        <UpdateCheckButton {updates} {app} />
         <UpdateActionButton {updates} variant="primary" />
       </div>
     </div>

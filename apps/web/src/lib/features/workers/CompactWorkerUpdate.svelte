@@ -22,6 +22,7 @@
     updates,
     home,
     nodeId = "",
+    wrapName = false,
     class: className,
   }: {
     worker: ui.WorkerUpdate;
@@ -30,6 +31,7 @@
     home?: ui.UpdatesSnapshot | undefined;
     /** The linked computer the worker belongs to; empty for this computer. */
     nodeId?: string;
+    wrapName?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -104,6 +106,7 @@
 
 <UpdateItem
   name={worker.name}
+  {wrapName}
   icon={desktop ? "computer-desktop" : "server"}
   current={desktop?.version || worker.version}
   target={offline ? "" : target}

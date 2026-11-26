@@ -16,8 +16,15 @@
     computer,
     updates,
     local = false,
+    compact = false,
     class: className,
-  }: { computer: ui.ComputerUpdate; updates: UpdatesState; local?: boolean; class?: ClassValue } = $props();
+  }: {
+    computer: ui.ComputerUpdate;
+    updates: UpdatesState;
+    local?: boolean;
+    compact?: boolean;
+    class?: ClassValue;
+  } = $props();
 
   // An announced restart warns only when overdue: the row rechecks the time while it lasts.
   let now = $state(Date.now());
@@ -67,6 +74,7 @@
 <!-- A computer's Canopy app: its own gateway and worker update with it (docs/updates.md). -->
 <UpdateItem
   name={computer.name}
+  wrapName={compact}
   icon="computer-desktop"
   current={app?.version || computer.version}
   target={view.target}
@@ -115,30 +123,34 @@
   {/snippet}
 </UpdateItem>
 
-<div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
-  {#if local}<p>Includes this computer’s gateway and worker.</p>{/if}
-  {#if view.detail && !failed && !line}<p class="break-anywhere">{view.detail}</p>{/if}
-  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-    {#if app}
-      <span class="tabular-nums"
-        >{app.channel ? `${app.channel} · ` : ""}{updateCheckLabel(app.lastCheckedAtMs, presenceTime)}</span
-      >
-    {/if}
-    {#if !local && computer.remoteUpdate}
-      <Button
-        size="sm"
-        variant="text"
-        aria-label={`Check ${computer.name} for updates`}
-        loading={checking}
-        disabled={!updates.writable ||
-          !!updates.pending ||
-          updates.gatewayTransition ||
-          computer.presence !== "connected" ||
-          !app?.connected}
-        onclick={() => void check()}>Check now</Button
-      >
+{#if !compact || (view.detail && !failed && !line)}
+  <div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
+    {#if !compact && local}<p>Includes this computer’s gateway and worker.</p>{/if}
+    {#if view.detail && !failed && !line}<p class="break-anywhere">{view.detail}</p>{/if}
+    {#if !compact}
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {#if app}
+          <span class="tabular-nums"
+            >{app.channel ? `${app.channel} · ` : ""}{updateCheckLabel(app.lastCheckedAtMs, presenceTime)}</span
+          >
+        {/if}
+        {#if !local && computer.remoteUpdate}
+          <Button
+            size="sm"
+            variant="text"
+            aria-label={`Check ${computer.name} for updates`}
+            loading={checking}
+            disabled={!updates.writable ||
+              !!updates.pending ||
+              updates.gatewayTransition ||
+              computer.presence !== "connected" ||
+              !app?.connected}
+            onclick={() => void check()}>Check now</Button
+          >
+        {/if}
+      </div>
     {/if}
   </div>
-</div>
+{/if}
 
 <AppUpdateConfirmation bind:open={confirming} {computer} {updates} />
