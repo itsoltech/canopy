@@ -214,4 +214,5 @@ export const expectedSchemaMigrations = [
   "217_show_video",
   "218_start_thread",
   "219_thread_task_lists",
+  "220_slack_channel_context",
 ];

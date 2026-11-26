@@ -44,6 +44,7 @@ mkdirSync(join(home, "sessions"), { recursive: true });
 recordProbe("codex", "spawn");
 
 const providers = new Map<string, string>();
+const ephemeral = new Set<string>();
 
 // App-server checks both routes at turn admission, beyond accepting modelProvider on start/resume.
 const currentProvider =
@@ -133,6 +134,19 @@ async function turn(
   await releaseProbe(text);
 
   if (interrupted.delete(turnId)) return;
+  const generated = process.env["FIXTURE_GENERATION_RESPONSE"];
+
+  if (generated && ephemeral.has(threadId)) {
+    notify("item/completed", {
+      threadId,
+      turnId,
+      item: { id: `answer-${turnId}`, type: "agentMessage", text: generated },
+    });
+    notify("turn/completed", { threadId, turn: { id: turnId, status: "completed", items: [], error: null } });
+
+    return;
+  }
+
   const failure = process.env["BOT_TRACE"] ? botFailure(text) : undefined;
 
   if (failure) {
@@ -311,6 +325,8 @@ for await (const line of createInterface({ input: process.stdin })) {
 
     writeFileSync(file, "{}");
     providers.set(session, params.modelProvider);
+
+    if (params.ephemeral) ephemeral.add(session);
     instructions.set(session, params.baseInstructions ?? "");
 
     if (params.config) botServers.set(session, codexBotConfig(params.config));

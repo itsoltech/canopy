@@ -28,7 +28,7 @@ interface MaterializeOptions {
 }
 
 const types =
-  /^(?:bigint|boolean|bytea|character varying(?:\(\d+\))?|date|double precision|integer|interval|jsonb?|numeric(?:\(\d+,\d+\))?|real|smallint|text|time(?:stamp)?(?:\([0-6]\))? (?:without|with) time zone|uuid)(?:\[\])?$/;
+  /^(?:bigint|boolean|bytea|character varying(?:\(\d+\))?|date|double precision|integer|interval|jsonb?|numeric(?:\(\d+,\d+\))?|real|smallint|text|time(?:stamp)?(?:\([0-6]\))? (?:without|with) time zone|tsvector|uuid)(?:\[\])?$/;
 
 const additionalTables = {
   config_items: "owner_user_id uuid NOT NULL,kind text NOT NULL,local_id text NOT NULL,global_id text NOT NULL",

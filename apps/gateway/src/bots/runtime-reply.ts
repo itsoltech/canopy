@@ -13,17 +13,28 @@ export async function botModelContext(runtime: BotsRuntime, options: BotRuntimeO
 
   const access = await runtime.run((s) => s.memoryAccess(options.userId, turn));
   const tools = await currentBotTools(options, config, turn, access);
-  const isolatedInput = !access.scopes.length && !turn.reaction_input;
-  const memory = await memoryContext(options.runtime, options.userId, access.scopes, botMemoryQuery(access, turn));
+  const isolatedInput = !turn.conversation_id && !access.scopes.length && !turn.reaction_input;
+
+  const channel = await runtime.run((s) =>
+    s.slackTurnContext(options.userId, turn, Boolean(options.model || !options.harness)),
+  );
+
+  const memory =
+    channel.background ||
+    (await memoryContext(options.runtime, options.userId, access.scopes, botMemoryQuery(access, turn)));
+
+  const slackContextKey = channel.enabled ? turn.id : (turn.slack_context_epoch?.toString() ?? "");
   const guidance = botMemoryGuidance(access, turn);
 
   const saved = isolatedInput ? isolatedBotCheckpoint(turn.checkpoint) : turn.checkpoint;
 
   const messages = [
-    ...(saved.length ? saved : await runtime.run((s) => s.history(turn, isolatedInput, access.ownerInput))),
+    ...(saved.length
+      ? saved
+      : await runtime.run((s) => s.history(turn, isolatedInput || channel.enabled, access.ownerInput))),
   ];
 
-  return { config, tools, isolatedInput, memory, guidance, messages };
+  return { config, tools, isolatedInput, slackContextKey, memory, guidance, messages };
 }
 
 /** Compose model identity and only the internal handoff authorized for this recipient. */

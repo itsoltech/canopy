@@ -37,9 +37,9 @@ function priorWakeupTurns(sql: SqlClient.SqlClient, turn: BotTurn) {
 export async function botThreadAudience(core: GatewayCore, turn: BotTurn): Promise<string> {
   const { actions, options } = core[coreState];
   const access = await actions.run(SqlClient.SqlClient.use((sql) => botMemoryAccess(sql, options.userId, turn)));
-  const scope = access.scopes[0];
 
-  if (scope?.kind === "conversation") return `conversation:${scope.botId}:${scope.conversationId}`;
+  if (access.conversationId) return `conversation:${turn.bot_id}:${access.conversationId}`;
+  const scope = access.scopes[0];
 
   if (scope?.kind === "bot" && access.canWrite) return "";
 

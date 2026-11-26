@@ -46,11 +46,15 @@ export interface MessengerRoute {
   directMessages: boolean;
   mentions: boolean;
   observe: boolean;
+  channelContext: boolean;
   delivery: "reply" | "notify";
   instructions: string;
 }
 
-export type SaveMessengerRoute = Omit<MessengerRoute, "id"> & { id?: string };
+export type SaveMessengerRoute = Omit<MessengerRoute, "id" | "channelContext"> & {
+  id?: string;
+  channelContext?: boolean;
+};
 
 export interface AccountLease {
   accountId: string;
@@ -69,6 +73,8 @@ export interface MessengerEvent {
   text: string;
   fileIds?: readonly string[];
   timestamp: string;
+  editedTimestamp?: string;
+  ownMutation?: boolean;
   mention: boolean;
   direct: boolean;
   kind?: "message" | "edit" | "delete";
@@ -105,6 +111,8 @@ export interface OutboundResult {
   /** Provider explicitly refused the write, so it is known not to have been sent. */
   refused?: boolean;
   sent: boolean;
+  channelId?: string;
+  messageId?: string;
   retryAfterMs?: number;
   uncertain?: boolean;
 }
@@ -127,6 +135,7 @@ export interface RouteRow {
   direct_messages: boolean;
   mentions: boolean;
   observe: boolean;
+  channel_context: boolean;
   delivery: "reply" | "notify";
   instructions: string;
 }

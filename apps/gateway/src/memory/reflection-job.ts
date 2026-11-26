@@ -3,7 +3,7 @@ import { SqlClient } from "effect/sql";
 import { coreState } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
 import { ownerModule } from "../store/module-access.ts";
-import { reflectionGenerate, reflectionTarget } from "./reflection-generation.ts";
+import { reflectionGenerate, textGenerationTarget } from "./reflection-generation.ts";
 import { saveReflectionProposal } from "./reflection-job-evidence.ts";
 import { reflectionBatch, reflectionProposals } from "./reflection-prompt.ts";
 import { checkSources, recordSources, reflectionSources, type ReflectionSettings } from "./reflection-source.ts";
@@ -173,7 +173,7 @@ export async function tickReflection(core: GatewayCore, now = new Date()) {
 
   if (!run) return;
 
-  const target = await reflectionTarget(core, run.settings);
+  const target = await textGenerationTarget(core, run.settings);
 
   if (relocation?.draining) return;
 

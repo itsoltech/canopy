@@ -7,6 +7,7 @@ import type { OutboxRow } from "./rows.ts";
 import { storageJson } from "./event-text.ts";
 import { queryFamily } from "../diagnostics/query-context.ts";
 import { lockModuleAdmission, ownerModule } from "./module-access.ts";
+import { activeChannelTurn, lockChannelAccount } from "../messengers/conversation-access.ts";
 import { retryTurnStart } from "./retry-turn-start.ts";
 
 export interface PendingCommand {
@@ -32,6 +33,22 @@ export interface OutboxStore {
   retryTurnStart(commandId: string, result: JsonValue): Fx<Command | undefined>;
   /** Recheck lifecycle after a retry delay or reconnect, before handing a start to the worker. */
   turnStartDispatchable(commandId: string): Fx<boolean>;
+}
+
+function admitBotCommand(sql: SqlClient.SqlClient, commandId: string, turnId: string) {
+  return Effect.gen(function* () {
+    const [turn] = yield* sql<{ conversation_id: string | null }>`SELECT conversation_id FROM bot_turns
+      WHERE id=${turnId}::uuid`;
+
+    if (!turn?.conversation_id) return true;
+    yield* lockChannelAccount(sql, turn.conversation_id);
+
+    if (yield* activeChannelTurn(sql, turnId)) return true;
+    yield* sql`UPDATE worker_commands SET status='failed',result='{"errorCode":"TURN_NOT_RUNNING"}'::jsonb
+      WHERE id=${commandId}::uuid AND status IN ('pending','delivered')`;
+
+    return false;
+  });
 }
 
 export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
@@ -78,6 +95,12 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
               sql`(SELECT entity.owner_user_id FROM worker_commands c ${entity}
             WHERE c.id = ${command.commandId}::uuid)`,
             );
+
+            if (
+              command.kind.case === "runBotTurn" &&
+              !(yield* admitBotCommand(sql, command.commandId, command.kind.value.turnId))
+            )
+              return undefined;
 
             const pending = yield* sql`SELECT c.id FROM worker_commands c ${entity}
             WHERE c.id = ${command.commandId}::uuid AND c.status IN ('pending','delivered')

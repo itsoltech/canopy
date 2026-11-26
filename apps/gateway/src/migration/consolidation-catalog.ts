@@ -2,7 +2,7 @@ import { POSTGRES_MAX_MESSAGE_BYTES } from "@canopy/db";
 import { PgClient } from "@effect/sql-pg";
 import { Effect, Redacted } from "effect";
 import type { SqlClient } from "effect/sql";
-import { coveredTables, importTables, type ImportTable } from "./consolidation-tables.ts";
+import { coveredTables, importTables, SLACK_CONTEXT_MIGRATION, type ImportTable } from "./consolidation-tables.ts";
 import { consolidationDigest, consolidationError } from "./consolidation-types.ts";
 
 export type Database = SqlClient.SqlClient;
@@ -127,6 +127,8 @@ export function consolidationCatalog(sql: Database) {
 
     for (const spec of importTables) {
       const table = tables.find(({ name }) => name === spec.name);
+
+      if (!table && spec.sinceMigration && id < spec.sinceMigration) continue;
       const key = spec.name === "worktree_settings" ? ["owner_user_id", "project_id", "worker_id"] : table?.key;
 
       if (!table || !key?.length)
@@ -150,9 +152,11 @@ export function consolidationCatalog(sql: Database) {
 
     // Keep the table allowlist closed to columns and FKs introduced without a reviewed import policy.
     const expectedSignature =
-      id >= 216
-        ? "d9308c1a668ad42ea980e1afa7845a59aca8ec180f0e8b116b7a0fd14ebf8fed"
-        : "ec01736abf5e3a5ba0791405cf373c64a1fd9771e6ca11fd84128c98cd9793b0";
+      id >= SLACK_CONTEXT_MIGRATION
+        ? "1397f1da55d4fbd515d6f37e03688cd24158bc8db1f3b80fb4f4ddcf828a5e5c"
+        : id >= 216
+          ? "d9308c1a668ad42ea980e1afa7845a59aca8ec180f0e8b116b7a0fd14ebf8fed"
+          : "ec01736abf5e3a5ba0791405cf373c64a1fd9771e6ca11fd84128c98cd9793b0";
 
     if (signature !== expectedSignature)
       return yield* Effect.fail(

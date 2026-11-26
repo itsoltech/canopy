@@ -50,6 +50,7 @@ export interface ModelReply {
 export interface ModelInput {
   turn?: BotTurn;
   memoryContext?: string;
+  slackContextKey?: string;
   isolatedInput?: boolean;
   configuration: bots.BotConfiguration;
   instructions: string;
@@ -92,6 +93,7 @@ export interface BotTurn {
   client_request_id: string;
   /** Null for the private owner conversation; external history is scoped to this UUID. */
   conversation_id?: string | null;
+  slack_context_epoch?: string | bigint | null;
   id: string;
   bot_id: string;
   input: string;

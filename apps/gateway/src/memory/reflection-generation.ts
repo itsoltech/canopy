@@ -18,7 +18,11 @@ function smallTier(provider: Provider, id: string) {
   return /\bmini\b/i.test(id) ? 1 : Infinity;
 }
 
-function reflectionModel(catalog: ProfileModels, settings: ReflectionSettings) {
+type ModelSelection = Pick<ReflectionSettings, "model" | "effort">;
+
+type GenerationProfile = ModelSelection & Pick<ReflectionSettings, "owner_user_id" | "provider" | "profile_id">;
+
+function reflectionModel(catalog: ProfileModels, settings: ModelSelection) {
   const listed = catalog.models.filter(
     (model) => model.id && !model.hidden && (!settings.effort || model.efforts.includes(settings.effort)),
   );
@@ -51,13 +55,17 @@ interface GenerationTarget {
   effort: string;
 }
 
-export async function reflectionTarget(
+export async function textGenerationTarget(
   core: GatewayCore,
-  settings: ReflectionSettings,
+  settings: GenerationProfile,
+  preferred?: ModelSelection & { workerId?: string },
 ): Promise<GenerationTarget | undefined> {
   const connections = new Map(
     [...core.link.connections].filter(
-      ([, connection]) => connection.isOpen && connection.hello.capabilities.includes("generate_text"),
+      ([id, connection]) =>
+        (!preferred?.workerId || id === preferred.workerId) &&
+        connection.isOpen &&
+        connection.hello.capabilities.includes("generate_text"),
     ),
   );
 
@@ -75,7 +83,7 @@ export async function reflectionTarget(
     const connection = connections.get(worker.id);
 
     if (!connection?.isOpen) continue;
-    const choice = reflectionModel(profile, settings);
+    const choice = reflectionModel(profile, settings) ?? (preferred && reflectionModel(profile, preferred));
 
     if (choice) return { worker, connection, provider, profileId, ...choice };
   }

@@ -98,6 +98,7 @@ export async function startInstanceFixture(
     CLAUDE_LIVE_PERMISSIONS_CAPABILITY,
     AGENT_TOOL_ATTACHMENTS_CAPABILITY,
     "bot_harness_v1",
+    "generate_text",
     "bot_conversations_v1",
     "bot_steer_v1",
     "bot_web_v1",

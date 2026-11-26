@@ -18,6 +18,7 @@ import { SERVICE_TIERS_UNSUPPORTED, supportsServiceTier } from "./service-tier-c
 const configurationKey = (
   configuration: ModelInput["configuration"],
   conversation?: { instructions: string; delivery: "reply" | "notify" },
+  slackContextKey?: string,
 ) =>
   createHash("sha256")
     .update(
@@ -27,6 +28,7 @@ const configurationKey = (
         approvalPolicy: configuration.approvalPolicy,
         webAccess: configuration.webAccess ?? true,
         files: configuration.files ?? true,
+        slackContextKey: slackContextKey || undefined,
         conversation: conversation && { instructions: conversation.instructions, delivery: conversation.delivery },
       }),
     )
@@ -215,6 +217,11 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
     const { images, sourceAttachments } = await botTurnInput(core, input, workerId, turn);
     const conversation = await run((s) => s.conversationContext(turn));
 
+    const memory =
+      input.slackContextKey === turn.id
+        ? (await run((s) => s.slackTurnContext(core[coreState].options.userId, turn))).background
+        : (input.memoryContext ?? "");
+
     const command = await run((s) =>
       s.harnessCommand(
         turn,
@@ -232,8 +239,9 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
               effort: input.configuration.effort,
               serviceTier: input.configuration.serviceTier,
               instructions: input.instructions,
-              configurationKey: configurationKey(input.configuration, conversation),
-              memoryContext: input.memoryContext ?? "",
+              // Past channel excerpts are never replayed from a native session after a source changes.
+              configurationKey: configurationKey(input.configuration, conversation, input.slackContextKey),
+              memoryContext: memory,
               // Each relay gets an isolated provider home and workspace, including on older conversation-aware workers.
               conversationId: input.isolatedInput ? turn.id : (turn.conversation_id ?? ""),
               webAccess: !turn.handoff_configuration && !turn.reaction_input && (input.configuration.webAccess ?? true),

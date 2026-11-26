@@ -36,6 +36,7 @@ export interface RoutineOrigin {
   routineId?: string;
   routineTitle?: string;
   conversationId?: string;
+  slackContextEpoch?: string | bigint | null;
 }
 
 export interface RoutinePatch {
@@ -81,10 +82,13 @@ export const routineView = (r: RoutineRow) =>
   });
 
 export const originOf = (
-  turn: Pick<BotTurn, "routine_id" | "routine_title" | "conversation_id"> | undefined,
+  turn: Pick<BotTurn, "routine_id" | "routine_title" | "conversation_id" | "slack_context_epoch"> | undefined,
 ): RoutineOrigin => ({
   ...(turn?.routine_id && { routineId: turn.routine_id, routineTitle: turn.routine_title }),
-  ...(turn?.conversation_id && { conversationId: turn.conversation_id }),
+  ...(turn?.conversation_id && {
+    conversationId: turn.conversation_id,
+    slackContextEpoch: turn.slack_context_epoch ?? null,
+  }),
 });
 
 const checked = (patch: RoutinePatch, now: Date) =>

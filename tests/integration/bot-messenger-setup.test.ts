@@ -166,7 +166,15 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
 
   async function historyFixture() {
     const { bot, account, turn } = await fixture();
-    const args = { ...subscription(account.id), channel_ids: ["CPRODUCT", "COPS"], delivery: "reply", observe: false };
+
+    const args = {
+      ...subscription(account.id),
+      channel_ids: ["CPRODUCT", "COPS"],
+      delivery: "reply",
+      observe: false,
+      channel_context: false,
+    };
+
     await call(turn, "save_messenger_subscription", args);
     await finish(turn);
     const now = new Date();
@@ -326,11 +334,13 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
       expect(accounts).not.toContain("xoxb-");
       const args = subscription(f.account.id);
       const key = Bun.randomUUIDv7();
-      const first = await call(f.turn, "save_messenger_subscription", args, key);
+      const optedOut = { ...args, channel_context: false };
+      const first = await call(f.turn, "save_messenger_subscription", optedOut, key);
       await botStore((s) => s.release(f.turn));
       f.turn = (await botStore((s) => s.claim(gw.userId)))!;
-      expect(await call(f.turn, "save_messenger_subscription", args, key)).toEqual(first);
+      expect(await call(f.turn, "save_messenger_subscription", optedOut, key)).toEqual(first);
       const [route] = await messenger((s) => s.routes(gw.userId, f.bot.id));
+      expect(route!.channelContext).toBe(false);
       expect(route!.instructions).toBe(args["instructions"]);
 
       const revised = {
@@ -345,8 +355,9 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
       expect(routes).toHaveLength(1);
       expect(routes[0]!.id).toBe(route!.id);
       expect(routes[0]!.instructions).toBe(revised.instructions);
+      expect(routes[0]!.channelContext).toBe(false);
       expect(routes[0]!.delivery).toBe("reply");
-      expect(await call(f.turn, "save_messenger_subscription", args, key)).toEqual(first);
+      expect(await call(f.turn, "save_messenger_subscription", optedOut, key)).toEqual(first);
       expect((await messenger((s) => s.routes(gw.userId, f.bot.id)))[0]!.instructions).toBe(revised.instructions);
       expect(JSON.stringify(await call(f.turn, "list_messenger_subscriptions"))).toContain(revised.instructions);
       const stopKey = Bun.randomUUIDv7();

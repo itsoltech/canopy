@@ -20,6 +20,7 @@ export function botHistory(
   return sql<HistoryRow>`WITH history_turns AS (
     SELECT id, input, created_at FROM bot_turns t
     WHERE bot_id=${turn.bot_id}::uuid AND conversation_id IS NOT DISTINCT FROM ${turn.conversation_id ?? null}::uuid
+      AND slack_context_epoch IS NOT DISTINCT FROM ${turn.slack_context_epoch?.toString() ?? null}::bigint
       AND (NOT ${currentTurnOnly} OR id=${turn.id}::uuid)
       AND (${Boolean(turn.handoff_configuration)} OR (created_at,id) <= (SELECT created_at,id FROM bot_turns WHERE id=${turn.id}::uuid))
   ), entries AS (

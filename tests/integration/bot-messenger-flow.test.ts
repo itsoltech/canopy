@@ -116,6 +116,7 @@ test.skipIf(!dockerAvailable)(
             userIds: ["UOWNER"],
             directMessages: false,
             mentions: true,
+            channelContext: false,
             observe: false,
             delivery: "reply",
             instructions: "Answer the conversation.",

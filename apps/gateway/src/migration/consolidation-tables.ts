@@ -5,12 +5,15 @@ export interface ImportTable {
   name: string;
   filter: string;
   secret?: string;
+  sinceMigration?: number;
   // Merge scopes are resolved against the selected target owner before rebasing its ID.
   matchAfterRebase?: boolean;
   merge?: { owner: string; match: string; update: readonly string[] };
   sequence?: "id" | "seq";
   idKind?: string;
 }
+
+export const SLACK_CONTEXT_MIGRATION = 220;
 
 const owned = "s.owner_user_id=$1::uuid";
 
@@ -295,6 +298,11 @@ export const importTables: readonly ImportTable[] = [
   { name: "messenger_accounts", filter: owned, secret: "credentials" },
   { name: "bot_channel_routes", filter: `${owned} AND ${bot()}` },
   { name: "bot_channel_conversations", filter: botChannel() },
+  ...["slack_channel_contexts", "slack_channel_context_messages", "slack_channel_topics"].map((name) => ({
+    name,
+    filter: botChannel(),
+    sinceMigration: SLACK_CONTEXT_MIGRATION,
+  })),
   ...memoryImportTables,
   { name: "bot_channel_inputs", filter: botChannel(true) },
   { name: "bot_channel_messages", filter: botChannel(true), sequence: "id" },

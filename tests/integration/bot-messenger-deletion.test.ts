@@ -247,6 +247,7 @@ test.skipIf(!dockerAvailable)(
             botId,
             accountId,
             channelIds: [channelId],
+            channelContext: false,
             userIds: ["UOWNER"],
             mentions: true,
             delivery: "reply",

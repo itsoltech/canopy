@@ -4,7 +4,7 @@ export type MemoryScope =
   | { kind: "project"; projectId: string }
   | { kind: "worker"; projectId: string; workerId: string }
   | { kind: "bot"; botId: string }
-  | { kind: "conversation"; botId: string; conversationId: string };
+  | { kind: "conversation"; botId: string; conversationId: string; slackContextEpoch?: string };
 
 export interface MemoryDraft {
   title: string;
@@ -60,12 +60,14 @@ export function scopeKey(scope: MemoryScope) {
     case "bot":
       return `bot:${uuid(scope.botId)}`;
     case "conversation":
-      return `conversation:${uuid(scope.botId)}:${uuid(scope.conversationId)}`;
+      return [`conversation:${uuid(scope.botId)}:${uuid(scope.conversationId)}`, scope.slackContextEpoch]
+        .filter(Boolean)
+        .join(":");
   }
 }
 
 export function scopeFromKey(key: string): MemoryScope {
-  const [kind, parent, child] = key.split(":");
+  const [kind, parent, child, slackContextEpoch] = key.split(":");
 
   if (parent) {
     if (kind === "project") return { kind, projectId: parent };
@@ -74,7 +76,8 @@ export function scopeFromKey(key: string): MemoryScope {
 
     if (kind === "bot") return { kind, botId: parent };
 
-    if (kind === "conversation" && child) return { kind, botId: parent, conversationId: child };
+    if (kind === "conversation" && child)
+      return { kind, botId: parent, conversationId: child, ...(slackContextEpoch && { slackContextEpoch }) };
   }
 
   throw new Error("Invalid stored memory scope.");

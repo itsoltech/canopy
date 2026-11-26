@@ -15,7 +15,7 @@ import { BOT_APPROVAL_OPTIONS } from "@canopy/domain/bot-chat";
 import { interruptBot } from "./store-interrupt.ts";
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { authorizeThreadAction } from "./thread-access.ts";
-import { activeConversation } from "../messengers/conversation-access.ts";
+import { activeChannelTurn, lockChannelAccount } from "../messengers/conversation-access.ts";
 import { canonicalJson } from "../store/instance-config.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
@@ -29,7 +29,10 @@ function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
 
 function requireExternalSource(sql: SqlClient.SqlClient, turn: BotTurn) {
   return Effect.gen(function* () {
-    if (turn.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id)))
+    if (!turn.conversation_id) return;
+    yield* lockChannelAccount(sql, turn.conversation_id);
+
+    if (!(yield* activeChannelTurn(sql, turn.id)))
       return yield* Effect.fail(new Invalid("External conversation is unavailable"));
   });
 }
@@ -68,7 +71,7 @@ function turnStatus(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, text
 
 function renewBotLease(sql: SqlClient.SqlClient, turn: BotTurn) {
   return Effect.gen(function* () {
-    if (turn.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id))) return false;
+    if (turn.conversation_id && !(yield* activeChannelTurn(sql, turn.id))) return false;
 
     return (
       (yield* sql`UPDATE bot_turns SET lease_until = now() + interval '30 seconds'

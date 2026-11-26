@@ -180,7 +180,7 @@ export class BotsRuntime {
         return;
       }
 
-      const { config, tools, isolatedInput, memory, guidance, messages } = await botModelContext(
+      const { config, tools, isolatedInput, slackContextKey, memory, guidance, messages } = await botModelContext(
         this,
         this.#options,
         turn,
@@ -227,6 +227,7 @@ export class BotsRuntime {
           turn,
           isolatedInput,
           memoryContext: memory,
+          slackContextKey,
           // A snapshot: model implementations may keep their input, and the loop appends to its own list.
           messages: [...messages],
           tools,

@@ -101,6 +101,7 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
         userIds: ["U123", "U456"],
         directMessages: true,
         mentions: true,
+        channelContext: false,
         observe: false,
         delivery: "reply",
         instructions: "Use a concise, helpful tone.",
@@ -289,8 +290,7 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     const listed = (await botRun((s) => s.list(owner))).find((bot) => bot.id === f.botId);
     expect(listed?.lastMessage?.text).toBe("PRIVATE ANSWER");
     const outgoing = await run((s) => s.outbound(owner, f.lease, f.at(6000)));
-    expect(outgoing).toHaveLength(1);
-    expect(outgoing[0]!.threadId).toBe("1700.000001");
+    expect(outgoing.map((reply) => reply.threadId)).toEqual(["1700.000001"]);
     expect(await run((s) => s.outbound(owner, f.lease, f.at(6000)))).toEqual([]);
     await run((s) => s.settleOutbound(owner, f.lease, outgoing[0]!.id, { sent: true }, f.at(6000)));
     expect(await run((s) => s.outbound(owner, f.lease, f.at(7000)))).toEqual([]);
