@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { View, type FlatListProps } from "react-native";
+import { Platform, View, type FlatListProps } from "react-native";
 import Animated, {
+  dispatchCommand,
   measure,
   scrollTo,
   useAnimatedRef,
@@ -12,6 +13,8 @@ import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 import type { useFollowingList } from "./useFollowingList";
 import { motion, useReducedMotion } from "./motion";
 import { disclosureOffset, disclosurePosition } from "./disclosure-anchor";
+
+const nativeMountAnchor = Platform.OS === "ios";
 
 /** One tapped header owns the manual disclosure transition. */
 class AnchorSession {
@@ -67,6 +70,11 @@ export function useFeedAnchor<Item>({
       anchoring,
       generation,
       track,
+      setNativeHeader: (tag: number) => {
+        "worklet";
+
+        if (nativeMountAnchor) dispatchCommand(list, "setCanopyDisclosureHeader", [tag]);
+      },
       scrollToOffset: (offset: number) => {
         "worklet";
         scrollTo(list, 0, offset, false);
@@ -137,8 +145,8 @@ export function useManualFeedAnchor() {
 }
 
 /**
- * Synchronous UI geometry replaces delayed JS measurements of possibly clipped cells. Only the tapped
- * header's frame callback runs. A drag cancels the correction; a newer tap supersedes the older session.
+ * iOS holds the tapped header during Fabric's mount transaction. Android corrects from UI geometry.
+ * Only the tapped header checks for completion. A drag or a different header supersedes the session.
  */
 export function useAnchoredToggle() {
   const anchor = useContext(Anchor);
@@ -146,6 +154,8 @@ export function useAnchoredToggle() {
   const header = useAnimatedRef<View>();
   const reduced = useReducedMotion();
   const origin = useSharedValue({ offset: 0, position: 0 });
+  const native = useSharedValue(false);
+  const lastPosition = useSharedValue(0);
   const started = useSharedValue(0);
   const version = useSharedValue(0);
   const stable = useSharedValue(0);
@@ -160,6 +170,8 @@ export function useAnchoredToggle() {
     if (!geometry) return;
     scheduleOnUI(() => {
       if (geometry.generation.get() !== id) return;
+
+      if (native.get()) geometry.setNativeHeader(0);
       geometry.anchoring.set(false);
       geometry.track(geometry.scrollY.get(), true);
     });
@@ -180,13 +192,20 @@ export function useAnchoredToggle() {
     }
 
     const position = disclosurePosition(frame.y, frame.height, frame.pageY, box.pageY);
-    stable.set(correctHeader(geometry, origin, position) ? stable.get() + 1 : 0);
+
+    const steady = native.get()
+      ? Math.abs(position - lastPosition.get()) < 0.5
+      : correctHeader(geometry, origin, position);
+
+    lastPosition.set(position);
+    stable.set(steady ? stable.get() + 1 : 0);
 
     const elapsed = Date.now() - started.get();
+    // Give the first lazy body mount time to begin before two unchanged frames can finish the hold.
+    const settleAfter = (reduced ? 0 : motion.fast) + (native.get() ? motion.quick : 0);
 
-    if ((elapsed >= (reduced ? 0 : motion.fast) && stable.get() >= 2) || elapsed >= motion.fast + motion.slow) {
+    if ((elapsed >= settleAfter && stable.get() >= 2) || elapsed >= motion.fast + motion.slow) {
       active.set(false);
-      geometry.anchoring.set(false);
       scheduleOnRN(finish, version.get());
     }
   }, false);
@@ -198,10 +217,13 @@ export function useAnchoredToggle() {
 
       if (!geometry) return;
       scheduleOnUI(() => {
-        if (geometry.generation.get() === version.get()) geometry.anchoring.set(false);
+        if (geometry.generation.get() !== version.get()) return;
+
+        if (native.get()) geometry.setNativeHeader(0);
+        geometry.anchoring.set(false);
       });
     },
-    [frames, anchor, version, geometry],
+    [frames, anchor, version, geometry, native],
   );
 
   return {
@@ -209,22 +231,29 @@ export function useAnchoredToggle() {
     toggle(change: () => void) {
       if (!anchor || !geometry || !cell) return change();
       const id = anchor.session.begin();
+      const tag = nativeMountAnchor ? (header.getTag?.() ?? 0) : 0;
       frames.setActive(true);
       scheduleOnUI(() => {
         const box = measure(header);
         const frame = measure(cell);
+        const reversal = active.get() && geometry.anchoring.get() && geometry.generation.get() === version.get();
         version.set(id);
         geometry.generation.set(id);
         stable.set(0);
         started.set(Date.now());
         active.set(Boolean(box && frame && box.height > 0));
+        native.set(active.get() && tag > 0);
         geometry.anchoring.set(active.get());
 
-        if (box && frame)
-          origin.set({
-            offset: geometry.scrollY.get(),
-            position: disclosurePosition(frame.y, frame.height, frame.pageY, box.pageY),
-          });
+        geometry.setNativeHeader(native.get() ? tag : 0);
+
+        if (box && frame) {
+          const position = disclosurePosition(frame.y, frame.height, frame.pageY, box.pageY);
+          lastPosition.set(position);
+
+          if (!reversal) origin.set({ offset: geometry.scrollY.get(), position });
+        }
+
         scheduleOnRN(change);
 
         if (!active.get()) scheduleOnRN(finish, id);

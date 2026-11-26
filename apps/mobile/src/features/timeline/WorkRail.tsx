@@ -51,7 +51,7 @@ const ToolGroup = memo(function ToolGroup({
         status={row.status}
         statusCount={row.statusCount}
         onToggle={() => {
-          choices.choose(row.key, !open);
+          choices.choose(row.key, !choices.open(row.key, !ended, expanded));
           setOpen((previous) => !previous);
         }}
       />

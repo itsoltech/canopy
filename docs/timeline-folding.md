@@ -12,6 +12,9 @@ zależy od kanału.
 Aktualizacja (2026-11-25): nowe karty visuals w web/desktop/mobile pojawiają się
 po zakończeniu swojej tury, tak samo jak galerie zdjęć i nagrania.
 
+Aktualizacja (2026-11-26): na iOS ręczne przełączenie utrzymuje pozycję nagłówka
+w transakcji, która zatwierdza zmianę rozmiaru foldu.
+
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
 przy przyjęciu wiadomości, przed wysłaniem `StartTurn`. Echo `user_message` od
 dostawcy zastępuje placeholder w tym samym miejscu, tuż po początku tury, nawet
@@ -180,4 +183,17 @@ po ich odczycie kotwica nadal wskazuje tę samą wiadomość.
 Rozwinięcie albo zwinięcie foldu, grupy narzędzi czy itemu ręcznie trzyma kliknięty nagłówek w tym samym miejscu ekranu: rośnie i maleje to, co jest pod nim, a treść nad nim się nie przesuwa. Dotyczy to także ostatniej tury przy czytelniku na końcu. Granicą jest dostępny zakres przewijania, np. zwinięcie całej treści poniżej wysokości viewportu. „Jump to latest” ponownie włącza śledzenie końca.
 
 - Web: `FeedRowView` podaje klucz wiersza nagłówka, strona wątku woła `VirtualFeed.keep(key)` przed `WorkFolds.toggle`, także dla ostatniego foldu. Ten sam kontrakt ma fixture długiego wątku. Automatyczne zmiany (odpowiedź wychodzi z foldu, nowy segment, koniec tury) trzymają dotychczasową kotwicę `VirtualFeed` i `hold(key)`.
-- Mobile: oś jest odwróconą `FlatList`, w której wiersz tury rośnie w stronę starszej treści. `ui/feed-anchor.tsx` zapisuje offset i pozycję nagłówka w treści przed zmianą. Pozycję wylicza z layoutu rzeczywistej komórki i różnicy pomiarów ekranowych nagłówka oraz komórki; wspólny, potencjalnie opóźniony checkpoint przewinięcia Fabric znosi się w tej różnicy. Każda klatka ustawia bezwzględny cel względem początku sesji, zamiast ponownie odejmować ten sam błąd od już skorygowanego offsetu. Natywne `maintainVisibleContentPosition` pozostaje skonfigurowane, bez autoscrollu podczas ręcznego przełączenia: wyłączenie i ponowne włączenie może użyć starej pozycji pierwszej widocznej komórki. `TimelineList` używa `createAnimatedComponent(FlatList)`, bo skrót `Animated.FlatList` zastępuje własny `CellRendererComponent`. Tylko przełączany nagłówek uruchamia callback klatki; gest przewijania, nowsze przełączenie i odmontowanie kończą poprzednią sesję. Kontener listy subskrybuje sam stan sesji; klucze, tablica tur i propsy pozostałych komórek zachowują tożsamość.
+- Mobile: oś jest odwróconą `FlatList`, w której wiersz tury rośnie w stronę starszej
+  treści. `ui/feed-anchor.tsx` przed zmianą zapisuje położenie dotkniętego nagłówka.
+  Tylko ten nagłówek uruchamia callback klatki. Gest przewijania, dotknięcie innego
+  nagłówka i odmontowanie kończą sesję. Szybkie odwrócenie tej samej animacji zachowuje
+  początkową kotwicę.
+  - iOS: scroll view mierzy nagłówek bezpośrednio względem treści i koryguje offset po
+    zamontowaniu zmian w tej samej transakcji Fabric. W trakcie sesji dotknięty nagłówek
+    zastępuje wybór pierwszej widocznej komórki. Poprawka jest częścią natywnej kompilacji
+    React Native i wymaga nowej kompilacji aplikacji.
+  - Android: pozycja wynika z layoutu komórki i różnicy jej pomiaru ekranowego oraz
+    pomiaru nagłówka. Bezwzględny cel nie zależy od opóźnionego checkpointu przewijania.
+    `maintainVisibleContentPosition` pozostaje skonfigurowane bez autoscrollu przy
+    ręcznym przełączeniu. `TimelineList` zachowuje własny `CellRendererComponent`
+    przez `createAnimatedComponent(FlatList)`.
