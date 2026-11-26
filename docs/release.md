@@ -6,6 +6,7 @@ Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z RES
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
 Aktualizacja (2026-11-26): natywne CI macOS wykonuje jeden wariant testu pakowania na runnerze danej architektury.
 Aktualizacja (2026-11-26): Release uruchamia pakowanie osobno dla każdego gotowego runtime’u Desktop.
+Release przekazuje sekrety podpisu do wywoływanego workflow Desktop, aby `package` mógł podpisać instalatory.
 Job pakowania macOS instaluje zależności z workspace’u Desktop i ma osobny cache Bun.
 Wagi shardów można odświeżyć medianą z pełnych przebiegów po weryfikacji raportów.
 Pełne CI używa dwunastu shardów z wagami odświeżonymi z pomiarów po skróceniu fixture.
