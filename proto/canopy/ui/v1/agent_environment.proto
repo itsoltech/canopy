@@ -50,6 +50,7 @@ message EnvironmentWorker {
   repeated string skill_ids = 12;
   bool plugins_supported = 13;
   repeated string plugin_ids = 14;
+  bool local_skill_import_supported = 15;
 }
 
 message AgentEnvironmentRequest {
@@ -77,6 +78,15 @@ message ArchiveWorkerSkillRequest {
   string target_id = 2;
   string archive_token = 3;
   uint64 expected_revision = 4;
+}
+message PreviewWorkerSkillRequest {
+  string worker_id = 1;
+  string target_id = 2;
+  string archive_token = 3; // inventory precondition for this exact copy
+  uint64 expected_revision = 4;
+}
+message PreviewWorkerSkillResponse {
+  canopy.worker.v1.SkillArtifact artifact = 1;
 }
 message WorkerEnvironmentResponse {
   EnvironmentWorker worker = 1;

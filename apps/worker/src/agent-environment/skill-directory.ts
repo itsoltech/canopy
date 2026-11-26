@@ -15,11 +15,24 @@ export interface SkillDirectory {
   entry(name: string): SkillEntry | undefined;
   names(limit: number, onEntry?: () => void): string[];
   child(name: string, create?: boolean): SkillDirectory;
+  readLink(name: string): string;
+  readFile(name: string, expected: SkillEntry, limit: number): { content: Buffer; executable: boolean };
   move(name: string, destination: SkillDirectory): void;
   close(): void;
 }
 
 export const directoryError = () => new Error("Couldn't inspect the skill folder. Check its permissions and symlinks.");
+
+export const copyChanged = () => new Error("This copy changed. Refresh the list and review it again.");
+
+export function sameSkillEntry(actual: SkillEntry | undefined, expected: SkillEntry): boolean {
+  return (
+    actual?.kind === expected.kind &&
+    actual.identity === expected.identity &&
+    actual.version === expected.version &&
+    actual.changed === expected.changed
+  );
+}
 
 export const moveError = () =>
   new Error("Couldn't move the copy. Check the archive location, permissions and free space.");

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { clone, create, toJson } from "@bufbuild/protobuf";
 import { AgentEnvironmentReportSchema, SkillFileSchema, ui, type EnvironmentSkillStatus } from "@canopy/contracts";
 import { environmentDigest } from "@canopy/domain/agent-environment";
@@ -75,6 +75,93 @@ async function settled(machine = linux) {
 
   return worker;
 }
+
+async function reportLocalSkill(
+  name: string,
+  copies: ReadonlyArray<{ root: string; contents: ReturnType<typeof skillFiles> }>,
+) {
+  const paths = copies.map(({ root, contents }) => {
+    const folder = join(root, name);
+
+    for (const file of contents) {
+      const destination = join(folder, file.path);
+      mkdirSync(dirname(destination), { recursive: true });
+      writeFileSync(destination, file.content, { mode: file.executable ? 0o700 : 0o600 });
+    }
+
+    return folder;
+  });
+
+  linux.host.environment.refresh(true);
+
+  const state = await eventually(
+    () => gateway.api.getWorkerEnvironment({ workerId: linux.workerId }),
+    ({ worker, revision }) =>
+      worker?.report?.revision === revision &&
+      paths.every((path) => worker.report?.skills.some((file) => file.path === path && file.archiveToken)),
+  );
+
+  const requests = paths.map((path) => {
+    const copy = state.worker?.report?.skills.find((file) => file.path === path);
+    expect(copy?.status).toBe("local");
+    expect(copy?.archiveToken).toHaveLength(64);
+
+    return {
+      workerId: linux.workerId,
+      targetId: copy!.targetId,
+      archiveToken: copy!.archiveToken,
+      expectedRevision: state.revision,
+    };
+  });
+
+  return { paths, requests };
+}
+
+test("previews the selected local copy and saves the reviewed bytes to the library", async () => {
+  const name = "local-import";
+  const claude = skillFiles(name, "Claude copy.");
+  const codex = skillFiles(name, "Codex copy.");
+
+  const { paths, requests } = await reportLocalSkill(name, [
+    { root: join(linux.deviceHomes.claude, "skills"), contents: claude },
+    { root: linux.deviceHomes.agents, contents: codex },
+  ]);
+
+  const preview = await gateway.api.previewWorkerSkill(requests[1]!);
+
+  expect(
+    preview.artifact?.files.map(({ path, content, executable }) => [path, Buffer.from(content), executable]),
+  ).toEqual(codex.map(({ path, content, executable }) => [path, Buffer.from(content), executable]));
+  expect((await snapshot()).skills.some((s) => s.artifact?.name === name)).toBe(false);
+
+  const localFile = join(paths[1]!, "SKILL.md");
+  const updated = Buffer.from(skillFiles(name, "Changed on disk after review.")[0]!.content);
+  writeFileSync(localFile, updated);
+
+  const saved = await gateway.api.saveLibrarySkill({
+    skill: { name, harnesses: ["codex"], platformHome: true, selector: {} },
+    files: preview.artifact!.files,
+    expectedRevision: requests[1]!.expectedRevision,
+  });
+
+  expect(Buffer.from(saved.skills.find((s) => s.name === name)!.artifact!.files[0]!.content)).toEqual(
+    Buffer.from(codex[0]!.content),
+  );
+  expect(readFileSync(localFile)).toEqual(updated);
+});
+
+test("rejects local skill preview with stale on-disk contents even before the report refreshes", async () => {
+  const name = "stale-local-import";
+
+  const { paths, requests } = await reportLocalSkill(name, [
+    { root: join(linux.deviceHomes.claude, "skills"), contents: skillFiles(name) },
+  ]);
+
+  const request = requests[0]!;
+  await gateway.api.previewWorkerSkill(request);
+  writeFileSync(join(paths[0]!, "SKILL.md"), skillFiles(name, "Different contents after the scan.")[0]!.content);
+  expect(await failure(gateway.api.previewWorkerSkill(request))).toMatch(/copy changed/i);
+});
 
 async function drift(path: string, text: string) {
   writeFileSync(path, text);

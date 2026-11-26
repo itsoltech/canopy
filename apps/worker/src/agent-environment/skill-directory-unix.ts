@@ -1,25 +1,36 @@
 import { CString, dlopen, ptr, read, toArrayBuffer } from "bun:ffi";
-import { constants, closeSync, openSync } from "node:fs";
+import { isUtf8 } from "node:buffer";
+import { constants, closeSync, fstatSync, openSync, readSync, type BigIntStats } from "node:fs";
 import { join } from "node:path";
 import { directoryCString, unixDirectorySymbols, unixEntryKind } from "../files/directory-handle-unix.ts";
-import { directoryError, moveError, type SkillDirectory, type SkillEntry } from "./skill-directory.ts";
+import {
+  copyChanged,
+  directoryError,
+  moveError,
+  sameSkillEntry,
+  type SkillDirectory,
+  type SkillEntry,
+} from "./skill-directory.ts";
+import { readSkillBytes } from "./skill-files.ts";
 
 const mac = process.platform === "darwin";
-const flags = constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW | (mac ? 0x1000000 : 0x80000);
+const noFollow = constants.O_RDONLY | constants.O_NOFOLLOW | (mac ? 0x1000000 : 0x80000);
+const flags = noFollow | constants.O_DIRECTORY;
 const rename = { args: ["i32", "cstring", "i32", "cstring", "u32"], returns: "i32" } as const;
 const errno = { args: [], returns: "ptr" } as const;
 const mkdirat = { args: ["i32", "cstring", "i32"], returns: "i32" } as const;
+const readlinkat = { args: ["i32", "cstring", "ptr", "usize"], returns: "i64" } as const;
 
 function operations() {
   if (mac) {
-    const lib = dlopen("/usr/lib/libSystem.B.dylib", { renameatx_np: rename, __error: errno, mkdirat });
+    const lib = dlopen("/usr/lib/libSystem.B.dylib", { renameatx_np: rename, __error: errno, mkdirat, readlinkat });
 
-    return { rename: lib.symbols.renameatx_np, errno: lib.symbols.__error, mkdirat: lib.symbols.mkdirat };
+    return { ...lib.symbols, rename: lib.symbols.renameatx_np, errno: lib.symbols.__error };
   }
 
-  const lib = dlopen("libc.so.6", { renameat2: rename, __errno_location: errno, mkdirat });
+  const lib = dlopen("libc.so.6", { renameat2: rename, __errno_location: errno, mkdirat, readlinkat });
 
-  return { rename: lib.symbols.renameat2, errno: lib.symbols.__errno_location, mkdirat: lib.symbols.mkdirat };
+  return { ...lib.symbols, rename: lib.symbols.renameat2, errno: lib.symbols.__errno_location };
 }
 
 let native: ReturnType<typeof operations> | undefined;
@@ -38,6 +49,24 @@ function entry(info: Buffer): SkillEntry {
     identity: `${dev}:${ino}`,
     version: `${mode}:${size}:${time(mac ? 48 : 88)}`,
     changed: time(mac ? 64 : 104),
+  };
+}
+
+function regularEntry(info: BigIntStats): SkillEntry {
+  if (!info.isFile() || info.nlink !== 1n) throw new Error("A skill can only contain regular files without links.");
+
+  const time = (value: bigint) => {
+    const seconds = value / 1_000_000_000n;
+    const nanos = value % 1_000_000_000n;
+
+    return nanos < 0n ? `${seconds - 1n}:${nanos + 1_000_000_000n}` : `${seconds}:${nanos}`;
+  };
+
+  return {
+    kind: "file",
+    identity: `${mac ? BigInt.asUintN(32, info.dev) : info.dev}:${info.ino}`,
+    version: `${info.mode}:${info.size}:${time(info.mtimeNs)}`,
+    changed: time(info.ctimeNs),
   };
 }
 
@@ -107,6 +136,44 @@ export function unixSkillDirectory(path: string, descriptor?: number): SkillDire
       if (child < 0) throw directoryError();
 
       return unixSkillDirectory(join(path, name), child);
+    },
+    readLink(name) {
+      const buffer = Buffer.alloc(4096);
+      const length = Number(ops.readlinkat(fd, directoryCString(name), ptr(buffer), buffer.length));
+
+      if (length <= 0 || length >= buffer.length) throw directoryError();
+      const target = buffer.subarray(0, length);
+
+      if (!isUtf8(target)) throw directoryError();
+
+      return target.toString("utf8");
+    },
+    readFile(name, expected, limit) {
+      const file = symbols.openat(fd, directoryCString(name), noFollow | constants.O_NONBLOCK);
+
+      if (file < 0) throw copyChanged();
+
+      try {
+        const stat = fstatSync(file, { bigint: true });
+
+        if (!sameSkillEntry(regularEntry(stat), expected)) throw copyChanged();
+
+        if (stat.size > BigInt(limit)) throw new Error("Skills are limited to 1 MiB per file and 25 MiB in total.");
+
+        const content = readSkillBytes(Number(stat.size) + 1, (buffer, offset) =>
+          readSync(file, buffer, offset, buffer.length - offset, null),
+        );
+
+        if (
+          BigInt(content.length) !== stat.size ||
+          !sameSkillEntry(regularEntry(fstatSync(file, { bigint: true })), expected)
+        )
+          throw copyChanged();
+
+        return { content, executable: (stat.mode & 0o111n) !== 0n };
+      } finally {
+        closeSync(file);
+      }
     },
     move(name, destination) {
       const bytes = directoryCString(name);

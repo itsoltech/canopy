@@ -4,6 +4,7 @@ import {
   EnvironmentSkillStatusSchema,
   type AgentEnvironmentDesired,
   type AgentEnvironmentReport,
+  type PreviewLocalSkill,
 } from "@canopy/contracts";
 import { ENVIRONMENT_CONTENT_BYTES, environmentDigest } from "@canopy/domain/agent-environment";
 import { isHarness } from "@canopy/domain/harnesses";
@@ -15,6 +16,9 @@ import { inventorySkills } from "./skill-inventory.ts";
 import { validateSkillFiles, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
 import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
 import { WorkerPlugins } from "./plugins.ts";
+import { copyChanged } from "./skill-directory.ts";
+import { previewLocalSkillCopy } from "./skill-preview.ts";
+import { deviceSkillInventoryRoots } from "./skill-targets.ts";
 
 /** Reconcile only owner-approved immutable artifacts; never execute their scripts or install dependencies. */
 export class WorkerAgentEnvironment {
@@ -24,6 +28,7 @@ export class WorkerAgentEnvironment {
   #desired: AgentEnvironmentDesired | undefined;
   #last = "";
   #previousLocal: AgentEnvironmentReport["skills"] = [];
+  #skillInventoryRevision: bigint | undefined;
   #timer: ReturnType<typeof setInterval>;
 
   constructor(
@@ -110,6 +115,22 @@ export class WorkerAgentEnvironment {
     this.refresh(true);
   }
 
+  previewLocalSkill({ targetId, archiveToken, expectedRevision }: PreviewLocalSkill) {
+    const status = this.#previousLocal.find((copy) => copy.targetId === targetId);
+
+    if (
+      this.#skillInventoryRevision !== expectedRevision ||
+      !status ||
+      status.status !== "local" ||
+      status.owned ||
+      !archiveToken ||
+      status.archiveToken !== archiveToken
+    )
+      throw copyChanged();
+
+    return previewLocalSkillCopy(status, deviceSkillInventoryRoots(this.options.homes()));
+  }
+
   refresh(force = false): void {
     if (!this.#desired) return;
     const desired = this.#desired;
@@ -141,7 +162,9 @@ export class WorkerAgentEnvironment {
       report.skills = inventory.skills;
       report.skillInventoryScanned = inventory.scanned;
       this.#previousLocal = report.skills.filter((status) => !status.skillId && status.scope === "device");
+      this.#skillInventoryRevision = report.revision;
     } catch (error) {
+      this.#skillInventoryRevision = undefined;
       report.skills.push(
         create(AgentEnvironmentReportSchema, {
           skills: [

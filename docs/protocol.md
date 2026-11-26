@@ -11,8 +11,8 @@ eksportu `ExportThreadImage` co obrazy.
 
 Aktualizacja (2026-11-24): capability `antigravity_acp_v1` obejmuje natywne wątki Antigravity i przypisania skilli workera.
 
-Status (2026-11-24): raport środowiska zawiera inwentaryzację lokalnych skilli i tokeny
-do archiwizacji pojedynczej kopii na urządzeniu. Pola i akcję opisuje
+Aktualizacja (2026-11-26): raport środowiska zawiera inwentaryzację lokalnych skilli i tokeny
+do archiwizacji oraz odczytu pojedynczej kopii na urządzeniu. Pola i akcje opisuje
 [środowisko agentów](agent-environment.md#lokalne-kopie-skilli).
 
 Status (2026-11-24): fork użytkownika przekazuje zapisany tryb uprawnień źródła.
@@ -1404,6 +1404,12 @@ każdy docelowy katalog i tylko zarządzane pliki driftu. Resolution jest jednor
 i związane z checksumem całego katalogu. Worker bez tej capability nadal dostaje
 instrukcje, bez skilli. Szczegóły limitów, katalogów, wersji i odzyskiwania swapu:
 [protokół etapu 2](agent-environment.md#umiejętności--konkretny-protokół-etapu-2).
+
+Capability `agent_local_skill_import_v1` udostępnia nietrwałą komendę
+`PreviewLocalSkill` (239) i wynik `CommandResult.local_skill_preview` (241).
+Komenda wskazuje cel z raportu, jego token i rewizję, bez podawania ścieżki.
+Pliki przechodzą wyłącznie w odpowiedzi na żądanie podglądu. Komenda i wynik
+nie trafiają do outboxa ani journala. Starsze workery nadal raportują inwentaryzację.
 
 Etap 4 negocjuje `agent_plugins_v1`: `AgentEnvironmentDesired.plugins=6`,
 `plugin_resolutions=7`, `AgentEnvironmentReport.plugins=4`. Reużywa koperty

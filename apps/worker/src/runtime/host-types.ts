@@ -62,6 +62,7 @@ export interface CommandOutput {
   readonly importPage?: MessageInitShape<typeof CommandResultSchema>["importPage"];
   readonly importedSessionId?: string;
   readonly importLibraryContent?: MessageInitShape<typeof CommandResultSchema>["importLibraryContent"];
+  readonly localSkillPreview?: MessageInitShape<typeof CommandResultSchema>["localSkillPreview"];
   readonly importSecret?: MessageInitShape<typeof CommandResultSchema>["importSecret"];
   readonly file?: MessageInitShape<typeof CommandResultSchema>["file"];
   readonly threadDiff?: MessageInitShape<typeof CommandResultSchema>["threadDiff"];
@@ -106,6 +107,7 @@ export function successResult(commandId: string, output: CommandOutput): Command
     ...(output.importPage && { importPage: output.importPage }),
     ...(output.importedSessionId && { importedSessionId: output.importedSessionId }),
     ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
+    ...(output.localSkillPreview && { localSkillPreview: output.localSkillPreview }),
     ...(output.importSecret && { importSecret: output.importSecret }),
     ...(output.file && { file: output.file }),
     ...(output.threadDiff && { threadDiff: output.threadDiff }),

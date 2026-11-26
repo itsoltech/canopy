@@ -1,4 +1,4 @@
-import { ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import { AGENT_LOCAL_SKILL_IMPORT_CAPABILITY, ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
 import { harnessOf } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
@@ -41,7 +41,7 @@ function compatibleSkills(skills: ui.LibrarySkill[], capabilities: readonly stri
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
   readonly skills: EnvironmentSkills;
-  /** Only an accepted report on this live connection can authorize a local copy move. */
+  /** Only an accepted report on this live connection can authorize reading or moving a local copy. */
   readonly skillReports = new WeakMap<WorkerConnection, symbol>();
   readonly sources: EnvironmentSources;
   readonly marketplaces: EnvironmentMarketplaces;
@@ -114,6 +114,9 @@ export class AgentEnvironment {
       worker.skillsSupported = connection?.isOpen
         ? connection.hello.capabilities.includes("agent_skills_v1")
         : worker.skillsSupported;
+      worker.localSkillImportSupported = Boolean(
+        connection?.isOpen && connection.hello.capabilities.includes(AGENT_LOCAL_SKILL_IMPORT_CAPABILITY),
+      );
       const skillLibrary = compatibleSkills(snapshot.skills, connection?.hello.capabilities);
       worker.skillIds = skillLibrary.filter((s) => skillApplies(s, worker)).map((s) => s.id);
       worker.pluginsSupported = connection?.isOpen

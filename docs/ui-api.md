@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Aktualizacja (2026-11-26): web i desktop pobierają pliki wskazanej lokalnej
+kopii skilla do przeglądu przed dodaniem jej do biblioteki.
+
 Status (2026-11-25): wspólny katalog web, desktopu i mobile prowadzi do listy
 wątków w Threads, alertów użytkownika w Notifications i aktualizacji Canopy
 w App updates. [Mapa ustawień](settings-map.md)
@@ -3381,6 +3384,9 @@ POST `/api/workers/:id/environment/skills/archive` (`ArchiveWorkerSkill`) przyjm
 `target_id`, `archive_token` i `expected_revision` z raportu domu. Zwraca
 `WorkerEnvironmentResponse` dla workera wskazanego w URL. Kolejny raport workera zawiera
 wynik operacji.
+POST `/api/workers/:id/environment/skills/preview` (`PreviewWorkerSkill`)
+przyjmuje te same pola z raportu wskazanej lokalnej kopii i zwraca jej artefakt
+do przeglądu. Zapis przejrzanych plików korzysta z `SaveLibrarySkill`.
 `WorkerEnvironmentOverride.item` jest globalnym kluczem biblioteki; `version_hash` skilla wskazuje
 treść niezależnie od lokalnych numerów wersji. Plugin nie obsługuje przypinania wersji per worker.
 Żądanie wymaga rewizji odczytanej z domu, a gateway po obu stronach sprawdza łącze i właściciela workera.

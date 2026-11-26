@@ -82,9 +82,12 @@ export function readSkillTree(path: string): SkillTree {
 
         if (!opened.isFile() || opened.size > SKILL_FILE_BYTES)
           throw new Error("Local skill file changed during reading.");
+
         // Size is checked before allocation; the bounded read detects concurrent file growth.
-        const content = Buffer.alloc(SKILL_FILE_BYTES + 1);
-        const bytes = readFileBounded(descriptor, content);
+        const bytes = readSkillBytes(SKILL_FILE_BYTES + 1, (buffer, offset) =>
+          readSync(descriptor, buffer, offset, buffer.length - offset, null),
+        );
+
         total += bytes.length;
 
         if (bytes.length > SKILL_FILE_BYTES || total > SKILL_TOTAL_BYTES)
@@ -113,14 +116,15 @@ export function readSkillTree(path: string): SkillTree {
   };
 }
 
-function readFileBounded(descriptor: number, buffer: Buffer): Buffer {
+export function readSkillBytes(max: number, read: (buffer: Buffer, offset: number) => number): Buffer {
+  const buffer = Buffer.alloc(max);
   let length = 0;
 
   while (length < buffer.length) {
-    const read = readSync(descriptor, buffer, length, buffer.length - length, null);
+    const count = read(buffer, length);
 
-    if (!read) break;
-    length += read;
+    if (!count) break;
+    length += count;
   }
 
   return buffer.subarray(0, length);

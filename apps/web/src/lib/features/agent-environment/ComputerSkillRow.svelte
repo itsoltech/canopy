@@ -4,9 +4,8 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
-  import Button from "#lib/shared/ui/Button.svelte";
   import ComputerSkillLocation from "./ComputerSkillLocation.svelte";
-  import { groupStatus, needsAttention, type ComputerSkill } from "./computer-skills.ts";
+  import { canImportLocalSkill, groupStatus, needsAttention, type ComputerSkill } from "./computer-skills.ts";
 
   let {
     group,
@@ -23,7 +22,7 @@
     onarchive?: ((file: EnvironmentSkillStatus) => void) | undefined;
     onresolve?: ((file: EnvironmentSkillStatus, action: "keep" | "overwrite" | "import") => void) | undefined;
     ondisable?: (() => void) | undefined;
-    onadd?: (() => void) | undefined;
+    onadd?: ((file: EnvironmentSkillStatus) => void) | undefined;
   } = $props();
 
   let open = $state(false);
@@ -62,7 +61,7 @@
           {busy}
           {onresolve}
           {onarchive}
-          onadd={group.files.length === 1 ? add : undefined}
+          onadd={add && canImportLocalSkill(file) ? () => add(file) : undefined}
           waiting={waitingTarget === file.targetId}
         />
       {/each}
@@ -76,7 +75,6 @@
           </div>
         </Disclosure>
       {/if}
-      {#if add && group.files.length > 1}<div><Button size="sm" onclick={add}>Add to library</Button></div>{/if}
     </div>
   </Disclosure>
   {#if ondisable}

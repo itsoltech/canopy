@@ -7,6 +7,7 @@
   import SkillsLibrary from "#lib/features/agent-environment/SkillsLibrary.svelte";
   import MarketplaceLibrary from "#lib/features/agent-environment/MarketplaceLibrary.svelte";
   import EnvironmentComputer from "#lib/features/agent-environment/EnvironmentComputer.svelte";
+  import LocalSkillImport from "#lib/features/agent-environment/LocalSkillImport.svelte";
   import EnvironmentNotices from "#lib/features/agent-environment/EnvironmentNotices.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Badge from "#lib/shared/ui/Badge.svelte";
@@ -18,10 +19,11 @@
   import RemoteEnvironment from "#lib/features/agent-environment/RemoteEnvironment.svelte";
   import { librarySummary } from "@canopy/domain/environment-library";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
+  import type { EnvironmentSkillStatus } from "@canopy/contracts";
 
   let { data }: PageProps = $props();
   let topics: ReturnType<typeof SettingsTopics> | undefined;
-  let skillLibrary: ReturnType<typeof SkillsLibrary> | undefined;
+  let localImport: ReturnType<typeof LocalSkillImport> | undefined;
   const overview = useOverview();
   const records = workerRecords(overview);
 
@@ -35,6 +37,16 @@
   const selectedWorker = $derived(records.workers.find((w) => w.id === state.workerId) ?? records.workers[0]);
 
   const worker = $derived(state.snapshot.workers.find((w) => w.workerId === selectedWorker?.id));
+
+  function addLocalSkill(file: EnvironmentSkillStatus, revision: bigint) {
+    if (!selectedWorker) return;
+
+    const workerName = selectedWorker.nodeId
+      ? `${selectedWorker.name} · ${records.name(selectedWorker)}`
+      : selectedWorker.name;
+
+    localImport?.show({ file, revision, workerId: selectedWorker.id, workerName });
+  }
 </script>
 
 <div class="settings-stack">
@@ -56,6 +68,7 @@
     ]}
   />
 </div>
+<LocalSkillImport bind:this={localImport} environment={state} onsaved={() => topics?.selectTopic("skills")} />
 
 {#snippet status(value: string)}
   <p role="status" class="text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400">{value}</p>
@@ -68,7 +81,7 @@
 
 {#snippet skills()}
   {#if state.snapshot.skills.length}{@render status(summary.skills)}{/if}
-  <SkillsLibrary bind:this={skillLibrary} environment={state} notInstalled={summary.notInstalled} />
+  <SkillsLibrary environment={state} notInstalled={summary.notInstalled} />
 {/snippet}
 
 {#snippet plugins()}
@@ -106,16 +119,10 @@
         {#key selectedWorker.id}<RemoteEnvironment
             workerId={selectedWorker.id}
             readOnly={records.readOnly(selectedWorker.id)}
+            onadd={addLocalSkill}
           />{/key}
       {:else if worker}
-        {#key worker.workerId}<EnvironmentComputer
-            {worker}
-            {state}
-            onadd={(name) => {
-              topics?.selectTopic("skills");
-              skillLibrary?.addLocalSkill(name, worker.workerId);
-            }}
-          />{/key}
+        {#key worker.workerId}<EnvironmentComputer {worker} {state} onadd={addLocalSkill} />{/key}
       {:else}
         <Alert>Waiting for this worker to report its environment.</Alert>
       {/if}

@@ -4,6 +4,9 @@ export const WORKER_LINK_PROTOCOL = 1;
 /** Native Antigravity ACP threads and skill destinations. */
 export const ANTIGRAVITY_ACP_CAPABILITY = "antigravity_acp_v1";
 
+/** Read the files of a selected device skill for library review. */
+export const AGENT_LOCAL_SKILL_IMPORT_CAPABILITY = "agent_local_skill_import_v1";
+
 /** Owner-requested, durable conversation replacement with a preserved source session. */
 export const THREAD_REWIND_CAPABILITY = "thread_rewind_v1";
 

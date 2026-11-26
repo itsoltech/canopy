@@ -14,6 +14,7 @@
     awaitingArchive,
     archiveLocation,
     canArchive,
+    canImportLocalSkill,
     computerSkills,
     type SkillLibraryEntry,
   } from "./computer-skills.ts";
@@ -32,7 +33,7 @@
     environment?: EnvironmentState;
     library?: readonly SkillLibraryEntry[] | undefined;
     onarchive?: ((file: EnvironmentSkillStatus) => Promise<boolean>) | undefined;
-    onadd?: ((name: string) => void) | undefined;
+    onadd?: ((file: EnvironmentSkillStatus, revision: bigint) => void) | undefined;
     busy?: boolean;
     class?: ClassValue;
   } = $props();
@@ -53,6 +54,7 @@
   const saving = $derived(Boolean(busy || environment?.busy));
   const blocked = $derived(unavailable || saving);
   const revision = $derived(environment?.snapshot.revision ?? worker.desiredRevision);
+  const importAvailable = $derived(!unavailable && worker.localSkillImportSupported);
 
   type Decision = { name: string; revision: bigint; workerId: string } & (
     | { action: "disable"; skill: ui.LibrarySkill }
@@ -189,6 +191,9 @@
         version.
       </p>
     {/if}
+    {#if onadd && !pending && !worker.localSkillImportSupported && groups.some((group) => group.missingFromLibrary && group.files.some(canImportLocalSkill))}
+      <p class="text-sm text-muted">Update Canopy on this computer to add local skills to the library.</p>
+    {/if}
   {/if}
   {#if lastArchive}
     <div class="grid gap-1 text-sm">
@@ -216,7 +221,7 @@
           {group}
           busy={blocked}
           waitingTarget={archivePending ? lastArchive?.targetId : undefined}
-          onadd={onadd ? () => onadd?.(group.name) : undefined}
+          onadd={onadd && importAvailable ? (file) => onadd?.(file, revision) : undefined}
           onarchive={environment || onarchive ? (file) => confirmFile(group.name, file, "archive") : undefined}
           onresolve={environment
             ? (file, action) => {
