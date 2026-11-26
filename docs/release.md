@@ -5,6 +5,8 @@ Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis ca
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
 Aktualizacja (2026-11-26): natywne CI macOS wykonuje jeden wariant testu pakowania na runnerze danej architektury.
+Aktualizacja (2026-11-26): Release uruchamia pakowanie osobno dla każdego gotowego runtime’u Desktop.
+Job pakowania macOS instaluje zależności z workspace’u Desktop i ma osobny cache Bun.
 Wagi shardów można odświeżyć medianą z pełnych przebiegów po weryfikacji raportów.
 Natywne testy źródłowe PR-a startują równolegle z buildem. Smoke pobiera wyłącznie
 binaria dla własnego systemu i architektury.
@@ -588,8 +590,11 @@ Cron może się opóźnić lub zostać pominięty; następny cykl zbiera wszystk
 Godzina nie jest gwarancją czasu dostępności aktualizacji. Pilne wydanie uruchamia maintainer
 przez dispatch na `dev` z aktualnym SHA (również czeka na aktywny nightly).
 Desktop przywraca cache Electron/electron-builder przed instalacją zależności;
-cache pakietów Bun pozostaje rozdzielony według OS, architektury i lockfile.
-`desktop-build` buduje runtime raz bez sekretów podpisu. Wspólna akcja
+cache pakietów Bun jest rozdzielony według OS, architektury i lockfile. Pakowanie macOS
+korzysta z osobnego cache dla zależności workspace’u `@canopy/desktop`.
+Każdy cel wywołuje `.github/workflows/release-desktop.yml`. Job `build` buduje runtime raz bez
+sekretów podpisu. Job `package` czeka na artefakt z własnego `build`, więc może zacząć
+podpisywanie i notaryzację, kiedy inne cele wciąż budują runtime. Wspólna akcja
 `.github/actions/package-desktop` pakuje przygotowaną aplikację w osobnym jobie
 po zielonym CI, a macOS i Windows ponawia maksymalnie dwa razy po przerwach
 30 i 60 sekund.
@@ -612,11 +617,15 @@ flowchart LR
     ci --> release --> images
     ci --> images-build --> images
     ci --> binaries
-    ci --> desktop-build --> desktop
+    ci --> macBuild["Build macOS"] --> macPackage["Package macOS"]
+    ci --> linuxBuild["Build Linux"] --> linuxPackage["Package Linux"]
+    ci --> windowsBuild["Build Windows"] --> windowsPackage["Package Windows"]
     images --> publish-server
     binaries --> publish-server
     publish-server --> publish-desktop
-    desktop --> publish-desktop
+    macPackage --> publish-desktop
+    linuxPackage --> publish-desktop
+    windowsPackage --> publish-desktop
 ```
 
 | Job Release | Wynik |
@@ -626,7 +635,7 @@ flowchart LR
 | `checks` (Verified CI) | Dla zaplanowanego wydania sprawdza wcześniejszy wynik CI po pushu na chronioną gałąź. |
 | `binaries` | Buduje web i osadza go w binariach gatewaya. Kompiluje binaria gatewaya i workera dla wszystkich celów. |
 | `images-build` | Buduje archiwa OCI dla amd64 i arm64 z SBOM i proweniencją. |
-| `desktop-build`, `desktop` | Budują runtime, pakują go dla wybranych platform i sprawdzają instalator Windows przed wysłaniem artefaktu. Podpisy i notaryzacja wymagają udanej bramki CI. |
+| `desktop` | Dla każdego celu buduje runtime i pakuje go w dwóch jobach. Podpisy i notaryzacja wymagają udanej bramki CI. Windows sprawdza instalator przed wysłaniem artefaktu. |
 | `release` | Po sukcesie Verified CI rezerwuje wersję, wysyła tag oraz notes i tworzy ukryty draft. |
 | `images` | Kopiuje archiwa OCI do GHCR pod niezmiennym tagiem wydania. |
 | `publish-server` | Wgrywa binaria, `checksums.txt` i `manifest.json` na draft. |
@@ -753,29 +762,22 @@ Pakuje aplikacje odpowiednio na `macos-26` i `macos-26-intel`, gdzie `actool` ma
 Przy wznawianiu wydania lista wymaganych architektur macOS pochodzi z konfiguracji Desktop w wydawanej rewizji.
 
 **Cache.** Pakiety Bun (`~/.bun/install/cache`, klucz z `bun.lock`) we wszystkich jobach z instalacją;
+osobne klucze dla instalacji tylko workspace’u Desktop podczas pakowania macOS;
 pobrania Electron/electron-builder w jobach desktop; warstwy obrazów w cache GHA per aplikacja.
 Bundla web nie współdzielimy między jobami desktop: osobny job buildu opóźniłby start macOS
 (ścieżka krytyczna desktopu) bardziej, niż oszczędza (~1 min na runner).
 
 ### Oczekiwane czasy
 
-Poniższe pomiary pochodzą z [nightly z 16 listopada 2026](https://github.com/itsoltech/canopy/actions/runs/43799913460).
-W tamtym przebiegu testy i smoke działały wewnątrz Release.
-
-| Etap | Od startu Release z 16 listopada (bez oczekiwania na cron/kolejkę) |
-| --- | --- |
-| `plan` gotowy, start buildów | ~1 min |
-| artefakt desktop Linux gotowy do uploadu | ~5 min |
-| `checks` zielone | ~13,5 min |
-| `release` (tag), start `images` | ~14,5 min |
-| obrazy `vX.Y.Z` w GHCR (build z cache) | ~15,5 min |
-| binaria i `manifest.json` na ukrytym drafcie | ~16 min |
-| **kompletny publiczny release i aliasy obrazów** (po macOS i Windows) | **~20,5 min**, zależnie od podpisów/notaryzacji |
-| cały workflow, w tym indeks Pages i retencja | ~21,5 min |
-
-W tym wydaniu od rozpoczęcia podpisywania macOS do końca notaryzacji minęło około 12,5 minuty.
-Obecny Release odczytuje wcześniejszy wynik CI i wykonuje własne buildy wersji dystrybucyjnej.
-Czas publikacji po przeniesieniu testów wymaga pomiaru na GitHub Actions.
+W [nightly z 26 listopada 2026](https://github.com/itsoltech/canopy/actions/runs/45785393747)
+przygotowanie draftu z artefaktami serwera zajęło 8 min 44 s od startu, a cały workflow
+39 min 8 s. Pakowanie dla Intela czekało 2 min 25 s na runtime Windows. Od podpisywania
+aplikacji dla Intela do końca notaryzacji minęło 17 min 51 s.
+Na podstawie czasów z [wcześniejszego](https://github.com/itsoltech/canopy/actions/runs/45777282242)
+i [późniejszego](https://github.com/itsoltech/canopy/actions/runs/45794390282) nightly, start pakowania
+każdego celu po jego własnym buildzie skróciłby ścieżkę do publikacji w tych trzech przebiegach
+o około 2,5–4 minuty przy tych samych czasach pakowania. Wpływ osobnego cache i rzeczywisty
+czas publikacji po zmianie wymagają pomiaru kolejnego przebiegu na GitHubie.
 Merge do `dev` czeka na najbliższy cykl godzinowy, a nowy przebieg dodatkowo na zakończenie
 całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie blokadę przebiegów.
 

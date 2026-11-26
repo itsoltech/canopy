@@ -223,8 +223,11 @@ export function describeFailedRelease(repo: string, run: ReleaseAttempt, adapter
       const name = string(job["name"]);
       const link = isString(job["html_url"]) ? `[${name}](${job["html_url"]})` : name;
 
-      // Release marks the Linux ARM64 desktop matrix experimental; historical runs also had desktop-smoke.
-      if (/^desktop(?:-build|-smoke)? \(linux-arm64, [^,]+, true\)$/.test(name))
+      // Release marks Linux ARM64 desktop jobs experimental, including in historical matrices.
+      if (
+        /^desktop \(linux-arm64\) \/ (build|package)$/.test(name) ||
+        /^desktop(?:-build|-smoke)? \(linux-arm64, [^,]+, true\)$/.test(name)
+      )
         optional.push(`Optional job ${link} failed.`);
       else required.push(`Required job ${link} failed.`);
     }
