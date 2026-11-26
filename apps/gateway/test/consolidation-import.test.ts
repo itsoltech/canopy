@@ -277,8 +277,15 @@ async function seedMemory(
 
   await s`INSERT INTO messenger_accounts(id,owner_user_id,name,external_id,credentials)
     VALUES(${account},${owner},'Chat fixture','T1',${encryptSecret(source.secretsKey, fixtureValue)})`;
-  await s`INSERT INTO bot_channel_routes(id,owner_user_id,bot_id,account_id)
-    VALUES(${route},${owner},${f.bot},${account})`;
+  await s`INSERT INTO bot_channel_routes(id,owner_user_id,bot_id,account_id,channel_ids,user_ids)
+    VALUES(${route},${owner},${f.bot},${account},'{C1}','{USLACK}')`;
+  await s`UPDATE slack_channel_contexts SET epoch=7,head=1,cursor=1,lease_id=${uuid()},lease_until=now()+interval '1 minute'
+    WHERE route_id=${route} AND channel_id='C1'`;
+  await s`INSERT INTO slack_channel_context_messages(route_id,channel_id,message_id,thread_id,slack_ts,author_id,text,change_no)
+    VALUES(${route},'C1','100.1','',100.1,'USLACK','Pending design decision',1)`;
+  await s`INSERT INTO slack_channel_topics(route_id,channel_id,id,title,aliases,summary,is_open,source_ids,roots,authors,dependencies,search,activity)
+    VALUES(${route},'C1',${uuid()},'Design decision','{}','Check with the design team',true,'{100.1}','{100.1}','{USLACK}',
+      '{100.1}',to_tsvector('simple','Design decision'),100.1)`;
   await s`INSERT INTO bot_channel_conversations(id,route_id,channel_id,thread_id,open_until)
     VALUES(${conversation},${route},'C1','123',now())`;
   await s`INSERT INTO agent_memory_scopes(owner_user_id,project_id,worker_id,bot_id,conversation_id) VALUES
@@ -323,6 +330,23 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
   await using sql = new SQL({ url: target.url, max: 1 });
 
   await checkMemory(sql, target.ownerUserId, f);
+
+  expect(
+    await sql`SELECT c.epoch::text,c.cursor::text,c.lease_id,c.lease_until,m.text,p.source_ids
+    FROM slack_channel_contexts c JOIN bot_channel_routes r ON r.id=c.route_id
+    JOIN slack_channel_context_messages m USING (route_id,channel_id)
+    JOIN slack_channel_topics p USING (route_id,channel_id)
+    WHERE r.owner_user_id=${target.ownerUserId} AND p.search @@ to_tsquery('simple','design')`,
+  ).toEqual([
+    {
+      epoch: "7",
+      cursor: "1",
+      lease_id: null,
+      lease_until: null,
+      text: "Pending design decision",
+      source_ids: ["100.1"],
+    },
+  ]);
 
   const [placement] = await sql`SELECT project_id,owner_user_id,worker_id,workspace_id,provider_thread_id,schedule_id,
     snoozed,snoozed_until=${snoozedUntil}::timestamptz AS deadline_preserved

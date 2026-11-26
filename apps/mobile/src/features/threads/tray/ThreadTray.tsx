@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { showsGoal } from "@canopy/domain/goals";
+import { shownTaskList } from "@canopy/domain/task-list";
 import { useAppearance } from "../../../state/appearance";
 import { useDevicePreferences } from "../../settings/device-preferences";
 import { QuestionPanel } from "../questions/QuestionPanel";
@@ -9,9 +10,10 @@ import { ComposerTray } from "./ComposerTray";
 import { GoalPanel } from "./GoalPanel";
 import { QueuePanel } from "./QueuePanel";
 import { useSubagentsPanel } from "./SubagentsPanel";
+import { TasksPanel } from "./TasksPanel";
 
 /**
- * The thread's tray in web order (goal, subagents, queue, then what waits for you, nearest the input). Without any
+ * The thread's tray in web order (goal, tasks, subagents, queue, then what waits for you, nearest the input). Without any
  * of them, or without an input (imported history), there is none. Only headers participate in layout.
  */
 export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () => void }) {
@@ -24,6 +26,13 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
     ? snapshot.goal
     : undefined;
 
+  const tasks = snapshot
+    ? shownTaskList(
+        snapshot.items.flatMap(({ item, turnId, inherited }) => (item ? [{ item, turnId, inherited }] : [])),
+        snapshot.turns,
+      )
+    : undefined;
+
   const disabled = state.home.away || state.stream.connection !== "live";
 
   const delivery =
@@ -33,7 +42,9 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
 
   if (!thread || thread.worktree?.removedAt || thread.import?.mode === "history") return null;
 
-  const hasPanels = Boolean(goal || state.activeSubagents.length || queue.rows.length || requests.requests.length);
+  const hasPanels = Boolean(
+    goal || tasks || state.activeSubagents.length || queue.rows.length || requests.requests.length,
+  );
 
   return (
     <>
@@ -48,6 +59,7 @@ export function ThreadTray({ state, onGoal }: { state: ThreadState; onGoal: () =
               onDismiss={() => device.dismissGoal(goal.id)}
             />
           ) : null}
+          {tasks ? <TasksPanel tasks={tasks} /> : null}
           {subagents.panel}
           <QueuePanel
             queue={queue}

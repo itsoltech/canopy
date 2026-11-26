@@ -60,3 +60,15 @@ export { BACKGROUND_TASK_TOOLS, isBackgroundTaskTool, type BackgroundTaskToolNam
 export { PR_CHECK_TOOLS, isPrCheckTool, type PrCheckToolName } from "./pr-checks.ts";
 
 export { PROJECT_SECRET_LEASES, PROJECT_SECRET_MAX_BYTES, PROJECT_SECRET_NAME_PATTERN } from "./secrets.ts";
+
+export {
+  TASK_LIST_MAX,
+  TASK_STATUSES,
+  TASK_TITLE_MAX,
+  TASK_TOOLS,
+  taskProgress,
+  UPDATE_TASKS_TOOL,
+  UpdateTasks,
+  type TaskProgress,
+  type TaskStatus,
+} from "./tasks.ts";

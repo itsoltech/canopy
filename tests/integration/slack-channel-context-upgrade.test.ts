@@ -40,7 +40,7 @@ test.skipIf(!dockerAvailable)(
     try {
       await runtime.runPromise(
         Migrator.make({})({
-          loader: Effect.map(migrations, (all) => all.filter(([id]) => id <= 218)),
+          loader: Effect.map(migrations, (all) => all.filter(([id]) => id <= 219)),
           table: "schema_migrations",
         }),
       );
@@ -86,7 +86,7 @@ test.skipIf(!dockerAvailable)(
         ),
       );
 
-      expect(await runtime.runPromise(migrate)).toEqual([[219, "slack_channel_context"]]);
+      expect(await runtime.runPromise(migrate)).toEqual([[220, "slack_channel_context"]]);
       expect(await run((s) => s.routes(owner))).toMatchObject([
         {
           id: route,

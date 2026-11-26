@@ -213,5 +213,6 @@ export const expectedSchemaMigrations = [
   "216_automatic_pr_notifications",
   "217_show_video",
   "218_start_thread",
-  "219_slack_channel_context",
+  "219_thread_task_lists",
+  "220_slack_channel_context",
 ];

@@ -871,3 +871,82 @@
   scale: 1;
   transition-duration: var(--duration-fast);
 }
+
+/* --- Task mark (spinner to check morph): one badge per task, and the task list's progress ring. --------
+ * Layers hang off `data-state` (pending | in_progress | completed, or done on the ring): the track, a
+ * spinning arc, a filling disc and a check that draws itself while the disc is still arriving. Only
+ * transitions, so a list that opens already finished shows its checks at rest; a live change morphs.
+ * The arc spins only with `data-live` (a running turn), a stale step keeps a still arc. */
+.t-task-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition: filter var(--duration-quick) var(--ease-smooth-out);
+}
+/* Positioned layers keep their DOM order: the scaled disc would otherwise paint over the check. */
+.t-task-mark > * {
+  position: relative;
+  grid-area: 1 / 1;
+}
+.t-task-track {
+  transition: opacity var(--duration-quick) var(--ease-smooth-out);
+}
+.t-task-arc {
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-smooth-out);
+}
+.t-task-mark[data-state="in_progress"] .t-task-arc {
+  opacity: 1;
+}
+.t-task-mark[data-state="in_progress"][data-live] .t-task-arc {
+  animation: t-task-spin 1s var(--ease-linear) infinite;
+}
+@keyframes t-task-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.t-task-fill {
+  opacity: 0;
+  scale: var(--scale-large);
+  transition:
+    opacity var(--duration-quick) var(--ease-smooth-out),
+    scale var(--duration-quick) var(--ease-smooth-out);
+}
+.t-task-check {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--duration-quick) var(--ease-smooth-out);
+}
+.t-task-mark:is([data-state="completed"], [data-state="done"]) .t-task-track,
+.t-task-mark:is([data-state="completed"], [data-state="done"]) .t-task-arc {
+  opacity: 0;
+  transition-duration: var(--duration-fast);
+}
+.t-task-mark:is([data-state="completed"], [data-state="done"]) .t-task-fill {
+  opacity: 1;
+  scale: 1;
+  transition-duration: var(--duration-fast);
+}
+/* The check takes over while the disc is still filling: one gesture, not two steps. */
+.t-task-mark:is([data-state="completed"], [data-state="done"]) .t-task-check {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--duration-very-slow) var(--ease-smooth-out) var(--duration-micro);
+}
+/* The ring's progress follows each finished task. */
+.t-task-progress {
+  transition:
+    stroke-dashoffset var(--duration-fast) var(--ease-smooth-out),
+    opacity var(--duration-quick) var(--ease-smooth-out);
+}
+.t-task-mark[data-state="done"] .t-task-progress {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-task-mark,
+  .t-task-mark *,
+  .t-task-progress {
+    transition: none !important;
+    animation: none !important;
+  }
+}

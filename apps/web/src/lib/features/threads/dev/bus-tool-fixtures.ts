@@ -158,6 +158,18 @@ const linkPullRequestItems = (): Item[] => [
 export const busControlItems = (): Item[] => [
   ...linkPullRequestItems(),
   bus(
+    "tasks",
+    "update_tasks",
+    {
+      tasks: [
+        { title: "Add the task list tool to the agent bus", status: "completed" },
+        { title: "Pin the list above the composer", status: "in_progress" },
+        { title: "Describe it in the docs", status: "pending" },
+      ],
+    },
+    { updated: true, total: 3, completed: 1 },
+  ),
+  bus(
     "wakeup",
     "schedule_wakeup",
     { delay_seconds: 60, prompt: "Reply with the single word PING" },

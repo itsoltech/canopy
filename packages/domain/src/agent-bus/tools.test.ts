@@ -95,6 +95,7 @@ describe("tool sets per level", () => {
       "show_images",
       "show_video",
       "stop_background_task",
+      "update_tasks",
       "wait_threads",
       "watch_pr_checks",
     ]);

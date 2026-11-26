@@ -11,6 +11,8 @@
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import ThreadActivityMark from "#lib/features/threads/ThreadActivityMark.svelte";
   import ThreadGoalMark from "#lib/features/threads/ThreadGoalMark.svelte";
+  import ThreadTasksMark from "#lib/features/threads/tasks/ThreadTasksMark.svelte";
+  import { unfinishedThreadTasks } from "@canopy/domain/task-list";
   import SidebarThreadStatus from "./SidebarThreadStatus.svelte";
   import SidebarThreadLink from "./SidebarThreadLink.svelte";
   import SidebarThreadBranch from "./SidebarThreadBranch.svelte";
@@ -24,7 +26,7 @@
 
   /**
    * One thread in the inbox: project and status, title, then where it runs (computer, place, branch),
-   * its marks (goal, side threads, started by an agent, linked pull requests) and provider.
+   * its marks (task list progress, goal, side threads, started by an agent, linked pull requests) and provider.
    * Project headings supply project identity. Worktree headings also supply the directory and branch;
    * local-only worktree cards keep the title, status, marks and provider on one line.
    * `sides` = number of side threads under it.
@@ -91,6 +93,7 @@
     draft.current ||
       Boolean(
         thread.goalStatus ||
+        unfinishedThreadTasks(thread) ||
         thread.scheduleId ||
         thread.spawnedByAgent ||
         thread.pullRequestCount ||
@@ -114,6 +117,7 @@
 
 {#snippet marks()}
   {#if groupedProject && (!inlineProvider || draft.current)}<DraftMarker threadId={thread.id} />{/if}
+  <ThreadTasksMark {thread} />
   <ThreadGoalMark {thread} />
   <ScheduleOrigin {thread} compact />
   {#if sides > 0}<span class="flex items-center gap-0.5" title="{sides} side {sides === 1 ? 'thread' : 'threads'}"

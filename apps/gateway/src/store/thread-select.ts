@@ -1,5 +1,6 @@
 import { DISPATCHED } from "./turn-select.ts";
 import { COMPOSER_CHOICE_SELECT } from "./composer-choice-select.ts";
+import { THREAD_TASKS_SELECT } from "./thread-tasks.ts";
 
 /** Characters of a side thread's last message in ui.Thread (the subagent card in the parent's timeline). */
 const LAST_MESSAGE_PREVIEW = 600;
@@ -46,6 +47,7 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
                    ORDER BY m.last_seq DESC LIMIT 1) AS last_reply_at,
                  (SELECT g.status FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled') LIMIT 1) AS goal_status,
                  (SELECT count(*) FROM thread_items b WHERE b.thread_id = t.id AND b.type = 'background_task' AND b.status = 'in_progress') AS background_tasks,
+                 ${THREAD_TASKS_SELECT},
                  -- The unseen result with what a notification shows: the turn's last answer or its error.
                  (SELECT json_build_object('status', u.status, 'interrupt_source', u.interrupt_source, 'error', left(u.error, ${NOTICE_SOURCE}),
                          'message', (SELECT left(m.content->'agentMessage'->>'text', ${NOTICE_SOURCE}) FROM thread_items m

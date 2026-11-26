@@ -2280,10 +2280,11 @@ zwykłe operacje.
 
 ## Konsolidacja dodatkowego komputera
 
-Status (2026-11-26): konsolidacja z migracją `0219` zachowuje oś Slacka,
+Status (2026-11-26): konsolidacja z migracją `0220` zachowuje oś Slacka,
 tematy, kursor i zakresy historii oraz notatek Conversation. Wygasza dzierżawę
-analizy ze źródła, żeby cel mógł wznowić przetwarzanie. Eksport i cel muszą mieć
-zgodny katalog.
+analizy ze źródła, żeby cel mógł wznowić przetwarzanie. Konsolidacja nadal
+obsługuje wcześniejsze katalogi od migracji `0214`. Eksport i cel muszą mieć
+ten sam obsługiwany katalog.
 
 Status (2026-11-25): konsolidacja obsługuje schemat migracji `0216` i zachowuje stan
 automatycznej obserwacji podlinkowanych PR-ów. Eksport i cel muszą mieć zgodny katalog.

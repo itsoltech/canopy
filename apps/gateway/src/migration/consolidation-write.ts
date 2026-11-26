@@ -33,11 +33,12 @@ export function writeConsolidation(
       SELECT * FROM jsonb_to_recordset(${JSON.stringify(decisions)}::jsonb) r(table_name text,source_key text,choice text)`;
 
     yield* storeApprovedSecrets(target, input, tables, review, matches, approval, approvedSecrets);
-    yield* retireSourceLeases(target);
+    const hasSlackContext = tables.some(({ name }) => name === "slack_channel_contexts");
+    yield* retireSourceLeases(target, hasSlackContext);
     yield* selectConnectorProjectGrants(target, input.target.ownerUserId);
 
     const populated = tables.filter(({ name }) => review.counts[name]);
-    const fences = yield* suspendHistoricalAdmission(target, populated);
+    const fences = yield* suspendHistoricalAdmission(target, populated, hasSlackContext);
     yield* shiftSequences(target, populated);
 
     // These clocks only identify snapshots on the target installation. Newly merged notes must
@@ -114,7 +115,7 @@ function storeApprovedSecrets(
   });
 }
 
-function retireSourceLeases(sql: Database) {
+function retireSourceLeases(sql: Database, hasSlackContext: boolean) {
   return Effect.gen(function* () {
     yield* sql`UPDATE pg_temp.cc_schedules SET lease_owner=NULL,lease_until=NULL`;
     yield* sql`UPDATE pg_temp.cc_turns SET lease_owner=NULL,lease_until=NULL`;
@@ -125,7 +126,8 @@ function retireSourceLeases(sql: Database) {
     yield* sql`UPDATE pg_temp.cc_messenger_accounts SET lease_holder=NULL,lease_token=NULL,lease_until=NULL,
       refresh_attempt=NULL,refresh_started_at=NULL`;
     yield* sql`UPDATE pg_temp.cc_messenger_outbound SET lease_token=NULL`;
-    yield* sql`UPDATE pg_temp.cc_slack_channel_contexts SET lease_id=NULL,lease_until=NULL`;
+
+    if (hasSlackContext) yield* sql`UPDATE pg_temp.cc_slack_channel_contexts SET lease_id=NULL,lease_until=NULL`;
     yield* sql`UPDATE pg_temp.cc_thread_secrets SET applied_revision=0,file_path=NULL`;
   });
 }
@@ -146,8 +148,6 @@ const historicalTriggers = new Map<string, readonly string[]>(
     schedules: ["schedules_require_visible", "schedules_rewind_admission"],
     goals: ["worktree_available_goal", "goals_rewind_admission"],
     worker_configs: ["worker_configs_history"],
-    bot_turns: ["capture_slack_turn_epoch"],
-    bot_channel_routes: ["sync_slack_route_context"],
   }),
 );
 
@@ -156,7 +156,7 @@ interface AdmissionChanges {
   foreign: { table: string; name: string }[];
 }
 
-function suspendHistoricalAdmission(sql: Database, tables: readonly SelectedTable[]) {
+function suspendHistoricalAdmission(sql: Database, tables: readonly SelectedTable[], hasSlackContext: boolean) {
   return Effect.gen(function* () {
     const changes: AdmissionChanges = { triggers: [], foreign: [] };
     const order = new Map(tables.map(({ name }, idx) => [name, idx]));
@@ -172,6 +172,13 @@ function suspendHistoricalAdmission(sql: Database, tables: readonly SelectedTabl
 
         if (to > from && !key.deferrable) changes.foreign.push({ table: table.name, name: key.name });
       }
+    }
+
+    if (hasSlackContext) {
+      if (order.has("bot_turns")) changes.triggers.push({ table: "bot_turns", name: "capture_slack_turn_epoch" });
+
+      if (order.has("bot_channel_routes"))
+        changes.triggers.push({ table: "bot_channel_routes", name: "sync_slack_route_context" });
     }
 
     // Previously imported or existing threads can acquire a resolved qualified reference too.

@@ -72,6 +72,7 @@
     "./archived-threads": "./src/archived-threads.ts",
     "./thread-activity": "./src/thread-activity.ts",
     "./subagents": "./src/subagents.ts",
+    "./task-list": "./src/task-list.ts",
     "./thread-tree": "./src/thread-tree.ts",
     ".": "./src/index.ts",
     "./items": "./src/items.ts",
