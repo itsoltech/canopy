@@ -192,4 +192,49 @@ describe.skipIf(!dockerAvailable)("connector OAuth redirect selection", () => {
       saved = complete.account!;
     }
   });
+
+  test("a saved Custom MCP app only applies to the issuer that registered it", async () => {
+    const registeredClient = "custom-registered-client";
+    const other = fakeConnector({ clientMetadata: { clientId: registeredClient, redirect: callback } });
+
+    try {
+      const otherAccount = await account(other.url);
+      await gw.api.saveConnectorOAuthApp({
+        connectorType: "custom",
+        issuer: new URL(other.url).origin,
+        clientId: registeredClient,
+      });
+
+      const saved = await account();
+      const registrations = fake.registrations;
+      const refreshes = fake.refreshes;
+      fake.duration = 1;
+      const { auth, state, code } = await begin(saved.id, true);
+      expect(auth.searchParams.get("redirect_uri")).toBe(DEFAULT_OAUTH_REDIRECT_URL);
+      expect(fake.registrations).toBe(registrations + 1);
+      expect((await gw.api.completeConnectorOAuth({ state, code, browserBinding: binding })).account?.status).toBe(
+        "connected",
+      );
+
+      fake.duration = 3600;
+      expect((await gw.api.testConnector({ accountId: saved.id })).tools).toHaveLength(2);
+      expect(fake.refreshes).toBe(refreshes + 1);
+
+      const matching = await begin(otherAccount.id, true);
+      expect(matching.auth.searchParams.get("client_id")).toBe(registeredClient);
+      expect(
+        (
+          await gw.api.completeConnectorOAuth({
+            state: matching.state,
+            code: matching.code,
+            browserBinding: binding,
+          })
+        ).account?.status,
+      ).toBe("connected");
+      expect(other.registrations).toBe(0);
+    } finally {
+      fake.duration = 3600;
+      await other.close();
+    }
+  });
 });
