@@ -105,10 +105,13 @@ export async function writeVerified(
   path: string,
   asset: ReleaseAsset,
   chunks: AsyncIterable<Uint8Array>,
+  onDownloadProgress?: (percent: number) => void,
 ): Promise<void> {
   const fd = await open(path, "wx", 0o600);
   const hash = createHash("sha256");
   let size = 0;
+  let reportedPercent = -1;
+  let nextReportAt = 0;
 
   try {
     for await (const chunk of chunks) {
@@ -118,6 +121,17 @@ export async function writeVerified(
       hash.update(chunk);
       // FileHandle.write may write fewer bytes; writeFile consumes this whole chunk.
       await fd.writeFile(chunk);
+
+      if (onDownloadProgress && chunk.length) {
+        const percent = Math.floor((size / asset.size) * 100);
+        const now = performance.now();
+
+        if (percent !== reportedPercent && (now >= nextReportAt || size === asset.size)) {
+          reportedPercent = percent;
+          nextReportAt = now + 1_000;
+          onDownloadProgress(percent);
+        }
+      }
     }
 
     if (size !== asset.size) throw new Error("Release asset size does not match manifest");
@@ -143,6 +157,7 @@ export interface StageUpdateOptions {
   chunks?: AsyncIterable<Uint8Array>;
   source?: ReleaseSource;
   allowDowngrade?: boolean;
+  onDownloadProgress?: (percent: number) => void;
 }
 
 /** Verified next-file + preserved previous executable + a single atomic replacement on POSIX. */
@@ -170,7 +185,12 @@ export async function stageBinaryUpdate(options: StageUpdateOptions): Promise<vo
   const backup = `${binaryPath}.${crypto.randomUUID()}.backup`;
 
   try {
-    await writeVerified(next, asset, options.chunks ?? downloadAsset(asset, options.source?.options));
+    await writeVerified(
+      next,
+      asset,
+      options.chunks ?? downloadAsset(asset, options.source?.options),
+      options.onDownloadProgress,
+    );
     await chmod(next, 0o700);
     await copyFile(binaryPath, backup);
     const backupFd = await open(backup, "r");

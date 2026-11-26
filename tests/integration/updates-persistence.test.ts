@@ -1,10 +1,17 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
+import { createClient } from "@connectrpc/connect";
 import { update } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { createGrpcClientTransport } from "@canopy/transport";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { UpdatePersistence } from "../../apps/gateway/src/updates/persistence.ts";
+import { WorkerUpdates } from "../../apps/worker/src/update-link.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("durable update metadata and administrator authorization", () => {
@@ -165,4 +172,102 @@ describe.skipIf(!dockerAvailable)("durable update metadata and administrator aut
     await eventually(epoch, (value) => value > before);
     expect((await reopened.workers()).find((w) => w.id === gateway.workerId)?.status.reason).toBe("Rollback");
   });
+  test.skipIf(process.platform === "win32")(
+    "GetUpdates exposes partial progress during the current worker download",
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "canopy-download-progress-"));
+      const binaryPath = join(directory, "worker");
+      const remaining = Promise.withResolvers<void>();
+      const bytes = new TextEncoder().encode("abcdefghij");
+
+      const command = create(update.UpdateCommandSchema, {
+        id: "progress-command",
+        version: "2.4.3",
+        manifestJson: JSON.stringify({
+          schema: 1,
+          version: "2.4.3",
+          channel: "v2.4.3",
+          commit: "abcdef0",
+          published_at: "2026-11-03T00:00:00Z",
+          protocol: { worker_link: 1, update: 1 },
+          assets: [
+            {
+              app: "worker",
+              os: process.platform,
+              arch: process.arch,
+              name: `canopy-worker-${process.platform}-${process.arch}`,
+              url: "https://release.fixture/binary",
+              size: bytes.length,
+              sha256: createHash("sha256").update(bytes).digest("hex"),
+            },
+          ],
+        }),
+      });
+
+      const client = createClient(update.UpdateService, createGrpcClientTransport({ baseUrl: gateway.grpcUrl }));
+      const row = async () => (await gateway.api.getUpdates({})).workers.find((w) => w.workerId === gateway.workerId);
+
+      const report = (reason: string, commandId = command.id) =>
+        client.report(
+          { workerId: gateway.workerId, version: command.version, commandId, state: "downloading", reason },
+          { headers: { authorization: `Bearer ${gateway.workerCredential}` } },
+        );
+
+      const worker = new WorkerUpdates({
+        baseUrl: gateway.grpcUrl,
+        credential: gateway.workerCredential,
+        workerId: gateway.workerId,
+        version: "2.4.2",
+        kind: "binary",
+        binaryPath,
+        signal: new AbortController().signal,
+        idle: () => true,
+        drain: () => {},
+        restart: async () => {},
+        source: {
+          baseUrl: "https://release.fixture",
+          fetch: async () =>
+            new Response(
+              new ReadableStream({
+                async start(controller) {
+                  controller.enqueue(bytes.subarray(0, 3));
+                  await remaining.promise;
+                  controller.enqueue(bytes.subarray(3));
+                  controller.close();
+                },
+              }),
+            ),
+        },
+      });
+
+      try {
+        await writeFile(binaryPath, "installed", { mode: 0o700 });
+        await store.saveCommand(gateway.workerId, command);
+        const applying = worker.apply(command);
+
+        try {
+          const progress = await Promise.race([
+            applying,
+            eventually(row, (value) => value?.downloadProgress === 30, 3_000),
+          ]);
+
+          expect(progress).toMatchObject({ state: "downloading", downloadProgress: 30, reason: "" });
+          expect(await readFile(binaryPath, "utf8")).toBe("installed");
+          await report("20%");
+          await report("99%", "older-command");
+          expect((await row())?.downloadProgress).toBe(30);
+        } finally {
+          remaining.resolve();
+          await applying;
+        }
+
+        await report("100%");
+        const restarting = await row();
+        expect(restarting?.state).toBe("restarting");
+        expect(restarting?.downloadProgress).toBeUndefined();
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });

@@ -36,6 +36,7 @@ export class GatewayUpdates {
   #channel: string;
   #available: ReleaseManifest | undefined;
   #state = "idle";
+  #downloadProgress: number | undefined;
   #targetVersion = "";
   #reason = "";
   #checking: Promise<void> | undefined;
@@ -173,6 +174,7 @@ export class GatewayUpdates {
   }
   #setState(state: string): void {
     this.#state = state;
+    this.#downloadProgress = undefined;
     this.options.changed?.();
   }
   #setDraining(value: boolean): void {
@@ -246,6 +248,7 @@ export class GatewayUpdates {
       gatewayInstallKind: this.kind,
       gatewayState: this.#control === "ready" ? this.#state : this.#control,
       gatewayTargetVersion: this.#targetVersion,
+      gatewayDownloadProgress: this.#control === "ready" ? this.#downloadProgress : undefined,
       gatewayReason: [
         this.kind !== "binary" ? managedInstructions(this.kind) : "",
         this.#reason,
@@ -393,6 +396,10 @@ export class GatewayUpdates {
             binaryPath: this.options.binaryPath ?? process.execPath,
             currentVersion: this.version,
             allowDowngrade: request.allowDowngrade,
+            onDownloadProgress: (percent) => {
+              this.#downloadProgress = percent;
+              this.options.changed?.();
+            },
           });
           staged = true;
           this.#setState("restarting");

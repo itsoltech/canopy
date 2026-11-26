@@ -122,7 +122,7 @@
     ? desktop?.reason || reason || updates.snapshot?.run?.steps[step]?.reason || "The update did not finish."
     : ""}
   busy={inProgress}
-  progress={desktop?.phase === "downloading" ? desktop.progress : undefined}
+  progress={desktop ? (desktop.phase === "downloading" ? desktop.progress : undefined) : worker.downloadProgress}
   class={[!connected && !inProgress && "opacity-50", className]}
 >
   {#snippet action()}

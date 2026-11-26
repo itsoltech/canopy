@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-26), w tym szybkich akcji w popoverze
+Status: opis zaimplementowanego kodu (2026-11-26), w tym postępu pobierania binarek
+workerów i samodzielnego gatewaya w web i Electronie, szybkich akcji w popoverze
 web i Electron oraz wspólnej sekcji App updates w web, Electronie i na telefonie,
 kolejkowania tur od przyjęcia aktualizacji
 gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
@@ -220,7 +221,16 @@ również w trakcie przerwy w połączeniu. Reconnecting oznacza, że worker zg�
 wersję docelową, a gateway czeka jeszcze na potwierdzenie gotowości workera.
 Poza oczekiwanym restartem rozłączenie kanału aktualizacji pokazuje Offline.
 Cel workera pochodzi z aktualnego polecenia, także gdy zmieniła się wersja gatewaya.
-`canopy.update.v1` nadal przesyła stan w istniejącym polu tekstowym.
+Podczas Downloading pasek w popoverze i ustawieniach wypełnia się proporcjonalnie
+do bajtów otrzymanych z mirrora lub źródła wydania. Rozmiar pochodzi z manifestu.
+Samodzielny gateway pokazuje postęp pobierania własnej binarki po przygotowaniu
+mirrora. Przed otrzymaniem pierwszych bajtów i przy starszym workerze bez pomiaru
+pasek sygnalizuje aktywność bez wskazania ilości. Pasek zbiorczy nadal liczy
+zakończone kroki Update all.
+
+Zamrożony `canopy.update.v1` przenosi procent jako `N%` w istniejącym polu `reason`
+raportu `downloading`. Gateway przyjmuje rosnący postęp bieżącego polecenia
+i przekazuje go w opcjonalnym polu `download_progress` wiersza workera.
 
 Wiersz partnera w Status pokazuje wersję, cel, kanał, ostatnie sprawdzenie i stan.
 Check now (`computer_check`) pyta wybrany komputer o jego feed.

@@ -14,7 +14,12 @@
   class={["h-0.5 overflow-hidden rounded-full bg-brand-500/15", className]}
 >
   <div
-    class={["h-full rounded-full bg-brand-600 dark:bg-brand-400", percent === undefined && "update-progress-pulse"]}
+    class={[
+      "h-full rounded-full bg-brand-600 dark:bg-brand-400",
+      percent === undefined
+        ? "update-progress-pulse"
+        : "transition-[width] duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none",
+    ]}
     style:width={`${percent ?? 35}%`}
   ></div>
 </div>

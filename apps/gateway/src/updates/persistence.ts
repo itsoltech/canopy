@@ -20,6 +20,7 @@ export interface WorkerUpdateRow {
     state?: string;
     reason?: string;
     targetVersion?: string;
+    downloadProgress?: number;
   };
   command?: update.UpdateCommand;
 }
@@ -125,7 +126,7 @@ export class UpdatePersistence {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
         yield* sql`UPDATE workers SET capabilities = jsonb_set(capabilities || ${JSON.stringify({ updateCommand: toJson(update.UpdateCommandSchema, command) })}::jsonb,
-          '{update}', coalesce(capabilities->'update', '{}'::jsonb) || ${JSON.stringify({ state: "queued", reason: "", targetVersion: command.version })}::jsonb)
+          '{update}', (coalesce(capabilities->'update', '{}'::jsonb) - 'downloadProgress') || ${JSON.stringify({ state: "queued", reason: "", targetVersion: command.version })}::jsonb)
         WHERE id = ${workerId}::uuid AND revoked_at IS NULL AND archived_at IS NULL AND (owner_user_id = ${userId}::uuid OR owner_user_id IS NULL)`;
         yield* sql`INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, details)
         VALUES (${Bun.randomUUIDv7()}::uuid, ${userId}::uuid, 'worker.update', 'worker', ${workerId}::uuid, ${JSON.stringify({ version: command.version, force: command.force, allowDowngrade: command.allowDowngrade })}::jsonb)`;
@@ -133,12 +134,27 @@ export class UpdatePersistence {
     );
   }
   async report(workerId: string, report: update.ReportRequest): Promise<void> {
-    const status = JSON.stringify({ state: report.state, reason: report.reason, targetVersion: report.version });
+    const progress =
+      report.state === "downloading" && /^(?:100|[1-9]?[0-9])%$/.test(report.reason)
+        ? Number.parseInt(report.reason, 10)
+        : undefined;
+
+    const status = JSON.stringify(
+      progress === undefined
+        ? { state: report.state, reason: report.reason, targetVersion: report.version }
+        : { downloadProgress: progress },
+    );
+
     await this.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        yield* sql`UPDATE workers SET capabilities = jsonb_set(capabilities, '{update}', coalesce(capabilities->'update', '{}'::jsonb) || ${status}::jsonb)
-        WHERE id = ${workerId}::uuid AND revoked_at IS NULL AND archived_at IS NULL AND capabilities->'updateCommand'->>'id' = ${report.commandId}`;
+        yield* sql`UPDATE workers SET capabilities = jsonb_set(capabilities, '{update}', (coalesce(capabilities->'update', '{}'::jsonb) - 'downloadProgress') || ${status}::jsonb)
+        WHERE id = ${workerId}::uuid AND revoked_at IS NULL AND archived_at IS NULL AND capabilities->'updateCommand'->>'id' = ${report.commandId}
+        AND (${progress ?? null}::integer IS NULL OR (
+          capabilities->'update'->>'state' = 'downloading'
+          AND capabilities->'update'->>'targetVersion' = ${report.version}
+          AND coalesce(capabilities->'update'->'downloadProgress', '-1'::jsonb) < to_jsonb(${progress ?? null}::integer)
+        ))`;
       }).pipe(queryFamily("updates.store"), queryRpc),
     );
   }
