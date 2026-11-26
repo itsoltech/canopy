@@ -3,15 +3,16 @@
  * thread_items -> the thread select (partial index thread_items_task_lists) -> Thread.tasks in the list.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { Client } from "@connectrpc/connect";
-import { ItemStatus, PermissionMode, Provider, TurnOrigin, TurnOutcome, ui, type Item } from "@canopy/contracts";
+import { ItemSchema, ItemStatus, PermissionMode, Provider, TurnOrigin, TurnOutcome, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 let gw: TestGateway;
 let api: Client<typeof ui.GatewayService>;
 
-type Content = NonNullable<Item["content"]>;
+type Content = NonNullable<MessageInitShape<typeof ItemSchema>["content"]>;
 
 describe.skipIf(!dockerAvailable)("thread task list (gateway)", () => {
   let projectId = "";
