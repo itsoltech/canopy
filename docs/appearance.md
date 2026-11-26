@@ -9,6 +9,11 @@ jeden ciągły brzeg na całej koronie drzewa.
 Domyślny font interfejsu web i desktop ma etykietę Inter.
 Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
 W web i desktopie Thread width obejmuje także widok PR i podgląd `Rendered` plików Markdown.
+Aktualizacja (2026-11-26): Theme builder pozwala edytować i losować palety
+Light oraz Dark, zmieniać zaokrąglenie i odstępy oraz stosować propozycje
+bota w web i desktopie.
+**Preview in app** pokazuje edytowany motyw na ekranie, z którego otwarto
+Settings. **Draft** i **Applied** przełączają motyw w podglądzie.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -36,6 +41,40 @@ poprzednią/następną, Home/End pierwszą/ostatnią. Spacja i Enter korzystają
 natywnej obsługi przycisku. Widoczny znacznik i komunikat statusu opisują oba
 wybory. Nie ma natywnych radio ani animacji wymagających osobnych wyjątków dla
 ograniczonego ruchu; pozostałe przejścia używają tokenów zestawu UI.
+
+## Kreator motywu
+
+**Settings → Appearance → Theme builder** pozwala wybrać dla Light i Dark osobną
+paletę bazową i gotowy akcent. Przełącznik w podglądzie wybiera edytowany wariant.
+Aktywnym wariantem aplikacji nadal steruje Color scheme.
+
+Każdy ze 102 kolorów w wariancie ma własny próbnik i pole hex. Podstawowa
+lista pokazuje role interfejsu, a **Advanced shades** zawiera odcienie neutralne,
+odcienie akcentu i odcienie statusów. Kolor można przywrócić osobno lub wyczyścić
+nadpisania wariantu przyciskiem **Reset colors**. **Randomize both palettes**
+losuje wspólny odcień bazowy i jedną z trzech harmonii na kole OKLCH
+(analogiczną, dopełniającą rozdzieloną lub triadę). Jasności dla obu wariantów
+dobierane są oddzielnie, a kolory statusów zachowują swoje znaczenie.
+Podgląd sygnalizuje niski kontrast tekstu, akcentu i przycisków.
+
+**Corner radius** skaluje wspólne promienie narożników kontrolek i powierzchni
+w obu wariantach. **Spacing** zmienia padding dymków wiadomości, odstępy
+w Settings oraz padding kart wątków w sidebarze przy precyzyjnym wskaźniku.
+Minimalne cele dotykowe korzystają ze skali interfejsu.
+
+**Preview in app** odsłania bieżący ekran Canopy i tymczasowo zmienia jego
+paletę, narożniki i odstępy. Pasek podglądu pozwala przełączyć Light lub Dark
+oraz porównać **Draft** i **Applied**. **Back to editor** lub Escape przywraca
+wygląd okna i zachowuje szkic w edytorze. Podgląd dotyczy bieżącego okna.
+**Apply theme** stosuje zmiany w aplikacji i zapisuje je w cookie profilu,
+odczytywanym również przy pierwszym renderze. **Discard changes** przywraca ostatnie zastosowane
+wartości w kreatorze. Zmiana palety w Themes lub palecie poleceń zachowuje
+wybrany akcent i nadpisania kolorów. **Reset appearance** przywraca wartości
+domyślne i czyści edytowane zmiany kreatora.
+
+W prywatnej rozmowie właściciel może poprosić bota o zmianę motywu. Akcja
+**Review theme** w rozmowie otwiera kreator z propozycją. **Apply theme** zapisuje
+ją w bieżącym profilu. [Boty](bots.md).
 
 ## Palety i tokeny
 

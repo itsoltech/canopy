@@ -2,6 +2,7 @@
   import { themeNames, themes, type ThemeMode } from "@canopy/ui/themes";
   import { colorThemes, themeOf } from "./appearance.ts";
   import { useSettings } from "./settings-state.svelte.ts";
+  import { themeOverridesOf } from "./theme-customization.ts";
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
   import ThemePreview from "./ThemePreview.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -48,7 +49,7 @@
                 )}
               class="grid gap-1 p-1.5"
             >
-              <ThemePreview theme={name} {mode} />
+              <ThemePreview theme={name} {mode} overrides={themeOverridesOf(settings.appearance, mode)} />
               <div class="px-0.5 font-medium wrap-anywhere">{themes[name].label}</div>
             </OptionTile>
           {/each}

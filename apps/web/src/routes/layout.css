@@ -5,6 +5,7 @@
 @import "../lib/shared/ui/selection.css";
 @import "../lib/shared/ui/scroll.css";
 @import "../lib/features/settings/themes.css";
+@import "../lib/features/settings/theme-customization.css";
 @import "../lib/features/settings/device-appearance.css";
 @import "../lib/shared/ui/focus.css";
 @import "katex/dist/katex.min.css";

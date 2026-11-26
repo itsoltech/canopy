@@ -14,6 +14,7 @@ import { messengerTools } from "./messengers.ts";
 import { canopyReleaseVersions } from "./release-notes.ts";
 import { accountPreferenceTools } from "./account-preferences.ts";
 import { canopySettingsGuide } from "./settings-guide.ts";
+import { proposeCanopyTheme } from "./theme-proposal.ts";
 
 /** Grouped in the model's catalogue; a single allowlisted descriptor owns dispatch and status. */
 export const areaTools = [
@@ -27,6 +28,7 @@ export const areaTools = [
   canopyReleaseVersions,
   canopySettingsGuide,
   ...accountPreferenceTools,
+  proposeCanopyTheme,
   ...scheduleTools,
   ...settingsTools,
   createBotTool,

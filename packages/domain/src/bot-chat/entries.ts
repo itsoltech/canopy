@@ -86,6 +86,7 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
           text: m.senderId === "system" ? "Reminder" : displayText(m),
           ...(m.senderId === "system" && { detail: m.text }),
           actorId: m.senderId,
+          themeBuilderPatch: m.themeBuilderPatch || undefined,
         },
       };
 

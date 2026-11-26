@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-26): właściciel może poprosić bota w prywatnym czacie o propozycję
+motywu. W web i desktopie akcja **Review theme** otwiera podgląd w kreatorze.
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-26): bot obsługujący Slack może zakończyć turę bez wysyłania
 odpowiedzi ani powiadomienia. Dostępność w kanałach określa [promocja wydań](release.md).
 
@@ -1290,6 +1294,7 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `search_canopy_preferences` | Wyszukuje kontrolki Appearance według słów, do pięciu dopasowań | R |
 | `get_canopy_preference` | Zwraca możliwe wybory oraz dawną wartość domyślną i jej wersję. Potwierdza ścieżkę dla rozpoznanej wersji klienta | R |
 | `set_canopy_preference` | Zmienia dawną wartość domyślną z wersją z odczytu i zwraca zapisaną wartość | A |
+| `propose_canopy_theme` | Zapisuje w prywatnym czacie propozycję kolorów Light lub Dark, zaokrąglenia i odstępów | Apply theme w kreatorze |
 | `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
 | `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
 | `list_bots` | Boty właściciela | R |
@@ -1311,6 +1316,15 @@ Bot proponuje zapis po jednoznacznym poleceniu właściciela. Gateway sprawdza
 jednorazową zgodę na tę operację także przy wykonaniu zapisu. Reguły stałe i Full
 auto nie wystarczają. Po równoległej edycji trzeba ponownie odczytać aktualną
 preferencję. Lista obsługiwanych opcji i zasady nawigacji są w [mapie ustawień](settings-map.md#preferencje-dostępne-dla-bota).
+
+Po wyraźnej prośbie właściciela bot używa `propose_canopy_theme`, aby zapisać w czacie
+propozycję zmiany wyglądu. Gateway sprawdza, czy aktualną turę rozpoczęła prywatna
+wiadomość właściciela. Przyjmuje tylko znane tokeny palety, kolory w formacie
+`#RRGGBB` oraz opcje zaokrąglenia i odstępów z kreatora. Narzędzie działa również
+bez Web access i modułu Threads.
+**Review theme** przygotowuje podgląd z tymi zmianami w **Settings → Appearance → Theme builder**.
+**Apply theme** zapisuje je w profilu przeglądarki lub desktopu, w którym właściciel
+zatwierdził propozycję. [Wygląd i pełne palety](appearance.md#kreator-motywu)
 
 Mutacje używają **tych samych metod `GatewayCore` i walidacji co UI API**.
 `core/action-context.ts` przenosi kontekst transakcji Effect SQL przez asynchroniczne

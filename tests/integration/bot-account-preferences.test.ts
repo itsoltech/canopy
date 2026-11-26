@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Provider, ui, type bots } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { decodeThemeBuilderPatch } from "@canopy/ui/theme-builder";
+import { join } from "node:path";
+import { botContexts } from "./fixtures/bot-probe.ts";
 import { harnessBots, type HarnessBots } from "./support/harness-bots.ts";
 import { eventually } from "./support/gateway.ts";
 import { colorSchemePreference, threadWidthPreference, type JsonObject } from "@canopy/domain";
@@ -11,6 +14,7 @@ const width = "appearance.thread_width";
 const search = "search_canopy_preferences";
 const get = "get_canopy_preference";
 const set = "set_canopy_preference";
+const propose = "propose_canopy_theme";
 
 function result(chat: bots.BotConversation) {
   const reply = JSON.parse(chat.messages.at(-1)!.text.replace(/^TOOL_RESULT:/, ""));
@@ -178,4 +182,59 @@ describe.skipIf(!dockerAvailable)("Canopy account preferences through private bo
     expect(result(await f.settled(botId))).toMatchObject({ error: expect.stringContaining("changed elsewhere") });
     expect(await settings()).toEqual(concurrent!);
   }, 15_000);
+
+  test("a private request stages a durable theme without changing account settings", async () => {
+    const before = await settings();
+    const bot = await f.add(Provider.CODEX, f.workerId, "always");
+
+    const args = {
+      light: { accent: "#F05829" },
+      dark: { surface: "#17191C" },
+      cornerRadius: "rounded",
+      spacing: "compact",
+    };
+
+    await f.tool(bot.id, propose, args);
+    expect(result(await f.settled(bot.id))).toEqual({ status: "proposed" });
+    expect(await settings()).toEqual(before);
+
+    for await (const chat of f.gw.api.watchBotConversation({ botId: bot.id }, { timeoutMs: 5_000 })) {
+      const proposals = chat.messages.filter((message) => message.themeBuilderPatch);
+      expect(proposals).toHaveLength(1);
+      expect(proposals[0]).toMatchObject({ kind: "event", senderId: "activity", recipientId: "user" });
+      expect(decodeThemeBuilderPatch(proposals[0]!.themeBuilderPatch)).toEqual({
+        light: { accent: "#f05829" },
+        dark: { surface: "#17191c" },
+        cornerRadius: "rounded",
+        spacing: "compact",
+      });
+      expect(chat.approvals).toHaveLength(0);
+
+      return;
+    }
+
+    throw new Error("No bot conversation received.");
+  }, 15_000);
+
+  test("a theme proposal rejects arbitrary CSS at the color boundary", async () => {
+    expect(await invoke(propose, { light: { accent: "var(--ink)" } })).toEqual({ error: "invalid arguments" });
+    expect((await f.read(botId)).messages.some((message) => message.themeBuilderPatch)).toBe(false);
+  });
+
+  test("an automated turn in the private chat cannot propose a theme", async () => {
+    await f.gw.core.bots.run((s) =>
+      s.enqueue(
+        f.gw.userId,
+        botId,
+        `PROBE_CONTEXT\nTOOL:${propose}\nARGS:{"cornerRadius":"rounded"}`,
+        `wakeup:${crypto.randomUUID()}`,
+        { sender: "system", event: true },
+      ),
+    );
+    const chat = await f.settled(botId);
+    const context = botContexts(join(f.dir, "bots.jsonl.context")).at(-1);
+    expect(context?.prompt).toContain(`TOOL:${propose}`);
+    expect(context?.names).not.toContain(propose);
+    expect(chat.messages.some((message) => message.themeBuilderPatch)).toBe(false);
+  });
 });

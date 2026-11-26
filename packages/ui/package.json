@@ -21,6 +21,8 @@
     "./desktop": "./src/desktop.ts",
     "./fonts": "./src/fonts.ts",
     "./themes": "./src/themes.ts",
+    "./theme-builder": "./src/theme-builder.ts",
+    "./theme-random": "./src/theme-random.ts",
     "./keybindings": "./src/keybindings.ts",
     "./timezones": "./src/timezones.json"
   },

@@ -8,10 +8,11 @@ import {
   type SandboxProfile,
   ui,
 } from "@canopy/contracts";
-import { enabledModules, type DeviceAppearance, type ModuleId } from "@canopy/domain";
+import { enabledModules, type ModuleId } from "@canopy/domain";
 import { deviceSidebarSettings, type DeviceSidebarValues } from "@canopy/domain/device-view";
 import { devicePreferences } from "./device-preferences.svelte.ts";
 import { appearanceState } from "./appearance-state.svelte.ts";
+import type { WebAppearance } from "./theme-customization.ts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { userTimeZone } from "#lib/shared/ui/date-time.ts";
@@ -69,7 +70,7 @@ export class SettingsState {
     projects: new Map(),
   };
 
-  get appearance(): DeviceAppearance {
+  get appearance(): WebAppearance {
     return appearanceState.values;
   }
 
@@ -323,8 +324,8 @@ export class SettingsState {
     }).catch(() => undefined);
   }
 
-  updateAppearance(change: Partial<DeviceAppearance>): void {
-    appearanceState.update(change);
+  updateAppearance(change: Partial<WebAppearance>): boolean {
+    return appearanceState.update(change);
   }
 
   updateThreadDefaults(next: ui.ThreadDefaults): Promise<void> {

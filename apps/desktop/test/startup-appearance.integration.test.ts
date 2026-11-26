@@ -49,12 +49,12 @@ test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
       // SAFETY: Outside the Electron runtime, its npm entry exports the executable path.
       const electron = require("electron") as string;
 
-      for (const [scheme, system, version] of [
-        ["dark", "light", "0.8.0"],
-        ["light", "dark", "0.8.0-beta.2"],
-        ["system", "dark", "0.8.0-nightly.4"],
-        ["system", "light", ""],
-      ]) {
+      for (const [scheme, system, version, custom] of [
+        ["dark", "light", "0.8.0", true],
+        ["light", "dark", "0.8.0-beta.2", true],
+        ["system", "dark", "0.8.0-nightly.4", false],
+        ["system", "light", "", false],
+      ] as const) {
         const child = Bun.spawn(
           [
             electron,
@@ -67,6 +67,7 @@ test.skipIf(process.env["CANOPY_LIVE"] !== "1")(
               CANOPY_TEST_DESKTOP: directory,
               CANOPY_TEST_ORIGIN: origin,
               CANOPY_TEST_APPEARANCE: scheme,
+              CANOPY_TEST_CUSTOM_THEME: custom ? "1" : "0",
               CANOPY_TEST_SYSTEM_SCHEME: system,
               CANOPY_TEST_DESKTOP_VERSION: version,
             },

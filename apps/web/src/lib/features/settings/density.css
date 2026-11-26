@@ -6,10 +6,10 @@
   --settings-section-heading: var(--type-standard);
   --settings-page-heading: 1.125rem;
   --settings-line: 1.25rem;
-  --settings-section-gap: 1.5rem;
-  --settings-field-gap: 0.75rem;
-  --settings-row-y: 0.625rem;
-  --settings-row-x: 0.75rem;
+  --settings-section-gap: calc(var(--theme-space) * 6);
+  --settings-field-gap: calc(var(--theme-space) * 3);
+  --settings-row-y: calc(var(--theme-space) * 2.5);
+  --settings-row-x: calc(var(--theme-space) * 3);
   --settings-control-height: 2.75rem;
   --settings-control-font: var(--type-touch);
   --settings-target: 2.75rem;
@@ -36,8 +36,8 @@
   .settings-density {
     --settings-body: var(--type-compact);
     --settings-label: var(--type-compact);
-    --settings-section-gap: 1.25rem;
-    --settings-row-y: 0.5rem;
+    --settings-section-gap: calc(var(--theme-space) * 5);
+    --settings-row-y: calc(var(--theme-space) * 2);
     --settings-control-height: 2rem;
     --settings-control-font: var(--type-compact);
     --settings-target: 2rem;
@@ -105,7 +105,7 @@
 }
 
 .settings-density :where(.settings-group-body) {
-  border-radius: 0.75rem;
+  border-radius: var(--radius-xl);
 }
 
 .settings-density :where(.ui-field, .ui-fieldset-content) {

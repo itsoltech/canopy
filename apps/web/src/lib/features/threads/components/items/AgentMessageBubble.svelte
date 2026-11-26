@@ -60,7 +60,7 @@
 
 <div
   class={[
-    "grid max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-violet-50 px-4 py-2.5 text-base/6 break-words text-violet-950 ring-1 ring-violet-600/10 ring-inset sm:text-sm/6 dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20",
+    "grid max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-violet-50 theme-message-padding text-base/6 break-words text-violet-950 ring-1 ring-violet-600/10 ring-inset sm:text-sm/6 dark:bg-violet-400/10 dark:text-violet-50 dark:ring-violet-400/20",
     // The chevron's column stays reserved in both states, so the folded line ends before it.
     fits ? "grid-cols-1" : "grid-cols-[minmax(0,1fr)_--spacing(6)]",
     className,

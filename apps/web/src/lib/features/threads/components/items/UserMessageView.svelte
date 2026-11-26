@@ -134,7 +134,7 @@
   {:else if message.text.trim() || details || quotes.length > 0}
     <div
       class={[
-        "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-zinc-100 px-4 py-2.5 text-base/6 break-words text-zinc-950 sm:text-sm/6 dark:bg-white/10 dark:text-white",
+        "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-zinc-100 theme-message-padding text-base/6 break-words text-zinc-950 sm:text-sm/6 dark:bg-white/10 dark:text-white",
         pending && "opacity-70",
       ]}
     >

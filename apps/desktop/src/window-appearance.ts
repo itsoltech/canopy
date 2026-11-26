@@ -1,31 +1,30 @@
 import { app, BrowserWindow, ipcMain, nativeTheme, type IpcMainInvokeEvent, type IpcMainEvent } from "electron";
 import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import { isThemeName, paletteStyle, themeVariables } from "@canopy/ui/themes";
+import { Schema } from "effect";
+import { paletteStyle, themeAccentNames, themeNames, themeVariables, type ThemeMode } from "@canopy/ui/themes";
+import { unpackThemeColors } from "@canopy/ui/theme-builder";
 import type { DesktopAppearance } from "@canopy/ui/desktop";
 
-interface AppearanceInput {
-  scheme?: unknown;
-  light?: unknown;
-  dark?: unknown;
-}
+const themeName = Schema.Literals(themeNames);
+const accent = Schema.optional(Schema.Literals(themeAccentNames));
 
-function isAppearance(value: AppearanceInput | null | undefined): value is DesktopAppearance {
-  if (!value || typeof value !== "object" || !("scheme" in value) || !("light" in value) || !("dark" in value))
-    return false;
+const packedColors = Schema.optional(
+  Schema.String.check(Schema.makeFilter((value) => unpackThemeColors(value) !== undefined)),
+);
 
-  if (value.scheme !== "system" && value.scheme !== "light" && value.scheme !== "dark") return false;
+const appearanceInput = Schema.Struct({
+  scheme: Schema.Literals(["system", "light", "dark"]),
+  light: themeName,
+  dark: themeName,
+  lightAccent: accent,
+  darkAccent: accent,
+  lightColors: packedColors,
+  darkColors: packedColors,
+});
 
-  if (
-    typeof value.light !== "string" ||
-    typeof value.dark !== "string" ||
-    !isThemeName(value.light) ||
-    !isThemeName(value.dark)
-  )
-    return false;
-
-  return true;
-}
+const decodeAppearance = Schema.decodeUnknownResult(appearanceInput);
+const readAppearance = Schema.decodeUnknownSync(Schema.fromJsonString(appearanceInput));
 
 let cached: DesktopAppearance | undefined;
 
@@ -36,9 +35,7 @@ function path() {
 export function windowAppearance(): DesktopAppearance {
   if (!cached) {
     try {
-      const value: AppearanceInput | null = JSON.parse(readFileSync(path(), "utf8"));
-
-      if (isAppearance(value)) cached = value;
+      cached = readAppearance(readFileSync(path(), "utf8"));
     } catch {
       /* The renderer applies its browser profile's preferences when the page is ready. */
     }
@@ -47,11 +44,18 @@ export function windowAppearance(): DesktopAppearance {
   return cached ?? { scheme: "system", light: "birch", dark: "birch" };
 }
 
+function overridesFor(appearance: DesktopAppearance, mode: ThemeMode) {
+  const colors = appearance[`${mode}Colors`];
+
+  return { accent: appearance[`${mode}Accent`], colors: colors ? unpackThemeColors(colors) : undefined };
+}
+
 export function windowColors() {
   const appearance = windowAppearance();
   const dark = appearance.scheme === "dark" || (appearance.scheme === "system" && nativeTheme.shouldUseDarkColors);
+  const mode = dark ? "dark" : "light";
 
-  return themeVariables(appearance[dark ? "dark" : "light"], dark ? "dark" : "light");
+  return themeVariables(appearance[mode], mode, overridesFor(appearance, mode));
 }
 
 export function applyWindowAppearance(target: BrowserWindow) {
@@ -64,19 +68,38 @@ export function registerAppearanceIpc(authorize: (event: IpcMainInvokeEvent | Ip
     try {
       authorize(event);
       const appearance = windowAppearance();
-      event.returnValue = { ...appearance, style: paletteStyle(appearance.light, appearance.dark) };
+
+      const style = paletteStyle(appearance.light, appearance.dark, {
+        light: overridesFor(appearance, "light"),
+        dark: overridesFor(appearance, "dark"),
+      });
+
+      event.returnValue = { ...appearance, style };
     } catch {
       event.returnValue = null;
     }
   });
-  ipcMain.handle("canopy:appearance", (event, value: AppearanceInput | null) => {
+  ipcMain.handle("canopy:appearance", (event, value) => {
     authorize(event);
+    const decoded = decodeAppearance(value);
 
-    if (!isAppearance(value)) throw new Error("Invalid appearance");
-    const next = { scheme: value.scheme, light: value.light, dark: value.dark };
+    if (decoded._tag === "Failure") throw new Error("Invalid appearance");
+
+    const { lightColors, darkColors, ...preferences } = decoded.success;
+    const next = { ...preferences, lightColors: lightColors || undefined, darkColors: darkColors || undefined };
     const before = windowAppearance();
 
-    if (before.scheme === next.scheme && before.light === next.light && before.dark === next.dark) return;
+    if (
+      before.scheme === next.scheme &&
+      before.light === next.light &&
+      before.dark === next.dark &&
+      before.lightAccent === next.lightAccent &&
+      before.darkAccent === next.darkAccent &&
+      before.lightColors === next.lightColors &&
+      before.darkColors === next.darkColors
+    )
+      return;
+
     cached = next;
 
     try {

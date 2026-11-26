@@ -211,6 +211,7 @@
 {#if shown}
   <SettingsDialog
     {open}
+    canPreview={Boolean(shallowUrl) && !overlay.bridging}
     focused={fromSetup ?? focused}
     onclose={close}
     onexited={() => {

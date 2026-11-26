@@ -13,7 +13,7 @@
   import WindowControls from "#lib/features/desktop/WindowControls.svelte";
   import { applyWindowState } from "#lib/features/desktop/window-chrome.ts";
   import { holdFileDrops } from "#lib/features/attachments/file-intake.svelte.ts";
-  import { applyAppearance } from "#lib/features/settings/appearance.ts";
+  import { applyAppearance, applyDesktopAppearance } from "#lib/features/settings/appearance.ts";
   import { appearanceState } from "#lib/features/settings/appearance-state.svelte.ts";
   import type { LayoutProps } from "./$types";
 
@@ -45,7 +45,11 @@
   const setKeyboardNavigation = applyDesktopFocusIndicators(() => devicePreferences.values.focusIndicators);
 
   $effect(() => {
-    if (appearanceState.connected) applyAppearance(appearanceState.values);
+    if (appearanceState.connected) applyAppearance(appearanceState.values, appearanceState.preview);
+  });
+
+  $effect(() => {
+    if (appearanceState.connected) applyDesktopAppearance(appearanceState.values);
   });
 
   beforeNavigate(navigationStarted);

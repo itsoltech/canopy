@@ -1,9 +1,15 @@
 <script lang="ts">
-  import { themeVariables, type ThemeName, type ThemeMode } from "@canopy/ui/themes";
+  import { themeVariables, type ThemeName, type ThemeMode, type ThemeOverrides } from "@canopy/ui/themes";
   import type { ClassValue } from "svelte/elements";
 
-  let { theme, mode, class: className }: { theme: ThemeName; mode: ThemeMode; class?: ClassValue } = $props();
-  const colors = $derived(themeVariables(theme, mode));
+  let {
+    theme,
+    mode,
+    overrides,
+    class: className,
+  }: { theme: ThemeName; mode: ThemeMode; overrides?: ThemeOverrides | undefined; class?: ClassValue } = $props();
+
+  const colors = $derived(themeVariables(theme, mode, overrides));
 
   const style = $derived(
     (["canvas", "panel", "border", "muted", "surface", "accent"] as const)

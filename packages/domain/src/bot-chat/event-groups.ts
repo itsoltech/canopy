@@ -26,7 +26,7 @@ export function visibleChatRows(groups: readonly BotTimelineRow[], open: Readonl
 }
 
 const isEvent = (row: ChatRow): row is EventRow =>
-  row.kind === "event" ||
+  (row.kind === "event" && !row.event.themeBuilderPatch) ||
   (row.kind === "approval" && row.approval.status === "approved" && Boolean(row.approval.allowedByRule));
 
 /** Keep the same header as a run grows at either end (live updates and older history). */

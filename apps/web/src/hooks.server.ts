@@ -1,7 +1,7 @@
 import { building, dev } from "$app/env";
 import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
-import { parseDeviceAppearance } from "@canopy/domain";
 import { appearanceCookie, documentAttributes } from "#lib/features/settings/appearance.ts";
+import { parseWebAppearance } from "#lib/features/settings/theme-customization.ts";
 import { requireServiceToken } from "#lib/server/gateway.ts";
 import { desktopWebOrigin, trustedDesktopRequest } from "#lib/server/desktop-origin.ts";
 import { trustedDevRequest } from "#lib/server/dev-origin.ts";
@@ -20,7 +20,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (dev && !desktopOrigin && !trustedDevRequest(event.request, event.url))
     return new Response("Untrusted web origin", { status: 403, headers: { "cache-control": "no-store" } });
   const page = !event.isDataRequest && !event.url.pathname.startsWith("/api/");
-  const appearance = page ? parseDeviceAppearance(event.cookies.get(appearanceCookie) ?? null) : undefined;
+  const appearance = page ? parseWebAppearance(event.cookies.get(appearanceCookie) ?? null) : undefined;
   const identity = page && !building ? shellIdentity() : undefined;
 
   const response = await resolve(event, {
