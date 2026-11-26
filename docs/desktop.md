@@ -3,8 +3,9 @@
 Status (2026-11-26): popover aktualizacji w stopce paska bocznego oferuje sprawdzanie,
 instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok statusu aktualizacji.
 
-Status (2026-11-25): eksperymentalny **Activity notch** w Canopy Desktop na macOS
-i Windows przylega do górnej krawędzi i rozwija listę po najechaniu kursorem.
+Status (2026-11-26): eksperymentalny **Activity notch** w Canopy Desktop na macOS
+i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
+płynnie rozwija i zwija listę oraz animuje zmiany stanu aktywności.
 W rozwiniętej liście wątki projektowe mają logo lub inicjały projektu.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
@@ -444,15 +445,17 @@ ustawia nativeTheme; System reaguje na preferencję systemu.
 **Settings → Notifications → Activity notch** to domyślnie wyłączona
 preferencja bieżącego profilu Desktop, w trybie lokalnym i zdalnym. Nakładka
 i przełącznik są dostępne wyłącznie w aplikacji desktopowej na macOS i Windows.
-Gdy główne okno działa w tle, u góry głównego ekranu pojawia się czarne
-wycięcie. W zwiniętym stanie ikona i liczba zajmują jego boczne skrzydła.
+Dopóki są pozycje do pokazania, czarne wycięcie jest widoczne u góry głównego
+ekranu również wtedy, gdy Canopy ma fokus. W zwiniętym stanie ikona i liczba
+zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Najechanie kursorem lub kliknięcie rozwija listę.
 Powyżej siedmiu wierszy można ją przewijać, do 24 pozycji. Po odsunięciu
-kursora lista się zwija.
-Kliknięcie wiersza przywraca główne okno i otwiera odpowiedni wątek lub rozmowę
-bota. Nakładka znika po przywróceniu fokusu, wyłączeniu ustawienia albo
-zamknięciu głównego okna.
+kursora lista się zwija. Nakładka płynnie zmienia szerokość i wysokość, a ikona
+i etykiety płynnie zmieniają się wraz ze stanem aktywności. Systemowe ograniczenie
+ruchu wyłącza te animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno
+i otwiera odpowiedni wątek lub rozmowę bota. Nakładka znika po wyczerpaniu
+pozycji, wyłączeniu ustawienia albo zamknięciu głównego okna.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
@@ -473,8 +476,9 @@ Na Windows okno przylega do górnej krawędzi obszaru roboczego, również przy
 pasku zadań umieszczonym u góry. Canopy dopasowuje nagłówek do wysokości
 zwiniętego okna, jaką dopuścił system. Aktualizacja i rozwinięcie nakładki
 zachowują fokus aktywnej aplikacji.
-Test integracyjny Electron sprawdza okno, IPC, przejście po kliknięciu w
-rendererze i sprzątanie po zmianie połączenia lub zamknięciu okna. Pełną obsługę
+Test integracyjny Electron sprawdza widoczność przy aktywnym oknie Canopy,
+zwijanie po animacji, IPC, przejście po kliknięciu w rendererze i sprzątanie po
+zmianie połączenia lub zamknięciu okna. Pełną obsługę
 wejścia i zachowanie systemu trzeba sprawdzić w sesji graficznej na obu
 platformach:
 

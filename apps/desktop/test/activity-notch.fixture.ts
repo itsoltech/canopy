@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, screen, session, type IpcMainEvent } from "electron";
 import { activityNotchLogoSize, type ActivityNotchItem } from "@canopy/ui/desktop";
+import type { ActivityNotchLayout } from "../src/activity-notch-geometry.ts";
 import { ActivityNotch, type ActivityNotchRow } from "../src/activity-notch.ts";
 import { loadMacActivityNotchDisplay } from "../src/activity-notch-window.ts";
 import { isTrustedDesktopEvent } from "../src/desktop-window.ts";
@@ -46,9 +47,33 @@ function receiveRows() {
   });
 }
 
-function receiveHeight() {
-  return new Promise<number>((resolve) => {
-    ipcMain.once("activity-notch-fixture:received-height", (_event, height: number) => resolve(height));
+function receiveLayout(overlay: BrowserWindow) {
+  const previousHeight = overlay.getBounds().height;
+  const channel = "activity-notch-fixture:received-layout";
+
+  return new Promise<{ layout: ActivityNotchLayout; nativeWidth: number }>((resolve) => {
+    const receive = (event: IpcMainEvent, layout: ActivityNotchLayout) => {
+      if (event.sender !== overlay.webContents || layout.height === previousHeight) return;
+      ipcMain.off(channel, receive);
+      resolve({ layout, nativeWidth: overlay.getBounds().width });
+    };
+
+    ipcMain.on(channel, receive);
+  });
+}
+
+function waitForNativeSize(overlay: BrowserWindow, layout: ActivityNotchLayout) {
+  return new Promise<void>((resolve) => {
+    const inspect = () => {
+      const { width, height } = overlay.getBounds();
+
+      if (width !== layout.width || height !== layout.height) return;
+      overlay.off("resize", inspect);
+      resolve();
+    };
+
+    overlay.on("resize", inspect);
+    inspect();
   });
 }
 
@@ -84,12 +109,14 @@ function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: 
 }
 
 async function toggleOverlay(overlay: BrowserWindow) {
-  const [height] = await Promise.all([
-    receiveHeight(),
+  const [result] = await Promise.all([
+    receiveLayout(overlay),
     overlay.webContents.executeJavaScript(`document.querySelector('[aria-controls="activity-panel"]').click()`),
   ]);
 
-  return height;
+  await waitForNativeSize(overlay, result.layout);
+
+  return result;
 }
 
 interface RenderedActivityRow {
@@ -201,11 +228,11 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   const [overlay, first] = await Promise.all([showOverlay(), receiveRows(), publish(source, [working])]);
 
   assert.notEqual(overlay, source);
-  assert.equal(overlay.isVisible(), true, "the overlay is shown while the source is unfocused");
+  assert.equal(overlay.isVisible(), true, "the overlay is shown while the source is focused");
   assert.equal(overlay.isAlwaysOnTop(), true, "the overlay is always on top");
   assert.equal(overlay.isFocusable(), false, "the overlay cannot take focus");
   assert.equal(overlay.isFocused(), false);
-  assert.equal(source.isFocused(), false);
+  assert.equal(source.isFocused(), true, "showing the overlay preserves the source's focus");
   assert.match(overlay.webContents.getURL(), /^data:text\/html/);
   assert.notEqual(overlay.webContents.session, source.webContents.session);
   assert.equal(first.sender, overlay.webContents);
@@ -246,7 +273,7 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
   await assertHeaderFillsBand(overlay, headerHeight);
 
   stage = "expanding to one row";
-  assert.equal(await toggleOverlay(overlay), headerHeight);
+  assert.equal((await toggleOverlay(overlay)).layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 1, headerHeight);
   await assertHeaderFillsBand(overlay, headerHeight);
 
@@ -257,20 +284,33 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
     state: "working",
   }));
 
-  const [cappedHeader] = await Promise.all([
-    receiveHeight(),
+  const [capped] = await Promise.all([
+    receiveLayout(overlay),
     publish(source, [{ ...working, state: "approval" }, ...extra]),
   ]);
 
-  assert.equal(cappedHeader, headerHeight);
+  assert.equal(capped.layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 10, headerHeight);
 
   stage = "shrinking an open panel";
-  const [shrunkHeader] = await Promise.all([receiveHeight(), publish(source, [{ ...working, state: "approval" }])]);
-  assert.equal(shrunkHeader, headerHeight);
+  const [shrunk] = await Promise.all([receiveLayout(overlay), publish(source, [{ ...working, state: "approval" }])]);
+  await waitForNativeSize(overlay, shrunk.layout);
+  assert.equal(shrunk.layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 1, headerHeight);
-  assert.equal(await toggleOverlay(overlay), headerHeight);
+
+  stage = "collapsing after the transition";
+
+  const reducedMotion: boolean = await overlay.webContents.executeJavaScript(
+    `matchMedia("(prefers-reduced-motion: reduce)").matches`,
+  );
+
+  const expandedWidth = overlay.getBounds().width;
+  const collapsed = await toggleOverlay(overlay);
+  assert.equal(collapsed.layout.headerHeight, headerHeight);
+
+  if (!reducedMotion) assert.equal(collapsed.nativeWidth, expandedWidth);
   assertNativeBounds(overlay, 0, headerHeight);
+  assert.equal(source.isFocused(), true, "toggling the overlay preserves the source's focus");
 }
 
 async function smoke() {
@@ -311,22 +351,40 @@ async function smoke() {
     });
     activity.track(source);
     await source.loadURL(`${origin}/`);
+    stage = "focusing the source window";
+    const focused = once(source, "focus");
+    source.show();
+    await focused;
     stage = "opening the overlay and checking ipc";
     const overlay = await openOverlay(origin, source, settings);
 
     stage = "checking compact geometry";
     await checkGeometry(overlay, source);
 
-    // Both clicks run in the loaded renderer. DOM clicks cannot exercise native pointer delivery.
+    stage = "switching focus between windows";
+    const blurred = once(source, "blur");
+    settings.show();
+    await blurred;
+    assert.equal(overlay.isVisible(), true);
+
+    const refocused = once(source, "focus");
+    source.focus();
+    await refocused;
+    assert.equal(overlay.isVisible(), true);
+
+    // DOM clicks cannot exercise native pointer delivery.
     stage = "opening a thread from the overlay";
-    const hidden = once(overlay, "hide");
-    await overlay.webContents.executeJavaScript(`
-      document.querySelector('[aria-controls="activity-panel"]').click();
-      document.querySelector('#activity-panel button').click();
-    `);
+    const { layout } = await toggleOverlay(overlay);
+
+    const [afterOpen] = await Promise.all([
+      receiveLayout(overlay),
+      overlay.webContents.executeJavaScript(`document.querySelector('#activity-panel button').click()`),
+    ]);
+
+    await waitForNativeSize(overlay, afterOpen.layout);
     assert.equal(await opened.promise, route);
-    await hidden;
-    assert.equal(overlay.isVisible(), false);
+    assert.equal(overlay.isVisible(), true);
+    assertNativeBounds(overlay, 0, layout.headerHeight);
 
     stage = "clearing activity";
     await Promise.all([once(overlay, "closed"), publish(source, [])]);
