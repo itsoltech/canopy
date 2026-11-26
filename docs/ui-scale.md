@@ -9,6 +9,8 @@ Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
 Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
 Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
 Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
+Aktualizacja (2026-11-26): composer w web/desktop ustawia czasy przejść raz na
+odcinek ruchu sterowany przewijaniem.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -198,8 +200,9 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   klatce, pozostali zachowują `scrollTop`), a maleje dopiero przy powrocie na koniec.
   Zwijanie jest sprzężone z przewijaniem: 96 px czytania w górę zwija composer
   liniowo, krok po kroku; zwinięty zostaje zwinięty, a w ostatnich 192 px przed końcem
-  rozwija się w takt powrotu. Pośrednie przejścia CSS samego composera są wstrzymane
-  i ustawiane na postęp przewijania (bez układu wierszy). Po zatrzymaniu (240 ms)
+  rozwija się w takt powrotu. Przejścia CSS composera są wstrzymywane raz przy
+  rozpoczęciu ruchu sterowanego przewijaniem. Kolejne klatki ustawiają tylko
+  pozycję w tych przejściach (bez układu wierszy). Po zatrzymaniu (240 ms)
   kończy się bliższy stan; fokus i pisanie rozwijają composer we własnym tempie.
   Przy `prefers-reduced-motion` stan przełącza się tylko na krańcach, bez animacji. Fade nad stopką tylko imituje cień composera:
   przechodzi od przezroczystości dokładnie do tła wątku (token `surface`, ten sam co

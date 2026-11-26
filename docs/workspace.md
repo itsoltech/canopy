@@ -1,5 +1,9 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
+Status (2026-11-26): w web i desktop docelowe szerokości paneli wyznaczają
+zadokowanie podsumowania od początku przejścia, bez synchronicznego pomiaru
+przesuwających się kolumn.
+
 Aktualizacja (2026-11-25). Automatyczny mini Preview Desktop pokazuje potwierdzone
 okno agenta także podczas pracy użytkownika w innej aplikacji. Wyświetla również
 zrzuty otrzymane przez agenta bezpośrednio z narzędzia. Mini znika, gdy agent
@@ -449,12 +453,12 @@ rezerwę (`--duration-slow`, `--ease-smooth-out`). Przy widocznym mini Preview
 cała rezerwa pojawia się w chwili zadokowania. Przy reduced motion wszystkie te
 zmiany są natychmiastowe.
 
-`SummaryLayout` decyduje tylko o doku (karta czy pigułka). Decyzja dotyczy stanu
-**końcowego**: do zmierzonej szerokości dodaje drogę, którą sidebar i prawy panel mają
-jeszcze do przejścia (`sidebarTravel`, `ThreadWorkspace.travel`). Dlatego karta
-lub pigułka zmienia się raz, na początku animacji, i nie miga w jej trakcie. Tak
-samo `ThreadWorkspace.wide` (panel obok wątku czy w arkuszu) liczy szerokość, do
-której zmierza sidebar.
+`ThreadWorkspace.wide` wybiera kolumnę lub arkusz na podstawie szerokości okna
+pomniejszonej o docelową szerokość sidebara. `SummaryLayout` do decyzji o doku
+odejmuje także docelową szerokość prawego panelu i miejsce na szynę tur.
+Karta lub pigułka zmienia się raz, na początku animacji. Wybór popovera lub
+arkusza podsumowania korzysta z bieżącej szerokości obszaru wątku dostarczanej
+przez `ResizeObserver`.
 
 Karta ma stałą szerokość 20 rem i jest zakotwiczona w prawym górnym rogu obszaru
 `Thread` (inset 12 px od góry, 16 px od prawej), niezależnie od prawego panelu.

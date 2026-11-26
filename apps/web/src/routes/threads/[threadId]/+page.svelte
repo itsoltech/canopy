@@ -627,11 +627,11 @@
             id={fileTab ? undefined : "workspace-content"}
             role="tabpanel"
             aria-label="Thread"
-            class="absolute inset-0 grid min-h-0 grid-rows-[auto_minmax(0,1fr)] md:pl-9 md:[--chat-area-start:--spacing(9)]"
+            class="absolute inset-0 grid min-h-0 grid-rows-[auto_minmax(0,1fr)] pl-(--chat-area-start) [--chat-area-start:0px] md:[--chat-area-start:--spacing(9)]"
             class:invisible={Boolean(fileTab)}
             inert={Boolean(fileTab)}
             bind:this={feedRegion}
-            bind:clientWidth={summary.width}
+            bind:borderBoxSize={summary.areaSize}
             style:--sidebar-width={workspaceState.sidebarWidth}
             style:--chat-pill-space={summary.docked ? `calc(${summary.pillWidth}px + 2rem)` : undefined}
             data-chat-placement
@@ -640,8 +640,8 @@
           >
             <span
               aria-hidden="true"
-              class="pointer-events-none invisible absolute inset-x-0 md:left-9"
-              {@attach summary.measure}
+              class="pointer-events-none invisible absolute h-px w-(--chat-area-start)"
+              bind:borderBoxSize={summary.railSize}
             ></span>
             <div class="grid min-w-0 justify-items-end">
               {#if thread}<ThreadSummary

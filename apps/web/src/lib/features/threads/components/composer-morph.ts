@@ -3,7 +3,10 @@ import type { FooterFold } from "../../../shared/ui/virtual/footer-reserve.ts";
 
 type Publish = (compact: boolean, fold: FooterFold) => void;
 
-const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+interface HeldTransition {
+  animation: Animation;
+  end: number;
+}
 
 /** Decorative animations in the subtree keep their own playback, including infinite spinners. */
 function pendingTransition(animation: Animation): boolean {
@@ -14,22 +17,22 @@ function pendingTransition(animation: Animation): boolean {
   );
 }
 
-/** The point in an animation's whole run (delay included) at this fraction, linear in the scroll. */
-function seek(animation: Animation, fraction: number) {
-  const timing = animation.effect?.getTiming();
+/** Pause once per scroll segment. Its length includes the delay so all transitions share the same progress. */
+function holdTransition(animation: Animation): HeldTransition {
+  const effect = animation.effect;
 
-  if (timing && timing.easing !== "linear") animation.effect?.updateTiming({ easing: "linear" });
-  const end = Number(animation.effect?.getComputedTiming().endTime ?? 0);
+  if (effect && effect.getTiming().easing !== "linear") effect.updateTiming({ easing: "linear" });
   animation.playbackRate = 1;
   animation.pause();
-  animation.currentTime = fraction * end;
+
+  return { animation, end: Number(effect?.getComputedTiming().endTime ?? 0) };
 }
 
 /**
  * Folds and opens the composer with its own CSS transitions, either at their natural pace or held at
- * a scroll progress. Each change flips `compact` once; the transitions it starts are paused and
- * seeked on the compositor timeline, one write per frame. Under reduced motion the composer switches
- * state only at either end. The thread rows are not touched: the feed's end reserve stays.
+ * a scroll progress. Each change flips `compact` once; subsequent scroll frames only seek the
+ * paused transitions. Under reduced motion the composer switches state only at either end.
+ * The thread rows keep the feed's end reserve throughout.
  */
 export class ComposerMorph {
   #root: () => HTMLElement | undefined;
@@ -38,6 +41,8 @@ export class ComposerMorph {
   /** While moving: the state the running transitions lead to. */
   #toward: boolean | undefined;
   #animations: Animation[] = [];
+  #held: HeldTransition[] | undefined;
+  #motionPreference: MediaQueryList | undefined;
   #frame = 0;
   #request: { progress: number } | { settle: boolean } | undefined;
   #run = 0;
@@ -69,6 +74,10 @@ export class ComposerMorph {
     this.#reset();
   }
 
+  get #reducedMotion() {
+    return (this.#motionPreference ??= matchMedia("(prefers-reduced-motion: reduce)")).matches;
+  }
+
   #reset() {
     cancelAnimationFrame(this.#frame);
     this.#frame = 0;
@@ -77,6 +86,7 @@ export class ComposerMorph {
 
     for (const animation of this.#animations) animation.cancel();
     this.#animations = [];
+    this.#held = undefined;
     this.#toward = undefined;
   }
 
@@ -93,7 +103,7 @@ export class ComposerMorph {
   }
 
   #hold(progress: number) {
-    if (reducedMotion()) {
+    if (this.#reducedMotion) {
       if (progress >= 1 || progress <= 0) this.set(progress >= 1);
 
       return;
@@ -107,9 +117,13 @@ export class ComposerMorph {
     if (this.#toward === undefined) this.#start(toward);
     const fraction = toward ? progress : 1 - progress;
 
-    if (fraction >= 1) this.#end(toward);
-    else if (fraction <= 0) this.#end(!toward);
-    else for (const animation of this.#animations) seek(animation, fraction);
+    if (fraction >= 1) return this.#end(toward);
+
+    if (fraction <= 0) return this.#end(!toward);
+
+    const held = (this.#held ??= this.#animations.map(holdTransition));
+
+    for (const { animation, end } of held) animation.currentTime = fraction * end;
   }
 
   /** The state a progress away from the current one leads to; undefined when it matches. */
@@ -120,7 +134,7 @@ export class ComposerMorph {
   }
 
   #settle(compact: boolean) {
-    if (reducedMotion()) return this.set(compact);
+    if (this.#reducedMotion) return this.set(compact);
 
     if (this.#toward === undefined) {
       if (this.#compact === compact) return;
@@ -129,6 +143,7 @@ export class ComposerMorph {
 
     const run = ++this.#run;
     const forward = this.#toward === compact;
+    this.#held = undefined;
 
     for (const animation of this.#animations) {
       animation.playbackRate = forward ? 1 : -1;
@@ -153,6 +168,7 @@ export class ComposerMorph {
     const animations = this.#animations;
     const reverted = compact !== this.#toward;
     this.#animations = [];
+    this.#held = undefined;
     this.#toward = undefined;
     this.#compact = compact;
     flushSync(() => this.#publish(compact, compact ? "folded" : "open"));

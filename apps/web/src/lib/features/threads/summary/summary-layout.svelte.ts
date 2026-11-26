@@ -1,4 +1,3 @@
-import type { Attachment } from "svelte/attachments";
 import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
 
 /** The chat column never gets narrower than this to make room for the docked summary. */
@@ -13,24 +12,19 @@ const CARD_SPACE_REM = 22;
  * - `docked`: the card fits beside a column of at least the minimum width, so an expanded summary stays open
  *   there; otherwise the summary is a pill that opens a popover.
  * - `floating`: the area fits a popover under the pill; narrower areas open the summary as a sheet.
- * The decision uses the area's width where the sidebar and Files are going (`travel`), so it is made once when
- * one of them starts to ease and never flips while it moves.
+ * Docking uses the target width of the thread area, so it is decided at the start of the panel motion.
  */
 export class SummaryLayout {
-  /** Width of the thread area. */
-  width = $state(0);
+  /** Live border box of the thread area for sizing the floating popover. */
+  areaSize = $state.raw<readonly ResizeObserverSize[]>([]);
+  /** The rail's reserved space at the leading edge, set by the responsive CSS. */
+  railSize = $state.raw<readonly ResizeObserverSize[]>([]);
   /** Width of the collapsed summary beside the timeline. */
   pillWidth = $state(0);
-  /** Width the chat column may use (the area without the turn rail's padding) once the sidebar and Files settle. */
-  inner = $state(0);
   /** Briefly true after the docked card opens or closes, so the column eases to its new place. */
   settling = $state(false);
 
-  /**
-   * @param space the thread's workspace: its rem and how much wider the area will be once the sidebar and Files
-   *   have eased (`travel`, negative when it narrows), read in the measuring callback.
-   */
-  constructor(readonly space: { readonly rem: number; travel(areaRight: number): number }) {
+  constructor(readonly space: { readonly rem: number; readonly threadAreaWidth: number }) {
     let previous: boolean | undefined;
 
     $effect(() => {
@@ -51,7 +45,13 @@ export class SummaryLayout {
   }
 
   get floating(): boolean {
-    return this.width >= 32 * this.space.rem;
+    return Math.round(this.areaSize[0]?.inlineSize ?? 0) >= 32 * this.space.rem;
+  }
+
+  get inner(): number {
+    const rail = this.railSize[0];
+
+    return rail ? Math.max(0, this.space.threadAreaWidth - rail.inlineSize) : 0;
   }
 
   get docked(): boolean {
@@ -62,18 +62,4 @@ export class SummaryLayout {
   get card(): boolean {
     return this.docked && !device.view.threadPanelCollapsed;
   }
-
-  /** Measures the column's space; it resizes whenever the sidebar, Files or the window move. */
-  measure: Attachment<HTMLElement> = (node) => {
-    const update = () => {
-      const rect = node.getBoundingClientRect();
-      this.inner = Math.max(0, rect.width + this.space.travel(rect.right));
-    };
-
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    update();
-
-    return () => observer.disconnect();
-  };
 }
