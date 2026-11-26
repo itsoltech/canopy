@@ -1,4 +1,4 @@
-name: Nightly runner recovery
+name: Nightly release recovery
 
 on:
   workflow_run:
@@ -24,7 +24,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
-      - name: Retry failed jobs after a hosted runner disconnects
+      - name: Retry failed jobs after a runner disconnect or artifact service timeout
         shell: bash
         run: |
           repo="repos/$GITHUB_REPOSITORY"
@@ -39,12 +39,13 @@ jobs:
               echo "Job $job concluded with $conclusion. Use the Release logs to recover it."
               exit 0
             fi
-            disconnected=$(gh api --paginate "$repo/check-runs/$job/annotations?per_page=100" --jq '
-              .[] | select(.annotation_level == "failure" and
-                (.message | startswith("The hosted runner lost communication with the server.")))
-              | .annotation_level')
-            if [[ -z "$disconnected" ]]; then
-              echo "Job $job failed without a hosted runner disconnect. Use the Release logs to recover it."
+            transient=$(gh api --paginate "$repo/check-runs/$job/annotations?per_page=100" --jq '
+              .[] | select(.annotation_level == "failure") | .message | select(
+                startswith("The hosted runner lost communication with the server.") or
+                (startswith("Failed to CreateArtifact: Failed to make request after ") and
+                 endswith(" attempts: Request timeout: /twirp/github.actions.results.api.v1.ArtifactService/CreateArtifact")))')
+            if [[ -z "$transient" ]]; then
+              echo "Job $job failed without a recognized GitHub infrastructure error. Use the Release logs to recover it."
               exit 0
             fi
           done <<< "$failed"
@@ -57,4 +58,4 @@ jobs:
           if [[ "$current" != "$RUN_ID" ]]; then exit 0; fi
 
           gh api --method POST "$run/rerun-failed-jobs"
-          echo "Queued a single retry of failed jobs in Release run $RUN_ID after a hosted runner disconnect."
+          echo "Queued a single retry of failed jobs in Release run $RUN_ID after a GitHub infrastructure error."

@@ -5,7 +5,8 @@ Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis ca
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
 Aktualizacja (2026-11-26): natywne CI macOS wykonuje jeden wariant testu pakowania na runnerze danej architektury.
-Zaplanowane nightly raz ponawia nieudane zadania po potwierdzonej utracie łączności runnera GitHub.
+Zaplanowane nightly raz ponawia nieudane zadania po potwierdzonej utracie łączności runnera
+lub wyczerpaniu prób utworzenia artefaktu wskutek timeoutu GitHub Actions.
 Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
 Desktop jest pakowany w Release, a instalator Windows jest testowany na runnerze, który go zbudował.
 Desktop, gateway i worker mają osobne cele wydania dla macOS Intel i Apple Silicon.
@@ -765,10 +766,11 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 
 ### Ponowienia i błąd notaryzacji
 
-- **Nightly runner recovery** ponawia nieudane zadania pierwszej próby zaplanowanego
-  Release na `dev`, gdy GitHub oznaczył wszystkie awarie komunikatem o utracie łączności
-  hostowanego runnera. Ponowienie zachowuje SHA, wyniki ukończonych zadań i rezerwację
-  wersji. Kolejną awarię i błędy z inną przyczyną obsługuje maintainer.
+- **Nightly release recovery** ponawia nieudane zadania pierwszej próby zaplanowanego
+  Release na `dev`, gdy na każdym nieudanym zadaniu GitHub zgłosił utratę łączności
+  hostowanego runnera albo wyczerpanie prób `CreateArtifact` wskutek timeoutu.
+  Ponowienie zachowuje SHA, wyniki ukończonych zadań i rezerwację wersji.
+  Kolejną awarię i błędy z inną przyczyną obsługuje maintainer.
 - Gdy Verified CI zatrzyma wydanie, sprawdź przebieg Push CI dla źródłowego SHA.
   Po naprawieniu przejściowej awarii i udanym ponowieniu tego CI ponów Release.
 - Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`
