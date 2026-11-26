@@ -24,6 +24,8 @@ Aktualizacja (2026-11-26): web/desktop importuje wybraną kopię skilla z raport
 bez ręcznego uploadu. Kreator pokazuje pliki tej kopii przed zapisaniem w bibliotece.
 Aktualizacja (2026-11-26): web/desktop i mobile uruchamiają instalatory w terminalu workera.
 Po wykryciu skilla web/desktop otwiera ten sam przegląd co dla kopii z zakładki **Computers**.
+Aktualizacja (2026-11-26): web/desktop pokazuje przy skillu przyczynę konfliktu
+i pozwala wybrać kopię z poziomu biblioteki.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -96,9 +98,9 @@ Check upstream także otwiera panel. Dotychczasowe porównania i rozwiązywanie 
 pozostają przy statusie komputera. Błędy walidacji i zapisu są widoczne w panelu.
 
 W web/desktop **Instructions** podaje liczbę dokumentów, **Skills** pokazuje skille
-z potwierdzoną instalacją, przypisane bez potwierdzenia i bez instalacji,
-a **Plugins** podaje liczbę pluginów oczekujących na przegląd. Na mobile wspólne
-podsumowanie znajduje się nad bibliotekami.
+z potwierdzoną instalacją, w trakcie synchronizacji, z zachowaną lokalną kopią,
+wymagające uwagi i bez instalacji. **Plugins** podaje liczbę pluginów oczekujących
+na przegląd. Na mobile wspólne podsumowanie znajduje się nad bibliotekami.
 Biblioteka jest wspólna dla konta i połączonych komputerów, ale obecność elementu
 w bibliotece nie instaluje go na workerach. Instalację zleca dopiero przypisanie:
 wszystkie komputery, wybrane workery albo tagi. Licznik przypisań obejmuje także
@@ -120,6 +122,15 @@ pozostaje w stanie **Syncing**, m.in. przy błędzie kompozycji lub gdy komputer
 jest offline. Szczegół błędu kompozycji widać w statusie komputera.
 Plugin z katalogu bez zatwierdzonego przypisania pokazuje **Review required**
 i akcję **Review**. Przypisanie nadal wymaga przeglądu i osobnego potwierdzenia checksumu.
+
+W **Skills** akcja **Resolve local conflict** pokazuje komputer, CLI i ścieżkę
+lokalnej kopii, która blokuje instalację. **Keep local copy** zachowuje folder lub
+dowiązanie w tej lokalizacji. **Use library version** wymaga potwierdzenia i odkłada
+lokalną kopię do archiwum. Po synchronizacji Canopy pokazuje ścieżkę odzyskania.
+Każda decyzja dotyczy jednej lokalizacji na jednym komputerze. Zachowaną kopię
+można ponownie otworzyć przez **Review kept copy**. Pozostałe błędy są dostępne
+w **Review sync error**, ze szczegółami i przejściem do komputera.
+Raporty dostępne tylko na gatewayu połączonego komputera są w zakładce **Computers**.
 
 Checkboxy skilli pozwalają wybrać wiele pozycji i użyć **Install on…** albo
 **Remove from library**. Wszystkie skille bez pasującego komputera można
@@ -441,8 +452,10 @@ dostępna mimo usunięcia definicji. Offline worker dostaje najnowszy pełny sta
 
 `ResolveSkillDrift` przyjmuje worker/target ID, expected revision, obejrzany checksum
 i keep/overwrite/import/archive. Keep wiąże zachowanie plików z obserwowanym i oczekiwanym
-stanem. Overwrite wymaga aktualnego CAS oraz własności Canopy. Import waliduje
-zarządzane pliki, tworzy nową wersję i przypina ją **tylko tej maszynie**;
+stanem. Przy blokującym dowiązaniu raport ma status `error`. Keep jest wtedy
+dostępne dla przypisanej, niezarządzanej kopii urządzenia z tokenem archiwum
+zgodnym z obserwowanym checksumem. Overwrite wymaga aktualnego CAS oraz własności
+Canopy. Import waliduje zarządzane pliki, tworzy nową wersję i przypina ją **tylko tej maszynie**;
 pozostałe zachowują wersje. Import nie obejmuje prywatnych dodatków. Rozstrzygnięcia
 są jednorazowe; ponowna identyczna lokalna edycja wymaga nowej decyzji.
 

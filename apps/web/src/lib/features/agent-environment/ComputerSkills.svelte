@@ -118,20 +118,7 @@
 
     if (!environment) return;
 
-    const saved = await environment.mutate(
-      "POST",
-      "/skills/resolve",
-      encode(
-        ui.ResolveSkillDriftRequestSchema,
-        create(ui.ResolveSkillDriftRequestSchema, {
-          workerId: worker.workerId,
-          targetId: file.targetId,
-          action,
-          observedChecksum: action === "archive" ? file.archiveToken : file.observedChecksum,
-          expectedRevision: revision,
-        }),
-      ),
-    );
+    const saved = await environment.resolveSkill(worker.workerId, file, action, revision);
 
     if (saved && action === "archive") lastArchive = file;
   }

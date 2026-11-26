@@ -48,7 +48,7 @@ export function EnvironmentSkillRow({
       title={skill.name}
       description={description}
       status={skill.source?.error ? "Source check failed" : status}
-      warning={!!skill.source?.error || status === "Error"}
+      warning={!!skill.source?.error || status === "Error" || status === "Local conflict"}
       checked={checked}
       disabled={checked !== undefined && busy}
       onPress={checked === undefined ? () => onEdit("skill") : onToggle}

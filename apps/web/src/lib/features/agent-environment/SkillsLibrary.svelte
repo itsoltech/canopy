@@ -19,6 +19,7 @@
   import ChoiceControl from "#lib/shared/ui/ChoiceControl.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import SkillInstall from "./SkillInstall.svelte";
+  import SkillSyncDialog from "./SkillSyncDialog.svelte";
   import { assignedWorkers } from "@canopy/domain/environment-library";
 
   let {
@@ -36,6 +37,7 @@
   } = $props();
 
   const controller = new SkillsState(untrack(() => environment));
+  let syncDialog: ReturnType<typeof SkillSyncDialog> | undefined;
   let choose = $state(false);
   let sourceOpen = $state(false);
   let method = $state("source");
@@ -119,6 +121,7 @@
     </div>
   {/if}
   <SkillInstall bind:ids={installing} {environment} />
+  <SkillSyncDialog bind:this={syncDialog} {environment} oncomputer={onexisting} />
   <Dialog bind:open={removing} title="Remove skills from library?" dismissible={!deleting}>
     <div class="grid gap-4">
       <p class="text-base text-pretty sm:text-sm">
@@ -224,6 +227,8 @@
             disabled={skill.overrides.filter((o) => o.disabled).map((o) => o.workerId)}
             kind="skills"
             id={skill.id}
+            name={skill.name}
+            onreview={() => syncDialog?.show(skill.id)}
             label={skill.source?.availableCommit ? "Update available" : skill.source?.error ? "Needs review" : ""}
           />
         {/snippet}

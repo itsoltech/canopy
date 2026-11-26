@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { EnvironmentSkillStatus } from "@canopy/contracts";
+  import { canKeepBlockedSkill } from "@canopy/domain/environment-library";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
@@ -24,7 +25,7 @@
 
   const pathId = $props.id();
   const conflict = $derived(file.status === "drift" && !file.owned);
-  const keep = $derived(conflict && !!onresolve);
+  const keep = $derived(!!onresolve && (conflict || canKeepBlockedSkill(file)));
   const archive = $derived(canArchive(file) && !!onarchive);
   const unavailable = $derived(file.status === "local" && !file.archiveToken && !!file.detail);
   const version = $derived(file.version ? `v${file.version}` : "");
