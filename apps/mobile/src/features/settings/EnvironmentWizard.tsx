@@ -5,6 +5,7 @@ import { styles, useColors } from "../../ui/theme";
 
 export function EnvironmentWizard({
   steps,
+  initialStep = 0,
   children,
   onSave,
   busy,
@@ -12,13 +13,14 @@ export function EnvironmentWizard({
   title = "Save and sync",
 }: {
   steps: string[];
+  initialStep?: number;
   children: (step: number) => ReactNode;
   onSave: () => void;
   busy?: boolean;
   disabled?: boolean;
   title?: string;
 }) {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(initialStep);
   const c = useColors();
 
   return (

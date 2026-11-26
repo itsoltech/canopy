@@ -1,5 +1,9 @@
 import type { GatewayCore } from "../core/core.ts";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { workerGuard } from "../core/worker-administration.ts";
+import { mobileIdentity } from "../core/mobile-devices.ts";
+import { runSkillInstaller } from "../agent-environment/skill-installer.ts";
+import { serviceIdentity } from "./auth.ts";
 import type { UiHandlers } from "./ui-service.ts";
 import { previewWorkerSkill } from "../agent-environment/local-skill-preview.ts";
 import {
@@ -19,6 +23,7 @@ export function agentEnvironmentHandlers(
   | "previewAgentEnvironment"
   | "resolveEnvironmentDrift"
   | "saveLibrarySkill"
+  | "runSkillInstaller"
   | "deleteLibrarySkill"
   | "resolveSkillDrift"
   | "previewSkillSource"
@@ -48,6 +53,17 @@ export function agentEnvironmentHandlers(
     previewAgentEnvironment: (r) => workerGuard(() => core.environment.preview(r)),
     resolveEnvironmentDrift: (r) => workerGuard(() => core.environment.resolve(r)),
     saveLibrarySkill: (r) => workerGuard(() => core.environment.skills.save(r)),
+    runSkillInstaller: (r, context) => {
+      const device = context.values.get(mobileIdentity);
+
+      if (!context.values.get(serviceIdentity) && device?.userId !== core.environment.options.userId)
+        throw new ConnectError(
+          "The installer terminal requires a paired device or web session.",
+          Code.PermissionDenied,
+        );
+
+      return workerGuard(() => runSkillInstaller(core, r));
+    },
     deleteLibrarySkill: (r) => workerGuard(() => core.environment.skills.remove(r)),
     resolveSkillDrift: (r) => workerGuard(() => core.environment.skills.resolve(r)),
     previewSkillSource: (r) => workerGuard(() => core.environment.sources.preview(r)),

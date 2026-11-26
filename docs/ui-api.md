@@ -3377,6 +3377,14 @@ Settings → Agent environment korzysta z `GetAgentEnvironment`,
 `/api/agent-environment` (GET/POST/DELETE), `/tags`, `/preview`, `/resolve` (POST).
 Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
 Źródła: `/api/agent-environment/skills/source/{preview,add,check,apply}` (POST).
+Aktualizacja (2026-11-26): POST `/api/agent-environment/skills/installer`
+(`RunSkillInstaller`) obsługuje interaktywny instalator w web/desktop. Sparowany
+telefon wywołuje to samo RPC bezpośrednio przez Connect. Gateway dopuszcza
+tylko własnego workera właściciela z `skill_installer_pty_v1`, ogłaszaną
+w `EnvironmentWorker.skill_installer_supported` przy aktywnym łączu. Odpowiedzi
+mają `Cache-Control: no-store`. Odczyt używa kursora bajtowego, wejście terminala
+jest nietrwałe, a `collect` zwraca zweryfikowany artefakt bez zapisu do biblioteki.
+Import nadal zatwierdza `SaveLibrarySkill` z bieżącą rewizją.
 Workery innych komputerów grupy: GET `/api/workers/:id/environment` (`GetWorkerEnvironment`)
 zwraca podgląd, raport, wyjątki maszyn, rewizję domu oraz wybór elementów zapisanej biblioteki.
 PUT tego samego adresu (`SetWorkerEnvironmentOverride`) zmienia lub usuwa jeden wyjątek.

@@ -448,7 +448,7 @@ export class WorkerHost {
     await this.storage.stop();
     await Promise.allSettled(this.#ctx.state.threadCleanup.values());
     await this.previews.close();
-    await this.#ctx.ops.closeDirectories();
+    await this.#ctx.ops.closeDirectories(true);
     this.#ctx.state.markdownImages.close();
     this.#ctx.state.imageExports.close();
     await this.#ctx.ops.closeClones();

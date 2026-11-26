@@ -6,6 +6,8 @@
   import LibraryTargets from "./LibraryTargets.svelte";
   import { librarySource } from "./library-meta.ts";
   import SkillEditor from "./SkillEditor.svelte";
+  import SkillInstallerDialog from "./SkillInstallerDialog.svelte";
+  import type { SkillArtifact, ui } from "@canopy/contracts";
   import SkillSourceImport from "./SkillSourceImport.svelte";
   import SkillSourceUpdate from "./SkillSourceUpdate.svelte";
   import { SkillsState } from "./skills-state.svelte.ts";
@@ -22,10 +24,14 @@
   let {
     environment,
     notInstalled,
+    oninstallerresult,
+    onexisting,
     class: className,
   }: {
     environment: EnvironmentState;
     notInstalled: EnvironmentState["snapshot"]["skills"];
+    oninstallerresult: (artifact: SkillArtifact, worker: ui.EnvironmentWorker, path: string) => void;
+    onexisting: (workerId?: string) => void;
     class?: ClassValue;
   } = $props();
 
@@ -33,12 +39,21 @@
   let choose = $state(false);
   let sourceOpen = $state(false);
   let method = $state("source");
+  let installerCommand = $state("");
+  let installerOpen = $state(false);
   let selected = $state<string[]>([]);
   let installing = $state<string[]>([]);
   let removing = $state(false);
   let deleting = $state(false);
   let removalRevision = $state(0n);
   const chosen = $derived(environment.snapshot.skills.filter((s) => selected.includes(s.id)));
+
+  function useInstaller(command = "") {
+    sourceOpen = false;
+    environment.error = "";
+    installerCommand = command;
+    installerOpen = true;
+  }
 
   async function removeSelected() {
     deleting = true;
@@ -132,6 +147,7 @@
       choose = false;
       environment.error = "";
       if (method === "upload") controller.edit();
+      else if (method === "installer") useInstaller();
       else sourceOpen = true;
     }}
   >
@@ -141,6 +157,7 @@
           bind:value={method}
           options={[
             { value: "source", label: "Import from a URL or command" },
+            { value: "installer", label: "Use a custom installer" },
             { value: "upload", label: "Upload a folder or ZIP" },
           ]}
         /></Field
@@ -160,7 +177,15 @@
     onsave={() => controller.save()}
     oncancel={() => (controller.draft = undefined)}
   />
-  <SkillSourceImport {environment} bind:open={sourceOpen} />
+  <SkillInstallerDialog
+    bind:open={installerOpen}
+    bind:command={installerCommand}
+    workers={environment.snapshot.workers}
+    oncollect={oninstallerresult}
+    {onexisting}
+    onupload={() => controller.edit()}
+  />
+  <SkillSourceImport {environment} bind:open={sourceOpen} oninstaller={useInstaller} />
   <div class="grid divide-y divide-zinc-950/10 dark:divide-white/10">
     {#each environment.snapshot.skills as skill (skill.id)}
       {@const matching = assignedWorkers(environment.workers, skill.selector, skill.overrides)}

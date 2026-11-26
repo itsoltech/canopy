@@ -7,6 +7,9 @@ export const ANTIGRAVITY_ACP_CAPABILITY = "antigravity_acp_v1";
 /** Read the files of a selected device skill for library review. */
 export const AGENT_LOCAL_SKILL_IMPORT_CAPABILITY = "agent_local_skill_import_v1";
 
+/** Owner-operated skill installer PTY and artifact collection. */
+export const SKILL_INSTALLER_CAPABILITY = "skill_installer_pty_v1";
+
 /** Owner-requested, durable conversation replacement with a preserved source session. */
 export const THREAD_REWIND_CAPABILITY = "thread_rewind_v1";
 

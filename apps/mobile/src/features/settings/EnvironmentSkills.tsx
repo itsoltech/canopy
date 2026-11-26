@@ -11,6 +11,8 @@ import { EnvironmentActionMenu } from "./EnvironmentActionMenu";
 import { EnvironmentRow, EnvironmentRows } from "./EnvironmentRows";
 import { createSettingsViewState } from "./SettingsScroll";
 
+type AddSkill = "skill" | "source" | "installer";
+
 const useSelectedSkills = createSettingsViewState<string[] | undefined>(undefined);
 
 export function EnvironmentSkills({
@@ -22,7 +24,7 @@ export function EnvironmentSkills({
 }: {
   snapshot: ui.AgentEnvironmentSnapshot;
   workers: ui.EnvironmentWorker[];
-  onAdd: (kind: "skill" | "source") => void;
+  onAdd: (kind: AddSkill) => void;
   onEdit: (skill: ui.LibrarySkill, kind: "skill" | "source") => void;
   onChanged: () => void;
 }) {
@@ -126,7 +128,7 @@ function SkillToolbar({
   onSelect: (ids: string[] | undefined) => void;
   onInstall: (ids: string[]) => void;
   onRemove: (ids: string[]) => void;
-  onAdd: (kind: "skill" | "source") => void;
+  onAdd: (kind: AddSkill) => void;
 }) {
   const c = useColors("settings");
   const type = useTypography();
@@ -190,6 +192,7 @@ function SkillToolbar({
             actions={[
               { label: "Create skill", icon: "pencil-square", onPress: () => onAdd("skill") },
               { label: "Import skill", icon: "arrow-down-tray", onPress: () => onAdd("source") },
+              { label: "Run custom installer", icon: "command-line", onPress: () => onAdd("installer") },
             ]}
           />
         </>

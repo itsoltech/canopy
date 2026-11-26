@@ -49,14 +49,14 @@ export type InstallOutcome =
 /** Variables an installer never needs and must not see. */
 const SECRET_NAME = /(TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|CREDENTIAL|PRIVATE|AUTH)/i;
 
-export function installEnv(env: Readonly<Record<string, string | undefined>>) {
+export function filterInstallerEnv(env: Readonly<Record<string, string | undefined>>) {
   const clean: Record<string, string> = {};
   const secrets: string[] = [];
 
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
 
-    if (name.startsWith("CANOPY_") || SECRET_NAME.test(name)) {
+    if (/^CANOPY_/i.test(name) || SECRET_NAME.test(name)) {
       if (value.length >= 8) secrets.push(value);
       continue;
     }
@@ -64,7 +64,13 @@ export function installEnv(env: Readonly<Record<string, string | undefined>>) {
     clean[name] = value;
   }
 
-  return { env: { ...clean, NO_COLOR: "1", CI: "1", npm_config_update_notifier: "false" }, secrets };
+  return { env: clean, secrets };
+}
+
+export function installEnv(source: Readonly<Record<string, string | undefined>>) {
+  const { env, secrets } = filterInstallerEnv(source);
+
+  return { env: { ...env, NO_COLOR: "1", CI: "1", npm_config_update_notifier: "false" }, secrets };
 }
 
 const PATTERNS = [

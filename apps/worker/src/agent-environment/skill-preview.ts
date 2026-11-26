@@ -72,7 +72,7 @@ function withLocalSkillLink<T>(
   return result;
 }
 
-function readLocalCopy({ parent, name, token }: LocalSource, targetId: string): SkillFile[] {
+function readSkillCopy({ parent, name, token }: LocalSource, targetId: string): SkillFile[] {
   const files: SkillFile[] = [];
   let total = 0;
 
@@ -97,6 +97,50 @@ function readLocalCopy({ parent, name, token }: LocalSource, targetId: string): 
   return files;
 }
 
+function readSkillPreview(
+  targetId: string,
+  withCurrentSource: <T>(use: (source: LocalSource) => T) => T | undefined,
+  expectedToken?: string,
+) {
+  const snapshot = withCurrentSource((source) => {
+    if (expectedToken !== undefined && source.token !== expectedToken) throw copyChanged();
+
+    return { files: readSkillCopy(source, targetId), token: source.token };
+  });
+
+  // Reopen the source from its original path after collecting the snapshot.
+  if (!snapshot || withCurrentSource((source) => source.token) !== snapshot.token) throw copyChanged();
+
+  return validateSkillFiles(snapshot.files);
+}
+
+export function captureSkillDirectory(path: string) {
+  const origin = dirname(path);
+  const name = basename(path);
+
+  const withCurrentSource = <T>(use: (source: LocalSource) => T) =>
+    withSkillDirectory(origin, (parent) => {
+      if (parent.entry(name)?.kind !== "directory") return undefined;
+      const child = parent.child(name);
+
+      try {
+        if (child.entry("SKILL.md")?.kind !== "file") return undefined;
+      } finally {
+        child.close();
+      }
+
+      const current = inspectSkillCopy(parent, name, path, inventoryBudget());
+
+      if (current.kind !== "directory") throw copyChanged();
+
+      return use({ parent, name, token: current.token });
+    });
+
+  const token = withCurrentSource((source) => source.token);
+
+  return token ? () => readSkillPreview(path, withCurrentSource, token) : undefined;
+}
+
 export function previewLocalSkillCopy(status: EnvironmentSkillStatus, roots: ReadonlyMap<string, string>) {
   const { path, targetId, archiveToken, localName } = status;
   const origin = dirname(path);
@@ -114,10 +158,5 @@ export function previewLocalSkillCopy(status: EnvironmentSkillStatus, roots: Rea
         : use({ parent: root, name: localName, token: current.token });
     });
 
-  const snapshot = withCurrentSource((source) => ({ files: readLocalCopy(source, targetId), token: source.token }));
-
-  // Reopen both paths from their configured origins after collecting the snapshot.
-  if (!snapshot || withCurrentSource((source) => source.token) !== snapshot.token) throw copyChanged();
-
-  return validateSkillFiles(snapshot.files);
+  return readSkillPreview(targetId, withCurrentSource);
 }

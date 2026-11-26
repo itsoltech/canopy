@@ -55,6 +55,7 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "scanImportSources",
   "readImportPage",
   "readImportLibraryItem",
+  "skillInstaller",
   // A secret header's value: never written to the journal or remembered for a retry.
   "readImportSecret",
   "adoptImportedSession",

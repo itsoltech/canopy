@@ -1,7 +1,7 @@
 import { HARNESSES } from "@canopy/domain/harnesses";
 import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
-import { ui, type SkillFile } from "@canopy/contracts";
+import { ui, type SkillArtifact, type SkillFile } from "@canopy/contracts";
 import * as DocumentPicker from "expo-document-picker";
 import { Directory, File } from "expo-file-system";
 import { Button, Field, Notice } from "../../ui/components";
@@ -13,11 +13,15 @@ import { EnvironmentWizard } from "./EnvironmentWizard";
 
 export function SkillEditor({
   skill,
+  collected,
+  installerWorkerId,
   snapshot,
   conflict,
   onSaved,
 }: {
   skill?: ui.LibrarySkill;
+  collected?: SkillArtifact;
+  installerWorkerId?: string;
   snapshot: ui.AgentEnvironmentSnapshot;
   conflict: boolean;
   onSaved: () => void;
@@ -33,11 +37,16 @@ export function SkillEditor({
   const [draft, setDraft] = useState(() =>
     create(
       ui.LibrarySkillSchema,
-      skill ?? { platformHome: true, harnesses: [...HARNESSES], selector: { everyone: true } },
+      skill ?? {
+        name: collected?.name,
+        platformHome: true,
+        harnesses: [...HARNESSES],
+        selector: installerWorkerId ? { workerIds: [installerWorkerId] } : { everyone: true },
+      },
     ),
   );
 
-  const [files, setFiles] = useState<SkillFile[]>([]);
+  const [files, setFiles] = useState<SkillFile[]>(collected?.files ?? []);
   const [zip, setZip] = useState<Uint8Array>();
   const [error, setError] = useState("");
   const change = (patch: Partial<ui.LibrarySkill>) => setDraft(create(ui.LibrarySkillSchema, { ...draft, ...patch }));
@@ -73,6 +82,7 @@ export function SkillEditor({
     <ResourceState resource={resource}>
       <EnvironmentWizard
         steps={["Files & version", "Review files", "Assign & confirm"]}
+        initialStep={collected ? 1 : 0}
         busy={resource.busy}
         disabled={
           conflict ||
