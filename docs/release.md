@@ -5,6 +5,9 @@ Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis ca
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
 Aktualizacja (2026-11-26): natywne CI macOS wykonuje jeden wariant testu pakowania na runnerze danej architektury.
+Wagi shardów można odświeżyć medianą z pełnych przebiegów po weryfikacji raportów.
+Natywne testy źródłowe PR-a startują równolegle z buildem. Smoke pobiera wyłącznie
+binaria dla własnego systemu i architektury.
 Zaplanowane nightly raz ponawia nieudane zadania po potwierdzonej utracie łączności runnera
 lub wyczerpaniu prób utworzenia artefaktu wskutek timeoutu GitHub Actions.
 Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
@@ -383,11 +386,13 @@ Nowy push do PR anuluje jego poprzedni przebieg, łącznie z shardami. Przebiegi
 po pushu na chronioną gałąź są niezależne. Bun, cache pakietów i zamrożoną instalację
 zapewnia wspólna akcja `.github/actions/setup-bun`.
 
-W pełnym CI PR-a job `builds` kompiluje też workera na darwin-arm64, darwin-x64 i windows-x64.
-`native` pobiera binaria i uruchamia `canopy-worker self-check` na macOS i Windows
-na tych samych runnerach co natywne testy źródłowe. Eksport obrazów woła natywne API każdego
-systemu przez `bun:ffi` (otwarcie, metadane, odczyt, ścieżka, zamknięcie), więc tylko binarka
-na danym systemie to sprawdza; testy na Linuksie tego nie wykryją.
+W pełnym CI PR-a `builds` kompiluje też workera na darwin-arm64, darwin-x64 i windows-x64.
+Natywne joby od razu wykonują testy źródłowe. Przed smoke sprawdzają zakończenie
+buildu w tym samym przebiegu, pobierają artefakt `native-binaries-<cel>` i porównują
+wersję zapisaną w buildzie z wersją binarki. `canopy-worker self-check` uruchamia na
+każdym systemie natywne API obrazów przez `bun:ffi`. Windows sprawdza też odpowiedź
+wbudowanego webu. W Push CI joby smoke pobierają parę gateway–worker dla swojego
+celu, a natywne testy źródłowe wykonują się równolegle.
 
 `scripts/test-shards.ts` przypisuje najdłuższe pliki do najmniej obciążonego sharda,
 z deterministycznym rozstrzyganiem remisów i jawną listą ścieżek dla Bun.
@@ -398,8 +403,18 @@ Do diagnozowania konkretnego błędu CI można lokalnie uruchomić dany shard pr
 przed PR; lokalną weryfikację dobieramy według [AGENTS.md](../AGENTS.md#testing-policy).
 `--check` kontroluje podział, a `--verify-reports <katalog>` sprawdza osiem raportów
 `timings-1.json` … `timings-8.json`. Raporty JUnit i natywne pomiary Bun są artefaktami CI
-`test-profile-<numer>` (7 dni). Do odświeżenia wag scal mapy `files` ze wszystkich raportów;
-nie używaj raportu jednego sharda jako całej mapy.
+`test-profile-<numer>` (7 dni).
+
+Odśwież wagi, gdy pomiary pokazują nierówny rozkład pracy, zwłaszcza po skróceniu
+długiego scenariusza albo dodaniu grupy integracji. Zbierz osiem plików
+`timings-*.json` z jednego udanego, pełnego CI w osobnym katalogu. Możesz użyć
+kilku takich katalogów z tym samym zestawem plików. Polecenie odrzuca brakujące
+lub powtórzone pliki i zapisuje do `scripts/test-timings.json` medianę dla każdego
+testu. Porównuj czas najdłuższego sharda z innymi jobami, w tym natywnymi i smoke.
+
+```sh
+bun scripts/test-shards.ts --refresh-timings /tmp/ci-first /tmp/ci-second
+```
 
 Podział na osiem shardów obowiązuje w pełnym CI PR-ów i chronionych gałęzi. Każdy plik nadal
 wykonuje się dokładnie raz; nie filtrujemy testów według zmienionych pakietów.

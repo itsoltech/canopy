@@ -128,39 +128,47 @@ describe.skipIf(!dockerAvailable)("gateway end to end (UI API -> worker -> UI)",
     ).thread!;
 
     const requestId = Bun.randomUUIDv7();
+    const statuses = new Set<string>();
 
-    const updates = await watchUntil(
-      api,
-      thread.id,
-      (u) => u.some((x) => x.change.case === "interaction" && x.change.value.status === "allowed"),
-      (update) => {
-        if (update.change.case === "snapshot") {
-          worker.link.send({
-            case: "interactionRequest",
-            value: {
-              requestId,
-              threadId: thread.id,
-              kind: InteractionKind.PERMISSION,
-              toolName: "shell",
-              requestJson: '{"command":"rm -rf build"}',
-            },
-          });
-        }
+    for await (const { change } of api.watchThread({ threadId: thread.id }, { timeoutMs: 5000 })) {
+      if (change.case === "snapshot") {
+        worker.link.send({
+          case: "interactionRequest",
+          value: {
+            requestId,
+            threadId: thread.id,
+            kind: InteractionKind.PERMISSION,
+            toolName: "shell",
+            requestJson: '{"command":"rm -rf build"}',
+          },
+        });
+      }
 
-        if (update.change.case === "interaction" && update.change.value.status === "pending") {
-          void api.answerInteraction({ requestId, allow: true });
-        }
-      },
+      if (change.case !== "interaction" || change.value.requestId !== requestId || statuses.has(change.value.status))
+        continue;
+
+      const { status } = change.value;
+      statuses.add(status);
+
+      if (status === "pending") {
+        const result = await api.answerInteraction({ requestId, allow: true }, { timeoutMs: 5000 });
+        expect(result.interaction).toMatchObject({ requestId, status: "allowed" });
+      }
+
+      if (status === "allowed") break;
+    }
+
+    expect([...statuses]).toEqual(["pending", "allowed"]);
+
+    const delivered = await eventually(
+      async () => worker.interactionAnswers.filter((answer) => answer.requestId === requestId),
+      (answers) => answers.length > 0,
     );
 
-    const statuses = updates.flatMap((u) => (u.change.case === "interaction" ? [u.change.value.status] : []));
-    expect(statuses).toEqual(["pending", "allowed"]);
-
-    for (let i = 0; i < 50 && worker.interactionAnswers.length === 0; i++) await Bun.sleep(20);
-    expect(worker.interactionAnswers).toEqual([{ requestId, allow: true }]);
+    expect(delivered).toEqual([{ requestId, allow: true }]);
     // Answering twice is refused.
     expect(await failure(api.answerInteraction({ requestId, allow: false }))).toContain("already allowed");
-  });
+  }, 15_000);
 
   test("a worker refusing to create the thread makes it failed with the reason", async () => {
     const workerId = (await api.getOverview({})).workers[0]!.id;

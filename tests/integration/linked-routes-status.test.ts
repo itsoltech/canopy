@@ -40,9 +40,18 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
   let portA = 0;
   let portB = 0;
   let hostsB = [UNREACHABLE];
+  let backoffTimeA = Date.now();
+  let backoffTimeB = Date.now();
   const peer = async (gw: TestGateway) => (await gw.api.getComputers({})).peers[0]!;
 
-  const makeA = () => linkedComputers({ store: sa, host: "127.0.0.1", port: portA, heartbeatMs: HEARTBEAT_MS });
+  const makeA = () =>
+    linkedComputers({
+      store: sa,
+      host: "127.0.0.1",
+      port: portA,
+      heartbeatMs: HEARTBEAT_MS,
+      backoffNow: () => backoffTimeA,
+    });
 
   // B's listener is on 127.0.0.1, but it announces whatever `hostsB` says.
   const makeB = () =>
@@ -52,6 +61,7 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
       port: portB,
       detect: () => hostsB.map((host) => ({ host, kind: "lan" as const, interfaceName: "test" })),
       heartbeatMs: HEARTBEAT_MS,
+      backoffNow: () => backoffTimeB,
     });
 
   async function restart(side: "a" | "b", meanwhile = async () => {}) {
@@ -72,8 +82,8 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
     }
   }
 
-  const online = (timeoutMs = 15_000) =>
-    eventually(async () => (await peer(a)).status === "connected" && (await peer(b)).status === "connected", timeoutMs);
+  const online = () =>
+    eventually(async () => (await peer(a)).status === "connected" && (await peer(b)).status === "connected");
 
   beforeAll(async () => {
     a = await startTestGateway({ role: "desktop" });
@@ -158,9 +168,13 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
   }, 20_000);
 
   test("failed outbound routes stay recorded while the partner keeps the link up from its side", async () => {
-    // B goes away: A dials B's only announced address and fails.
+    const nodeId = lb.hello().nodeId;
+    const previousFailure = (await peer(a)).routes[0]!.lastFailureMs;
     await lb.close();
-    await eventually(async () => (await peer(a)).routes[0]!.lastFailureMs > 0n, PEER_BACKOFF_MS + 15_000);
+    // Let A's circuit expire so it can try B's only announced address.
+    await eventually(async () => la.reads.blocked(nodeId));
+    backoffTimeA += PEER_BACKOFF_MS;
+    await eventually(async () => (await peer(a)).routes[0]!.lastFailureMs > previousFailure);
     await restart("b");
     await online();
     // B announces its addresses again; they are current, and A still could not dial them.
@@ -171,27 +185,40 @@ describe.skipIf(!dockerAvailable)("route status of two linked gateways", () => {
     const [route] = onA.routes;
     expect(route!.lastFailureMs).toBeGreaterThan(route!.lastSuccessMs);
     expect(route!.inUse).toBe(false);
-  }, 70_000);
+  }, 25_000);
 
   test("a reconnect over a route clears its failure and puts it in use", async () => {
     const address = la.addresses[0]!;
+    const nodeId = la.hello().nodeId;
+    const route = async () => (await peer(b)).routes.find((r) => r.address === address)!;
     // A stops: B's dials to A fail until A is back on the same port.
     await la.close();
-    await eventually(async () => {
-      const route = (await peer(b)).routes.find((r) => r.address === address)!;
+    await eventually(async () => lb.reads.blocked(nodeId));
+    backoffTimeB += PEER_BACKOFF_MS - 1;
+    expect(lb.reads.blocked(nodeId)).toBe(true);
+    backoffTimeB += 1;
+    expect(lb.reads.blocked(nodeId)).toBe(false);
 
-      return route.lastFailureMs > route.lastSuccessMs;
-    }, PEER_BACKOFF_MS + 15_000);
+    const failed = await poll(route, (r) => r.lastFailureMs > r.lastSuccessMs);
+    expect(failed.lastFailureMs).toBeGreaterThan(failed.lastSuccessMs);
+    await eventually(async () => lb.reads.blocked(nodeId));
+
+    // The failed dial opened a doubled circuit window. Keep it closed to dials while A restarts.
+    backoffTimeB += PEER_BACKOFF_MS * 2 - 1;
     await restart("a");
-    // No discovery/announcement can reach B here. The failed dial has opened the next circuit window.
-    await online(PEER_BACKOFF_MS * 2 + 15_000);
-    await eventually(async () => {
-      const route = (await peer(b)).routes.find((r) => r.address === address)!;
+    expect(lb.reads.blocked(nodeId)).toBe(true);
+    expect((await route()).lastSuccessMs).toBe(failed.lastSuccessMs);
+    backoffTimeB += 1;
+    expect(lb.reads.blocked(nodeId)).toBe(false);
 
-      return route.inUse && route.lastSuccessMs > route.lastFailureMs;
+    await online();
+    await eventually(async () => {
+      const current = await route();
+
+      return current.inUse && current.lastSuccessMs > current.lastFailureMs;
     });
     expect((await peer(b)).connectionDirection).toBe("outgoing");
-  }, 120_000);
+  }, 25_000);
 
   test("a re-announce on a new port makes the stale address old, and a working new route removes it", async () => {
     const stale = `https://${UNREACHABLE}:${portB}`;

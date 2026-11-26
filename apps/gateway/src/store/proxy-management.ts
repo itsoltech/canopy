@@ -28,7 +28,7 @@ export interface ProxyManagementApi {
    * Claims the next read of a proxy for this process: false while another read of the same identity started less
    * than `spacingMs` ago, here or in another gateway process.
    */
-  claimProxyRead(userId: string, id: string, identity: string, spacingMs: number): Fx<boolean>;
+  claimProxyRead(userId: string, id: string, identity: string, spacingMs: number, now?: Date): Fx<boolean>;
   /** Stores a read for the identity it was made with; a key or URL changed meanwhile keeps it out. */
   storeProxyAccounts(userId: string, id: string, identity: string, accounts: ui.ProxyAccounts): Fx<void>;
   setProxyAccountPlan(userId: string, request: ui.SetProxyAccountPlanRequest): Fx<ui.ProxyAccounts>;
@@ -115,13 +115,15 @@ export function proxyManagementStore(sql: SqlClient.SqlClient, key: Buffer): Pro
 
         return rows.map((row) => row.id);
       }),
-    claimProxyRead: (userId, id, identity, spacingMs) =>
+    claimProxyRead: (userId, id, identity, spacingMs, now) =>
       Effect.gen(function* () {
-        const rows = yield* sql<{ id: string }>`UPDATE proxies SET management_read_at = now(),
+        const readAt = now ? sql`${now.toISOString()}::timestamptz` : sql`now()`;
+
+        const rows = yield* sql<{ id: string }>`UPDATE proxies SET management_read_at = ${readAt},
             management_read_identity = ${identity}
           WHERE id::text = ${id} AND owner_user_id = ${userId}::uuid
             AND (management_read_at IS NULL OR management_read_identity IS DISTINCT FROM ${identity}
-              OR management_read_at < now() - make_interval(secs => ${spacingMs / 1000}))
+              OR management_read_at < ${readAt} - make_interval(secs => ${spacingMs / 1000}))
           RETURNING id::text`;
 
         return rows.length > 0;

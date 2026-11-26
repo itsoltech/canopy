@@ -158,14 +158,48 @@ przez oxfmt. W opisie PR i przy oddaniu pracy podaj faktycznie wykonane kontrole
 oraz zakres pozostawiony CI; oczekujący CI nie jest zaliczonym sprawdzeniem.
 Zasady dla agentów i testów UI opisuje [AGENTS.md](../AGENTS.md#testing-policy).
 
+### Projektowanie testów
+
+Dodaj przypadek, gdy chroni odrębny, obserwowalny kontrakt z zakresu testów
+repozytorium. Najpierw wyszukaj istniejące przypadki. Rozszerz najbliższy test,
+jeżeli uruchamia właściwe wejście i może rozpoznać ten sam błąd. Przy poprawce
+ustal, jaka konkretna zmiana w kodzie wywróci asercję. Jeśli możesz bezpiecznie
+odtworzyć błąd, sprawdź przypadek przed poprawką i po niej. Korekta wyglądu lub
+tekstu zwykle wymaga sprawdzenia w kliencie, a refaktor zachowujący kontrakt
+korzysta z dotychczasowego pokrycia.
+
+Uruchamiaj rzeczywisty element, którego dotyczy asercja. Zastąp kontrolowaną
+atrapą jego zależność, np. proces harnessu lub zewnętrzny serwer HTTP. Dla
+regresji blokady sprawdzaj transakcje w PostgreSQL, a dla binarki lub instalatora
+uruchamiaj gotowy artefakt na właściwej platformie. Asercja powinna wynikać z
+kontraktu, np. oczekiwanego ID komendy, zdekodowanego wyniku lub kodu odmowy.
+Unikaj porównania tych samych wartości obliczonych przez testowany kod, sprawdzania
+licznika wywołanego ręcznie w atrapie i warunków, które spełnia też pusty wynik.
+Przy odmowie zmień jedną rzecz. Przykładowo limit rozmiaru obrazu sprawdź poprawnym
+obrazem tuż powyżej progu i oczekuj błędu rozmiaru.
+
+Zachowuj najmniejszy zestaw wariantów, który przekracza badaną granicę. Powtórzenia
+tego samego przypadku pomagają w diagnozie; uruchamiaj je jawnie, poza wymaganą
+bramką. Pomiary wydajności, testy pod długim obciążeniem i rzeczywiste wywołania
+usług płatnych mają własny tryb opt-in. Przed dokładaniem ciężkiego fixture albo
+smoke sprawdź, czy istniejący test uruchamia już ten sam kontrakt w tej samej
+postaci wdrożenia. Osobny test ma sens, gdy np. Windows używa innej ścieżki
+systemowej lub uruchomienie obrazu sprawdza coś innego niż samodzielna binarka.
+Koszt porównuj na ścieżce krytycznej CI, z uwzględnieniem instalacji zależności,
+budowy, startu bazy i przesyłania artefaktów.
+
 ### Stabilność testów asynchronicznych
 
 Test czeka na obserwowalny warunek: snapshot subskrypcji, `ConfigApplied`, koniec
 tury, gotowość procesu potomnego albo stan sesji PostgreSQL. Stałe `sleep` przed
 asercją nie potwierdza, że praca się zakończyła. Polling ma termin, a przekroczenie
-terminu zgłasza brakujący warunek. Testy cache z granicą wieku danych i scalaniem
-zdarzeń używają osobnego, sterowanego zegara dla każdej instancji; nie zmieniają
-globalnego czasu ani timerów innych testów.
+terminu zgłasza brakujący warunek. Jeżeli helper po terminie zwraca ostatni
+stan, asercja musi sprawdzić ten wynik. Brak działania sprawdzaj po zdarzeniu,
+które daje mu szansę wystąpić, np. po zakończeniu zdalnego odczytu lub upływie
+terminu retry w kontrolowanym zegarze. Testy cache, timeoutów i backoff używają
+sterowanego zegara lub krótkich limitów dla konkretnej instancji. Termin testu
+zostawia czas na uruchomienie fixture i sprzątanie. Unikaj globalnego przestawiania
+czasu i podnoszenia timeoutu zamiast czekania na właściwy sygnał.
 
 Przy pisaniu lub przeglądzie testu ustal, po jakim zdarzeniu asercja musi już być
 prawdziwa, nawet jeśli CI opóźni następny krok. Przykłady z testów integracyjnych:

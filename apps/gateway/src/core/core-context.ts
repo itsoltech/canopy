@@ -99,6 +99,8 @@ export interface GatewayCoreOptions {
   readonly backgroundGraceMs?: number;
   readonly botModel?: BotModel;
   readonly botClock?: () => Date;
+  /** Test-only clock for provider proxy account reads, cache age and persisted read spacing. */
+  readonly proxyAccountsClock?: () => Date;
   /** Test-only Slack HTTP/socket transport; never supplied by an account or model. */
   readonly messengerTransport?: import("../messengers/slack.ts").SlackTransport;
   readonly secretTtlMs?: number;

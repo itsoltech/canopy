@@ -387,7 +387,14 @@ describe("Slack messenger provider transport", () => {
   test("connection retry observes Retry-After and abort cancels that backoff", async () => {
     const f = fixture();
     const states: string[] = [];
+    const scheduled = Promise.withResolvers<number>();
     f.reply = () => new Response("", { status: 429, headers: { "Retry-After": "17" } });
+    f.transport.waitForReconnect = (milliseconds, signal) => {
+      expect(signal).toBe(f.controller.signal);
+      scheduled.resolve(milliseconds);
+
+      return delay(milliseconds, undefined, { signal });
+    };
 
     const { run } = f.start(
       async () => {},
@@ -396,11 +403,10 @@ describe("Slack messenger provider transport", () => {
       },
     );
 
-    await until(() => states.includes("retrying"));
-    await delay(35);
-    expect(f.requests).toHaveLength(1);
+    expect(await scheduled.promise).toBe(17_000);
     f.controller.abort();
     await run;
+    expect(f.requests.map((request) => request.method)).toEqual(["auth.test"]);
     expect(states).toEqual(["connecting", "retrying"]);
   });
 

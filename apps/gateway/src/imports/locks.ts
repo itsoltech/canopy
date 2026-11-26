@@ -13,7 +13,7 @@ import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access
  * environment, connected accounts) records its receipt last in that store's transaction: that store's row first,
  * then the run, an order no import transaction reverses.
  *
- * `FOR UPDATE` and `withTransaction` appear nowhere else in apps/gateway/src/imports (locks.test.ts).
+ * Keep `FOR UPDATE` and `withTransaction` for CLI imports in this module.
  */
 
 export interface LockSeeds {

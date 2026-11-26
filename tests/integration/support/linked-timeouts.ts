@@ -64,7 +64,7 @@ export async function networkPath(port: number) {
 }
 
 /** Two real gateways, separate databases and scripted workers, linked exclusively through controllable TCP paths. */
-export async function linkedTimeouts(mirrors = false) {
+export async function linkedTimeouts(mirrors = false, backoffNow?: () => number) {
   const a = await startTestGateway({ role: "desktop" });
   const b = await startTestGateway({ role: "desktop" });
   let release: (() => void) | undefined;
@@ -79,6 +79,7 @@ export async function linkedTimeouts(mirrors = false) {
       store: new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey),
       host: "127.0.0.1",
       heartbeatMs: 1000,
+      ...(backoffNow && { backoffNow }),
       capabilities: [
         "presence",
         "unlink",

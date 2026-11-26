@@ -3,7 +3,7 @@
  * repository (a bare origin and a clone). A local Codex stand-in records each thread's cwd; GenerateText is stubbed
  * at the worker so the semantic branch name is deterministic.
  */
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import {
   chmodSync,
   copyFileSync,
@@ -27,7 +27,11 @@ import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
 import { qualifyId } from "@canopy/domain/computers";
-import { WORKTREE_CHECKOUT_DEADLINE, WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
+import {
+  LEGACY_WORKTREE_QUERY_TIMEOUT_MS,
+  WORKTREE_CHECKOUT_DEADLINE,
+  WORKTREE_QUERY_TIMEOUT_MS,
+} from "@canopy/domain/worktree-timing";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 function sh(cwd: string, ...args: string[]): string {
@@ -56,7 +60,8 @@ function commit(repo: string, file: string, text: string): string {
 }
 
 describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () => {
-  const dir = tempDir("canopy-worktrees-");
+  // Codex's managed home requires every path component to be a real directory.
+  const dir = realpathSync(tempDir("canopy-worktrees-"));
   const dataDir = join(dir, "worker-data");
   const origin = join(dir, "origin.git");
   const repo = join(dir, "repo");
@@ -173,6 +178,20 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
       (r) => r.thread?.status === "idle" || r.thread?.status === "running",
     );
 
+  const expectWorkerStarted = async ({ id, cwd }: ui.Thread) => {
+    const marker = join(cwd, "worker-started.txt");
+
+    const started = await eventually(
+      async () => (existsSync(marker) ? readFileSync(marker, "utf8") : undefined),
+      (value) => value === cwd,
+    );
+
+    if (started !== cwd) {
+      const { thread } = await gw.api.getThread({ threadId: id });
+      expect(started, thread?.statusDetail || "The Codex fixture did not record the thread directory").toBe(cwd);
+    }
+  };
+
   test("refs: current and default branch, local and remote branches; defaults of the settings", async () => {
     const refs = await gw.api.listGitRefs({ workspaceId: workspace.id });
     expect(refs.supported).toBe(true);
@@ -198,8 +217,7 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     // The folder is a short random name, not the branch (docs/worktrees.md, "Położenie").
     expect(thread.cwd).toMatch(new RegExp(`^${join(managed, "repo")}/[0-9a-hjkmnp-tv-z]{6}$`));
     expect(thread.worktree).toMatchObject({ path: thread.cwd, baseRef: "main", repoRoot: realpathSync(repo) });
-    await idle(thread.id);
-    expect(readFileSync(join(thread.cwd, "worker-started.txt"), "utf8")).toBe(thread.cwd);
+    await expectWorkerStarted(thread);
     expect(sh(thread.cwd, "rev-parse", "HEAD")).toBe(localMain);
     expect(sh(thread.cwd, "symbolic-ref", "--short", "HEAD")).toBe("wt/fix-the-login-bug");
     // The user's checkout is untouched.
@@ -248,16 +266,42 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
     expect([checkout.cwd, checkout.worktree]).toEqual([repo, undefined]);
   });
 
-  test("a checkout beyond the old worker query deadline still creates a usable thread", async () => {
+  test("a running checkout uses the extended query deadline while a queued checkout expires", async () => {
+    const connection = gw.core.link.connections.get(workerId);
+
+    if (!connection) throw new Error("No worker link for worktree creation");
     const hooks = join(dir, "slow-checkout-hooks");
+    const ready = join(hooks, "ready");
+    const release = () => writeFileSync(join(hooks, "release"), "");
     mkdirSync(hooks);
-    // A real Git hook models a slow checkout without a large repository or mocked process timers.
-    writeFileSync(join(hooks, "post-checkout"), "#!/bin/sh\nsleep 92\n", { mode: 0o755 });
+    // Keep Git in checkout until the queued command settles. Bound the hook independently in case the test stalls.
+    writeFileSync(
+      join(hooks, "post-checkout"),
+      `#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+touch ready
+polls=0
+until [ -e release ]; do
+  polls=$((polls + 1))
+  if [ "$polls" -ge 150 ]; then
+    echo "Timed out waiting for the test to release checkout" >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+`,
+      { mode: 0o755 },
+    );
     sh(repo, "config", "core.hooksPath", hooks);
+    const query = spyOn(connection, "sendCommand");
 
     try {
       let thread: ui.Thread | undefined;
+      let queued: Awaited<ReturnType<WorkerHost["handleCommand"]>>;
+      let hookReached = false;
       const steps: string[] = [];
+      const creationStartedAt = BigInt(Date.now());
 
       for await (const event of gw.api.createThreadWithProgress(
         {
@@ -268,49 +312,65 @@ describe.skipIf(!dockerAvailable)("git worktrees through the worker link", () =>
           workspaceMode: ui.WorkspaceMode.NEW_WORKTREE,
           baseRef: "main",
         },
-        { timeoutMs: WORKTREE_CLIENT_TIMEOUT_MS },
+        { timeoutMs: 20_000 },
       )) {
         steps.push(`${event.step}:${event.status}`);
         thread = event.thread ?? thread;
 
-        if (event.step === "create_worktree" && event.status === "running") {
-          const started = performance.now();
+        if (event.step === "create_worktree" && event.status === "running" && !hookReached) {
+          try {
+            hookReached = await eventually(async () => existsSync(ready), Boolean);
 
-          const queued = await host.handleCommand(
-            create(CommandSchema, {
-              commandId: Bun.randomUUIDv7(),
-              kind: {
-                case: "createWorktree",
-                value: {
-                  repoPath: repo,
-                  baseRef: "main",
-                  branch: "canopy/expired-while-queued",
-                  checkoutStartDeadlineMs: BigInt(Date.now() + 2000),
+            if (!hookReached) continue;
+
+            queued = await host.handleCommand(
+              create(CommandSchema, {
+                commandId: Bun.randomUUIDv7(),
+                kind: {
+                  case: "createWorktree",
+                  value: {
+                    repoPath: repo,
+                    baseRef: "main",
+                    branch: "canopy/expired-while-queued",
+                    checkoutStartDeadlineMs: BigInt(Date.now() + 2000),
+                  },
                 },
-              },
-            }),
-          );
-
-          expect(queued).toMatchObject({ ok: false, errorCode: "GIT_BUSY" });
-          expect(performance.now() - started).toBeLessThan(15_000);
+              }),
+            );
+          } finally {
+            release();
+          }
         }
       }
 
+      const checkouts = query.mock.calls.flatMap(([kind, timeoutMs]) =>
+        kind.case === "createWorktree" ? [{ timeoutMs, startDeadline: kind.value.checkoutStartDeadlineMs }] : [],
+      );
+
+      expect(checkouts).toHaveLength(1);
+      expect(checkouts[0]?.timeoutMs).toBe(WORKTREE_QUERY_TIMEOUT_MS);
+      expect(checkouts[0]?.timeoutMs).toBeGreaterThan(LEGACY_WORKTREE_QUERY_TIMEOUT_MS);
+      expect(checkouts[0]?.startDeadline).toBeGreaterThan(creationStartedAt);
       expect(steps).toContain("create_worktree:running");
       expect(steps).toContain("create_worktree:completed");
+      expect(hookReached).toBe(true);
+      expect(queued).toMatchObject({ ok: false, errorCode: "GIT_BUSY" });
 
       if (!thread) throw new Error(`No created thread: ${steps.join(", ")}`);
-      expect(thread.worktree?.path).toBe(thread.cwd);
-      expect(readFileSync(join(thread.cwd, "README.md"), "utf8")).toBe("hello");
-      expect(sh(thread.cwd, "rev-parse", "HEAD")).toBe(localMain);
+      const { cwd } = thread;
+      expect(thread.worktree?.path).toBe(cwd);
+      expect(readFileSync(join(cwd, "README.md"), "utf8")).toBe("hello");
+      expect(sh(cwd, "rev-parse", "HEAD")).toBe(localMain);
       expect(sh(repo, "symbolic-ref", "--short", "HEAD")).toBe("main");
       expect(sh(repo, "branch", "--list", "canopy/expired-while-queued")).toBe("");
-      await idle(thread.id);
-      expect(readFileSync(join(thread.cwd, "worker-started.txt"), "utf8")).toBe(thread.cwd);
+
+      await expectWorkerStarted(thread);
     } finally {
+      release();
+      query.mockRestore();
       sh(repo, "config", "--unset", "core.hooksPath");
     }
-  }, 125_000);
+  }, 25_000);
 
   test("first-message file mentions use the new, reused or inherited worktree directory", async () => {
     const initialMessage = "@README.md";

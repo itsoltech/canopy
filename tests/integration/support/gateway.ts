@@ -637,6 +637,7 @@ export async function startTestGateway(
     backgroundGraceMs?: number;
     botModel?: BotModel;
     botClock?: GatewayCoreOptions["botClock"];
+    proxyAccountsClock?: GatewayCoreOptions["proxyAccountsClock"];
     messengerTransport?: GatewayCoreOptions["messengerTransport"];
     worker?: ScriptedWorkerOptions;
     secretTtlMs?: number;
@@ -739,6 +740,7 @@ export async function startTestGateway(
     ...(options.watchProbeMs !== undefined && { watchProbeMs: options.watchProbeMs }),
     ...(options.botModel && { botModel: options.botModel }),
     ...(options.botClock && { botClock: options.botClock }),
+    ...(options.proxyAccountsClock && { proxyAccountsClock: options.proxyAccountsClock }),
     ...(options.attachmentLimits && { attachmentLimits: options.attachmentLimits }),
     ...(options.backgroundGraceMs !== undefined && { backgroundGraceMs: options.backgroundGraceMs }),
     log:

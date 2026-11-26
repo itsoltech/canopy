@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          name: native-binaries
+          name: native-binaries-${{ matrix.target }}
       - name: Read the compiled version
         shell: bash
         run: |

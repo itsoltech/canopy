@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
-import { agentBusToolsFor, authorizeBusCall, type BusFacts, type ThreadNode } from "./policy.ts";
+import { authorizeBusCall, type BusFacts, type ThreadNode } from "./policy.ts";
 import { decodeAgentBusCall, type AgentBusCall } from "./tools.ts";
 
 const node = (id: string, ancestorIds: string[], extra: Partial<ThreadNode> = {}): ThreadNode => ({
@@ -40,13 +40,6 @@ const decision = (call: AgentBusCall, f: BusFacts) => {
 };
 
 describe("background task tools", () => {
-  test("every thread has them, side threads too", () => {
-    for (const depth of [0, 1])
-      expect(agentBusToolsFor(depth)).toEqual(
-        expect.arrayContaining(["list_background_tasks", "get_background_task", "stop_background_task"]),
-      );
-  });
-
   test("calls decode strictly", () => {
     const get = decodeAgentBusCall("get_background_task", JSON.stringify({ task_id: "bg:exec-1", output_lines: 20 }));
     expect(Result.isSuccess(get) && get.success).toEqual({

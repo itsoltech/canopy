@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { createHash } from "node:crypto";
-import { timestampFromDate, timestampNow } from "@bufbuild/protobuf/wkt";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { redactCredentials } from "@canopy/domain";
 import { Option, Schema } from "effect";
@@ -162,8 +162,8 @@ async function accountsWithUsage(
   key: string,
   secrets: readonly string[],
   signal: AbortSignal,
+  now: number,
 ) {
-  const now = Date.now();
   const redact = secretRedactor([key, ...secrets]);
   const decoded = files.flatMap((value) => Option.toArray(decodeFile(value))).slice(0, MAX_ACCOUNTS);
   const accounts = decoded.map((file) => proxyAccount(file, now, redact));
@@ -235,9 +235,6 @@ async function boundedListing(response: Response) {
   }
 }
 
-const result = (proxyId: string, state: string, accounts: ui.ProxyAccount[] = [], total = accounts.length) =>
-  create(ui.ProxyAccountsSchema, { proxyId, state, accounts, total, checkedAt: timestampNow() });
-
 /**
  * Lists a CLIProxyAPI proxy's upstream accounts with its management key. The key goes only in this request's
  * header; redirects are refused so it cannot reach another host. Response bodies never leave as text.
@@ -247,8 +244,12 @@ export async function readProxyAccounts(
   root: string,
   key: string,
   secrets: readonly string[] = [],
+  clock: () => Date = () => new Date(),
 ): Promise<ui.ProxyAccounts> {
-  if (!key) return result(proxyId, "no_key");
+  const result = (state: string, accounts: ui.ProxyAccount[] = [], total = accounts.length) =>
+    create(ui.ProxyAccountsSchema, { proxyId, state, accounts, total, checkedAt: timestampFromDate(clock()) });
+
+  if (!key) return result("no_key");
 
   try {
     const signal = AbortSignal.timeout(TIMEOUT_MS);
@@ -264,25 +265,24 @@ export async function readProxyAccounts(
       const forbidden = response.status === 403 ? (await readBounded(response, 512)).bytes.toString("utf8") : "";
       await response.body?.cancel().catch(() => {});
 
-      if (response.status === 401) return result(proxyId, "unauthorized");
+      if (response.status === 401) return result("unauthorized");
 
       if (response.status === 403)
-        return result(proxyId, /remote management disabled/i.test(forbidden) ? "remote_disabled" : "unauthorized");
+        return result(/remote management disabled/i.test(forbidden) ? "remote_disabled" : "unauthorized");
 
-      return result(proxyId, "unavailable");
+      return result("unavailable");
     }
 
     const listing = await boundedListing(response);
 
-    if (Option.isNone(listing)) return result(proxyId, "invalid_response");
+    if (Option.isNone(listing)) return result("invalid_response");
 
     return result(
-      proxyId,
       "ok",
-      await accountsWithUsage(listing.value.files, root, key, secrets, signal),
+      await accountsWithUsage(listing.value.files, root, key, secrets, signal, clock().getTime()),
       listing.value.files.length,
     );
   } catch {
-    return result(proxyId, "unreachable");
+    return result("unreachable");
   }
 }

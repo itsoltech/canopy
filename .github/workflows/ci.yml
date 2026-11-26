@@ -129,6 +129,7 @@ jobs:
           retention-days: 7
 
   builds:
+    # The PR native checks look up this job by name after running the source tests.
     name: Web and Linux binaries
     needs: changes
     if: needs.changes.outputs.scope == 'full'
@@ -150,9 +151,7 @@ jobs:
         if: github.event_name == 'push'
         env:
           CANOPY_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          bun scripts/build-binaries.ts --target all --web dist/web
-          printf '%s\n' "$CANOPY_VERSION" > dist/release/ci-version.txt
+        run: bun scripts/build-binaries.ts --target all --web dist/web
       - name: Gateway and worker binaries (linux-x64)
         if: github.event_name == 'pull_request'
         env:
@@ -189,33 +188,69 @@ jobs:
         run: |
           bun scripts/build-binaries.ts --app worker --target darwin-arm64,darwin-x64,windows-x64
           bun scripts/build-binaries.ts --app gateway --target windows-x64 --web dist/web
+      - name: Record the compiled version
+        env:
+          CANOPY_VERSION: ${{ steps.version.outputs.version }}
+        run: printf '%s\n' "$CANOPY_VERSION" > dist/release/ci-version.txt
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'push'
         with:
-          name: native-binaries
+          name: native-binaries-linux-x64
           overwrite: true
           path: |
-            dist/release/canopy-worker-darwin-arm64
-            dist/release/canopy-worker-darwin-x64
-            dist/release/canopy-worker-windows-x64.exe
-            dist/release/canopy-gateway-windows-x64.exe
+            dist/release/canopy-gateway-linux-x64
+            dist/release/canopy-worker-linux-x64
+            dist/release/ci-version.txt
           if-no-files-found: error
           retention-days: 1
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push'
         with:
-          name: native-binaries
+          name: native-binaries-linux-arm64
           overwrite: true
           path: |
-            dist/release/canopy-*
-            !dist/release/*.licenses.txt
+            dist/release/canopy-gateway-linux-arm64
+            dist/release/canopy-worker-linux-arm64
+            dist/release/ci-version.txt
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-binaries-windows-x64
+          overwrite: true
+          path: |
+            dist/release/canopy-gateway-windows-x64.exe
+            dist/release/canopy-worker-windows-x64.exe
+            dist/release/ci-version.txt
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-binaries-darwin-arm64
+          overwrite: true
+          path: |
+            ${{ github.event_name == 'push' && 'dist/release/canopy-gateway-darwin-arm64' || '' }}
+            dist/release/canopy-worker-darwin-arm64
+            dist/release/ci-version.txt
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-binaries-darwin-x64
+          overwrite: true
+          path: |
+            ${{ github.event_name == 'push' && 'dist/release/canopy-gateway-darwin-x64' || '' }}
+            dist/release/canopy-worker-darwin-x64
             dist/release/ci-version.txt
           if-no-files-found: error
           retention-days: 1
 
   native:
-    needs: builds
-    if: github.event_name == 'pull_request'
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.scope == 'full'
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/native-checks.yml
     with:
       check-binaries: true

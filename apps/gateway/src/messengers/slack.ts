@@ -141,9 +141,11 @@ export class SlackMessenger {
       if (Date.now() - started > 30_000) failures = 0;
       const baseDelay = this.options.transport?.reconnectDelayMs ?? 1000;
       const backoff = Math.min(30_000, baseDelay * 2 ** Math.min(failures++, 8));
+      const milliseconds = Math.max(retryAfterMs, backoff + Math.random() * backoff * 0.2);
+      const wait = this.options.transport?.waitForReconnect;
 
       try {
-        await delay(Math.max(retryAfterMs, backoff + Math.random() * backoff * 0.2), undefined, { signal });
+        await (wait ? wait(milliseconds, signal) : delay(milliseconds, undefined, { signal }));
       } catch {
         return;
       }

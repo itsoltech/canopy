@@ -3,6 +3,7 @@ import { dockerAvailable } from "@canopy/db/testing";
 import { eventually } from "./support/gateway.ts";
 import { linkedTimeouts, networkPath } from "./support/linked-timeouts.ts";
 import { computersAdvertise } from "../../apps/gateway/src/computers/runtime-lan.ts";
+import { PEER_BACKOFF_MS } from "../../apps/gateway/src/computers/timing.ts";
 import { ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { createClient } from "@connectrpc/connect";
@@ -15,9 +16,10 @@ import { SERVICE_TOKEN } from "./support/gateway.ts";
 
 describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery", () => {
   let f: Awaited<ReturnType<typeof linkedTimeouts>>;
+  let backoffOffset = 0;
 
   beforeAll(async () => {
-    f = await linkedTimeouts();
+    f = await linkedTimeouts(false, () => Date.now() + backoffOffset);
   }, 90_000);
   afterAll(async () => {
     await f?.close();
@@ -40,7 +42,7 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
     return { peer: updates.computers.find((c) => c.nodeId === f.node)!, bots };
   }
 
-  async function recovered(timeoutMs = 15_000) {
+  async function recovered() {
     expect(
       await eventually(
         async () => {
@@ -54,7 +56,7 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
           );
         },
         Boolean,
-        timeoutMs,
+        15_000,
       ),
     ).toBe(true);
   }
@@ -148,9 +150,10 @@ describe.skipIf(!dockerAvailable)("linked computer read deadlines and recovery",
       f.pb.thaw();
     }
 
-    await recovered(45_000);
+    backoffOffset += PEER_BACKOFF_MS;
+    await recovered();
     expect((await f.la.store.peer(f.node))!.fingerprint).toBe(pin);
-  }, 60_000);
+  }, 30_000);
 
   test("slow live reads time out without declaring the computer dead or repeating on every poll", async () => {
     const before = f.requests.get("GetComputerUpdates") ?? 0;

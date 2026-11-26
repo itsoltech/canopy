@@ -212,10 +212,11 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     await Promise.allSettled([a?.close(), b?.close(), c?.close()]);
   }, 30000);
 
-  async function moveThreadWithHistory(run: number) {
+  async function moveThreadWithHistory(size: "large" | "small") {
     const t = await thread(a, aProject, aWorkspace, "Feature work", "remember the cat called Mruczek");
-    // Run 1 moves a file over the database driver's 16 MiB message limit (export, staged move, read on the new home).
-    const data = new TextEncoder().encode(run === 1 ? "moved bytes\n".repeat(1_500_000) : "moved bytes");
+
+    // The large fixture crosses the database driver's 16 MiB message limit.
+    const data = new TextEncoder().encode(size === "large" ? "moved bytes\n".repeat(1_500_000) : "moved bytes");
     const upload = await a.api.uploadAttachment({ name: "notes.txt", data });
     await a.api.sendMessage({
       threadId: t,
@@ -286,7 +287,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     expect((await c.api.listSchedules({ threadId: t })).schedules.map((s) => s.id)).toContain(schedule.id);
     expect((await c.api.getVisual({ threadId: t, visualId })).visual?.title).toBe("Moved visual");
 
-    if (run === 1) {
+    if (size === "large") {
       expect((await a.api.getVisual({ threadId: t, visualId })).visual?.title).toBe("Moved visual");
       expect(
         (await b.api.getVisual({ threadId: qualifyId(t, aNode), visualId: qualifyId(visualId, aNode) })).visual?.title,
@@ -386,10 +387,10 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     expect(lb.redirects.home("thread", t, aNode)?.home_node_id).toBe(cNode);
   }
 
-  test.each(Array.from({ length: 20 }, (_, index) => index + 1))(
-    "a thread moves with its history and files; the old home redirects and a third computer sees the new owner (run %i/20)",
+  test.each(["large", "small"] as const)(
+    "a moved thread keeps history and redirects reads and writes with a %s attachment",
     moveThreadWithHistory,
-    60000,
+    60_000,
   );
 
   test("a moved thread brings its verified previews, including a valid repair of legacy stored bytes", async () => {

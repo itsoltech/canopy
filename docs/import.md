@@ -705,7 +705,6 @@ Migracja `0093_cli_imports`:
   kolejności utworzenie dopisania, Undo, Cancel, Resume, zapis strony, błąd i koniec pozycji oraz zwolnienie usuniętych
   wątków na tych samych wątkach; żadnego `40P01`, każdy wątek ma dokładnie jedną żywą pozycję, a `last_seq`
   zgadza się ze zdarzeniami. Undo przebiegu, którego wątek kontynuował późniejszy import, jest odrzucane bez zmian.
-  `apps/gateway/src/imports/locks.test.ts` pilnuje, że jawne blokady wierszy i definicje transakcji pozostają w `locks.ts`.
 - **Adapter Codex** (`apps/worker/src/import/codex-history.test.ts`): tury, komenda z wynikiem i te same id
   przy podziale na strony; syntetyczny starszy rollout (bez `item_completed`): wiadomości, rozumowanie,
   wywołanie powłoki, kompaktowanie, przerwana i nieudana tura, niepoprawna linia.
