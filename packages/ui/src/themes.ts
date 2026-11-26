@@ -1,6 +1,8 @@
 import { palette } from "./tokens.ts";
 import { neutralSteps, themeStatusTones, type ThemeColors, type ThemeTokenName } from "./theme-builder.ts";
 
+export { neutralSteps };
+
 export const themeNames = ["birch", "fern", "lagoon", "cedar", "heather", "blossom", "ash"] as const;
 
 export type ThemeName = (typeof themeNames)[number];
