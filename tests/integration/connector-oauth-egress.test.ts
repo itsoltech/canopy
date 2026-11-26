@@ -188,6 +188,28 @@ describe("OAuth discovery and token traffic use the owner's network scope", () =
     expect(calls).toHaveLength(2);
   });
 
+  test("discarding a registered issuer blocks its previously resolved private address", async () => {
+    const resource = "https://resource.example.test/mcp";
+    const issuer = "https://issuer.internal";
+    const requests: string[] = [];
+
+    const transport = oauthEgress(resource, issuer, {
+      resolve: async () => [privateAnswer],
+      send: async (url) => {
+        requests.push(url.pathname);
+
+        return Response.json({});
+      },
+    });
+
+    await transport.fetch(`${issuer}/.well-known/oauth-authorization-server`);
+    transport.discardRegisteredIssuer();
+    await expect(transport.fetch(`${issuer}/register`, { method: "POST" })).rejects.toThrow(
+      "requires a public address",
+    );
+    expect(requests).toEqual(["/.well-known/oauth-authorization-server"]);
+  });
+
   test("a public custom resource stays public when the callback opens another connection", async () => {
     const resource = "https://public.example.test/mcp";
     const send = async () => new Response(null, { status: 204 });

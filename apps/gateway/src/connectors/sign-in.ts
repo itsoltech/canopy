@@ -6,7 +6,7 @@ import {
   returnState,
 } from "@canopy/domain/oauth-return";
 import { oauthRedirectUrl } from "./catalog.ts";
-import { authorizeOAuth, oauthProvider } from "./oauth.ts";
+import { authorizeOAuth, oauthAppForIssuer, oauthProvider } from "./oauth.ts";
 import { OAuthStartFailure } from "./oauth-error.ts";
 import type { AccountRow, Credentials, RegisteredApp } from "./records.ts";
 
@@ -19,10 +19,10 @@ export async function beginOAuth(
   callback: string | undefined,
   desktop: boolean,
   previous: Credentials,
-  app?: RegisteredApp,
+  savedApp?: RegisteredApp,
   scope?: string,
 ) {
-  const egress = oauthEgress(account.url, app?.issuer);
+  const egress = oauthEgress(account.url, savedApp?.issuer);
   let discoveryStatus = 0;
   let discovery: Awaited<ReturnType<typeof discoverOAuthServerInfo>>;
 
@@ -43,6 +43,10 @@ export async function beginOAuth(
       error instanceof OAuthNetworkFailure ? error : undefined,
     );
   }
+
+  const app = oauthAppForIssuer(account.connector_type, savedApp, discovery.authorizationServerUrl);
+
+  if (savedApp !== app) egress.discardRegisteredIssuer();
 
   const metadata = discovery.authorizationServerMetadata;
   const s256 = metadata?.code_challenge_methods_supported?.includes("S256");

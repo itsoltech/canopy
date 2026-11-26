@@ -3,8 +3,7 @@ import { isOAuthState, parsePastedCode } from "@canopy/domain/oauth-return";
 import { Effect } from "effect";
 import type { ConnectorsRuntime } from "./runtime.ts";
 import { SlackMessagingSetupConflict } from "./store-slack-messaging.ts";
-import { oauthEgress } from "./oauth-egress.ts";
-import { authorizeOAuth } from "./oauth.ts";
+import { authorizeOAuth, sessionOAuthEgress } from "./oauth.ts";
 import { ConnectorOAuthFailure, oauthFailure } from "./oauth-error.ts";
 import { connectorTestError } from "./test-error.ts";
 import type { SlackTransport } from "../messengers/slack-http.ts";
@@ -85,7 +84,7 @@ export async function completeOAuth(
             );
         } else {
           const app = yield* s.app(user, row.connector_type);
-          const egress = oauthEgress(row.url, app?.issuer, { publicOrigins: session.value.oauthPublicOrigins });
+          const egress = sessionOAuthEgress(row, session.value, app);
           yield* Effect.tryPromise({
             try: () => authorizeOAuth(row, egress, session.value, request.state, undefined, request.code),
             catch: (cause) => {

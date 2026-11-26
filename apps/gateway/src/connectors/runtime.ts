@@ -25,9 +25,8 @@ import {
   type Credentials,
   type ExecutionSource,
 } from "./store.ts";
-import { oauthEgress } from "./oauth-egress.ts";
 import { OAuthNetworkFailure } from "./oauth-network.ts";
-import { authorizeOAuth, redactConnector, revokeOAuth } from "./oauth.ts";
+import { authorizeOAuth, redactConnector, revokeOAuth, sessionOAuthEgress } from "./oauth.ts";
 import { beginConnectorOAuth } from "./oauth-begin.ts";
 import { slackUserCredentials } from "./slack-user-refresh.ts";
 import type { SlackTransport } from "../messengers/slack-http.ts";
@@ -162,7 +161,7 @@ export class ConnectorsRuntime {
                   const refreshed = yield* Effect.tryPromise({
                     try: async () => {
                       if (!value.tokens?.refresh_token) return false;
-                      const egress = oauthEgress(row.url, app?.issuer, { publicOrigins: value.oauthPublicOrigins });
+                      const egress = sessionOAuthEgress(row, value, app);
                       const redirect = await authorizeOAuth(row, egress, value, "");
 
                       return !redirect && !!value.tokens;
@@ -344,10 +343,7 @@ export class ConnectorsRuntime {
     const { value, account, row } = await this.run((s) => s.disconnect(this.options.userId, id));
     const app = await this.run((s) => s.app(this.options.userId, row.connector_type));
 
-    const revoked = await revokeOAuth(
-      value,
-      oauthEgress(row.url, app?.issuer, { publicOrigins: value.oauthPublicOrigins }),
-    );
+    const revoked = await revokeOAuth(value, sessionOAuthEgress(row, value, app));
 
     await this.run((s) =>
       s.audit({ userId: this.options.userId, accountId: id }, "revoke", revoked ? "revoked" : "local_only"),

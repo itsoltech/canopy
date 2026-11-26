@@ -2,11 +2,27 @@ import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client
 import { OAUTH_CLIENT_METADATA_REDIRECT_URL, OAUTH_CLIENT_METADATA_URL } from "@canopy/domain/oauth-return";
 import { Predicate, Schema } from "effect";
 import type { Credentials } from "./store.ts";
-import type { oauthEgress } from "./oauth-egress.ts";
+import { oauthEgress } from "./oauth-egress.ts";
 import { OAuthNetworkFailure } from "./oauth-network.ts";
 import { recordOAuthIdentity } from "./oauth-identity.ts";
-import type { AccountRow } from "./records.ts";
+import type { AccountRow, RegisteredApp } from "./records.ts";
 import { httpMcpFailure, networkMcpFailure } from "../bots/mcp-errors.ts";
+
+export function oauthAppForIssuer(type: string, app?: RegisteredApp, issuer?: string) {
+  if (type === "custom" && app?.issuer && issuer && new URL(app.issuer).href !== new URL(issuer).href) return undefined;
+
+  return app;
+}
+
+export function sessionOAuthEgress(
+  account: Pick<AccountRow, "connector_type" | "url">,
+  value: Credentials,
+  app?: RegisteredApp,
+) {
+  const issuer = oauthAppForIssuer(account.connector_type, app, value.discovery?.authorizationServerUrl)?.issuer;
+
+  return oauthEgress(account.url, issuer, { publicOrigins: value.oauthPublicOrigins });
+}
 
 /** Mutable only inside a gateway operation; the complete state is persisted encrypted. */
 export function oauthProvider(value: Credentials, state: string, redirect: (url: URL) => void): OAuthClientProvider {

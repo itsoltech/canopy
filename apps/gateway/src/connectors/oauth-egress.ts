@@ -156,7 +156,9 @@ export function oauthEgress(
     send?: typeof sendPinned;
   } = {},
 ) {
-  const configured = new Set([resource, ...(registeredIssuer ? [registeredIssuer] : [])].map((s) => new URL(s).origin));
+  const resourceOrigin = new URL(resource).origin;
+  const registeredOrigin = registeredIssuer ? new URL(registeredIssuer).origin : undefined;
+  const configured = new Set([resourceOrigin, ...(registeredOrigin ? [registeredOrigin] : [])]);
   const publicOrigins = new Set(options.publicOrigins?.filter((origin) => configured.has(origin)));
   const origins = new Map<string, Promise<OriginAddresses>>();
   const resolve = options.resolve ?? resolveHost;
@@ -228,6 +230,13 @@ export function oauthEgress(
 
   return {
     publicOrigins: () => [...publicOrigins].sort(),
+    discardRegisteredIssuer: () => {
+      if (!registeredOrigin || registeredOrigin === resourceOrigin) return;
+      configured.delete(registeredOrigin);
+
+      // A pinned private address must no longer be reachable through this transport.
+      if (!publicOrigins.delete(registeredOrigin)) origins.delete(registeredOrigin);
+    },
     fetch: async (input: string | URL | Request, init?: RequestInit) => {
       const req = input instanceof Request ? new Request(input, init) : new Request(input.toString(), init);
       const url = new URL(req.url);

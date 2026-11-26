@@ -1,5 +1,9 @@
 # Konektory Canopy
 
+Aktualizacja (2026-11-26): zapisana aplikacja OAuth typu Custom MCP ma
+pierwszeństwo dla pasującego wystawcy. Dla pozostałych wystawców gateway
+korzysta z automatycznej konfiguracji OAuth, jeśli ją obsługują.
+
 Aktualizacja (2026-11-25): odpowiedzi MCP z obrazami mają budżet 10 MB, a adaptery
 Codex, Grok i Claude przekazują zachowane obrazy w natywnych blokach MCP.
 
@@ -218,6 +222,9 @@ Ta strona przekazuje kod wyłącznie do aplikacji desktopowej lub pokazuje go
 do skopiowania. W web po zgodzie użytkownik kopiuje kod, wraca do Canopy
 i wkleja go w „Paste a sign-in code”.
 Ręcznie skonfigurowana aplikacja i pasująca zapisana rejestracja mają pierwszeństwo.
+W Custom MCP gateway używa zapisanej aplikacji tylko dla jej wystawcy. Dla
+innego wystawcy wybiera zapisany klient tego konta, CIMD lub DCR według
+metadanych serwera i warunków rejestracji.
 Instalacja z własnym `CANOPY_OAUTH_REDIRECT_URL` korzysta z DCR, jeśli serwer
 je oferuje. W wydaniu z obsługą CIMD ElevenLabs można dodać jako Custom MCP server
 z adresem `https://api.elevenlabs.io/v1/mcp`, transportem Streamable HTTP
