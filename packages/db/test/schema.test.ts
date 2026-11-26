@@ -143,6 +143,36 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
       expect(row).toEqual({ origin: "agent", spawned_by_call_id: call });
     });
 
+    test("start_thread records the independent first task and its report", async () => {
+      const w = await world();
+      const caller = await mainThread(w);
+      const target = await mainThread(w);
+      const sourceTurn = await completedTurn(w, caller, ["start"]);
+      const firstTurn = id();
+      const reportTurn = id();
+      const call = id();
+
+      expect(await failure(insertCall, [id(), caller, sourceTurn, "start_thread", null, false, null])).toContain(
+        "agent_bus_calls_starts_turn",
+      );
+      await query(insertCall, [call, caller, sourceTurn, "start_thread", 1, true, "pending"]);
+      await query(insertBusTurn, [firstTurn, target, 1, "queued", call, 1]);
+      await query(insertBusTurn, [reportTurn, caller, 2, "queued", call, 2]);
+      await query(
+        `UPDATE agent_bus_calls SET target_thread_id=$2, target_turn_id=$3, status='completed', completed_at=now(),
+                                    notify_status='delivered', notified_turn_id=$4
+         WHERE id=$1`,
+        [call, target, firstTurn, reportTurn],
+      );
+
+      expect(
+        await query("SELECT source_kind, source_thread_id FROM turn_sources WHERE turn_id=$1", [firstTurn]),
+      ).toEqual([{ source_kind: "task", source_thread_id: caller }]);
+      expect(
+        await query("SELECT source_kind, source_thread_id FROM turn_sources WHERE turn_id=$1", [reportTurn]),
+      ).toEqual([{ source_kind: "report", source_thread_id: target }]);
+    });
+
     test("integrity rules", async () => {
       const w = await world();
       const main = await mainThread(w);

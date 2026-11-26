@@ -34,6 +34,14 @@ export interface BusHost {
   permissionMutation?<A>(threadId: string, perform: () => Promise<A>): Promise<A>;
   /** Sends CreateThread for a new thread (with its fork point) and announces it. */
   startThread(row: ThreadRow): Promise<void>;
+  startAgentThread(
+    source: CallSource,
+    caller: ThreadRow,
+    args: AgentBusArgs["start_thread"],
+    hops: number,
+    target: SpawnTarget,
+  ): Promise<JsonValue>;
+  agentThreadCatalog(caller: ThreadRow, args: AgentBusArgs["list_agents"]): Promise<Record<string, JsonValue>>;
   prepareWorkspace?(caller: ThreadRow, args: AgentBusArgs["spawn_thread"]): Promise<ui.CreateThreadRequest>;
   switchWorktree(
     source: CallSource,
@@ -100,6 +108,7 @@ export const STORES_ITS_CALL = new Set([
   "render_visual",
   "render_html",
   "spawn_thread",
+  "start_thread",
   "switch_worktree",
   "send_message",
   "message_delegating_bot",

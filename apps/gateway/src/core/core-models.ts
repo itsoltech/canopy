@@ -9,7 +9,6 @@ import {
   serviceTierProblem,
   ModelStore,
   withCustomModels,
-  type ThreadRow,
 } from "../store/index.ts";
 import { providerOf } from "../store/instance-config.ts";
 import { coreState, InvalidError, UnavailableError, type ModelScope } from "./core-context.ts";
@@ -105,9 +104,9 @@ export async function coreProfileModels(
  */
 export async function coreSpawnInstances(
   hostContext: GatewayCore,
-  thread: ThreadRow,
+  workerId: string | null,
 ): Promise<SpawnInstance[] | undefined> {
-  const worker = (await coreWorkers(hostContext)).find((w) => w.id === thread.worker_id);
+  const worker = (await coreWorkers(hostContext)).find((w) => w.id === workerId);
 
   if (!worker || worker.appliedVersion === 0n) return undefined;
 

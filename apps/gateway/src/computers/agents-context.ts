@@ -13,6 +13,7 @@ import type { CoreServices } from "../core/core.ts";
 
 /** Older homes reject this operation instead of running the exchange in their private bot session. */
 export const SEND_ISOLATED_BOT_MESSAGE = "send_isolated_bot_message";
+export const START_INDEPENDENT_THREAD = "start_thread";
 
 export type Actor = {
   requiresIsolatedBot?: boolean;

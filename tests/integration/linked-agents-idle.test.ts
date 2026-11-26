@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { InteractionKind, PermissionMode, Provider } from "@canopy/contracts";
+import { InteractionKind, PermissionMode, Provider, ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
@@ -139,5 +139,64 @@ describe.skipIf(!dockerAvailable)("linked agent delivery without local bots", ()
 
     expect(delivered).toBe(true);
     console.info("botless-linked-question-ms", performance.now() - started);
+  });
+
+  test("starts a top-level thread by project name on a linked computer and gets its report", async () => {
+    const node = lb.hello().nodeId;
+    const worker = (await b.api.getOverview({})).workers.find((item) => item.id === b.workerId)!;
+    const discovery = { project: "Remote project", worker: worker.name };
+
+    const catalog = await eventually(
+      () => a.worker.callTool({ threadId: parent, tool: "list_agents", args: discovery }),
+      (reply) => !reply.isError && reply.resultJson.includes(qualifyId(workspace, node)),
+    );
+
+    expect(catalog.isError, catalog.content).toBe(false);
+    const title = "Independent remote thread";
+
+    const call = {
+      threadId: parent,
+      tool: "start_thread",
+      callId: Bun.randomUUIDv7(),
+      args: { ...discovery, title, prompt: title, workspace_mode: "checkout" },
+    };
+
+    const reply = await a.worker.callTool(call);
+
+    expect(reply.isError, reply.content).toBe(false);
+    const reference = spawned(reply.resultJson);
+    const threadId = reference.thread_id.split("~")[0]!;
+    const turnId = reference.turn_id.split("~")[0]!;
+
+    expect(reference.thread_id).toBe(qualifyId(threadId, node));
+    expect((await b.api.getThread({ threadId })).thread).toMatchObject({
+      title,
+      kind: ui.ThreadKind.MAIN,
+      parentThreadId: "",
+      rootThreadId: threadId,
+      interactionRoute: "human",
+      projectId: project,
+      workspaceId: workspace,
+      workerId: b.workerId,
+    });
+
+    const input = await eventually(
+      async () => b.worker.started.get(turnId),
+      (item) => !!item,
+    );
+
+    expect(input?.text).toContain(title);
+    const replay = await a.worker.callTool(call);
+
+    expect(replay.isError, replay.content).toBe(false);
+    expect(spawned(replay.resultJson)).toEqual(reference);
+    b.worker.finish(threadId, turnId, "Independent remote result");
+
+    const reported = await eventually(
+      async () => (a.worker.inputs.get(parent) ?? []).some((message) => message.includes("Independent remote result")),
+      Boolean,
+    );
+
+    expect(reported).toBe(true);
   });
 });

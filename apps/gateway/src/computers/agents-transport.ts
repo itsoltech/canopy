@@ -3,12 +3,20 @@ import { clone, create, type DescMessage, type JsonValue, type Message, type Mes
 import { bots, computerLink as link, ui } from "@canopy/contracts";
 
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
+import { WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 
 import { Effect, Predicate, Schema } from "effect";
 
 import { SqlClient } from "effect/sql";
 
-import { fail, qualifyResult, SEND_ISOLATED_BOT_MESSAGE, type Actor, type Arguments } from "./agents-context.ts";
+import {
+  fail,
+  qualifyResult,
+  SEND_ISOLATED_BOT_MESSAGE,
+  START_INDEPENDENT_THREAD,
+  type Actor,
+  type Arguments,
+} from "./agents-context.ts";
 import {
   targetKind,
   requireAgentModules,
@@ -104,6 +112,11 @@ export const agentsTransportMethods: AgentsTransportMethods = {
     const sender =
       actor.sender ?? (["spawn", "send"].includes(operation) ? await localAgentSender(this, actor) : undefined);
 
+    const timeout =
+      operation === START_INDEPENDENT_THREAD && args["workspace_mode"] !== "checkout"
+        ? WORKTREE_CLIENT_TIMEOUT_MS
+        : PEER_MUTATION_TIMEOUT_MS;
+
     try {
       for await (const result of computers.remote(
         node,
@@ -117,7 +130,7 @@ export const agentsTransportMethods: AgentsTransportMethods = {
           ...(sender && { sender }),
           argumentsJson: JSON.stringify({ ...args, sender_name: actor.name }),
         }),
-        AbortSignal.timeout(PEER_MUTATION_TIMEOUT_MS),
+        AbortSignal.timeout(timeout),
       ))
         return qualifyResult(
           Schema.decodeUnknownSync(Schema.MutableJson)(

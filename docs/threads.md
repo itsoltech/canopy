@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-26): agent może uruchomić samodzielny wątek główny w wybranym
+projekcie i na wybranym workerze, podając ich nazwy. [Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
+
 Status (2026-11-25): ustawienia listy wątków i potwierdzeń są w Settings → Threads.
 W webie i na desktopie otwiera je zakładka **Thread list**.
 
@@ -787,7 +790,10 @@ Agenci delegują pracę, tworząc wątki boczne (`spawn_thread`, `origin = agent
 - agent docelowy pracuje na tych samych plikach co wywołujący,
 - dla agentów czatowych (runtime `gateway`) cel jest wątkiem bocznym bez workera i katalogu.
 
-Szczegóły: [agent-bus.md](agent-bus.md). Wywołanie agenta poza bieżącym drzewem wątków: na razie poza zakresem.
+Agent wątku głównego może także użyć `start_thread`, aby uruchomić osobną
+rozmowę główną z pierwszą wiadomością w dowolnym skonfigurowanym workspace
+właściciela. Wątek pojawia się w projekcie docelowym. Pierwsza tura wskazuje
+wątek źródłowy i może odesłać mu raport. [Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
 
 ## 7. Dostęp
 

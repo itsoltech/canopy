@@ -5,6 +5,7 @@ import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { corePrepareWorkspace, resolveWorkspaceMode, type PreparedWorkspace } from "../worktrees/core-worktrees.ts";
 import { coreNameBranchLater } from "../worktrees/branch-naming.ts";
+import { prepareAgentStartWorktree } from "../worktrees/agent-start-worktree.ts";
 import { DRAFT_SANDBOX_RESELECT, SANDBOX_DERIVATION_UNAVAILABLE, threadSandbox } from "../store/thread-sandbox.ts";
 import type { AutomatedAccess } from "../store/automated-permissions.ts";
 import { harnessOf, turnEffort, type ThreadRow } from "../store/index.ts";
@@ -52,6 +53,7 @@ interface CreationOptions {
   ownerInput: boolean;
   automated: AutomatedAccess | undefined;
   progress: CreationProgress | undefined;
+  initialTurn?: (row: ThreadRow) => Promise<void>;
 }
 
 async function completedCreation(core: GatewayCore, input: ui.CreateThreadRequest) {
@@ -190,7 +192,7 @@ async function startPreparedThread(
       : await coreRun(core, (s) =>
           s.createThread(
             userId,
-            message ? { ...request, initialMessage: "" } : request,
+            message || options.initialTurn ? { ...request, initialMessage: "" } : request,
             undefined,
             options.automated,
             undefined,
@@ -202,7 +204,8 @@ async function startPreparedThread(
 
     if (options.remoteParent) await annotateRemoteParent(core, row, options.remoteParent);
 
-    if (message?.goal === undefined && (message || (pending && request.initialMessage.trim()))) {
+    if (options.initialTurn) await options.initialTurn(row);
+    else if (message?.goal === undefined && (message || (pending && request.initialMessage.trim()))) {
       const input =
         message &&
         (message.shell ??
@@ -308,7 +311,11 @@ async function createOnce(
       : undefined;
 
   try {
-    const prepared = await corePrepareWorkspace(core, asked, progress);
+    const prepared =
+      options.initialTurn && asked.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE
+        ? await prepareAgentStartWorktree(core, asked)
+        : await corePrepareWorkspace(core, asked, progress);
+
     progress?.("check_workspace", "completed");
 
     if (prepared.request.workspaceMode !== ui.WorkspaceMode.NEW_WORKTREE) {
@@ -366,4 +373,19 @@ export function coreCreateThread(
     );
 
   return createOnce(this, input, options);
+}
+
+export function createThreadWithAgentTurn(
+  core: GatewayCore,
+  input: ui.CreateThreadRequest,
+  automated: AutomatedAccess,
+  initialTurn: (row: ThreadRow) => Promise<void>,
+): Promise<ui.Thread> {
+  return createOnce(core, input, {
+    ownerInput: false,
+    automated,
+    initialTurn,
+    remoteParent: undefined,
+    progress: undefined,
+  });
 }

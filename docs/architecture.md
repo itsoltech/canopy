@@ -8,6 +8,7 @@ z ręcznym Preview Browser/Desktop/Device oraz kanały botów Slack przez Socket
 z trwałym buforem wiadomości, aktualizacjami aktywnej tury i konfiguracją
 nasłuchiwania przez prywatną rozmowę z botem.
 Aktualizacja (2026-11-24): wątki Antigravity i Groka współdzielą klienta ACP na workerze.
+Aktualizacja (2026-11-26): szyna agentów uruchamia także samodzielne wątki w wybranych projektach i na wybranych workerach.
 Aktualizacja (2026-11-24): wątki projektowe Codexa i Claude mogą zmieniać worktree przez szynę agentów.
 Aktualizacja (2026-11-22): dostęp wątków do konektorów wynika z grantów projektów.
 Aktualizacja (2026-11-23): wątki poza projektami korzystają z osobnego grantu No project.
@@ -463,6 +464,8 @@ sequenceDiagram
 Delegowanie i harmonogramy w wątkach udostępnia **szyna agentów** platformy: wątki boczne (`spawn_thread`, `send_message`, `wait_threads`, `get_thread`, `read_thread`, `list_threads`, `interrupt_thread`, `close_thread`, `list_agents`), odpowiadanie na pytania wątków bocznych (`list_interactions`, `answer_interaction`) i harmonogram (`schedule_wakeup`, `schedule_recurring`, `list_schedules`, `cancel_schedule`). Dwa poziomy: wątek główny orkiestruje, wątki boczne wykonują pracę. Użytkownik może pisać w każdym wątku.
 
 - `spawn_thread` i `send_message` nie blokują; wynik przychodzi jako powiadomienie (steer do trwającej tury, inaczej nowa tura) albo przez ograniczone w czasie `wait_threads`. Wiadomość dziecka do pracującego rodzica domyślnie dołącza do jego tury; gdy rodzic czeka na dziecko, kończy oczekiwanie z treścią wiadomości. Odczytane wejścia oczekujące są wycofywane transakcyjnie.
+- `start_thread` wybiera workspace po nazwie albo ID projektu i workera. Wątek
+  główny pojawia się w wybranym projekcie, a pierwsza tura może odesłać raport źródłu.
 - Domena komunikacji to drzewo wątków; sterowanie tylko nad potomkami; limity liczby wątków, harmonogramów i przeskoków (`hops`) bez udziału człowieka.
 - Narzędzia trafiają do Claude jako serwer MCP w procesie workera, do Codexa jako `dynamicTools`, a do Groka i Antigravity przez serwer MCP sesji ACP. Wykonuje je gateway.
 

@@ -12,6 +12,8 @@ import { automationMcp, automationMcpKey } from "../local-automation.ts";
 const sessionTools = (spec?: ThreadSpec) =>
   spec?.enableAgentBus
     ? [
+        "list_agents" as const,
+        ...(spec.depth === 0 ? (["start_thread"] as const) : []),
         ...(spec.hasDelegatingBot ? (["message_delegating_bot"] as const) : []),
         ...(spec.enableWorktreeSwitch ? (["switch_worktree"] as const) : []),
       ]
@@ -105,7 +107,7 @@ export function codexConnectorMcp(ctx: CodexThreadContext) {
           // The gateway authorizes connector and delegation calls.
           default_tools_approval_mode: "approve",
           required: true,
-          ...(spec.enableWorktreeSwitch && { tool_timeout_sec: 360 }),
+          ...((spec.enableWorktreeSwitch || (spec.enableAgentBus && spec.depth === 0)) && { tool_timeout_sec: 360 }),
         },
         ...Object.fromEntries(
           (local.bridge?.servers ?? []).map((server) => [

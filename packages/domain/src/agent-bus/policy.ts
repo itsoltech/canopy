@@ -15,13 +15,13 @@ import { SETTINGS_GUIDE_TOOL } from "./settings-guide.ts";
  * Pure: the gateway loads the facts (tree, counts, hops, referenced rows) in the same
  * transaction and asks here.
  *
- * - Two levels: the main thread (depth 0) orchestrates; side threads (depth 1) cannot spawn
+ * - Two levels: main threads (depth 0) orchestrate; side threads (depth 1) cannot start
  *   or control other threads, and are not offered those tools at all.
  * - The communication domain is one thread tree: wait for any other thread of the tree (children, parent, siblings).
  *   Messages and reads reach any thread of the same owner, like the user writing there (other trees, projects,
  *   workers); threads of other owners look like missing ones.
  * - Control (interrupt, close, answering interactions, schedules of others) only over own descendants.
- * - A side thread never gets broader permissions than the thread that spawned it.
+ * - An agent-created thread never gets broader permissions than the thread that started it.
  * - Every turn started through the bus (messages, notifications, agent-created schedules)
  *   carries hops = hops of the causing turn + 1; human input and provider wake-ups start at 0.
  *   A generous chain limit stops runaway agent loops, including across trees.
@@ -87,8 +87,10 @@ export interface BusFacts {
   /** spawn_thread: provider and instance the new thread will run on (resolved from its arguments). */
   readonly spawnProvider?: string;
   readonly spawnInstance?: string;
-  /** Effective permission mode of the caller, also the ceiling for a new side thread. */
+  /** Effective permission mode of the caller, also the ceiling for a new thread. */
   readonly callerPermissionMode?: SpawnPermissionMode;
+  /** The caller is restricted to a private audience. */
+  readonly callerRestricted?: boolean;
   /** answer_interaction: the referenced interaction. */
   readonly interaction?: InteractionFacts;
   /** cancel_schedule: the referenced schedule. */
@@ -107,6 +109,7 @@ const allow: BusDecision = { allowed: true };
 
 const ORCHESTRATOR_ONLY: ReadonlySet<AgentBusToolName> = new Set([
   "spawn_thread",
+  "start_thread",
   "interrupt_thread",
   "close_thread",
   "list_interactions",
@@ -165,6 +168,9 @@ export function authorizeBusCall(
     case "get_answers":
       return allow;
     case "list_agents":
+      return facts.callerRestricted && (call.args.project !== undefined || call.args.worker !== undefined)
+        ? deny("Placement discovery is unavailable in restricted threads.")
+        : allow;
     case SETTINGS_GUIDE_TOOL:
     case "list_threads":
     case "list_interactions":
@@ -173,6 +179,16 @@ export function authorizeBusCall(
 
     case "spawn_thread":
       return authorizeSpawn(call, facts, limits);
+
+    case "start_thread": {
+      if (caller.archived) return deny("this thread is archived");
+
+      if (facts.callerRestricted) return deny("Restricted threads cannot start independent threads.");
+
+      const permissionProblem = startPermissionProblem(call.args.permission_mode, facts);
+
+      return permissionProblem ? deny(permissionProblem) : hopsDecision(facts, limits, call.args.notify);
+    }
 
     case "send_message": {
       const target = sameOwner(facts, call.args.thread_id);
@@ -302,16 +318,19 @@ function authorizeSpawn(call: CallOf<"spawn_thread">, facts: BusFacts, limits: B
     );
   }
 
-  const wanted = call.args.permission_mode;
+  const permissionProblem = startPermissionProblem(call.args.permission_mode, facts);
+
+  return permissionProblem
+    ? deny(`${permissionProblem}; a subagent cannot get more permissions than you`)
+    : hopsDecision(facts, limits, call.args.notify);
+}
+
+function startPermissionProblem(wanted: SpawnPermissionMode | undefined, facts: BusFacts): string | undefined {
   const ceiling = facts.callerPermissionMode ?? "ask";
 
-  if (wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)) {
-    return deny(
-      `permission_mode ${wanted} is broader than yours (${ceiling}); a subagent cannot get more permissions than you`,
-    );
-  }
-
-  return hopsDecision(facts, limits, call.args.notify);
+  return wanted !== undefined && permissionRank(wanted) > permissionRank(ceiling)
+    ? `permission_mode ${wanted} is broader than yours (${ceiling})`
+    : undefined;
 }
 
 function authorizeAnswer(call: CallOf<"answer_interaction">, facts: BusFacts): BusDecision {

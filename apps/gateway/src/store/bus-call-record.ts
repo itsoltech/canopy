@@ -47,7 +47,7 @@ export const recordBusCall = (
           ...(result !== undefined && { result }),
           ...(error !== undefined && { error }),
           ...(ok &&
-            (tool === "spawn_thread" || tool === "send_message") && {
+            (tool === "spawn_thread" || tool === "start_thread" || tool === "send_message") && {
               // Linked actions persist their executable reference at the remote home.
               hops:
                 ((yield* sql<{ hops: number }>`SELECT hops FROM turns WHERE id=${turnRef(sql, source)}`)[0]?.hops ??

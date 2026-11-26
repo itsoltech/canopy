@@ -4,6 +4,9 @@ Aktualizacja (2026-11-26): migracja loginów rozpoznaje stare twarde dowiązania
 po urządzeniu, inodzie i ścieżkach katalogów. Na macOS odczyt ścieżki całego
 pliku przez Bun mógł zwrócić nazwę innego dowiązania do tego samego inodu.
 
+Aktualizacja (2026-11-26): `start_thread` i filtrowane `list_agents` są dostępne
+w odświeżanym katalogu MCP Canopy, także po wznowieniu starszej sesji Codexa.
+
 Aktualizacja (2026-11-25): worker wznawia sesje w katalogu CLI także po utracie
 powiązania w dzienniku. Na Windows rozpoznaje ścieżki aktywnych sesji z oboma
 separatorami katalogów.

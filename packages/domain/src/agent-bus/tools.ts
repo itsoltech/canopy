@@ -1,5 +1,4 @@
 import { Result, Schema } from "effect";
-import { SPAWN_PERMISSION_MODES } from "../permission-modes.ts";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { PR_CHECK_TOOLS } from "./pr-checks.ts";
@@ -11,22 +10,25 @@ import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VI
 import { HTML_DOCUMENT_BYTES, htmlBytes } from "../visuals/html-source.ts";
 import { SETTINGS_GUIDE_TOOL, settingsGuide } from "./settings-guide.ts";
 import { switchWorktree } from "./worktree.ts";
+import { ListAgents, Notify, Prompt, SpawnThread, StartThread } from "./thread-creation.ts";
 
 export { RequestSecret } from "./secrets.ts";
+
+export { ListAgents, SpawnThread, StartThread } from "./thread-creation.ts";
 
 export { SPAWN_PERMISSION_MODES, type SpawnPermissionMode } from "../permission-modes.ts";
 
 /**
- * Agent bus tools: how agents delegate work to each other as side threads (docs/agent-bus.md).
+ * Agent bus tools: how agents delegate work and start independent threads (docs/agent-bus.md).
  * Defined once here; the worker exposes them to Claude (in-process MCP server) and Codex
  * (dynamicTools) from the generated JSON Schema, and the gateway decodes calls with the same schemas.
  *
  * Design rules:
- * - spawn/send return immediately (ids); completion arrives as a platform steer (or a turn) or via wait,
+ * - spawn/start/send return immediately (ids); completion arrives as a platform steer (or a turn) or via wait,
  * - wait is bounded and safe to repeat (provider tool timeouts, worker restarts),
  * - results carry ids, never other threads' full transcripts unless asked (read_thread),
  * - two levels only: a main thread (level 0) orchestrates side threads (level 1); side threads
- *   do not get tools to spawn or control other threads (agentBusToolsFor),
+ *   do not get tools to start or control other threads (agentBusToolsFor),
  * - scheduling is a platform feature (durable, visible), replacing provider-native timers,
  * - these are the only subagent tools: the harnesses' own (Codex spawn_agent, Claude Agent/Task) are off
  *   (apps/worker/src/providers/native-tools.ts), so descriptions say when to use them for delegation.
@@ -38,90 +40,7 @@ const ThreadId = Schema.String.check(Schema.makeFilter(isEntityId)).annotate({
 
 const AnyThreadId = Schema.String.check(Schema.makeFilter(isEntityId)).annotate({
   description:
-    "Thread id: from spawn_thread, list_threads (scope all finds any of the user's threads by title) or a thread the user mentioned.",
-});
-
-const Prompt = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100_000));
-
-const Notify = Schema.Boolean.annotate({
-  description:
-    "When true (default), you get a new message in this thread once the target finishes the turn, so you can continue other work instead of waiting.",
-});
-
-export const ListAgents = Schema.Struct({});
-
-export const SpawnThread = Schema.Struct({
-  workspace_mode: Schema.optionalKey(
-    Schema.Literals(["checkout", "new_worktree", "inherit_parent", "default"]).annotate({
-      description:
-        "Defaults to inherit_parent (same directory/worktree). checkout uses the project checkout; new_worktree creates an isolated branch; default resolves the project's scoped setting.",
-    }),
-  ),
-  base_ref: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(250))),
-  workspace_id: Schema.optionalKey(
-    ThreadId.annotate({
-      description:
-        "A linked computer's workspace from list_agents. Creates the child at that home. Required for a remote spawn; fork is unavailable across computers.",
-    }),
-  ),
-  project_id: Schema.optionalKey(ThreadId),
-  title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)).annotate({
-    description: "Short label of the subagent's task, shown to the user (like a task name or description).",
-  }),
-  prompt: Prompt.annotate({
-    description:
-      "Task for the new agent. Include everything it needs; it does not see your context unless fork is true.",
-  }),
-  instructions: Schema.optionalKey(
-    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(20_000)).annotate({
-      description:
-        "Role or standing instructions for the subagent (e.g. 'You are a strict code reviewer...'), added to its system instructions.",
-    }),
-  ),
-  provider: Schema.optionalKey(
-    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(120)).annotate({
-      description:
-        'Where the subagent runs: a provider from list_agents, e.g. "antigravity/native" or "codex/cliproxyapi" (or just the provider name). ' +
-        "Any of them, also another harness than yours. Defaults to yours.",
-    }),
-  ),
-  model: Schema.optionalKey(
-    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)).annotate({
-      description:
-        "Model id from that provider's list in list_agents. Defaults to your model (same provider) or the provider's default model (another one).",
-    }),
-  ),
-  effort: Schema.optionalKey(
-    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(40)).annotate({
-      description:
-        "Reasoning effort, one of the model's efforts in list_agents (e.g. low, medium, high). Defaults to yours, or the model's default on another provider.",
-    }),
-  ),
-  service_tier: Schema.optionalKey(
-    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(40)).annotate({
-      description:
-        "Execution speed from the model's service_tiers in list_agents. Use default for standard speed. Inherits yours on the same model and provider.",
-    }),
-  ),
-  permission_mode: Schema.optionalKey(
-    Schema.Literals(SPAWN_PERMISSION_MODES).annotate({
-      description:
-        "What the subagent may do without asking: read_only, ask (risky tools need an answer), accept_edits, full_auto. Defaults to yours; it cannot be broader than yours.",
-    }),
-  ),
-  fork: Schema.optionalKey(
-    Schema.Boolean.annotate({
-      description:
-        "Inherit this thread's history up to its last completed turn. Only on your own provider (omit provider).",
-    }),
-  ),
-  notify: Schema.optionalKey(Notify),
-  interactions: Schema.optionalKey(
-    Schema.Literals(["parent", "human"]).annotate({
-      description:
-        "Who answers the new thread's permission prompts and questions: parent (default) = you, via answer_interaction; human = the user in the UI.",
-    }),
-  ),
+    "Thread id from spawn_thread, start_thread, list_threads (scope all finds the user's threads by title), or a thread the user mentioned.",
 });
 
 export const SendMessage = Schema.Struct({
@@ -264,8 +183,9 @@ export const AGENT_BUS_TOOLS = {
   list_agents: define({
     name: "list_agents",
     description:
-      "List what you can start as a subagent with spawn_thread: the provider instances on this worker with their " +
-      "models and reasoning efforts. Includes linked computers by machine name, their projects/workspaces, workers and bots. Remote operations fail immediately if their computer is unreachable or needs an update.",
+      "Find projects, workers and configured workspaces for start_thread. Lists provider instances, models, reasoning efforts and speeds for the current or selected worker. " +
+      "Use spawn_thread for side delegation and start_thread for independent tasks. Also lists linked computers by machine name, their projects, workspaces, workers and bots. " +
+      "Remote operations fail immediately if their computer is unreachable or needs an update.",
     args: ListAgents,
     mutates: false,
   }),
@@ -278,6 +198,16 @@ export const AGENT_BUS_TOOLS = {
       "(there is no spawn_agent or Task tool). The user sees the thread and can steer it. Returns at once with thread_id and turn_id; " +
       "its final message is reported to you automatically when it finishes, or call wait_threads to wait for it.",
     args: SpawnThread,
+    mutates: true,
+  }),
+  start_thread: define({
+    name: "start_thread",
+    description:
+      "Start an independent main thread and queue its first task in one of the user's configured placements. " +
+      "Omit project, worker and workspace to use your current placement. Call list_agents to discover destinations and models. " +
+      "Include the context the task needs. Returns thread_id and turn_id, and reports the outcome to you when the first turn finishes by default. " +
+      "Use spawn_thread to delegate within your thread tree.",
+    args: StartThread,
     mutates: true,
   }),
   message_delegating_bot: define({

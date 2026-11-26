@@ -34,6 +34,8 @@ import { importImageReply } from "./image-markdown.ts";
 import { releaseFound } from "../updates/found.ts";
 import { switchAgentWorktree } from "../worktrees/switch-agent-worktree.ts";
 import { withTurnPermissionMutation } from "./turn-permission-state.ts";
+import { agentThreadCatalog } from "./agent-thread-placement.ts";
+import { startAgentThread } from "./agent-thread-start.ts";
 
 export function createCoreConnectors(core: GatewayCore, options: GatewayCoreOptions): ConnectorsRuntime {
   return new ConnectorsRuntime({
@@ -79,6 +81,10 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     permissionMutation: (threadId, perform) =>
       withTurnPermissionMutation(core[coreState].options.runtime, threadId, perform),
     startThread: (row) => coreStartThread(core, row),
+    startAgentThread: (source, caller, args, hops, target) =>
+      startAgentThread(core, source, caller, args, hops, target),
+    agentThreadCatalog: (caller, args) =>
+      caller.memory_audience ? Promise.resolve({}) : agentThreadCatalog(core, caller, args),
     prepareWorkspace: async (caller, args) => (await prepareSpawnWorkspace(core, caller, args)).request,
     switchWorktree: (source, caller, args, hops) =>
       withTurnPermissionMutation(core[coreState].options.runtime, caller.id, () =>
@@ -121,7 +127,7 @@ export function createCoreBus(core: GatewayCore): AgentBus {
           );
     },
     scheduleChanged: (scheduleId) => corePublishSchedule(core, scheduleId),
-    spawnInstances: (thread) => coreSpawnInstances(core, thread),
+    spawnInstances: (thread) => coreSpawnInstances(core, thread.worker_id),
     backgroundTask: (call, callerId) => core.backgroundTasks.tool(call, callerId),
     prChecks: (call, source, caller, hops) => core.checkWatches.tool(call, source, caller, hops),
     fallbackSteer: async (steerId) => {

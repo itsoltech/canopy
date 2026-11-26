@@ -60,7 +60,8 @@ function requireLocalAudienceTarget(call: AgentBusCall, caller: ThreadRow) {
 
 export const agentsBusToolsMethods: AgentsBusToolsMethods = {
   async extend(this: LinkedAgents, call: AgentBusCall, caller: ThreadRow, result: JsonValue): Promise<JsonValue> {
-    if (call.tool === "list_agents") return { ...record(result), linked_computers: await this.catalog() };
+    if (call.tool === "list_agents" && !call.args.project && !call.args.worker && !caller.memory_audience)
+      return { ...record(result), linked_computers: await this.catalog() };
 
     if (call.tool !== "list_threads" || !this.core.computers) return result;
     const list = record(result);

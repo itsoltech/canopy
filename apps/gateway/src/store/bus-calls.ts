@@ -113,11 +113,7 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
           if (target) targets.set(id, target);
         }
 
-        const counts = yield* sql<{ children: number; active: number }>`
-              SELECT (SELECT count(*)::int FROM threads c WHERE c.parent_thread_id = ${caller.id}::uuid AND c.archived_at IS NULL AND c.deleted_at IS NULL) AS children,
-                     (SELECT count(*)::int FROM threads t WHERE t.root_thread_id = ${caller.root_thread_id}::uuid AND t.archived_at IS NULL AND t.deleted_at IS NULL
-                         AND (t.status IN ('creating', 'running', 'waiting_input')
-                              OR EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued'))) AS active`;
+        const [counts] = yield* threadTreeCounts(sql, caller);
 
         let interaction: InteractionFacts | undefined;
 
@@ -179,10 +175,11 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
 
         const facts: BusFacts = {
           caller: node(caller),
+          callerRestricted: Boolean(caller.memory_audience),
           callerHops,
           targets,
-          callerChildren: counts[0]?.children ?? 0,
-          activeInTree: counts[0]?.active ?? 0,
+          callerChildren: counts?.children ?? 0,
+          activeInTree: counts?.active ?? 0,
           callerPermissionMode: yield* callerMode(sql, source, caller),
           ...(spawnTarget && {
             spawnProvider: spawnTarget.harness,
@@ -205,3 +202,11 @@ export function busCallStore(sql: SqlClient.SqlClient): BusCallStore {
 
   return store;
 }
+
+const threadTreeCounts = (sql: SqlClient.SqlClient, caller: ThreadRow) => sql<{ children: number; active: number }>`
+  SELECT (SELECT count(*)::int FROM threads c WHERE c.parent_thread_id = ${caller.id}::uuid
+    AND c.archived_at IS NULL AND c.deleted_at IS NULL) AS children,
+    (SELECT count(*)::int FROM threads t WHERE t.root_thread_id = ${caller.root_thread_id}::uuid
+      AND t.archived_at IS NULL AND t.deleted_at IS NULL
+      AND (t.status IN ('creating', 'running', 'waiting_input')
+        OR EXISTS (SELECT 1 FROM turns u WHERE u.thread_id = t.id AND u.status = 'queued'))) AS active`;
