@@ -127,17 +127,3 @@ export class SidebarLayout {
     this.#settleTimer = setTimeout(() => (this.settling = false), duration("slow") + 50);
   }
 }
-
-/**
- * How much wider the desktop sidebar column is now than the width it is easing to (negative while it opens), px;
- * 0 below `lg`, where the column is hidden. Add it to a width measured in the same callback to get that width at
- * the end of the easing, so a layout decision (docked card or pill, Files beside or over the thread) is made once,
- * for where the sidebar is going, instead of flipping while it moves.
- */
-export function sidebarTravel(sidebar: SidebarLayout | undefined): number {
-  const column = document.getElementById(SIDEBAR_ID);
-
-  if (!sidebar || !column?.checkVisibility()) return 0;
-
-  return column.getBoundingClientRect().width - sidebar.target;
-}

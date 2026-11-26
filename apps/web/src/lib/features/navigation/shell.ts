@@ -5,6 +5,8 @@ import type { SidebarLayout } from "./sidebar-layout.svelte.ts";
 export interface Shell {
   openMenu(): void;
   readonly sidebar?: SidebarLayout | undefined;
+  /** Width available to the workspace once the sidebar reaches its target. */
+  readonly workspaceWidth?: number;
 }
 
 const KEY = Symbol("shell");

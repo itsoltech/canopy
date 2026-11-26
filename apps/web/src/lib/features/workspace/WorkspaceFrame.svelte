@@ -72,7 +72,6 @@
 
 <div
   bind:this={root}
-  {@attach workspace.measure}
   ondragovercapture={(event) => {
     if (!overFile(event) || !workspaceFileDrag(event.dataTransfer, workspace.threadId())) return;
     event.preventDefault();

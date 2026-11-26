@@ -4,7 +4,6 @@
   import type { FeedScrollMemory } from "#lib/shared/ui/virtual/feed-scroll-memory.svelte.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { useShell } from "#lib/features/navigation/shell.ts";
-  import { sidebarTravel } from "#lib/features/navigation/sidebar-layout.svelte.ts";
   import { SummaryLayout } from "../summary/summary-layout.svelte.ts";
   import { formatTime } from "#lib/shared/format.ts";
   import UserMessageView from "./items/UserMessageView.svelte";
@@ -59,7 +58,9 @@
     get rem() {
       return rem;
     },
-    travel: () => sidebarTravel(shell.sidebar),
+    get threadAreaWidth() {
+      return shell.workspaceWidth ?? 0;
+    },
   });
 
   // The parent clears its handoff prop before the outgoing feed flushes during teardown.
@@ -106,16 +107,15 @@
       id="workspace-content"
       role="tabpanel"
       aria-label="Thread"
-      class="absolute inset-0 min-h-0 md:pl-9 md:[--chat-area-start:--spacing(9)]"
-      bind:clientWidth={summary.width}
+      class="absolute inset-0 min-h-0 pl-(--chat-area-start) [--chat-area-start:0px] md:[--chat-area-start:--spacing(9)]"
       style:--sidebar-width={shell.sidebar?.cssWidth}
       data-chat-placement
       data-chat-card={summary.card || undefined}
     >
       <span
         aria-hidden="true"
-        class="pointer-events-none invisible absolute inset-x-0 md:left-9"
-        {@attach summary.measure}
+        class="pointer-events-none invisible absolute h-px w-(--chat-area-start)"
+        bind:borderBoxSize={summary.railSize}
       ></span>
       <VirtualFeed
         bind:this={feed}

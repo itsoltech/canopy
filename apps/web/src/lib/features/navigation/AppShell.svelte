@@ -285,7 +285,13 @@
     if (wide.current || focused) menuOpen = false;
   });
 
-  provideShell({ openMenu: () => (menuOpen = true), sidebar });
+  provideShell({
+    openMenu: () => (menuOpen = true),
+    sidebar,
+    get workspaceWidth() {
+      return (sidebar.viewport ?? 0) - (!focused && wide.current ? sidebar.target : 0);
+    },
+  });
 
   // Close the menu as a navigation starts: Settings then opens over the page (focus returns to the menu button).
   beforeNavigate(() => (menuOpen = false));
