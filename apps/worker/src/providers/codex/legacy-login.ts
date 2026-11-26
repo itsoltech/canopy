@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readlinkSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { archiveLogin, isLegacyHardLink } from "../home.ts";
+import { resolveLoginPath } from "../home-paths.ts";
 
 const managedLogins = ["codex-home/auth.json", "homes/codex-*/auth.json", "text-generation/*/codex-home/auth.json"].map(
   (pattern) => new Bun.Glob(pattern),
@@ -118,7 +119,7 @@ export function migrateLegacyCodexHardLinks(
 
   for (const home of sourceHomes) {
     try {
-      const auth = realpathSync(join(home, "auth.json"));
+      const auth = resolveLoginPath(join(home, "auth.json"));
       const stat = statSync(auth, { bigint: true });
 
       if (stat.isFile()) {
@@ -151,7 +152,7 @@ export function migrateLegacyCodexHardLinks(
   for (const [path, configured] of candidates) {
     try {
       if (!lstatSync(path, { throwIfNoEntry: false })?.isFile()) continue;
-      const canonical = realpathSync(path);
+      const canonical = resolveLoginPath(path);
 
       if (!configured && relative(path, canonical) !== "") continue;
 

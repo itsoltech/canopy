@@ -177,8 +177,12 @@ async function verifyMacPackaging(arch: "x64" | "arm64") {
   const { mac } = channelConfiguration(identity);
   const artwork = join(import.meta.dir, "../../web/static", identity.assets);
 
-  const catalog =
-    process.platform === "darwin" ? await generateAssetCatalogForIcon(resolve(import.meta.dir, "..", mac.icon)) : null;
+  let catalog = null;
+
+  if (process.platform === "darwin") {
+    console.info("Compiling the Nightly icon with actool");
+    catalog = await generateAssetCatalogForIcon(resolve(import.meta.dir, "..", mac.icon));
+  }
 
   const icon =
     catalog?.icnsFile ?? readFileSync(resolve(import.meta.dir, "../../web/static/channels/development/icon.icns"));
@@ -264,6 +268,8 @@ async function verifyMacPackaging(arch: "x64" | "arm64") {
   expect(readFileSync(join(resources, mac.extendInfo.CFBundleIconFile)).equals(icon)).toBe(true);
 
   if (process.platform === "darwin") {
+    console.info("Checking the localized bundle name and artwork with Swift");
+
     const check = Bun.spawnSync([
       "swift",
       join(import.meta.dir, "../scripts/verify-macos-presentation.swift"),
@@ -278,8 +284,8 @@ async function verifyMacPackaging(arch: "x64" | "arm64") {
   }
 }
 
-// On Intel macOS runners, a cold Icon Composer build and Swift launch can take more than a minute.
-const macPackagingTimeout = process.platform === "darwin" && process.arch === "x64" ? 180_000 : 60_000;
+// On a hosted Intel runner, actool outlasted the previous three-minute test timeout.
+const macPackagingTimeout = process.platform === "darwin" && process.arch === "x64" ? 300_000 : 60_000;
 
 test.each(macArchitectures)(
   "macOS packaging signs the %s adapters and preserves localized identity",

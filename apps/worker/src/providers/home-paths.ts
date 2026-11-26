@@ -1,6 +1,22 @@
-import { realpathSync, statSync } from "node:fs";
+import { lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { instructionDirectory } from "../agent-environment/files.ts";
+
+/** Resolve symbolic links while retaining the name of the final directory entry. */
+export function resolveLoginPath(path: string): string {
+  let entry = path;
+
+  for (let depth = 0; depth < 40; depth++) {
+    const parent = realpathSync(dirname(entry));
+    entry = join(parent, basename(entry));
+
+    // On macOS Bun's realpath on a file can return a different hard link to the same inode.
+    if (!lstatSync(entry).isSymbolicLink()) return entry;
+    entry = resolve(parent, readlinkSync(entry));
+  }
+
+  throw new Error("Too many symbolic links in the provider login path.");
+}
 
 /** Resolve existing ancestors too, so aliases remain comparable before a home exists. */
 function canonicalHome(path: string): string {

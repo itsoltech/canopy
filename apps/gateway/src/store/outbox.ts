@@ -45,11 +45,17 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
     sendPending: (command, send) =>
       Effect.andThen(
         // Commit the attempt before a frame can leave the gateway, including across a crash at send time.
+        // The sandbox trigger needs the thread lock. Take it before the command, as archive and delete do.
         command.kind.case === "startTurn" || command.kind.case === "steerTurn"
-          ? sql`UPDATE worker_commands c SET status = 'delivered', delivered_epoch = w.epoch FROM worker_connections w
-              WHERE c.id = ${command.commandId}::uuid AND c.status = 'pending' AND w.worker_id = c.worker_id`.pipe(
-              Effect.asVoid,
+          ? sql`WITH attempt AS MATERIALIZED (
+              SELECT c.id, w.epoch FROM worker_commands c
+              JOIN threads t ON t.id = c.thread_id
+              JOIN worker_connections w ON w.worker_id = c.worker_id
+              WHERE c.id = ${command.commandId}::uuid AND c.status = 'pending'
+              FOR SHARE OF t
             )
+            UPDATE worker_commands c SET status = 'delivered', delivered_epoch = attempt.epoch FROM attempt
+            WHERE c.id = attempt.id AND c.status = 'pending'`.pipe(Effect.asVoid)
           : Effect.void,
         sql.withTransaction(
           Effect.gen(function* () {

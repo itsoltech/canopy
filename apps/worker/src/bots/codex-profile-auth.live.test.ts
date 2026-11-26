@@ -29,6 +29,9 @@ const readRefresh = Schema.decodeUnknownSync(Schema.Struct({ refresh_token: Sche
 const historyDatabase = "thread_history_1.sqlite";
 const windowsMaxPath = 260;
 
+// A cold turn starts a catalog process, the bot app-server and the selected profile's auth probe.
+const turnTimeoutMs = 60_000;
+
 function sqliteCause(message: string) {
   const lower = message.toLowerCase();
 
@@ -566,7 +569,7 @@ test.skipIf(!enabled)(
             const turn = async (text: string, expected: "completed" | "auth_required" = "completed") => {
               const next = { ...input, turnId: crypto.randomUUID() };
               const session = botSession(next, sessionOptions);
-              const signal = AbortSignal.timeout(25_000);
+              const signal = AbortSignal.timeout(turnTimeoutMs);
               expect(session.id === lastSessionId).toBe(true);
               expect(
                 (session.codexSqliteHome ?? session.home) === sqliteHome,
@@ -588,9 +591,10 @@ test.skipIf(!enabled)(
                   signal,
                   session,
                   codexLogin: async (destination, scope) => {
+                    phase = scope ? "during profile credential refresh" : "during profile credential lookup";
                     const credential = await Effect.runPromise(login(destination, scope), { signal });
                     admittedLogin = true;
-                    phase = "after profile credential";
+                    phase = scope ? "after profile credential refresh" : "after profile credential lookup";
 
                     return credential;
                   },
@@ -627,6 +631,7 @@ test.skipIf(!enabled)(
               }
 
               const diagnostics = `${phase}, failure ${failure}, model generations ${backend.authAttempts}, fixture failures ${[...backend.failures]}`;
+              expect(signal.aborted, `Bot turn ${text} exceeded ${turnTimeoutMs} ms at ${diagnostics}`).toBe(false);
               expect(outcome, `Expected bot outcome for ${text} after ${diagnostics}`).toBe(expected);
               expect(backend.clean, `Bot or profile files failed audit during ${text} after ${diagnostics}`).toBe(true);
               expect(admittedLogin, "Selected profile delivered a credential").toBe(expected === "completed");
@@ -678,5 +683,5 @@ test.skipIf(!enabled)(
       await backend.stop();
     }
   },
-  140_000,
+  5 * turnTimeoutMs + 20_000,
 );

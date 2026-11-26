@@ -4,6 +4,8 @@ Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokła
 Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis cache Bun.
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
 Po błędzie przejściowym sprawdza zapisany plik przed ponowieniem wysyłki.
+Aktualizacja (2026-11-26): natywne CI macOS wykonuje jeden wariant testu pakowania na runnerze danej architektury.
+Zaplanowane nightly raz ponawia nieudane zadania po potwierdzonej utracie łączności runnera GitHub.
 Smoke obrazów i natywne testy źródłowe startują równolegle z buildem binariów.
 Desktop jest pakowany w Release, a instalator Windows jest testowany na runnerze, który go zbudował.
 Desktop, gateway i worker mają osobne cele wydania dla macOS Intel i Apple Silicon.
@@ -17,7 +19,9 @@ Natywne CI na macOS sprawdza odczyt małych reprezentacji ikony Dev i nazwę
 wyświetlaną przez Finder. Wydania macOS i iOS kompilują ikony z projektów Icon Composer.
 Przed publikacją Release sprawdza nazwę i grafikę także w podpisanej paczce.
 Pakowanie macOS i test natywny CI kompilują ikony na `macos-26` lub `macos-26-intel`, zgodnie z architekturą aplikacji.
-Na runnerze Intel test pakowania ma limit 180 s na przypadek, aby uwzględnić zimny start narzędzi Apple.
+Każdy natywny job macOS raz kompiluje ikonę Nightly i raz sprawdza nazwę oraz grafikę pakietu w Swift.
+Na runnerze Intel test pakowania ma limit 300 s, aby uwzględnić zimny start narzędzi Apple.
+Testy na Linuksie nadal sprawdzają reguły pakowania dla obu architektur na danych testowych.
 Zmiana tego testu uruchamia pełne CI PR-a, w tym natywne zadania macOS.
 GitHub Pages udostępnia film demonstracyjny Canopy w formatach 16:9 i 4:5 oraz kadry startowe obu wersji.
 Release buduje i publikuje osobny obraz `canopy-push-relay` dla rewizji zawierających ten cel.
@@ -761,6 +765,10 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
 
 ### Ponowienia i błąd notaryzacji
 
+- **Nightly runner recovery** ponawia nieudane zadania pierwszej próby zaplanowanego
+  Release na `dev`, gdy GitHub oznaczył wszystkie awarie komunikatem o utracie łączności
+  hostowanego runnera. Ponowienie zachowuje SHA, wyniki ukończonych zadań i rezerwację
+  wersji. Kolejną awarię i błędy z inną przyczyną obsługuje maintainer.
 - Gdy Verified CI zatrzyma wydanie, sprawdź przebieg Push CI dla źródłowego SHA.
   Po naprawieniu przejściowej awarii i udanym ponowieniu tego CI ponów Release.
 - Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`

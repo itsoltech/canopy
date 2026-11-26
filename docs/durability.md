@@ -23,6 +23,7 @@ dziedziczy UUID rozmowy źródłowej; usunięcie subskrypcji blokuje późniejsz
 doręczenie zamiast przenosić je do prywatnego czatu.
 
 Status: **w części zaimplementowany** (2026-11-21), w tym jednokrotna kontynuacja rozmowy po potwierdzonym OOM usługi workera, trwałe agregaty tokenów i kosztów, trwały odbiór kanałów Slack, potwierdzenia aktualizacji botów, trwałe przypisanie domu sesji Claude i ochrona jego historii podczas purge, zatrzymanie workera bez ponownego uruchamiania cyklicznych sprawdzeń CLI oraz trwała blokada startu i opróżnianie pracy przy przeniesieniu gatewaya (§4.6.1). Pozostałe plany oznaczono w sekcjach. Wymaganie: zatrzymanie lub aktualizacja dowolnego procesu nie gubi stanu i nie kończy się błędem widocznym dla użytkownika. Wyjątkiem jest tura agenta przerwana twardym zabiciem procesu (patrz [macierz awarii](#9-macierz-awarii)).
+Aktualizacja (2026-11-26): zapis próby dostarczenia `StartTurn` i `SteerTurn` blokuje wątek przed komendą (§4.2).
 
 Powiązane: [architecture.md](architecture.md), [protocol.md](protocol.md), [data-model.md](data-model.md).
 
@@ -313,6 +314,7 @@ sequenceDiagram
 
 - Każda komenda ma `expires_at` zależne od typu. `InterruptTurn` i `UnloadThread` mają sens krótko. `CreateThread` i `StartTurn` mogą czekać na powrót workera. Przeterminowana komenda kończy się błędem widocznym w UI.
 - Po `Welcome` instancja dosyła wszystkie `pending` i `delivered` bez wyniku. Worker deduplikuje po `command_id` i odsyła zapamiętany wynik.
+- Zapis próby dostarczenia `StartTurn` i `SteerTurn` bierze współdzieloną blokadę wiersza wątku przed aktualizacją komendy. Kontrola profilu sandboxa korzysta z tej samej blokady. Archiwizacja i usunięcie zachowują tę samą kolejność, dzięki czemu mogą wygasić komendę przed dostarczeniem.
 - Dostarczanie komend w tle obejmuje także zapis ACK i obsługę wyniku. Zamknięcie runtime'u gatewaya przerywa tę pracę bez nieobsłużonego odrzucenia Promise ani logu błędu przerwania. Jeśli zapis ACK nie został zatwierdzony, komenda pozostaje w outboxie i wraca po reconnect. Błędy bazy lub rozliczenia wyniku są logowane bez treści komendy.
 - **Własność połączenia:** `worker_connections(worker_id, instance_id, epoch)`. Nowe połączenie podbija `epoch`, a stara instancja zamyka swoje (fencing). Wynik komendy z nieaktualnego `epoch` jest ignorowany.
 
