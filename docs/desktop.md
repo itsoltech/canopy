@@ -12,8 +12,9 @@ Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projekt�
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
-Status (2026-11-25): kontrolki w stylu przycisku, także odsyłacze wyglądające
-jak przyciski, pokazują domyślną strzałkę. Kontrolki w stylu odsyłacza, także
+Status (2026-11-26): kontrolki w stylu przycisku pokazują domyślną strzałkę.
+Dotyczy to także odsyłaczy wyglądających jak przyciski, w tym wierszy wątków
+w pasku bocznym. Kontrolki w stylu odsyłacza, także
 przyciski wyglądające jak linki, pokazują dłoń.
 
 Status (2026-11-24): w trybie zdalnym **Settings → Workers** rozróżnia lokalnego
