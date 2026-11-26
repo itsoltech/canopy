@@ -9,11 +9,15 @@ export async function jobLog(scope: ReadScope) {
   const id = numericId(scope.request.resourceId);
   const { prs, row, head } = scope;
 
-  const found = await prs.client.read(row.id, {
-    key: `job:${scope.pr.repository_id}:${head}:${id}`,
-    path: `${scope.root}/actions/jobs/${id}`,
-    ttl: 15_000,
-  });
+  const found = await prs.client.read(
+    row.id,
+    {
+      key: `job:${scope.pr.repository_id}:${head}:${id}`,
+      path: `${scope.root}/actions/jobs/${id}`,
+      ttl: 15_000,
+    },
+    scope.request.refresh,
+  );
 
   const j = Schema.decodeUnknownSync(job)(found.payload);
   const run = await checkedRun(scope, String(j.run_id));

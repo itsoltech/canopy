@@ -3,7 +3,7 @@ import { github } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Schema } from "effect";
 import { graphPage } from "./timeline-query.ts";
-import { graphErrors, jsonMessage, type ReadScope } from "./read-scope.ts";
+import { graphErrors, jsonMessage, readScope, type ReadScope } from "./read-scope.ts";
 
 const check = Schema.Struct({
   __typename: Schema.String,
@@ -152,8 +152,7 @@ export async function checkedRun(scope: ReadScope, id: string) {
         if (
           String(item.id) !== id ||
           String(item.repository.id) !== scope.pr.repository_id ||
-          item.head_sha !== scope.head ||
-          !item.pull_requests.some((p) => p.number === scope.pr.number)
+          item.head_sha !== scope.head
         )
           throw new ConnectError("Check not found", Code.NotFound);
 
@@ -163,7 +162,39 @@ export async function checkedRun(scope: ReadScope, id: string) {
     scope.request.refresh,
   );
 
-  return Schema.decodeUnknownSync(workflowRun)(result.payload);
+  const run = Schema.decodeUnknownSync(workflowRun)(result.payload);
+  const listed = run.pull_requests.some((p) => p.number === scope.pr.number);
+
+  // GitHub Actions can omit the PR list even when the PR's check rollup points at this run.
+  if (!listed && (run.pull_requests.length || !(await hasRunCheck(scope, id))))
+    throw new ConnectError("Check not found", Code.NotFound);
+
+  return run;
+}
+
+async function hasRunCheck(scope: ReadScope, id: string) {
+  const matches = (c: github.PullRequestCheck) => c.runId === id && c.headSha === scope.head;
+
+  if (scope.snapshot.checks.some(matches)) return true;
+  let cursor = "";
+
+  for (let index = 0; index < 100; index++) {
+    const request = create(github.PullRequestPageRequestSchema, {
+      pullRequestId: scope.pr.id,
+      headSha: scope.head,
+      cursor,
+    });
+
+    const page = await checks(await readScope(scope.prs, request, "checks", true, scope.snapshot));
+
+    if (page.checks.some(matches)) return true;
+
+    cursor = page.page?.nextCursor ?? "";
+
+    if (!cursor) break;
+  }
+
+  return false;
 }
 
 export const job = Schema.Struct({

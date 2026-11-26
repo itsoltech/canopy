@@ -13,7 +13,43 @@ import { eventually, startTestGateway, type TestGateway } from "./support/gatewa
 import { linkedRead, readFixture, readHead } from "./support/github-read.ts";
 
 describe.skipIf(!dockerAvailable)("GitHub full-read security and composer handoff", () => {
-  const fixture = readFixture();
+  let retryJobCompleted = false;
+
+  const fixture = readFixture(undefined, (request) => {
+    const path = new URL(request.url).pathname;
+    const run = /\/actions\/runs\/(123|124)$/.exec(path);
+
+    if (run)
+      return Response.json({
+        id: Number(run[1]),
+        head_sha: readHead,
+        run_attempt: 1,
+        repository: { id: 777 },
+        pull_requests: [],
+      });
+
+    const job = /\/actions\/jobs\/(123|124)0$/.exec(path);
+
+    if (job) {
+      const runId = Number(job[1]);
+      const id = runId * 10;
+      const completed = runId === 124 || retryJobCompleted;
+
+      return Response.json({
+        id,
+        run_id: runId,
+        run_attempt: 1,
+        head_sha: readHead,
+        status: completed ? "completed" : "in_progress",
+        conclusion: completed ? "success" : null,
+        name: "Workflow job",
+        html_url: `https://github.com/itsoltech/canopy/actions/runs/${runId}/job/${id}`,
+      });
+    }
+
+    return undefined;
+  });
+
   let gw: TestGateway;
   let pr: string;
   let thread: string;
@@ -46,6 +82,37 @@ describe.skipIf(!dockerAvailable)("GitHub full-read security and composer handof
   afterAll(async () => {
     await gw?.close();
     fixture.close();
+  });
+
+  test("reads jobs and logs for a PR check when GitHub omits the run's PR list", async () => {
+    const jobs = await gw.api.listPullRequestCheckJobs({ pullRequestId: pr, resourceId: "123" });
+    expect(jobs.run?.id).toBe("123");
+    expect(jobs.jobs[0]?.id).toBe("1");
+    const log = await gw.api.getPullRequestJobLog({ pullRequestId: pr, resourceId: "1" });
+    expect(log.text).toContain("fixture log line");
+  });
+
+  test("an explicit log retry sees a newly completed job before its cached status expires", async () => {
+    const request = { pullRequestId: pr, resourceId: "1230" };
+    const running = await gw.api.getPullRequestJobLog(request);
+    expect(running.text).toBe("");
+    expect(running.page?.detail).toContain("after this job finishes");
+
+    retryJobCompleted = true;
+    const finished = await gw.api.getPullRequestJobLog({ ...request, refresh: true });
+    expect(finished.text).toContain("fixture log line");
+  });
+
+  test("denies an unlisted run and its job log even if the repository and SHA match", async () => {
+    const jobs = gw.api.listPullRequestCheckJobs({ pullRequestId: pr, resourceId: "124" });
+    const log = gw.api.getPullRequestJobLog({ pullRequestId: pr, resourceId: "1240" });
+    const errors = await Promise.allSettled([jobs, log]);
+    expect(errors.map((r) => (r.status === "rejected" ? ConnectError.from(r.reason).code : "allowed"))).toEqual([
+      Code.NotFound,
+      Code.NotFound,
+    ]);
+    expect(fixture.counts.has("/repos/itsoltech/canopy/actions/runs/124/attempts/1/jobs")).toBe(false);
+    expect(fixture.counts.has("/repos/itsoltech/canopy/actions/jobs/1240/logs")).toBe(false);
   });
 
   test("redacts secrets and terminal controls before cache and pages logs within 64 KiB/1000 lines", async () => {
