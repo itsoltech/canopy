@@ -18,6 +18,7 @@ const Subscription = Schema.Struct({
   direct_messages: Schema.Boolean,
   mentions: Schema.Boolean,
   observe: Schema.Boolean,
+  channel_context: Schema.optionalKey(Schema.Boolean),
   delivery: Schema.Literals(["reply", "notify"]),
   instructions: Schema.String,
 });
@@ -146,7 +147,7 @@ export const messengerTools = [
   ),
   define(
     "save_messenger_subscription",
-    `Messengers: create or replace your own subscription for an account. If subscription_id is omitted, update your existing subscription for that account or create one. Supply the full desired configuration; list subscriptions first to preserve existing channels/instructions. user_ids is a required nonempty Slack author allowlist, never assume everyone. observe listens to every allowed message and consumes model tokens; mentions listens for mentions; direct_messages enables DMs. delivery=reply sends chosen replies to Slack, notify delivers intentional summaries to your owner in Canopy. Persist the owner's conditions for replying, notifying, or acting on messages here. No channel-to-tool bindings. ${authority}`,
+    `Messengers: create or replace your own subscription for an account. If subscription_id is omitted, update your existing subscription for that account or create one. Supply the full desired configuration; list subscriptions first to preserve existing channels/instructions. user_ids is a required nonempty Slack author allowlist, never assume everyone. observe listens to every allowed message and consumes model tokens; mentions listens for mentions; direct_messages enables DMs. channel_context defaults to true for new subscriptions and shares allowed messages and relevant older topics across Slack threads of each selected channel. Set channel_context=false to turn it off. Omitting the field on edits preserves its saved value. For a busy channel use mentions=true and observe=false to capture passive context without starting a turn for each message. delivery=reply sends chosen replies to Slack, notify delivers intentional summaries to your owner in Canopy. Persist the owner's conditions for replying, notifying, or acting on messages here. No channel-to-tool bindings. ${authority}`,
     object(
       {
         account_id: str,
@@ -156,6 +157,7 @@ export const messengerTools = [
         direct_messages: bool,
         mentions: bool,
         observe: bool,
+        channel_context: bool,
         delivery: { type: "string", enum: ["reply", "notify"] },
         instructions: str,
       },
@@ -175,6 +177,7 @@ export const messengerTools = [
             directMessages: input.direct_messages,
             mentions: input.mentions,
             observe: input.observe,
+            ...(input.channel_context !== undefined && { channelContext: input.channel_context }),
             delivery: input.delivery,
             instructions: input.instructions,
           })

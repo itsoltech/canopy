@@ -2,8 +2,10 @@ import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { channelActivity } from "./store-activity.ts";
+import { recordPublishedReply, type PublishedSlackReply } from "./channel-context-events.ts";
+import { slackTimestamp } from "./slack-events.ts";
 import { privateMessengerNotice } from "./store-notify.ts";
-import { activeConversation } from "./conversation-access.ts";
+import { activeChannelTurn, currentChannelEpoch } from "./conversation-access.ts";
 import { SKIP_SLACK_REPLY } from "../bots/external-instructions.ts";
 import type { BotTurn } from "../bots/types.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
@@ -41,7 +43,7 @@ export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, statu
     // finish already holds bot -> turn; account comes next, matching revocation and delivery writers.
     yield* sql`SELECT a.id FROM messenger_accounts a WHERE a.id=${context.accountId}::uuid FOR UPDATE`;
 
-    if (!(yield* activeConversation(sql, turn.bot_id, context.conversationId))) return;
+    if (!(yield* activeChannelTurn(sql, turn.id))) return;
 
     const route = (yield* sql<{ delivery: string }>`SELECT r.delivery FROM bot_channel_conversations c
       JOIN bot_channel_routes r ON r.id=c.route_id WHERE c.id=${context.conversationId}::uuid
@@ -85,7 +87,7 @@ function lockDeliveryBots(sql: SqlClient.SqlClient, owner: string, accountId: st
 }
 
 /** The outbox's saved destination must still belong to this turn's active reply route. */
-function replyRoute(sql: SqlClient.SqlClient, owner: string) {
+function replyRoute(sql: SqlClient.SqlClient, owner: string, checkEpoch = false) {
   return sql`SELECT r.id FROM bot_channel_conversations c JOIN bot_channel_routes r ON r.id=c.route_id
     JOIN bot_turns t ON t.id=x.turn_id AND t.conversation_id=c.id AND t.bot_id=r.bot_id
     JOIN bots b ON b.id=r.bot_id
@@ -93,6 +95,7 @@ function replyRoute(sql: SqlClient.SqlClient, owner: string) {
       AND r.account_id=x.account_id AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
       AND r.delivery='reply' AND r.deleted_at IS NULL AND b.deleted_at IS NULL
       AND b.archived_at IS NULL AND b.moved_to IS NULL
+      ${checkEpoch ? sql`AND ${currentChannelEpoch(sql)}` : sql``}
       AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))`;
 }
 
@@ -109,7 +112,7 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
             AND x.lease_token=${lease.token}::uuid AND x.status='sending'`;
 
           const rows = yield* sql`SELECT x.id FROM messenger_outbound x WHERE ${claimed}
-            AND EXISTS (${replyRoute(sql, owner)} FOR SHARE OF r) FOR UPDATE OF x`;
+            AND EXISTS (${replyRoute(sql, owner, true)} FOR SHARE OF r) FOR UPDATE OF x`;
 
           if (!rows.length) {
             yield* sql`UPDATE messenger_outbound x SET status='failed' WHERE ${claimed}`;
@@ -178,8 +181,20 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
 
           if (!settled) return;
 
-          if (status === "sent") yield* channelActivity(sql, settled.turn_id, "sent", "Replied on Slack");
-          else if (status === "uncertain" || status === "failed") yield* deliveryNotice(sql, id, status === "failed");
+          if (status === "sent") {
+            yield* channelActivity(sql, settled.turn_id, "sent", "Replied on Slack");
+
+            if (result.messageId && slackTimestamp.test(result.messageId)) {
+              const [reply] =
+                yield* sql<PublishedSlackReply>`SELECT r.id AS route_id,x.turn_id,x.channel_id,x.thread_id,x.text
+                FROM messenger_outbound x JOIN bot_channel_conversations c ON c.id=x.conversation_id
+                JOIN bot_channel_routes r ON r.id=c.route_id
+                WHERE x.id=${id}::uuid AND x.channel_id=${result.channelId ?? ""} AND r.channel_context
+                  AND EXISTS (${replyRoute(sql, owner, true)}) AND x.channel_id=ANY(r.channel_ids)`;
+
+              if (reply) yield* recordPublishedReply(sql, reply, result.messageId);
+            }
+          } else if (status === "uncertain" || status === "failed") yield* deliveryNotice(sql, id, status === "failed");
         }),
       ),
   };

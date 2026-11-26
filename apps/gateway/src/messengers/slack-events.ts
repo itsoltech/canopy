@@ -1,5 +1,6 @@
 import { Match, Option, Schema } from "effect";
 import { slackFileId } from "./slack-files.ts";
+import type { MessengerEvent } from "./types.ts";
 
 export const MAX_SLACK_MESSAGE_FILES = 100;
 export const slackChannelId = /^[CGD][A-Z0-9]{1,79}$/;
@@ -43,6 +44,7 @@ const Message = Schema.Struct({
   ts: Schema.optional(Schema.String),
   thread_ts: Schema.optional(Schema.String),
   files: Schema.optional(Schema.Json),
+  edited: Schema.optional(Schema.Struct({ ts: Schema.String })),
 });
 
 const Event = Schema.Struct({
@@ -71,20 +73,7 @@ export const SlackEnvelope = Schema.Struct({
   ),
 });
 
-export interface SlackEvent {
-  id: string;
-  accountId: string;
-  channelId: string;
-  threadId: string;
-  messageId: string;
-  authorId: string;
-  text: string;
-  fileIds?: readonly string[];
-  timestamp: string;
-  mention: boolean;
-  direct: boolean;
-  kind: "message" | "edit" | "delete";
-}
+export type SlackEvent = MessengerEvent;
 
 export interface SlackIdentity {
   externalId: string;
@@ -157,14 +146,17 @@ export function slackEvent(envelope: typeof SlackEnvelope.Type, accountId: strin
   if (!message && kind !== "delete") return { ignored: "missing_message" } as const;
   const authorId = message?.user ?? event.user ?? "";
 
+  const ownMutation = kind !== "message" && authorId === identity.botUserId;
+
   if (
-    event.bot_id ||
-    event.app_id ||
-    message?.bot_id ||
-    message?.app_id ||
-    message?.bot_profile ||
-    authorId === identity.botUserId ||
-    message?.subtype === "bot_message"
+    !ownMutation &&
+    (event.bot_id ||
+      event.app_id ||
+      message?.bot_id ||
+      message?.app_id ||
+      message?.bot_profile ||
+      authorId === identity.botUserId ||
+      message?.subtype === "bot_message")
   )
     return { ignored: "app_or_bot_message" } as const;
 
@@ -174,20 +166,23 @@ export function slackEvent(envelope: typeof SlackEnvelope.Type, accountId: strin
 
   if (!messageId || !/^\d+\.\d+$/.test(messageId)) return { ignored: "invalid_message_ts" } as const;
   const text = message?.text ?? "";
-  const fileIds = kind === "delete" ? [] : messageFileIds(message?.files);
+  const fileIds = kind === "delete" || ownMutation ? [] : messageFileIds(message?.files);
+  const editedTimestamp = message?.edited?.ts;
 
   return {
     id: payload.event_id,
     accountId,
     channelId: event.channel,
-    threadId: message?.thread_ts ?? "",
+    threadId: message?.thread_ts === messageId ? "" : (message?.thread_ts ?? ""),
     messageId,
     authorId,
     text,
+    ...(ownMutation && { ownMutation }),
+    ...(editedTimestamp && { editedTimestamp }),
     ...(fileIds.length && { fileIds }),
     timestamp: event.event_ts ?? event.ts ?? messageId,
     mention: event.type === "app_mention" || text.includes(`<@${identity.botUserId}>`),
     direct: event.channel.startsWith("D") || event.channel_type === "im",
     kind,
-  } satisfies SlackEvent;
+  } satisfies MessengerEvent;
 }

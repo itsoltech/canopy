@@ -2,6 +2,7 @@ import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
+import { recordChannelEvent } from "./channel-context-events.ts";
 import { boundedSlackFileIds } from "./slack-events.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type {
@@ -23,7 +24,13 @@ interface RecordedMessage {
   source_edited: boolean;
 }
 
-function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: MessengerEvent, now: Date) {
+function bufferEvent(
+  sql: SqlClient.SqlClient,
+  route: RouteRow,
+  event: MessengerEvent,
+  now: Date,
+  capturedAlready = false,
+) {
   return Effect.gen(function* () {
     const kind = event.kind ?? "message";
     const threadId = route.delivery === "reply" && !event.direct && !event.threadId ? event.messageId : event.threadId;
@@ -90,6 +97,8 @@ function bufferEvent(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
       yield* sql`DELETE FROM bot_channel_messages WHERE conversation_id=${conversation.id}::uuid
         AND source_message_id=${event.messageId}`;
     } else if (kind !== "message") return "original_message_missing" as const;
+    // A redelivered passive message cannot become a follow-up by finding a newer open conversation.
+    else if (capturedAlready && !event.mention) return "duplicate_message" as const;
 
     const running = conversation
       ? yield* sql`SELECT id FROM bot_turns WHERE conversation_id=${conversation.id}::uuid
@@ -163,14 +172,30 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
         const routes = yield* sql<RouteRow>`SELECT r.* FROM bot_channel_routes r JOIN bots b ON b.id=r.bot_id
       WHERE r.account_id=${event.accountId}::uuid AND r.owner_user_id=${owner}::uuid AND b.owner_user_id=${owner}::uuid
       AND r.deleted_at IS NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
-      AND (${event.authorId}=ANY(r.user_ids) OR ${event.kind === "delete"})
+      AND (${event.authorId}=ANY(r.user_ids) OR ${event.kind === "delete" || Boolean(event.ownMutation)})
       AND ((${event.direct} AND r.direct_messages) OR (NOT ${event.direct} AND ${event.channelId}=ANY(r.channel_ids)))`;
 
         if (!routes.length) return ["no_matching_route"] satisfies MessengerIngestOutcome[];
 
         const outcomes = new Set<RouteIngestOutcome>();
 
-        for (const route of routes) outcomes.add(yield* bufferEvent(sql, route, event, now));
+        for (const route of routes) {
+          const channel = yield* recordChannelEvent(sql, route, event);
+
+          const outcome = channel.blocked
+            ? "original_message_ignored"
+            : yield* bufferEvent(sql, route, channel.event, now, channel.capturedAlready);
+
+          // An edited message from before capture can still be evidence for an admitted turn.
+          if (channel.inheritedMutation && (outcome === "message_updated" || outcome === "message_deleted")) {
+            yield* sql`UPDATE slack_channel_contexts SET epoch=epoch+1
+              WHERE route_id=${route.id}::uuid AND channel_id=${event.channelId}`;
+            yield* sql`SELECT invalidate_slack_context_sources(${route.id}::uuid,${event.channelId},
+              ARRAY[${event.messageId}]::text[],${event.messageId})`;
+          }
+
+          outcomes.add(outcome);
+        }
 
         return [...outcomes];
       }),

@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-26): subskrypcja Slack domyślnie dołącza do tury bota wspólny
+kontekst kanału i jego wątków. Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Status (2026-11-26): właściciel może poprosić bota w prywatnym czacie o propozycję
 motywu. W web i desktopie akcja **Review theme** otwiera podgląd w kreatorze.
 Dostępność w kanałach określa [promocja wydań](release.md).
@@ -320,7 +324,7 @@ Wynik oznacza skrócone wpisy i pominięte starsze wpisy. Gateway sprawdza
 pochodzenie prywatnej wiadomości właściciela i aktualny dostęp do rozmowy.
 Odczyt działa także dla historii zapisanej przed dodaniem narzędzia.
 
-Historia modelu zewnętrznego obejmuje tylko dany UUID rozmowy. Prywatna rozmowa,
+Standardowa historia modelu zewnętrznego obejmuje dany UUID rozmowy. Prywatna rozmowa,
 handoff, lista botów, licznik nieprzeczytanych i podgląd generowania nie pobierają
 automatycznie surowej treści kanałów. Zewnętrzna tura korzysta ze zwykłych grantów connectorów
 oraz narzędzi pracy, w tym delegowania przez `start_thread`, a Web access i Files
@@ -373,6 +377,66 @@ i jej wątek, izolację historii, fallback steer, notki obserwatora oraz nieznan
 wynik wysyłki. Adapter i przepływ przez gateway mają osobne testy integracyjne;
 atrapy nie dowodzą poprawności uprawnień konkretnej instalacji Slack.
 
+### Wspólny kontekst kanału Slack
+
+Kontekst kanału jest domyślnie włączony. Dotyczy nowych subskrypcji i kanałów
+wcześniej zapisanych w Canopy. Każdy kanał subskrypcji ma własny kontekst.
+Ustawienia wzmianek, obserwacji, DM i celu odpowiedzi zachowują zapisane wartości.
+Pominięcie `channel_context` podczas edycji zachowuje jego zapisaną wartość.
+Aby wyłączyć kontekst, poproś o to bota w prywatnym czacie. Po zwykłej
+autoryzacji właściciela bot zapisze `channel_context=false` przez
+`save_messenger_subscription`.
+
+Na ruchliwym kanale można ustawić `mentions=true` i `observe=false`. Bot
+wtedy odpowiada na wzmianki i kontynuacje otwartych rozmów, a pozostałe
+dopuszczone wypowiedzi zbiera jako tło. Przy `observe=true` bot może nadal
+uruchamiać zwykłe tury dla kolejnych dopuszczonych partii.
+
+Aktualizacja zachowuje bufor wiadomości. Nowy kontekst zaczyna się od
+wiadomości przyjętych po aktualizacji. Gateway może dokończyć zakolejkowaną
+turę, potwierdzoną turę na workerze lub odpowiedź oczekującą na wysłanie,
+jeśli wciąż można zweryfikować ich wejście. Gotowe odpowiedzi z poprzedniej
+wersji są dostarczane do dotychczasowej rozmowy Slack poza wspólnym
+kontekstem kanału.
+
+Od momentu włączenia gateway zbiera dopuszczone wiadomości kanału głównego
+i jego wątków. Zapisuje faktyczny identyfikator roota Slack i łączy callbacki
+`message` oraz `app_mention` dotyczące jednej wiadomości. Własną odpowiedź
+dopisuje po potwierdzeniu jej identyfikatora i kanału przez Slack. Wiadomości
+prywatne, inne kanały, załączniki, treści narzędzi, prywatne działania
+właściciela, notki `notify` i odpowiedzi o nieznanym wyniku wysyłki pozostają
+poza osią kanału.
+
+Do kolejnej tury Canopy dołącza do 6 KiB tła w postaci niezaufanych danych:
+świeże wiadomości z uwzględnieniem bieżącego roota i oczekujących zmian oraz do
+trzech wcześniejszych tematów ze źródłami. Gdy kilka spraw pasuje do pytania,
+bot może dopytać w docelowej rozmowie. Tura używa aktualnej osi i bieżącego
+wejścia. Gdy opcja jest włączona, kontynuacje trafiają do kolejnej zwykłej
+tury, która odświeży tło przed wysłaniem do workera.
+
+Analiza tematów działa w tle przez izolowaną generację bez narzędzi na
+dostępnym workerze i w profilu modelu bota. Preferuje mniejszy model z tego
+profilu. Kanał ma trwały kursor i jedną partię na minutę, a właściciel
+jedną analizę naraz. Partia obejmuje do 40 zmian i około 8 KiB wejścia, ze
+skróceniami oznaczonymi w tekście. Gateway sprawdza identyfikatory źródeł
+i zapisuje tematy razem z postępem partii. Bez aktualnego wyniku analizy
+tura korzysta od razu ze świeżych wiadomości. Niedostępność workera lub
+nieudany wynik odraczają próbę o dwie minuty.
+
+Edycja lub usunięcie przechwyconej wiadomości unieważnia zależne tematy
+i usuwa z kontekstu odpowiedzi oparte na zmienionym źródle. Gateway planuje
+ponowną analizę zachowanych źródeł. Zmiana zakresu dostępu usuwa
+kontekst odwołanych źródeł. Gateway sprawdza aktualność także przed wysyłką
+komendy do workera i odpowiedzi do Slacka. Canopy zaczyna osobną sesję
+modelu w każdej turze z włączonym kontekstem, zachowując UUID rozmowy,
+jej workspace i cel odpowiedzi. Przy włączonym kontekście oś zastępuje
+notatki Conversation. Polecenie wyłączenia
+opcji zapisuje `channel_context=false`, czyści oś i tematy, zachowuje kolejkę
+dopuszczonych wiadomości oraz przywraca zwykłe aktualizacje aktywnej tury.
+Historia i notatki Conversation zaczynają się od nowego zakresu. Kolejne
+tury tej rozmowy mogą wznowić sesję z tego zakresu.
+Już opublikowane wiadomości pozostają w Slacku.
+
 ### Konfiguracja nasłuchiwania przez prywatną rozmowę
 
 Właściciel najpierw podłącza konto Slack Bot w Settings → Connectors.
@@ -397,8 +461,8 @@ bota i nie rozszerza zapisanej listy autorów.
 W prywatnej rozmowie można polecić botowi np. obserwowanie kanału produktu,
 zapisywanie ustaleń przyznanymi narzędziami oraz wyjaśnianie problemów z autorami.
 `save_messenger_subscription` utrwala pełną konfigurację: konto, kanały, obowiązkową
-listę dozwolonych autorów, wzmianki/obserwację/DM, dostarczenie `reply` lub `notify`
-i instrukcje reakcji. Wybór działań wynika z instrukcji i zwykłych uprawnień bota;
+listę dozwolonych autorów, wzmianki/obserwację/DM, opcjonalny `channel_context`,
+dostarczenie `reply` lub `notify` i instrukcje reakcji. Wybór działań wynika z instrukcji i zwykłych uprawnień bota;
 trasa nie wiąże kanału z konkretnymi narzędziami. Pasujące wiadomości trafiają do
 opisanego wyżej bufora; model przetwarza gotowe partie z zachowaniem limitu
 częstotliwości nowych tur. Przetwarzanie partii zużywa tokeny również wtedy,

@@ -12,11 +12,14 @@ import type { BotCore } from "./store-queue.ts";
 import { botThreadNoticeTitle } from "./thread-notice.ts";
 import type { BotTurn } from "./types.ts";
 
-type Origin = Pick<BotTurn, "bot_id" | "routine_id" | "routine_title" | "conversation_id" | "hops">;
+type Origin = Pick<
+  BotTurn,
+  "bot_id" | "routine_id" | "routine_title" | "conversation_id" | "slack_context_epoch" | "hops"
+>;
 
 /** A steer belongs to its running turn only once the worker confirms entry. A fallback owns its queued turn. */
 function delegationOrigins(sql: SqlClient.SqlClient, source: CallSource) {
-  return sql<Origin>`SELECT bt.bot_id, bt.conversation_id, bt.routine_id, max(bt.routine_title) AS routine_title,
+  return sql<Origin>`SELECT bt.bot_id, bt.conversation_id, bt.slack_context_epoch, bt.routine_id, max(bt.routine_title) AS routine_title,
       max(w.hops) AS hops
     FROM bot_thread_watches w JOIN bot_tool_calls c ON c.id=w.call_id
     JOIN bot_turns bt ON bt.id=c.turn_id AND bt.bot_id=w.bot_id
@@ -24,7 +27,7 @@ function delegationOrigins(sql: SqlClient.SqlClient, source: CallSource) {
     WHERE w.target_thread_id=${source.threadId}::uuid
       AND (CASE WHEN w.target_steer_id IS NULL THEN w.target_turn_id
             WHEN s.status='delivered' THEN s.turn_id WHEN s.status='queued' THEN s.queued_turn_id END)=${source.turnId}::uuid
-    GROUP BY bt.bot_id, bt.conversation_id, bt.routine_id LIMIT 2`;
+    GROUP BY bt.bot_id, bt.conversation_id, bt.slack_context_epoch, bt.routine_id LIMIT 2`;
 }
 
 function linkedBotInput(sql: SqlClient.SqlClient, owner: string, source: CallSource) {

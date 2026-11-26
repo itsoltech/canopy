@@ -1,4 +1,5 @@
 import { lockModuleAdmission } from "../store/module-access.ts";
+import { activeChannelTurn, lockChannelAccount } from "../messengers/conversation-access.ts";
 import { coreState } from "./core-context.ts";
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
@@ -24,6 +25,21 @@ export async function deliverBotSteer(core: GatewayCore, { workerId, ...input }:
 
           if (!(yield* BotStore.use((s) => s.harnessAuthorized(userId, workerId, input.botId, input.turnId))))
             return undefined;
+
+          const [turn] = yield* sql<{ conversation_id: string | null }>`
+            SELECT conversation_id FROM bot_turns WHERE id=${input.turnId}::uuid`;
+
+          if (turn?.conversation_id) {
+            yield* lockChannelAccount(sql, turn.conversation_id);
+
+            if (!(yield* activeChannelTurn(sql, input.turnId))) return undefined;
+
+            const context =
+              yield* sql`SELECT 1 FROM bot_channel_conversations c JOIN bot_channel_routes r ON r.id=c.route_id
+              WHERE c.id=${turn.conversation_id}::uuid AND r.channel_context AND c.channel_id=ANY(r.channel_ids)`;
+
+            if (context.length) return undefined;
+          }
 
           const connection = core.link.connections.get(workerId);
 

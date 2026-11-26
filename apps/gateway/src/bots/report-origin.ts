@@ -17,6 +17,6 @@ export function canReportBotTurn(
         WHERE watch.target_thread_id=${thread} AND watch.target_turn_id=${turn}
     ) i LEFT JOIN bot_tool_calls c ON c.id=i.bot_call_id LEFT JOIN bot_turns b ON b.id=c.turn_id
     HAVING (${requireSingleOrigin} OR bool_or(b.conversation_id IS NOT NULL OR i.linked_call_id IS NOT NULL))
-      AND count(DISTINCT (b.bot_id,b.conversation_id,b.routine_id,i.linked_call_id))>1
+      AND count(DISTINCT (b.bot_id,b.conversation_id,b.slack_context_epoch,b.routine_id,i.linked_call_id))>1
   )`;
 }

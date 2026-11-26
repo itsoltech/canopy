@@ -45,9 +45,10 @@ function createNote(
   return Effect.gen(function* () {
     if (!(yield* scopeExists(sql, owner, scope)).length)
       return yield* Effect.fail(new NotFound("Memory scope not found."));
-    yield* sql`INSERT INTO agent_memory_scopes(owner_user_id,project_id,worker_id,bot_id,conversation_id)
+    yield* sql`INSERT INTO agent_memory_scopes(owner_user_id,project_id,worker_id,bot_id,conversation_id,slack_context_epoch)
       VALUES (${owner}::uuid,${"projectId" in scope ? scope.projectId : null}::uuid,${"workerId" in scope ? scope.workerId : null}::uuid,
-        ${"botId" in scope ? scope.botId : null}::uuid,${"conversationId" in scope ? scope.conversationId : null}::uuid)
+        ${"botId" in scope ? scope.botId : null}::uuid,${"conversationId" in scope ? scope.conversationId : null}::uuid,
+        ${"slackContextEpoch" in scope ? scope.slackContextEpoch : null}::bigint)
       ON CONFLICT (owner_user_id,scope_key) DO NOTHING`;
 
     const [row] =

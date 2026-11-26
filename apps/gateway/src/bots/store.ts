@@ -16,6 +16,7 @@ import { botThreadApprovals } from "./thread-approvals.ts";
 import { botExchange } from "./store-exchange.ts";
 import { botDrafts } from "./drafts.ts";
 import { queryMethods } from "../diagnostics/query-context.ts";
+import { slackTurnContext } from "../messengers/channel-context-read.ts";
 import { conversationContext } from "../messengers/store-outbound.ts";
 import { botPoll } from "./poll.ts";
 import { settleChatSteer } from "./store-chat-steer.ts";
@@ -43,6 +44,8 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     setUserMessageReaction: (owner: string, request: bots.SetBotMessageReactionRequest) =>
       setUserBotMessageReaction(sql, access, owner, request),
     memoryAccess: (owner: string, turn: import("./types.ts").BotTurn) => botMemoryAccess(sql, owner, turn),
+    slackTurnContext: (owner: string, turn: import("./types.ts").BotTurn, includeBackground = true) =>
+      slackTurnContext(sql, owner, turn, includeBackground),
     conversationContext: (turn: import("./types.ts").BotTurn) => conversationContext(sql, turn),
     originEnabled: core.originEnabled,
     messageDelegatingBot: (owner: string, source: CallSource, text: string) =>

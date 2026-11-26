@@ -4,7 +4,7 @@ import { ConnectorFailure } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
 import { checkMentions, DEFAULT_BUS_LIMITS, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
 import { finishChannelTurn, skippedSlackReply } from "../messengers/store-outbound.ts";
-import { activeConversation } from "../messengers/conversation-access.ts";
+import { activeChannelTurn, admitChannelContinuation } from "../messengers/conversation-access.ts";
 import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -64,8 +64,8 @@ function botEnqueue(
 
         if (previous) return previous;
 
-        if (options.conversationId && !(yield* activeConversation(sql, botId, options.conversationId)))
-          return yield* Effect.fail(new Invalid("Messenger subscription is no longer active"));
+        if (options.conversationId)
+          yield* admitChannelContinuation(sql, botId, options.conversationId, options.slackContextEpoch);
 
         const quotes = yield* botQuotes(
           sql,
@@ -268,7 +268,7 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
 
   const originEnabled = (turn: BotTurn | undefined) =>
     Effect.gen(function* () {
-      if (turn?.conversation_id && !(yield* activeConversation(sql, turn.bot_id, turn.conversation_id))) return false;
+      if (turn?.conversation_id && !(yield* activeChannelTurn(sql, turn.id))) return false;
 
       if (!turn?.routine_id) return true;
 

@@ -1,7 +1,7 @@
 import { lockedOwnerModule, ownerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { activeConversation } from "./conversation-access.ts";
+import { activeConversation, currentChannelEpoch } from "./conversation-access.ts";
 import { linkedMessengerActive } from "./linked-account.ts";
 import { inboundActivity } from "./store-activity.ts";
 import type { ConversationRow, RouteRow, SteerInput } from "./types.ts";
@@ -73,7 +73,8 @@ function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: strin
 
       const conversation = (yield* sql<
         ConversationRow & RouteRow
-      >`SELECT c.*,r.bot_id,r.account_id,r.observe,r.delivery,r.user_ids
+      >`SELECT c.*,r.bot_id,r.account_id,r.observe,r.delivery,r.user_ids,
+        (r.channel_context AND c.channel_id=ANY(r.channel_ids)) AS channel_context
       FROM bot_channel_conversations c JOIN bot_channel_routes r ON r.id=c.route_id WHERE c.id=${id}::uuid FOR UPDATE OF c`)[0]!;
 
       yield* recoverUnconfirmed(sql, id);
@@ -103,7 +104,13 @@ function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: strin
       if ((!active && elapsed < cooldown) || (elapsed < last + quiet && elapsed < first + maximum)) return undefined;
 
       // A rejected steer waits for the next turn; never repeatedly send the same transient command.
-      if (active && (active.conversation_id !== id || active.status !== "running" || messages.some((m) => m.input_id)))
+      if (
+        active &&
+        (conversation.channel_context ||
+          active.conversation_id !== id ||
+          active.status !== "running" ||
+          messages.some((m) => m.input_id))
+      )
         return undefined;
       const selected: BufferedMessage[] = [];
       let bytes = 256;
@@ -197,7 +204,7 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
         WHERE i.conversation_id=c.id AND r.bot_id=b.id AND r.owner_user_id=b.owner_user_id
         AND a.owner_user_id=b.owner_user_id AND (NOT ${applied} OR (b.deleted_at IS NULL AND b.archived_at IS NULL
           AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
-          AND ${linkedMessengerActive(sql)}
+          AND ${linkedMessengerActive(sql)} AND ${currentChannelEpoch(sql)}
           AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))))
         AND i.id=${inputId}::uuid AND i.turn_id=t.id AND b.owner_user_id=${owner}::uuid AND i.status='attempted' AND (${expectedTurnId ?? null}::uuid IS NULL OR i.turn_id=${expectedTurnId ?? null}::uuid)
         RETURNING i.turn_id,t.bot_id,i.text`;

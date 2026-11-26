@@ -62,7 +62,8 @@ export interface ApprovalRow {
   restricted_thread_id?: string | null;
 }
 
-export const botConfiguration = (row: BotRow) => fromJson(bots.BotConfigurationSchema, row.configuration);
+export const botConfiguration = (row: Pick<BotRow, "configuration">) =>
+  fromJson(bots.BotConfigurationSchema, row.configuration);
 
 export const botView = (row: BotRow) =>
   create(bots.BotSchema, {

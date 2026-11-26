@@ -479,7 +479,13 @@ describe.skipIf(!dockerAvailable)("a bot watches its work in a persistent thread
           VALUES ($1,$3,'CPRODUCT','100.1',now()),($2,$3,'CPRODUCT','200.1',now())`,
         [original, different, route.id],
       );
-      const work = await watch(undefined, botId, { conversationId: original });
+
+      const [scope] = await query<{ epoch: string }>(
+        "SELECT epoch::text FROM slack_channel_contexts WHERE route_id=$1 AND channel_id='CPRODUCT'",
+        [route.id],
+      );
+
+      const work = await watch(undefined, botId, { conversationId: original, slackContextEpoch: scope!.epoch });
       const thread = work.thread;
       task(thread, work.turn, "external-task");
       result(thread, work.turn, "Foreground progress");

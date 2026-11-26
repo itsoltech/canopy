@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
+import { slackTimestamp } from "./slack-events.ts";
 import { SlackMessenger, SlackMessengerError, validateSlackAccount } from "./slack.ts";
 import type { AccountLease, MessengerAccount, MessengerCredentials, OutboundMessage, OutboundResult } from "./types.ts";
 import type { MessengerRuntime } from "./runtime.ts";
@@ -13,9 +14,11 @@ async function sendReply(
   signal: AbortSignal,
 ): Promise<OutboundResult> {
   try {
-    await adapter.send(message, signal);
+    const confirmed = await adapter.send(message, signal);
 
-    return { sent: true };
+    return confirmed.channelId === message.channelId && slackTimestamp.test(confirmed.messageId)
+      ? { sent: true, ...confirmed }
+      : { sent: false, uncertain: true };
   } catch (error) {
     const retryable = error instanceof SlackMessengerError && error.kind === "retryable";
     const refused = error instanceof SlackMessengerError && error.kind === "configuration";

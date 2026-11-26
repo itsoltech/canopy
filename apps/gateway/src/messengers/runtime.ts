@@ -4,6 +4,7 @@ import { BotStore } from "../bots/store.ts";
 import { deliverBotSteer } from "../core/bot-steer.ts";
 import type { GatewayCoreOptions } from "../core/core-context.ts";
 import type { GatewayCore } from "../core/core.ts";
+import { analyzeSlackChannel } from "./channel-context-analysis.ts";
 import { MessengerStore } from "./store.ts";
 import { credentialKey, MessengerAccountSession } from "./account-session.ts";
 import type { SteerInput } from "./types.ts";
@@ -15,6 +16,8 @@ export class MessengerRuntime {
   readonly #steers = new Set<Promise<void>>();
   #timer: ReturnType<typeof setInterval> | undefined;
   #running: Promise<void> | undefined;
+  #analysis: Promise<void> | undefined;
+  #analyzeAt = 0;
   #refreshAt = 0;
   #stopped = true;
   #configured = false;
@@ -86,7 +89,18 @@ export class MessengerRuntime {
     }
 
     for (const session of this.#accounts.values()) session.pump();
+    this.#analyze(now);
     await this.core.bots.tick();
+  }
+
+  #analyze(now: Date): void {
+    if (this.#analysis || now.getTime() < this.#analyzeAt || this.core.updates.draining) return;
+    this.#analyzeAt = now.getTime() + 5000;
+    this.#analysis = analyzeSlackChannel(this.core, () => this.now())
+      .catch(() => this.options.log?.("messengers: channel analysis will retry"))
+      .finally(() => {
+        this.#analysis = undefined;
+      });
   }
 
   async #refresh(): Promise<void> {
@@ -159,5 +173,6 @@ export class MessengerRuntime {
     await Promise.allSettled([...this.#accounts.values()].map((session) => session.close()));
     this.#accounts.clear();
     await Promise.allSettled(this.#steers);
+    await this.#analysis;
   }
 }

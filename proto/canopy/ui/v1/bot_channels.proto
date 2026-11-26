@@ -44,6 +44,8 @@ message BotMessengerRoute {
   bool observe = 8;
   string delivery = 9; // reply | notify
   string instructions = 10;
+  // Defaults to true on creation. Omit on updates to retain the saved setting. Applies only to channels.
+  optional bool channel_context = 11;
 }
 message ListBotMessengerRoutesRequest { string bot_id = 1; }
 message ListBotMessengerRoutesResponse { repeated BotMessengerRoute routes = 1; }

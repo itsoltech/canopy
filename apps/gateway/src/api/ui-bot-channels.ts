@@ -98,6 +98,7 @@ export function botChannelHandlers(
               directMessages: input.directMessages,
               mentions: input.mentions,
               observe: input.observe,
+              ...(input.channelContext !== undefined && { channelContext: input.channelContext }),
               delivery,
               instructions: input.instructions,
             }),

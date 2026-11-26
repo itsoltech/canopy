@@ -3,7 +3,7 @@ import { SqlClient } from "effect/sql";
 import { MEMORY_GUIDANCE, MEMORY_TOOLS } from "@canopy/domain/memory-tools";
 import { coreState } from "../core/core-context.ts";
 import { executeMemoryTool, type MemoryAccess } from "../memory/tools.ts";
-import { activeConversationSource } from "../messengers/conversation-access.ts";
+import { activeConversationSource, currentChannelEpoch } from "../messengers/conversation-access.ts";
 import { ownerModule } from "../store/module-access.ts";
 import { Invalid } from "../store/errors.ts";
 import { ownerBotInput } from "./owner-turn.ts";
@@ -12,6 +12,8 @@ import type { ToolContext } from "./tools/shared.ts";
 
 export interface BotMemoryAccess extends MemoryAccess {
   readonly ownerInput: boolean;
+  /** Verified conversation identity for delegated work, independent of note availability. */
+  readonly conversationId: string | null;
 }
 
 /** Only gateway-created queue records describe the source and destination of a turn. */
@@ -25,6 +27,8 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
       scheduled: boolean;
       channel_input: boolean;
       external: boolean;
+      shared_context: boolean;
+      slack_context_epoch: string | null;
       relay: boolean;
     }>`SELECT t.bot_id, t.conversation_id, EXISTS (
         SELECT 1 FROM bot_messages m WHERE m.turn_id=t.id AND ${ownerBotInput(sql)}
@@ -35,7 +39,10 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
         WHERE i.turn_id=t.id AND i.conversation_id=t.conversation_id AND i.status='applied'
           AND t.client_request_id='messenger:' || i.id::text
           AND m.bot_id=t.bot_id AND m.message_key='input' AND m.sender_id='channel' AND m.kind='message') AS channel_input,
-      EXISTS(SELECT 1 ${activeConversationSource(sql, sql`t.bot_id`, sql`t.conversation_id`)}) AS external,
+      EXISTS(SELECT 1 ${activeConversationSource(sql, sql`t.bot_id`, sql`t.conversation_id`)} AND ${currentChannelEpoch(sql)}) AS external,
+      EXISTS(SELECT 1 FROM bot_channel_conversations c JOIN bot_channel_routes r ON r.id=c.route_id
+        WHERE c.id=t.conversation_id AND r.channel_context AND c.channel_id=ANY(r.channel_ids)) AS shared_context,
+      t.slack_context_epoch::text,
       (t.reply_to_bot_id IS NOT NULL OR t.remote_recipient_ref IS NOT NULL OR t.exchange_id IS NOT NULL) AS relay
       FROM bot_turns t JOIN bots b ON b.id=t.bot_id
       LEFT JOIN bot_routines r ON r.id=t.routine_id AND r.bot_id=t.bot_id AND r.enabled AND r.deleted_at IS NULL
@@ -50,20 +57,29 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
 
     const access: BotMemoryAccess = {
       ownerInput: row.owner_input,
+      conversationId: row.external && !row.relay ? row.conversation_id : null,
       ownerId,
       scopes: [],
       canWrite: false,
       source: { kind: "bot", id: row.bot_id, turnId: turn.id },
     };
 
-    if (row.relay) return access;
+    if (row.conversation_id && !row.external)
+      return yield* Effect.fail(new Invalid("External conversation is unavailable"));
+
+    if (row.relay || row.shared_context) return access;
 
     if (row.conversation_id) {
-      if (!row.external) return yield* Effect.fail(new Invalid("External conversation is unavailable"));
-
       return {
         ...access,
-        scopes: [{ kind: "conversation", botId: row.bot_id, conversationId: row.conversation_id }],
+        scopes: [
+          {
+            kind: "conversation",
+            botId: row.bot_id,
+            conversationId: row.conversation_id,
+            ...(row.slack_context_epoch && { slackContextEpoch: row.slack_context_epoch }),
+          },
+        ],
         canWrite: row.channel_input,
       } satisfies MemoryAccess;
     }

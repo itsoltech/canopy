@@ -116,6 +116,7 @@ export async function memoryChannel(f: HarnessBots, botId: string) {
       directMessages: false,
       mentions: true,
       observe: false,
+      channelContext: false,
       delivery: "reply",
       instructions: "",
     }),

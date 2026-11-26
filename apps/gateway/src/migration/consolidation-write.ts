@@ -125,6 +125,7 @@ function retireSourceLeases(sql: Database) {
     yield* sql`UPDATE pg_temp.cc_messenger_accounts SET lease_holder=NULL,lease_token=NULL,lease_until=NULL,
       refresh_attempt=NULL,refresh_started_at=NULL`;
     yield* sql`UPDATE pg_temp.cc_messenger_outbound SET lease_token=NULL`;
+    yield* sql`UPDATE pg_temp.cc_slack_channel_contexts SET lease_id=NULL,lease_until=NULL`;
     yield* sql`UPDATE pg_temp.cc_thread_secrets SET applied_revision=0,file_path=NULL`;
   });
 }
@@ -145,6 +146,8 @@ const historicalTriggers = new Map<string, readonly string[]>(
     schedules: ["schedules_require_visible", "schedules_rewind_admission"],
     goals: ["worktree_available_goal", "goals_rewind_admission"],
     worker_configs: ["worker_configs_history"],
+    bot_turns: ["capture_slack_turn_epoch"],
+    bot_channel_routes: ["sync_slack_route_context"],
   }),
 );
 

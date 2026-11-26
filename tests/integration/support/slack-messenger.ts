@@ -1,3 +1,4 @@
+import type { JsonObject } from "@canopy/domain";
 import type { ServerWebSocket } from "bun";
 import { Schema } from "effect";
 import type { SlackTransport } from "../../../apps/gateway/src/messengers/slack.ts";
@@ -69,6 +70,22 @@ export function slackMessengerFixture(channelType: "channel" | "group" = "channe
     reconnectDelayMs: 10,
   };
 
+  const emitEvent = (id: string, event: JsonObject) => {
+    const message = JSON.stringify({
+      type: "events_api",
+      envelope_id: id,
+      payload: {
+        type: "event_callback",
+        event_id: id,
+        team_id: "TWORK",
+        api_app_id: "AAPP",
+        event: { type: "message", channel: "CGENERAL", user: "UOWNER", channel_type: channelType, ...event },
+      },
+    });
+
+    for (const socket of sockets) socket.send(message);
+  };
+
   return {
     transport,
     acknowledged,
@@ -77,6 +94,7 @@ export function slackMessengerFixture(channelType: "channel" | "group" = "channe
     refuseNextSend: (code: string) => {
       refusal = code;
     },
+    emitEvent,
     emit: (
       id: string,
       text: string,
@@ -84,30 +102,14 @@ export function slackMessengerFixture(channelType: "channel" | "group" = "channe
       threadId: string | null = "100.1",
       files?: readonly { id: string; url_private?: string }[],
       eventType: "message" | "app_mention" = "message",
-    ) => {
-      const message = JSON.stringify({
-        type: "events_api",
-        envelope_id: id,
-        payload: {
-          type: "event_callback",
-          event_id: id,
-          team_id: "TWORK",
-          api_app_id: "AAPP",
-          event: {
-            type: eventType,
-            channel: "CGENERAL",
-            user: "UOWNER",
-            text,
-            ts: timestamp,
-            thread_ts: threadId ?? undefined,
-            channel_type: channelType,
-            files,
-          },
-        },
-      });
-
-      for (const socket of sockets) socket.send(message);
-    },
+    ) =>
+      emitEvent(id, {
+        type: eventType,
+        text,
+        ts: timestamp,
+        ...(threadId && { thread_ts: threadId }),
+        ...(files && { files: [...files] }),
+      }),
     close: () => server.stop(true),
   };
 }

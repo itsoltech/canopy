@@ -13,6 +13,7 @@ export const routeView = (row: RouteRow): MessengerRoute => ({
   directMessages: row.direct_messages,
   mentions: row.mentions,
   observe: row.observe,
+  channelContext: row.channel_context,
   delivery: row.delivery,
   instructions: row.instructions,
 });
@@ -56,11 +57,16 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
           yield* accounts.owned(owner, input.accountId);
           yield* sql`SELECT id FROM messenger_accounts WHERE id=${input.accountId}::uuid FOR UPDATE`;
 
+          let channelContext = input.channelContext ?? true;
+
           if (input.id) {
-            const existing = yield* sql`SELECT id FROM bot_channel_routes WHERE id=${input.id}::uuid
+            const existing = yield* sql<{
+              channel_context: boolean;
+            }>`SELECT channel_context FROM bot_channel_routes WHERE id=${input.id}::uuid
           AND bot_id=${input.botId}::uuid AND account_id=${input.accountId}::uuid AND owner_user_id=${owner}::uuid AND deleted_at IS NULL`;
 
-            if (!existing.length) return yield* Effect.fail(new NotFound("Messenger route not found"));
+            if (!existing[0]) return yield* Effect.fail(new NotFound("Messenger route not found"));
+            channelContext = input.channelContext ?? existing[0].channel_context;
           }
 
           if (
@@ -71,7 +77,10 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
             input.channelIds.some((id) => !/^[CG][A-Z0-9]{1,79}$/.test(id)) ||
             input.userIds.some((id) => !/^[UW][A-Z0-9]{1,79}$/.test(id)) ||
             (!input.channelIds.length && !input.directMessages) ||
-            (!input.mentions && !input.observe && !input.directMessages) ||
+            (!input.mentions &&
+              !input.observe &&
+              !input.directMessages &&
+              !(channelContext && input.channelIds.length)) ||
             !["reply", "notify"].includes(input.delivery)
           )
             return yield* Effect.fail(new Invalid("Choose channels or direct messages and valid routing settings"));
@@ -97,12 +106,13 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
 
           const rows =
             yield* sql<RouteRow>`INSERT INTO bot_channel_routes(id,owner_user_id,bot_id,account_id,channel_ids,user_ids,
-        direct_messages,mentions,observe,delivery,instructions) VALUES(${id}::uuid,${owner}::uuid,${input.botId}::uuid,
+        direct_messages,mentions,observe,delivery,instructions,channel_context) VALUES(${id}::uuid,${owner}::uuid,${input.botId}::uuid,
         ${input.accountId}::uuid,${[...new Set(input.channelIds)]}::text[],${[...new Set(input.userIds)]}::text[],
-        ${input.directMessages},${input.mentions},${input.observe},${input.delivery},${input.instructions})
+        ${input.directMessages},${input.mentions},${input.observe},${input.delivery},${input.instructions},${channelContext})
         ON CONFLICT(id) DO UPDATE SET channel_ids=excluded.channel_ids,user_ids=excluded.user_ids,
           direct_messages=excluded.direct_messages,mentions=excluded.mentions,observe=excluded.observe,
-          delivery=excluded.delivery,instructions=excluded.instructions RETURNING *`;
+          delivery=excluded.delivery,instructions=excluded.instructions,
+          channel_context=excluded.channel_context RETURNING *`;
 
           yield* sql`UPDATE bot_channel_messages m SET deleted=true FROM bot_channel_conversations c
             WHERE m.conversation_id=c.id AND c.route_id=${id}::uuid AND m.state='buffered'
@@ -113,7 +123,12 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
         }),
       ),
     deleteRoute: (owner: string, id: string) =>
-      sql`UPDATE bot_channel_routes SET deleted_at=now()
-      WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`.pipe(Effect.asVoid),
+      sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`SELECT a.id FROM messenger_accounts a JOIN bot_channel_routes r ON r.account_id=a.id
+            WHERE r.id=${id}::uuid AND a.owner_user_id=${owner}::uuid FOR UPDATE OF a`;
+          yield* sql`UPDATE bot_channel_routes SET deleted_at=now() WHERE id=${id}::uuid AND owner_user_id=${owner}::uuid`;
+        }),
+      ),
   };
 }

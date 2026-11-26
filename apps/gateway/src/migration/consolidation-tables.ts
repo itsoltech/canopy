@@ -295,6 +295,10 @@ export const importTables: readonly ImportTable[] = [
   { name: "messenger_accounts", filter: owned, secret: "credentials" },
   { name: "bot_channel_routes", filter: `${owned} AND ${bot()}` },
   { name: "bot_channel_conversations", filter: botChannel() },
+  ...["slack_channel_contexts", "slack_channel_context_messages", "slack_channel_topics"].map((name) => ({
+    name,
+    filter: botChannel(),
+  })),
   ...memoryImportTables,
   { name: "bot_channel_inputs", filter: botChannel(true) },
   { name: "bot_channel_messages", filter: botChannel(true), sequence: "id" },

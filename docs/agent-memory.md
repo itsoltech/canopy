@@ -5,6 +5,10 @@ Settings → Memory w webie, desktopie i aplikacji mobilnej. Wszystkie trzy apli
 wyszukiwanie, filtry projektu i workera oraz daty utworzenia notatek. Dostępność
 zależy od [promocji wydania](release.md).
 
+Status (2026-11-26): kanał Slack ze wspólnym kontekstem korzysta z osi
+wiadomości i przypisanych do źródeł tematów. Opis i instrukcja włączenia są
+w [dokumentacji botów](bots.md#wspólny-kontekst-kanału-slack).
+
 Okresową analizę wiadomości opisuje [Refleksja](#refleksja).
 
 ## Zakres
@@ -42,7 +46,12 @@ wejściowe bieżącej tury. Ten blok odświeża się przy kolejnej turze w tej s
 sesji. Handoff zachowuje osobną funkcję przekazania stanu pracy przy zmianie
 modelu. Uprawnienia zapisu zależą także od pochodzenia wejścia. Bezpośrednia
 rozmowa właściciela i zaufany start rutyny mogą zapisywać pamięć bota,
-a zewnętrzne wiadomości mogą aktualizować pamięć własnej rozmowy. Przychodzące
+a zewnętrzne wiadomości mogą aktualizować pamięć własnej rozmowy.
+W kanałach Slack, dla których włączono wspólny kontekst, oddzielna oś kanału
+zastępuje notatki Conversation, aby odświeżona tura korzystała z aktualnych
+źródeł. Wyłączenie funkcji przywraca notatki Conversation w nowym
+zakresie dla kolejnych tur. Wcześniejsze notatki pozostają dostępne
+właścicielowi w Settings → Memory. Przychodzące
 wymiany bot–bot używają odrębnego kontekstu wykonania. Jeżeli taka wymiana
 zaczyna się w turze z ograniczonym dostępem i przekracza granicę gatewaya,
 dom odbiorcy musi obsługiwać izolowane przyjęcie wiadomości.

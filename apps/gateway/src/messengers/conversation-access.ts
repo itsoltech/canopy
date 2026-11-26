@@ -1,3 +1,4 @@
+import { Invalid } from "../store/errors.ts";
 import { ownerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient, Statement } from "effect/sql";
@@ -37,4 +38,43 @@ export function allowedInboundSlackFile(
       SELECT 1 FROM bot_channel_messages m WHERE m.conversation_id=c.id AND NOT m.deleted
         AND m.author_id=ANY(r.user_ids) AND ${fileId}=ANY(m.slack_file_ids)
     )`.pipe(Effect.map((rows) => rows.length > 0));
+}
+
+/** Use with the turn alias t and conversation alias c. NULL identifies a pre-opt-in conversation. */
+export function currentChannelEpoch(sql: SqlClient.SqlClient) {
+  return sql`t.slack_context_epoch IS NOT DISTINCT FROM (
+    SELECT s.epoch FROM slack_channel_contexts s WHERE s.route_id=c.route_id AND s.channel_id=c.channel_id)`;
+}
+
+export function channelTurnSource(sql: SqlClient.SqlClient, turnId: string | Statement.Fragment) {
+  return sql`SELECT c.id FROM bot_turns t CROSS JOIN LATERAL (SELECT c.id ${activeConversationSource(sql, sql`t.bot_id`, sql`t.conversation_id`)}
+    AND ${currentChannelEpoch(sql)}) c WHERE t.id=${turnId}::uuid`;
+}
+
+export function activeChannelTurn(sql: SqlClient.SqlClient, turnId: string) {
+  return channelTurnSource(sql, turnId).pipe(Effect.map((rows) => rows.length > 0));
+}
+
+/** Serialize the last admission check with source changes before a dispatch or external write. */
+export function lockChannelAccount(sql: SqlClient.SqlClient, conversationId: string | Statement.Fragment) {
+  return sql`SELECT a.id FROM bot_channel_conversations c JOIN bot_channel_routes r ON r.id=c.route_id
+    JOIN messenger_accounts a ON a.id=r.account_id WHERE c.id=${conversationId}::uuid FOR SHARE OF a`;
+}
+
+/** Delegated work cannot become a fresh source after the original channel scope has changed. */
+export function admitChannelContinuation(
+  sql: SqlClient.SqlClient,
+  botId: string,
+  conversationId: string,
+  epoch: string | bigint | null | undefined,
+) {
+  return Effect.gen(function* () {
+    yield* lockChannelAccount(sql, conversationId);
+
+    const source = yield* sql`SELECT 1 ${activeConversationSource(sql, botId, conversationId)}
+      AND ${epoch?.toString() ?? null}::bigint IS NOT DISTINCT FROM (
+        SELECT s.epoch FROM slack_channel_contexts s WHERE s.route_id=c.route_id AND s.channel_id=c.channel_id)`;
+
+    if (!source.length) return yield* Effect.fail(new Invalid("Messenger subscription is no longer active"));
+  });
 }
