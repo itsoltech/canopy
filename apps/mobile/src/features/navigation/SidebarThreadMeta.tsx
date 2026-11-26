@@ -9,6 +9,7 @@ import { styles, useColors } from "../../ui/theme";
 import { toneColor } from "../github/presentation";
 import { useSidebarTypography } from "./sidebar-scale";
 import { DraftMarker } from "../drafts/DraftMarker";
+import { unfinishedThreadTasks } from "@canopy/domain/task-list";
 
 /**
  * The row's last line, as on web (docs/threads.md, "Wiersz wątku"): visible computer and place take at most 2/5, the live
@@ -90,9 +91,19 @@ export function SidebarThreadMarks({
 }) {
   const c = useColors("sidebar-list");
   const type = useSidebarTypography();
+  // Work left in the thread's task list (the row's label says it in words).
+  const tasks = unfinishedThreadTasks(thread);
 
   return (
     <>
+      {tasks ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Icon name="queue-list" size={14} color={c.muted} />
+          <Text numberOfLines={1} style={[type.meta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
+            {`${tasks.completed}/${tasks.total}`}
+          </Text>
+        </View>
+      ) : null}
       {thread.goalStatus ? <Icon name="flag" size={16} /> : null}
       {pullRequests ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>

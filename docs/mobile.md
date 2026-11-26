@@ -2157,12 +2157,13 @@ zapisanym oknie historii telefonu.
 **Zasobnik nad kompozytorem** (`features/threads/tray`, web: `ComposerTop`) to jeden stos paneli
 na powierzchni kompozytora: zaokrąglone tylko górne rogi, wcięcie 16 dp (promień rogu pola),
 więc boki dochodzą do prostej górnej krawędzi pola, a jego obramowanie zamyka stos. Kolejność jak
-w web: cel, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Ujemny dolny margines
+w web: cel, lista zadań, subagenci, kolejka, a najbliżej pola to, co czeka na odpowiedź. Ujemny dolny margines
 zasobnika kompensuje 8 dp górnego paddingu kompozytora; nie dodajemy dolnego paddingu,
 więc ostatni nagłówek dochodzi bezpośrednio do ramki pola. Każdy panel ma
 nagłówek `TrayHeader` (40 dp, cel dotyku 48 dp, tekst 14, ikona 16, chevron 12, padding poziomy 10 dp) i linię nad sobą;
 obramowanie stosu przykrywa pierwszą. Bez paneli zasobnika nie ma; nie ma go też przy historii
-importu (bez pola). W układzie zostają tylko nagłówki; dotknięcie subagentów lub kolejki otwiera
+importu (bez pola). W układzie zostają tylko nagłówki; dotknięcie listy zadań
+([`update_tasks`](agent-bus.md#lista-zadań-update_tasks)), subagentów lub kolejki otwiera
 osobny arkusz `TraySheet` oparty o wspólne `Overlay`: pełna szerokość telefonu, karta od 600 dp,
 stały nagłówek z zamknięciem i przewijana lista. Wspólny korpus `OverlaySurface` może się
 kurczyć do limitu arkusza, dzięki czemu ostatni wiersz i jego akcje pozostają nad dolną

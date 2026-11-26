@@ -10,6 +10,7 @@ import { useOverview } from "../../state/overview";
 import { styles, useColors } from "../../ui/theme";
 import { Swap } from "../../ui/MotionViews";
 import { isCalm, needsYou, threadRowLabel, workState } from "@canopy/domain/thread-activity";
+import { threadTasksLabel, unfinishedThreadTasks } from "@canopy/domain/task-list";
 import { threadRowPlace } from "@canopy/domain/git-heads";
 import { threadPullRequestBadge } from "@canopy/domain/github-pr";
 import { useComputerHome } from "../computers/presence";
@@ -61,6 +62,7 @@ export function SidebarThread(props: SidebarThreadProps) {
   const unread = !snoozed && thread.markedUnread;
   const place = threadRowPlace(thread, project);
   const pullRequests = threadPullRequestBadge(thread);
+  const tasks = unfinishedThreadTasks(thread);
 
   const statusLabel = home.away
     ? "Read-only"
@@ -74,7 +76,7 @@ export function SidebarThread(props: SidebarThreadProps) {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${thread.title || "Untitled thread"}, ${snoozed ? "Snoozed" : (statusLabel ?? threadRowLabel(thread))}${place.branchLabel ? `, ${place.branchLabel}` : ""}${pullRequests ? `, ${pullRequests.label}` : ""}${home.away ? `, ${home.reason}` : ""}${unread ? ", Unread" : ""}`}
+        accessibilityLabel={`${thread.title || "Untitled thread"}, ${snoozed ? "Snoozed" : (statusLabel ?? threadRowLabel(thread))}${place.branchLabel ? `, ${place.branchLabel}` : ""}${pullRequests ? `, ${pullRequests.label}` : ""}${tasks ? `, ${threadTasksLabel(tasks)}` : ""}${home.away ? `, ${home.reason}` : ""}${unread ? ", Unread" : ""}`}
         accessibilityState={{ selected: active }}
         onPress={() => void layout.openThread(thread.id)}
         onLongPress={reorder ? undefined : () => setActions(true)}

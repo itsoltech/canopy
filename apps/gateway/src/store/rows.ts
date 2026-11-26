@@ -96,6 +96,8 @@ export interface ThreadRow {
   /** Joined: status of the open goal, running background tasks. */
   goal_status?: string | null;
   background_tasks?: bigint | number;
+  /** Joined: the latest task list item and the statuses of later turns (thread-tasks.ts). */
+  task_list?: JsonValue | null;
   /** Joined for side threads: the start of the last agent message (a subagent's result). */
   last_message?: string | null;
   /** Joined: the latest ended turn the owner has not seen, with its last answer and error. */

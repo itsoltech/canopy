@@ -6,6 +6,8 @@
 </script>
 
 <script lang="ts">
+  import { unfinishedThreadTasks } from "@canopy/domain/task-list";
+  import TaskProgressMark from "./tasks/TaskProgressMark.svelte";
   import { headLabel } from "@canopy/domain/git-heads";
   import { composerChoices } from "@canopy/domain/composer-choices";
   import type { ui } from "@canopy/contracts";
@@ -73,6 +75,7 @@
   {@const permissionMode = composerChoices(thread, []).permissionMode}
   {@const permission = permissionLook(permissionMode)}
   {@const goal = thread.goalStatus ? goalLook(thread.goalStatus) : undefined}
+  {@const tasks = unfinishedThreadTasks(thread)}
   {@const sides = isSide(thread)
     ? []
     : [...overview.threads.values()]
@@ -164,6 +167,13 @@
           {/if}
         {/if}
       </SummaryRow>
+      {#if tasks}
+        <SummaryRow>
+          {#snippet mark()}<TaskProgressMark completed={tasks.completed} total={tasks.total} />{/snippet}
+          <span class="truncate text-zinc-700 dark:text-zinc-300">{tasks.current || "Tasks"}</span>
+          {#snippet aside()}<span class="tabular-nums">{tasks.completed} of {tasks.total} done</span>{/snippet}
+        </SummaryRow>
+      {/if}
       {#if goal}
         <SummaryRow>
           {#snippet mark()}<Icon name="flag" class={["size-4", dotTones[goal.tone]]} />{/snippet}

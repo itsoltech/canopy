@@ -159,6 +159,7 @@ export function authorizeBusCall(
     case "render_html":
     case "list_project_secrets":
     case "request_secret":
+    case "update_tasks":
       return caller.archived ? deny("this thread is archived") : allow;
     case "message_delegating_bot":
     case "ask_user":

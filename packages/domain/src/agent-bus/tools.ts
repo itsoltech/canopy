@@ -2,6 +2,7 @@ import { Result, Schema } from "effect";
 import { QUESTION_TOOLS, questionsProblem } from "./questions.ts";
 import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { PR_CHECK_TOOLS } from "./pr-checks.ts";
+import { TASK_TOOLS } from "./tasks.ts";
 import { isEntityId } from "../computers.ts";
 import { IMAGE_TOOLS } from "./images.ts";
 import { SECRET_TOOLS, requestSecretProblem } from "./secrets.ts";
@@ -180,6 +181,8 @@ export const AGENT_BUS_TOOLS = {
   [SETTINGS_GUIDE_TOOL]: settingsGuide,
   switch_worktree: switchWorktree,
   ...SECRET_TOOLS,
+  // The thread's task list, pinned above the composer: tasks.ts.
+  ...TASK_TOOLS,
   list_agents: define({
     name: "list_agents",
     description:

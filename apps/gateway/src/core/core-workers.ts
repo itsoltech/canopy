@@ -5,6 +5,7 @@ import { lockedOwnerModule, moduleDisabledMessage } from "../store/module-access
 import { create } from "@bufbuild/protobuf";
 import { ui, type InteractionRequest, type ThreadEvent } from "@canopy/contracts";
 import { PROJECT_SECRET_LEASES } from "@canopy/domain";
+import { isTaskListItem } from "@canopy/domain/task-list";
 import { type WorkerConnection } from "../worker-link/index.ts";
 import { Ingest } from "../store/index.ts";
 import { coreRedeliver } from "./core-commands.ts";
@@ -362,7 +363,7 @@ async function ingestReceived(
     )
       touched.add(stored.threadId);
 
-    // Thread.goal_status and Thread.background_tasks follow goals and background items.
+    // Thread.goal_status follows goals.
     if (body.case === "goalState") {
       goals.add(stored.threadId);
       touched.add(stored.threadId);
@@ -370,9 +371,11 @@ async function ingestReceived(
       if (stored.event.turnId) await coreBroadcastTurn(hostContext, stored.threadId, stored.event.turnId);
     }
 
+    // Thread.tasks follows checklist items (update_tasks, harness plans and todo lists).
     if (
       (body.case === "itemStarted" || body.case === "itemCompleted") &&
-      body.value.item?.content.case === "backgroundTask"
+      body.value.item &&
+      (body.value.item.content.case === "backgroundTask" || isTaskListItem(body.value.item))
     )
       touched.add(stored.threadId);
     // A steer entered its turn (user_message with its id) or never did (steer_dropped: queued by pump).
