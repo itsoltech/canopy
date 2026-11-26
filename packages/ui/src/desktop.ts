@@ -37,6 +37,14 @@ export interface DesktopAppearance {
   dark: ThemeName;
 }
 
+export interface DesktopComposerMenu {
+  id: number;
+  keyboard: boolean;
+  items: ({ label: string; enabled: boolean; shortcut?: string | undefined } | null)[];
+}
+
+export type DesktopComposerMenuResponse = "show" | "native" | "dismiss" | number;
+
 export type DesktopMode = "local" | "remote";
 
 export type DesktopUpdateChannel = "stable" | "beta" | "nightly";
@@ -258,6 +266,10 @@ export interface DesktopBridge {
   };
   /** Apply local color preferences to native chrome and remember them for startup. */
   setAppearance?(appearance: DesktopAppearance): Promise<void>;
+  composerMenu?: {
+    subscribe(listener: (menu: DesktopComposerMenu) => void): () => void;
+    respond(id: number, response: DesktopComposerMenuResponse): Promise<boolean>;
+  };
   windowState(): Promise<DesktopWindowState>;
   onWindowState(listener: (state: DesktopWindowState) => void): () => void;
   /** Minimize, maximize / restore or close the calling window (Windows and Linux draw their own buttons). */

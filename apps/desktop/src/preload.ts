@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 import type {
   DesktopBridge,
+  DesktopComposerMenu,
   DesktopFileDownload,
   DesktopHtmlEvent,
   DesktopStatus,
@@ -96,6 +97,10 @@ const bridge: DesktopBridge = {
   ...(startupVersion && { startupVersion }),
   startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
+  composerMenu: {
+    subscribe: (listener) => subscribe<DesktopComposerMenu>("canopy:composer-menu", listener),
+    respond: (id, response) => ipcRenderer.invoke("canopy:composer-menu-response", id, response),
+  },
   windowState: () => ipcRenderer.invoke("canopy:window-state"),
   onWindowState: (listener) => subscribe<DesktopWindowState>("canopy:window-state", listener),
   windowControl: (control) => ipcRenderer.invoke("canopy:window-control", control),

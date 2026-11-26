@@ -9,6 +9,7 @@
   import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
+  import ComposerEditMenu from "#lib/features/desktop/ComposerEditMenu.svelte";
   import QuitGuardOverlay from "#lib/features/desktop/QuitGuardOverlay.svelte";
   import WindowControls from "#lib/features/desktop/WindowControls.svelte";
   import { applyWindowState } from "#lib/features/desktop/window-chrome.ts";
@@ -105,6 +106,7 @@
   {@render children()}
 {:else}
   <AppShell>{@render children()}</AppShell>
+  <ComposerEditMenu />
 {/if}
 {#if windowControl}<WindowControls control={windowControl} />{/if}
 <QuitGuardOverlay />

@@ -102,7 +102,7 @@ export function createDesktopWindow(options: WindowOptions) {
   attachWindowChrome(target);
   trackFileDownloads(target.webContents, options.webUrl);
   const trusted = () => [options.setupOrigin(), options.webUrl()];
-  attachContextMenu(target, trusted);
+  attachContextMenu(target, trusted, options.webUrl);
   options.placement?.track(target);
   const updateBackground = () => applyWindowAppearance(target);
   nativeTheme.on("updated", updateBackground);
