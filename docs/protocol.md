@@ -1,5 +1,14 @@
 # Protokół gateway ↔ worker
 
+Aktualizacja (2026-11-26). Capability `skill_installer_pty_v1` włącza komendę
+`SkillInstallerRequest` na żywym łączu. `start` jest idempotentny dla ID sesji,
+`read` zwraca ograniczoną porcję wyjścia od kursora bajtowego (`output_truncated`
+sygnalizuje utracony fragment), a `write` przekazuje bajty bez ponowień.
+`cancel` zatrzymuje proces, `close` zamyka sesję i blokuje spóźniony `start`.
+Worker sprząta osierocone sesje po upłynięciu limitu. `collect` po udanym
+zakończeniu czyta tylko wykryty folder. Komendy, klawisze i wyjście terminala
+nie trafiają do outboxa ani journala. [Środowisko agentów](agent-environment.md).
+
 Aktualizacja (2026-11-25). Automatyczny mini Preview Desktop może śledzić okno
 agenta dzięki capability `agent_preview_follow_window_v1`.
 Worker może też przesłać obraz zwrócony agentowi przez narzędzie. Capability

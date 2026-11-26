@@ -368,6 +368,15 @@ describe.skipIf(!dockerAvailable)("mobile pairing + pinned native app Connect cl
     expect(await failure(phone.rotateWorkerCredential({ workerId: worker }))).toContain("not found");
     expect(await failure(phone.revokeWorker({ workerId: worker }))).toContain("not found");
     expect(await failure(phone.archiveWorker({ workerId: worker }))).toContain("not found");
+    const installer = { sessionId: crypto.randomUUID(), action: "start", command: "exit 0" };
+
+    await expect(phone.runSkillInstaller({ workerId: worker, installer })).rejects.toMatchObject({
+      code: Code.NotFound,
+    });
+    await expect(phone.runSkillInstaller({ workerId: gw.workerId, installer })).rejects.toMatchObject({
+      code: Code.FailedPrecondition,
+      rawMessage: "This computer does not support the installer terminal.",
+    });
     expect(
       (await query("SELECT name, revoked_at, archived_at, credential_hash FROM workers WHERE id = $1", [worker]))[0],
     ).toMatchObject({ name: "Other worker", revoked_at: null, archived_at: null, credential_hash: "x" });

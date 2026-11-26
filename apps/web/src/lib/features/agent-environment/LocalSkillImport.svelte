@@ -28,6 +28,7 @@
 
   const skills = new SkillsState(untrack(() => environment));
   let source = $state.raw<Source>();
+  let installed = $state.raw<{ workerName: string; path: string }>();
   let artifact = $state.raw<SkillArtifact>();
   let open = $state(false);
   let step = $state(0);
@@ -39,21 +40,41 @@
   onDestroy(() => request?.abort());
 
   export function show(chosen: Source) {
+    close();
     source = chosen;
     step = 0;
     open = true;
     void preview(chosen);
   }
 
+  export function showInstalled(artifact: SkillArtifact, worker: ui.EnvironmentWorker, path: string) {
+    close();
+    installed = { workerName: worker.name || worker.workerId, path };
+    stage(artifact, worker.workerId);
+    step = 0;
+    open = true;
+  }
+
   function close() {
     open = false;
     request?.abort();
+    request = undefined;
+    pending = false;
     artifact = undefined;
     source = undefined;
+    installed = undefined;
     skills.draft = undefined;
     skills.files = [];
     failure = undefined;
     saveError = "";
+  }
+
+  function stage(preview: SkillArtifact, workerId: string) {
+    const draft = skills.edit();
+    draft.name = preview.name;
+    draft.selector = create(ui.EnvironmentSelectorSchema, { workerIds: [splitId(workerId).id] });
+    skills.files = preview.files;
+    artifact = preview;
   }
 
   async function refresh(chosen: Source, path: string, signal: AbortSignal): Promise<Source> {
@@ -116,11 +137,7 @@
 
       if (!result.artifact?.files.length) throw new CopyUnavailable("Retry to read the files from this computer.");
 
-      const draft = skills.edit();
-      draft.name = result.artifact.name;
-      draft.selector = create(ui.EnvironmentSelectorSchema, { workerIds: [splitId(chosen.workerId).id] });
-      skills.files = result.artifact.files;
-      artifact = result.artifact;
+      stage(result.artifact, chosen.workerId);
     } catch (cause) {
       if (!active.signal.aborted) failure = previewFailure(cause);
     } finally {
@@ -181,6 +198,11 @@
       <div class="grid min-w-0 gap-1">
         <p class="font-medium wrap-anywhere">{skillLocation(source.file)} on {source.workerName}</p>
         <p class="font-mono text-sm wrap-anywhere text-muted select-text">{source.file.path}</p>
+      </div>
+    {:else if installed}
+      <div class="grid min-w-0 gap-1">
+        <p class="font-medium wrap-anywhere">Installed on {installed.workerName}</p>
+        <p class="font-mono text-sm wrap-anywhere text-muted select-text">{installed.path}</p>
       </div>
     {/if}
     {#if pending}

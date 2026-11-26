@@ -22,6 +22,8 @@ i pozwala odłożyć wybraną kopię do archiwum na komputerze.
 Aktualizacja (2026-11-24): biblioteka skilli ma osobne cele dla CLI Antigravity na urządzeniu i dla izolowanych sesji Canopy.
 Aktualizacja (2026-11-26): web/desktop importuje wybraną kopię skilla z raportu komputera
 bez ręcznego uploadu. Kreator pokazuje pliki tej kopii przed zapisaniem w bibliotece.
+Aktualizacja (2026-11-26): web/desktop i mobile uruchamiają instalatory w terminalu workera.
+Po wykryciu skilla web/desktop otwiera ten sam przegląd co dla kopii z zakładki **Computers**.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -58,6 +60,30 @@ są w zakładce **Computers**.
 Instrukcje przechodzą przez zapis fragmentów, przypisanie i istniejący podgląd
 wyniku dla komputera. Skill zaczyna się od wyboru źródła: folder/ZIP, repozytorium Git,
 witryna HTTPS lub wklejona komenda `npx skills add`. Dalej są przegląd plików oraz przypisanie.
+
+**Add skill → Use a custom installer** (web/desktop) lub **Run custom installer**
+(mobile) pozwala wkleić komendę wydawcy i uruchomić ją w interaktywnym terminalu
+na wybranym, dostępnym workerze właściciela. Proces działa z uprawnieniami konta systemowego workera i zaczyna
+w prywatnym katalogu tymczasowym. Terminal przyjmuje klawisze, wklejenie tekstu
+i odpowiedzi na pytania instalatora. Telefon udostępnia pole odpowiedzi i osobne
+klawisze sterujące. Gdy logowanie wymaga przeglądarki, użytkownik może skorzystać
+z adresu i kodu podanych przez instalator.
+
+Po sukcesie Canopy szuka ścieżek w tekście wyjścia i sprawdza foldery w katalogu
+roboczym sesji lub w katalogach skilli urządzenia. Kandydat musi mieć prawidłowy
+`SKILL.md` w katalogu głównym. Przykładowo `npx transitions-dev skill`
+zapisuje skill w `~/.claude/skills/transitions-pro`, a dodanie `--dir ./transitions-pro`
+zapisuje go w katalogu roboczym sesji. Jeśli instalator zwróci kilka kandydatów,
+użytkownik wybiera jeden. W web/desktop **Review files** otwiera ten sam przegląd co
+**Add to library** w zakładce **Computers**. Domyślnym celem synchronizacji są sesje
+Canopy na komputerze, na którym uruchomiono instalator.
+
+Terminal wymaga workera z `skill_installer_pty_v1` (Linux lub macOS). Można też
+uruchomić komendę we własnym terminalu. Jeśli skill trafił do katalogu CLI urządzenia,
+można zaimportować wykrytą kopię z zakładki **Computers**. Folder poza tymi katalogami
+można przesłać ręcznie. Kolejną wersję można dodać
+w edycji skilla po ponownym uruchomieniu instalatora.
+
 Źródła zachowują wybór połączonego konta, a edycja skilla — wersje, pin,
 auto-update i nadpisania maszyn. Podgląd ZIP informuje, że gateway rozpakowuje
 i waliduje archiwum przy zapisie; przegląd poszczególnych plików przed zapisem

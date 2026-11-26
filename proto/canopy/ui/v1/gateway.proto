@@ -10,6 +10,7 @@ import "canopy/ui/v1/workspace_copy.proto";
 
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
+import "canopy/worker/v1/agent_environment.proto";
 import "canopy/worker/v1/agent_tools.proto";
 import "canopy/worker/v1/thread_directory.proto";
 import "canopy/worker/v1/thread_diff.proto";
@@ -134,6 +135,7 @@ service GatewayService {
   rpc PreviewAgentEnvironment(PreviewAgentEnvironmentRequest) returns (PreviewAgentEnvironmentResponse);
   rpc ResolveEnvironmentDrift(ResolveEnvironmentDriftRequest) returns (AgentEnvironmentSnapshot);
   rpc SaveLibrarySkill(SaveLibrarySkillRequest) returns (AgentEnvironmentSnapshot);
+  rpc RunSkillInstaller(RunSkillInstallerRequest) returns (canopy.worker.v1.SkillInstallerResult);
   rpc DeleteLibrarySkill(DeleteLibrarySkillRequest) returns (AgentEnvironmentSnapshot);
   rpc ResolveSkillDrift(ResolveSkillDriftRequest) returns (AgentEnvironmentSnapshot);
   rpc PreviewSkillSource(PreviewSkillSourceRequest) returns (SkillSourcePreview);

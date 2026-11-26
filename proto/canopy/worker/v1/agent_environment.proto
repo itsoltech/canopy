@@ -48,6 +48,31 @@ message SkillArtifact {
   repeated SkillFile files = 4;
 }
 
+// Transient owner-operated PTY. Requests and output never enter the outbox or journal.
+message SkillInstallerRequest {
+  string session_id = 1;
+  string action = 2; // start | read | write | cancel | collect | close
+  string command = 3;
+  bytes input = 4;
+  uint64 offset = 5;
+  uint32 cols = 6;
+  uint32 rows = 7;
+  string skill_path = 8;
+}
+
+message SkillInstallerResult {
+  string session_id = 1;
+  string cwd = 2;
+  bytes output = 3;
+  uint64 offset = 4; // next byte cursor, including any discarded bytes
+  bool running = 5;
+  optional int32 exit_code = 6;
+  repeated string skill_paths = 7;
+  SkillArtifact artifact = 8; // only on collect
+  bool output_truncated = 9;
+  string reason = 10;
+}
+
 message EnvironmentSkill {
   string id = 1;
   uint64 version = 2;

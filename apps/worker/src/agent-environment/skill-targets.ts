@@ -21,7 +21,7 @@ export interface SkillTarget {
 export const platformSkillRoot = (home: string, harness: string): string =>
   harness === "claude" ? join(home, "canopy-environment", "skills") : join(home, "skills");
 
-export function deviceSkillRoots(homes: EnvironmentHomes) {
+export function deviceSkillRoots(homes: Pick<EnvironmentHomes, "deviceHomes">) {
   const { claude, codex, grok, antigravity, agents } = homes.deviceHomes;
   const parent = dirname(codex);
 
@@ -33,7 +33,7 @@ export function deviceSkillRoots(homes: EnvironmentHomes) {
   };
 }
 
-export function deviceSkillInventoryRoots(homes: EnvironmentHomes): ReadonlyMap<string, string> {
+export function deviceSkillInventoryRoots(homes: Pick<EnvironmentHomes, "deviceHomes">): ReadonlyMap<string, string> {
   const roots = new Map(Object.entries(deviceSkillRoots(homes)).map(([harness, root]) => [root, harness]));
   roots.set(join(homes.deviceHomes.codex, "skills"), "codex");
 

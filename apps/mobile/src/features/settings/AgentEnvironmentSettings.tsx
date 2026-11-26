@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { View } from "react-native";
-import type { ui } from "@canopy/contracts";
+import type { SkillArtifact, ui } from "@canopy/contracts";
 import { libraryWorkers } from "@canopy/domain/environment-library";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { ContentInsets, useContentInsets } from "../../ui/ScreenFrame";
@@ -9,6 +9,7 @@ import { SettingsScroll, createSettingsViewState } from "./SettingsScroll";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { InstructionEditor } from "./InstructionEditor";
 import { SkillEditor } from "./SkillEditor";
+import { SkillInstaller } from "./SkillInstaller";
 import { SkillSourceEditor } from "./SkillSourceEditor";
 import { MarketplaceSettings } from "./MarketplaceSettings";
 import { EnvironmentComputers } from "./EnvironmentComputers";
@@ -17,7 +18,13 @@ import { EnvironmentSkills } from "./EnvironmentSkills";
 import { EnvironmentInstructions } from "./EnvironmentInstructions";
 import { SharedConfiguration } from "./SharedConfiguration";
 
-type Editor = { kind: "instruction" | "source" | "skill"; snapshot: ui.AgentEnvironmentSnapshot; id?: string };
+type Editor = {
+  kind: "instruction" | "source" | "skill" | "installer";
+  snapshot: ui.AgentEnvironmentSnapshot;
+  id?: string;
+  collected?: SkillArtifact;
+  installerWorkerId?: string;
+};
 
 const panels = [
   { value: "instructions", label: "Instructions" },
@@ -138,24 +145,39 @@ function EnvironmentPanel({ panel }: { panel: Panel }) {
                   : "Add instruction document"
                 : editor?.kind === "source"
                   ? "Skill source"
-                  : "Skill"
+                  : editor?.kind === "installer"
+                    ? "Run custom installer"
+                    : "Skill"
             }
             visible={!!editor}
             onClose={() => setEditor(undefined)}
           >
-            {editor && (
-              <LibraryEditor
-                key={editor.snapshot.revision.toString()}
-                editor={editor}
-                latest={snapshot}
-                onSaved={saved}
-                onReload={() => {
-                  const items = editor.kind === "instruction" ? snapshot.documents : snapshot.skills;
-
-                  if (editor.id && !items.some((item) => item.id === editor.id)) setEditor(undefined);
-                  else edit(editor.kind, editor.id);
-                }}
+            {editor?.kind === "installer" ? (
+              <SkillInstaller
+                workers={snapshot.workers}
+                onCollect={(collected, installerWorkerId) =>
+                  setEditor((current) =>
+                    current === editor ? { kind: "skill", snapshot, collected, installerWorkerId } : current,
+                  )
+                }
+                onImport={() => edit("skill")}
+                onRefresh={reload}
               />
+            ) : (
+              editor && (
+                <LibraryEditor
+                  key={editor.snapshot.revision.toString()}
+                  editor={editor}
+                  latest={snapshot}
+                  onSaved={saved}
+                  onReload={() => {
+                    const items = editor.kind === "instruction" ? snapshot.documents : snapshot.skills;
+
+                    if (editor.id && !items.some((item) => item.id === editor.id)) setEditor(undefined);
+                    else setEditor({ ...editor, snapshot });
+                  }}
+                />
+              )
             )}
           </Sheet>
         </>
@@ -191,7 +213,16 @@ function LibraryEditor({
       {kind === "instruction" && (
         <InstructionEditor document={document} snapshot={snapshot} conflict={conflict} onSaved={onSaved} />
       )}
-      {kind === "skill" && <SkillEditor skill={skill} snapshot={snapshot} conflict={conflict} onSaved={onSaved} />}
+      {kind === "skill" && (
+        <SkillEditor
+          skill={skill}
+          collected={editor.collected}
+          installerWorkerId={editor.installerWorkerId}
+          snapshot={snapshot}
+          conflict={conflict}
+          onSaved={onSaved}
+        />
+      )}
       {kind === "source" && <SkillSourceEditor skill={skill} snapshot={latest} onSaved={onSaved} />}
     </>
   );

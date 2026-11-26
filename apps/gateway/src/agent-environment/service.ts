@@ -1,4 +1,8 @@
-import { AGENT_LOCAL_SKILL_IMPORT_CAPABILITY, ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import {
+  AGENT_LOCAL_SKILL_IMPORT_CAPABILITY,
+  ANTIGRAVITY_ACP_CAPABILITY,
+  SKILL_INSTALLER_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 import { harnessOf } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
@@ -102,6 +106,9 @@ export class AgentEnvironment {
     for (const worker of snapshot.workers) {
       const connection = this.options.link.connections.get(worker.workerId);
       worker.online = Boolean(connection?.isOpen);
+      worker.skillInstallerSupported = Boolean(
+        connection?.isOpen && connection.hello.capabilities.includes(SKILL_INSTALLER_CAPABILITY),
+      );
 
       if (worker.report && (!connection?.isOpen || !this.skillReports.has(connection))) {
         for (const skill of worker.report.skills) skill.archiveToken = "";

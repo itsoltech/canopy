@@ -81,7 +81,15 @@
 
 {#snippet skills()}
   {#if state.snapshot.skills.length}{@render status(summary.skills)}{/if}
-  <SkillsLibrary environment={state} notInstalled={summary.notInstalled} />
+  <SkillsLibrary
+    environment={state}
+    notInstalled={summary.notInstalled}
+    oninstallerresult={(artifact, worker, path) => localImport?.showInstalled(artifact, worker, path)}
+    onexisting={(workerId) => {
+      if (workerId) state.workerId = workerId;
+      topics?.selectTopic("computers");
+    }}
+  />
 {/snippet}
 
 {#snippet plugins()}

@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { Command } from "@canopy/contracts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 import { CliRefused } from "../cli-tools/index.ts";
@@ -19,6 +20,7 @@ import { ThreadHighlights } from "../files/thread-highlight.ts";
 import { ThreadFilesWatcher } from "../files/thread-watch.ts";
 import { agentToolsCommand } from "./agent-tools-commands.ts";
 import { updateTurnPermissions } from "./permission-commands.ts";
+import { SkillInstallers } from "./skill-installers.ts";
 
 export class CommandHandlers {
   readonly #logins: ProviderLogins;
@@ -26,20 +28,22 @@ export class CommandHandlers {
   readonly #diffs: ThreadDiffs;
   readonly #highlights = new ThreadHighlights();
   readonly #filesWatcher = new ThreadFilesWatcher();
+  readonly #skillInstallers: SkillInstallers;
   constructor(readonly ctx: HostContext) {
     this.#logins = new ProviderLogins(ctx);
     this.#diffs = new ThreadDiffs(ctx.state.options.dataDir);
+    this.#skillInstallers = new SkillInstallers(ctx.state.options.cliProbe?.home ?? homedir(), ctx.state.deviceHomes);
   }
 
   rebindFileWatch(threadId: string, cwd: string) {
     return this.#filesWatcher.closeThread(threadId, cwd);
   }
 
-  closeDirectories() {
+  closeDirectories(permanent = false) {
     this.#filesWatcher.close();
     this.#highlights.close();
 
-    return Promise.all([this.#directories.close(), this.#diffs.close()]);
+    return Promise.all([this.#directories.close(), this.#diffs.close(), this.#skillInstallers.closeAll(permanent)]);
   }
 
   async closeThreadResources(threadId: string): Promise<void> {
@@ -88,18 +92,35 @@ export class CommandHandlers {
       : { threadDiffPage: await this.#diffs.read(kind.value) };
   }
 
+  async #skillInstaller(
+    kind: Extract<Command["kind"], { case: "skillInstaller" }>,
+    link?: GatewayLink,
+  ): Promise<CommandOutput> {
+    if (!link || link !== this.ctx.state.link || this.ctx.state.shuttingDown || this.ctx.state.closing)
+      throw new CommandError("SKILL_INSTALLER_DISCONNECTED", "Reconnect the computer to use the installer.", false);
+
+    return { skillInstaller: await this.#skillInstallers.execute(kind.value) };
+  }
+
+  async #exportThreadImage(kind: Extract<Command["kind"], { case: "exportThreadImage" }>): Promise<CommandOutput> {
+    const { threadId, turnId } = kind.value;
+
+    return {
+      threadImageExport: await this.ctx.state.imageExports.execute(kind.value, {
+        cwd: this.ctx.state.cwds.get(threadId) ?? "",
+        attachments: this.ctx.state.files.threadDir(threadId),
+        running: this.ctx.state.running.has(`${threadId}/${turnId}`),
+      }),
+    };
+  }
+
   async execute(command: Command, link?: GatewayLink): Promise<CommandOutput> {
     const kind = command.kind;
     this.#checkFileThread(kind);
 
-    if (kind.case === "exportThreadImage")
-      return {
-        threadImageExport: await this.ctx.state.imageExports.execute(kind.value, {
-          cwd: this.ctx.state.cwds.get(kind.value.threadId) ?? "",
-          attachments: this.ctx.state.files.threadDir(kind.value.threadId),
-          running: this.ctx.state.running.has(`${kind.value.threadId}/${kind.value.turnId}`),
-        }),
-      };
+    if (kind.case === "skillInstaller") return this.#skillInstaller(kind, link);
+
+    if (kind.case === "exportThreadImage") return this.#exportThreadImage(kind);
 
     if (kind.case === "listDirectory") return this.ctx.ops.listDirectory(kind.value.path);
 

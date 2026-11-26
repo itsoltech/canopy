@@ -18,10 +18,15 @@ import {
   THREAD_FILE_REVEAL_CAPABILITY,
   WORKSPACE_COPY_CAPABILITY,
   WORKSPACE_COPY_LEGACY_CAPABILITY,
+  SKILL_INSTALLER_CAPABILITY,
 } from "@canopy/domain/release/protocol";
 import { PROJECT_SECRET_LEASES } from "@canopy/domain";
 import { WORKTREE_CHECKOUT_DEADLINE } from "@canopy/domain/worktree-timing";
 import { SANDBOX_PROFILES_CAPABILITY } from "@canopy/domain/sandbox-profiles";
+
+export const supportsSkillInstaller = (): boolean =>
+  (process.platform === "linux" || process.platform === "darwin") &&
+  (process.arch === "x64" || process.arch === "arm64");
 
 /** What this worker announces in Hello; the gateway sends a command only to workers that announce it. */
 export function workerCapabilities(options: { localWorker: boolean; fullAccess: boolean }): string[] {
@@ -84,6 +89,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "agent_environment_v1",
     "agent_skills_v1",
     AGENT_LOCAL_SKILL_IMPORT_CAPABILITY,
+    ...(supportsSkillInstaller() ? [SKILL_INSTALLER_CAPABILITY] : []),
     "agent_plugins_v1",
     "worktrees",
     "workspace_origin",

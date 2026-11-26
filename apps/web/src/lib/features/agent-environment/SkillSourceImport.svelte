@@ -3,6 +3,7 @@
   import type { connectors } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import Input from "#lib/shared/ui/Input.svelte";
+  import Button from "#lib/shared/ui/Button.svelte";
   import Field from "#lib/shared/ui/Field.svelte";
   import Checkbox from "#lib/shared/ui/Checkbox.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -17,8 +18,14 @@
   let {
     environment,
     open = $bindable(false),
+    oninstaller,
     class: className,
-  }: { environment: EnvironmentState; open?: boolean; class?: ClassValue } = $props();
+  }: {
+    environment: EnvironmentState;
+    open?: boolean;
+    oninstaller: (command: string) => void;
+    class?: ClassValue;
+  } = $props();
 
   const source = new SourceState(untrack(() => environment));
   let command = $state("");
@@ -82,6 +89,11 @@
         disabled={source.busy || environment.busy}
         onchange={() => (source.preview = undefined)}
       />
+      <div>
+        <Button variant="text" disabled={source.busy || environment.busy} onclick={() => oninstaller(command)}>
+          Use a custom installer
+        </Button>
+      </div>
     {:else if source.preview}
       {#if current === 1}
         <div class="grid min-w-0 gap-4 rounded-xl p-4 ring-1 ring-zinc-950/10 dark:ring-white/10">

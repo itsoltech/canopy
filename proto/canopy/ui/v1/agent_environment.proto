@@ -51,6 +51,7 @@ message EnvironmentWorker {
   bool plugins_supported = 13;
   repeated string plugin_ids = 14;
   bool local_skill_import_supported = 15;
+  bool skill_installer_supported = 16;
 }
 
 message AgentEnvironmentRequest {
@@ -87,6 +88,10 @@ message PreviewWorkerSkillRequest {
 }
 message PreviewWorkerSkillResponse {
   canopy.worker.v1.SkillArtifact artifact = 1;
+}
+message RunSkillInstallerRequest {
+  string worker_id = 1;
+  canopy.worker.v1.SkillInstallerRequest installer = 2;
 }
 message WorkerEnvironmentResponse {
   EnvironmentWorker worker = 1;

@@ -569,6 +569,7 @@ message Command {
     ReadImportLibraryItem read_import_library_item = 854;
     // Sekret serwera MCP na potwierdzenie właściciela; wynik nigdy nie jest zapisywany ani logowany.
     ReadImportSecret read_import_secret = 855;
+    SkillInstallerRequest skill_installer = 856;
   }
 }
 
@@ -928,6 +929,7 @@ message CommandResult {
   ImportLibraryContent import_library_content = 853;
   // Wynik ReadImportSecret.
   ImportSecretValue import_secret = 854;
+  SkillInstallerResult skill_installer = 856;
   BotFileResult bot_file = 832;
   // SteerBotTurn admission: {status: delivered|queued|unsupported}. Notices prove consumption.
   string data_json = 833;

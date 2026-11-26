@@ -1,5 +1,7 @@
 # Canopy na iOS i Android
 
+Status (2026-11-26): Skills w Agent environment obsługuje interaktywne instalatory na workerze i przegląd wykrytego skilla.
+
 Status (2026-11-25): Code w pull requestach używa kompaktowych wierszy. Tryb Automatic
 w ustawieniu Wrap diffs zawija kod w układzie Stacked. [Mobilny widok PR](github.md#8-mobile-ten-sam-zakres)
 
@@ -2569,7 +2571,13 @@ bezpośrednio przez owner-scoped GatewayService. Agent environment ma zakładki 
 **Skills**, **Plugins** i **Computers** widoczne podczas przewijania. Dotknięcie wiersza
 otwiera edycję lub przegląd. Menu wiersza pokazuje szczegóły przypisań i dodatkowe
 czynności. **Select** w zakładce **Skills** włącza zaznaczanie skilli do wspólnej
-instalacji lub usunięcia. Formularze obejmują projekty/workspace'y,
+instalacji lub usunięcia. **Run custom installer** uruchamia wklejone polecenie
+na wybranym workerze obsługującym terminal. Telefon pokazuje wyjście oraz pole
+odpowiedzi i klawisze sterujące do obsługi monitów. Po zakończeniu można wybrać
+wykryty folder i przejść do przeglądu plików oraz przypisania skilla. Szczegóły:
+[środowisko agentów](agent-environment.md#dodawanie-i-edycja-w-interfejsie).
+
+Formularze obejmują projekty/workspace'y,
 harmonogramy, polityki worktree, instrukcje/skille/pluginy, instancje dostawców, proxy,
 konektory, workery, urządzenia i połączone komputery. Zapis używa wersji/revizji gatewaya;
 po konflikcie odświeża dane i zachowuje szkic do poprawienia. Sekrety połączeń pozostają

@@ -64,6 +64,7 @@ export interface CommandOutput {
   readonly importLibraryContent?: MessageInitShape<typeof CommandResultSchema>["importLibraryContent"];
   readonly localSkillPreview?: MessageInitShape<typeof CommandResultSchema>["localSkillPreview"];
   readonly importSecret?: MessageInitShape<typeof CommandResultSchema>["importSecret"];
+  readonly skillInstaller?: MessageInitShape<typeof CommandResultSchema>["skillInstaller"];
   readonly file?: MessageInitShape<typeof CommandResultSchema>["file"];
   readonly threadDiff?: MessageInitShape<typeof CommandResultSchema>["threadDiff"];
   readonly threadDiffPage?: MessageInitShape<typeof CommandResultSchema>["threadDiffPage"];
@@ -109,6 +110,7 @@ export function successResult(commandId: string, output: CommandOutput): Command
     ...(output.importLibraryContent && { importLibraryContent: output.importLibraryContent }),
     ...(output.localSkillPreview && { localSkillPreview: output.localSkillPreview }),
     ...(output.importSecret && { importSecret: output.importSecret }),
+    ...(output.skillInstaller && { skillInstaller: output.skillInstaller }),
     ...(output.file && { file: output.file }),
     ...(output.threadDiff && { threadDiff: output.threadDiff }),
     ...(output.threadDiffPage && { threadDiffPage: output.threadDiffPage }),

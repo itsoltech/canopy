@@ -1,16 +1,19 @@
 /** Desired instructions travel over the real UI RPC and worker link; every harness home is disposable. */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { clone, create } from "@bufbuild/protobuf";
-import { ui } from "@canopy/contracts";
+import { clone, create, type MessageInitShape } from "@bufbuild/protobuf";
+import { SkillInstallerRequestSchema, ui } from "@canopy/contracts";
+import { Code } from "@connectrpc/connect";
 import { environmentBlock, readEnvironmentBlock } from "@canopy/domain/agent-environment";
+import { SKILL_INSTALLER_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
 import { serveLink, WorkerHost } from "@canopy/worker/runtime";
 import { ManagedRuntime } from "effect";
+import { SqlClient } from "effect/sql";
 import { AgentEnvironment } from "../../apps/gateway/src/agent-environment/service.ts";
 import { eventually, failure, startTestGateway } from "./support/gateway.ts";
 
@@ -27,7 +30,7 @@ async function machine(name: string, os: string, capable = true) {
   const registration = await gateway.addWorker(name);
   const home = join(root, name, "home");
   const dataDir = join(root, name, "data");
-  const deviceHomes = { claude: join(home, ".claude"), codex: join(home, ".codex") };
+  const deviceHomes = { claude: join(home, ".claude-configured"), codex: join(home, ".codex-configured") };
   mkdirSync(deviceHomes.claude, { recursive: true });
   writeFileSync(join(deviceHomes.claude, "CLAUDE.md"), "My private local notes.\n");
   await gateway.runtime.runPromise(
@@ -70,7 +73,7 @@ async function machine(name: string, os: string, capable = true) {
         workerId: registration.workerId,
         host: { os, arch: "x64", hostname: name },
         environmentKind: "desktop",
-        capabilities: capable ? ["agent_environment_v1"] : [],
+        capabilities: capable ? ["agent_environment_v1", ...(os === "linux" ? [SKILL_INSTALLER_CAPABILITY] : [])] : [],
       },
     });
 
@@ -81,7 +84,7 @@ async function machine(name: string, os: string, capable = true) {
 
   const connection = await connect();
 
-  return { ...registration, ...connection, connect, host, runtime, deviceHomes, dataDir };
+  return { ...registration, ...connection, connect, host, runtime, deviceHomes, dataDir, home };
 }
 
 beforeAll(async () => {
@@ -148,6 +151,98 @@ const document = (harness = "claude") =>
   });
 
 describe("agent environment across gateway and workers", () => {
+  test.skipIf(process.platform === "win32")(
+    "installer exchanges PTY input and discovers skills in the terminal output and working directory",
+    async () => {
+      const sessionId = crypto.randomUUID();
+      const publisherSkill = join(linux.home, ".claude", "skills", "transitions-pro");
+      const configuredSkill = join(linux.deviceHomes.codex, "skills", "configured-skill");
+      const skillDocument = "---\nname: transitions-pro\ndescription: Fixture recipe collection.\n---\n# Recipes\n";
+      const configuredDocument = "---\nname: configured-skill\ndescription: A configured device skill.\n---\n";
+
+      // Both CLI skills predate the terminal session and live outside its working directory.
+      mkdirSync(publisherSkill, { recursive: true });
+      writeFileSync(join(publisherSkill, "SKILL.md"), skillDocument);
+      mkdirSync(configuredSkill, { recursive: true });
+      writeFileSync(join(configuredSkill, "SKILL.md"), configuredDocument);
+
+      const request = (installer: MessageInitShape<typeof SkillInstallerRequestSchema>) =>
+        gateway.api.runSkillInstaller({
+          workerId: linux.workerId,
+          installer: { ...installer, sessionId },
+        });
+
+      // The compact arrow leaves no whitespace before the path for the bare-path parser to match.
+      const command = `set -eu
+test -t 0
+test -t 1
+printf 'Choose an option: '
+IFS= read -r option
+test "$option" = 'install'
+mkdir 'published skill'
+printf '%s\\n' '---' 'name: published-skill' 'description: Created by the interactive fixture.' '---' '# Example' > 'published skill/SKILL.md'
+printf '\\033[32mInstalled the Transitions Pro skill (36 recipes) → %s\\033[0m\\n' "$HOME/.claude/skills/transitions-pro"
+printf '\\033[32mInstalled →%s\\033[0m\\n' "$HOME/.codex-configured/skills/configured-skill"`;
+
+      const terminal = await request({ action: "start", command, cols: 80, rows: 24 });
+
+      try {
+        const prompt = await eventually(
+          () => request({ action: "read" }),
+          (r) => new TextDecoder().decode(r.output).includes("Choose an option:"),
+        );
+
+        expect(prompt.running).toBe(true);
+        await request({ action: "write", input: new TextEncoder().encode("install\r") });
+
+        const finished = await eventually(
+          () => request({ action: "read", offset: prompt.offset }),
+          (r) => !r.running,
+        );
+
+        expect(finished.exitCode).toBe(0);
+        const publisherPath = realpathSync(publisherSkill);
+        expect(finished.skillPaths).toEqual([
+          publisherPath,
+          realpathSync(configuredSkill),
+          join(terminal.cwd, "published skill"),
+        ]);
+        const preview = await request({ action: "collect", skillPath: publisherPath });
+        expect(preview.artifact?.name).toBe("transitions-pro");
+        expect(new TextDecoder().decode(preview.artifact?.files[0]?.content)).toBe(skillDocument);
+        expect((await snapshot()).skills.some((skill) => skill.artifact?.name === "transitions-pro")).toBe(false);
+      } finally {
+        await request({ action: "close" });
+      }
+    },
+  );
+
+  test("installer authorization rejects a connected, capable worker owned by someone else", async () => {
+    const other = await gateway.runtime.runPromise(GatewayStore.use((s) => s.ensureUser("other@localhost", "Other")));
+    const connection = gateway.core.link.connections.get(linux.workerId);
+    expect(connection?.isOpen && connection.hello.capabilities.includes(SKILL_INSTALLER_CAPABILITY)).toBe(true);
+
+    const setOwner = (owner: string) =>
+      gateway.runtime.runPromise(
+        SqlClient.SqlClient.use(
+          (sql) => sql`UPDATE workers SET owner_user_id = ${owner}::uuid WHERE id = ${linux.workerId}::uuid`,
+        ),
+      );
+
+    await setOwner(other);
+
+    try {
+      await expect(
+        gateway.api.runSkillInstaller({
+          workerId: linux.workerId,
+          installer: { sessionId: crypto.randomUUID(), action: "start", command: "exit 0" },
+        }),
+      ).rejects.toMatchObject({ code: Code.NotFound });
+    } finally {
+      await setOwner(gateway.userId);
+    }
+  });
+
   test("facts and manual tags compose separately per machine, without enabling old workers", async () => {
     const initial = await snapshot();
     expect(initial.workers.find((w) => w.workerId === gateway.workerId)?.supported).toBe(false);
