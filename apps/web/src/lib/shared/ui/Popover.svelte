@@ -262,6 +262,9 @@
   });
 
   function onkeydown(event: KeyboardEvent) {
+    const modal = event.target instanceof Element ? event.target.closest("dialog:modal") : null;
+
+    if (modal && panel?.contains(modal)) return;
     panelKeydown?.(event);
 
     if (event.key === "Escape" && !event.defaultPrevented) {

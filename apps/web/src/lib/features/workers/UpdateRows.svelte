@@ -13,7 +13,12 @@
   /**
    * Each Canopy installation has one row in App updates. A local desktop and its enrolled worker share a row.
    */
-  let { updates, app }: { updates: UpdatesState; app: DesktopUpdatesState } = $props();
+  let {
+    updates,
+    app,
+    compact = false,
+    restartInFooter = false,
+  }: { updates: UpdatesState; app: DesktopUpdatesState; compact?: boolean; restartInFooter?: boolean } = $props();
 
   const snapshot = $derived(updates.snapshot);
 
@@ -46,21 +51,27 @@
     center={updates}
     worker={ownWorker}
     bundled={bundled && !app.remote}
+    {compact}
+    {restartInFooter}
   />{/if}
-{#if local}<CompactComputerUpdate computer={local} {updates} local />{/if}
+{#if local}<CompactComputerUpdate computer={local} {updates} local {compact} />{/if}
 {#if snapshot}
   {#if !bundled}<CompactGatewayUpdate {updates} />{/if}
-  {#if snapshot.computers.length}<p class="mt-2 text-xs/5 text-muted">
+  {#if !compact && snapshot.computers.length}<p class="mt-2 text-xs/5 text-muted">
       Change each linked computer’s channel and check frequency on that computer.
     </p>{/if}
-  {#each snapshot.computers as computer (computer.nodeId)}<CompactComputerUpdate {computer} {updates} />{/each}
+  {#each snapshot.computers as computer (computer.nodeId)}<CompactComputerUpdate
+      {computer}
+      {updates}
+      {compact}
+    />{/each}
   {#if workerGroups.length}<UpdateGroupLabel class="border-t border-divider">Workers</UpdateGroupLabel>{/if}
   {#each workerGroups as group (group.nodeId)}
     {#if workerGroups.length > 1 || group.nodeId}<UpdateGroupLabel class="pt-1 font-normal"
         >{group.name}</UpdateGroupLabel
       >{/if}
     {#each group.workers as worker (worker.workerId)}
-      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} />
+      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} wrapName={compact} />
     {/each}
   {/each}
 {/if}

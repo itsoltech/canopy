@@ -54,7 +54,7 @@
   label="Updates"
   class={className}
   maxHeight="min(70dvh,32rem)"
-  panelClass="w-[min(18rem,calc(100vw-1rem))]"
+  panelClass="w-[min(22rem,calc(100vw-1rem))]"
 >
   {#snippet trigger(props)}
     <div class="relative">

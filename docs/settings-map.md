@@ -56,7 +56,8 @@ zdarzenia z GitHuba w powiązanym wątku.
 w tym gatewaya, workerów i połączonych komputerów. W web/desktop służy do tego
 zakładka **Status**. **Releases** pokazuje notatki o wydaniach, a **Update preferences**
 pojawia się, gdy klient ma ustawienia aplikacji lub kanału gatewaya. Wskaźnik aktualizacji
-w pasku bocznym prowadzi do tej sekcji. **Workers → Agent CLIs** służy do sprawdzania
+w pasku bocznym telefonu prowadzi do tej sekcji, a popover web/desktop ma do niej
+odnośnik **Settings** obok szybkich akcji aktualizacji. **Workers → Agent CLIs** służy do sprawdzania
 i aktualizowania narzędzi dostawców na workerach.
 
 Wyszukiwarka sekcji w web/desktop i mobile dopasowuje każde słowo zapytania

@@ -1,6 +1,7 @@
 # Canopy Desktop
 
-Status (2026-11-25): podsumowanie aktualizacji w stopce paska bocznego prowadzi do **Settings → App updates → Status**.
+Status (2026-11-26): popover aktualizacji w stopce paska bocznego oferuje sprawdzanie,
+instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok statusu aktualizacji.
 
 Status (2026-11-25): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows przylega do górnej krawędzi i rozwija listę po najechaniu kursorem.
@@ -1376,11 +1377,11 @@ zachowuje zrzuty. Smoke Linux nie potwierdza natywnego menu ani adaptera macOS.
 ## Automatyczne aktualizacje desktopu
 
 Najechanie na wskaźnik aktualizacji w stopce paska bocznego lub kliknięcie go otwiera
-podsumowanie z odnośnikiem do **Settings → App updates → Status**.
-**Check for updates** sprawdza instalacje Canopy, a **Update all** zleca dostępne
-aktualizacje. W Electronie wiersz uruchomionej aplikacji pokazuje jej wersję,
-postęp pobierania i po pobraniu udostępnia **Restart to update**. Jeśli nowsze
-wydanie czeka na paczkę dla danej platformy, aplikacja informuje o tym w zakładce **Status**.
+popover. **Check now** sprawdza aktualizacje, wiersze zawierają akcje dla pojedynczych
+instalacji, a stopka udostępnia **Update all**, **Retry failed** albo **Restart to update**
+zależnie od stanu. Podczas pobierania wiersz uruchomionej aplikacji pokazuje wersję
+i postęp. Odnośnik **Settings** prowadzi do **App updates → Status**, gdzie są pełne
+wyniki aktualizacji i informacje o publikacji paczki dla danej platformy.
 Animacja sprawdzania uwzględnia systemową preferencję ograniczonego ruchu.
 
 W **Update preferences** użytkownik wybiera kanał desktopu (Stable, Beta lub Nightly)
@@ -1391,7 +1392,7 @@ Domyślnie używa kanału zainstalowanego buildu. W zakładce **Releases** notat
 do pobieranej aktualizacji obejmują wydania z wybranego kanału od wersji docelowej
 do pierwszej nowszej od zainstalowanej.
 
-**Check for updates** działa również przy stanie Ready. Najpierw sprawdzamy metadane
+**Check now** i **Check for updates** działają również przy stanie Ready. Najpierw sprawdzamy metadane
 bez automatycznego pobierania (`autoDownload=false`), potem pobieramy tylko cel nowszy od gotowej paczki.
 Brak nowszego wydania zachowuje poprzedni cel. Zmiana kanału unieważnia poprzednią
 gotowość w UI i od razu sprawdza aktualizacje w wybranym kanale.
@@ -1559,7 +1560,7 @@ Resolver wybiera najwyższą wersję SemVer ze statycznego indeksu
 `https://itsoltech.github.io/canopy/releases/v1.json`, bez draftów, z feedem platformy
 i końcowym `manifest.json`. Wspólny klient metadanych ma cache 15 min, ETag i deduplikację;
 sprawdzenie z połączonego komputera korzysta z tego samego klienta co lokalne.
-**Check for updates** w zakładce **Status**, **Check now** przy połączonym komputerze,
+**Check now** w popoverze i przy połączonym komputerze, **Check for updates** w zakładce **Status**,
 zmiana kanału i zdalne zlecenie sprawdzenia omijają TTL cache oraz przerwę po awarii
 indeksu. Wymagają walidacji przez sieć (`Cache-Control: no-cache`, z zachowaniem ETag
 i obsługi `304`), a wynik uaktualnia wspólny cache. Timer nadal korzysta z cache.
