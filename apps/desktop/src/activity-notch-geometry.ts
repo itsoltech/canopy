@@ -15,6 +15,14 @@ export interface ActivityNotchCutout {
   height: number;
 }
 
+export interface ActivityNotchLayout {
+  revision: number;
+  center: number;
+  width: number;
+  height: number;
+  headerHeight: number;
+}
+
 export function activityNotchGeometry(
   display: { bounds: Rectangle; workArea: Rectangle },
   expandedRows: number,

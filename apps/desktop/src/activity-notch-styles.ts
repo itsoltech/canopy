@@ -12,8 +12,12 @@ import {
 const colors = themeVariables("ash", "dark");
 
 export const activityNotchStyles = `
+  @property --notch-width {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
   :root {
-    --notch-height: ${activityNotchSimulatedHeight}px;
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
@@ -27,9 +31,10 @@ export const activityNotchStyles = `
     --ink: ${colors.ink};
     --muted: ${colors.muted};
     --border: ${colors.border};
-    --acc-expand: ${motion.fast}ms;
-    --acc-collapse: ${motion.quick}ms;
-    --acc-ease: cubic-bezier(${motion.smoothOut.join(", ")});
+    --resize-duration: ${motion.fast}ms;
+    --fade-duration: ${motion.quick}ms;
+    --resize-ease: cubic-bezier(${motion.smoothOut.join(", ")});
+    --fade-ease: cubic-bezier(${motion.inOut.join(", ")});
   }
   * { box-sizing: border-box; }
   body {
@@ -52,8 +57,18 @@ export const activityNotchStyles = `
   }
   .notch {
     position: relative;
-    margin-inline: var(--ear);
+    width: max(0px, calc(var(--notch-width) - 2 * var(--ear)));
+    margin-left: calc(var(--ear) + clamp(
+      0px,
+      var(--notch-center, 50vw) - var(--notch-width) / 2,
+      100vw - var(--notch-width)
+    ));
+    --notch-height: ${activityNotchSimulatedHeight}px;
+    --size-duration: var(--fade-duration);
   }
+  .notch:not([data-layout]) { visibility: hidden; }
+  .notch[data-open="true"] { --size-duration: var(--resize-duration); }
+  .notch[data-animate] { transition: --notch-width var(--size-duration) var(--resize-ease); }
   .notch::before, .notch::after {
     position: absolute;
     top: 0;
@@ -73,11 +88,13 @@ export const activityNotchStyles = `
     --outer: 100%;
   }
   .notch-body {
+    height: var(--notch-size, var(--notch-height));
     overflow: hidden;
     border-radius: 0 0 var(--notch-radius) var(--notch-radius);
     background: #000;
     color-scheme: dark;
   }
+  [data-animate] .notch-body { transition: height var(--size-duration) var(--resize-ease); }
   .notch-toggle {
     display: grid;
     grid-template-columns: var(--wing) minmax(0, 1fr) var(--wing);
@@ -91,7 +108,18 @@ export const activityNotchStyles = `
   .wing {
     display: grid;
     place-items: center;
+    color: var(--muted);
+  }
+  .state-layer {
+    grid-area: 1 / 1;
     color: var(--indicator, var(--muted));
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--fade-duration) var(--fade-ease), visibility var(--fade-duration);
+  }
+  .state-layer.active {
+    opacity: 1;
+    visibility: visible;
   }
   .wing svg, .spinner {
     display: block;
@@ -103,7 +131,9 @@ export const activityNotchStyles = `
     border-right-color: transparent;
     border-radius: 50%;
     animation: spin ${motion.spin}ms linear infinite;
+    animation-play-state: paused;
   }
+  .active > .spinner { animation-play-state: running; }
   @keyframes spin { to { rotate: 1turn; } }
   .count {
     grid-column: 3;
@@ -112,18 +142,10 @@ export const activityNotchStyles = `
     font-variant-numeric: tabular-nums;
   }
   .panel {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows var(--panel-duration, var(--acc-collapse)) var(--acc-ease);
+    opacity: 0;
+    transition: opacity var(--fade-duration) var(--resize-ease);
   }
-  .notch[data-open="true"] .panel {
-    --panel-duration: var(--acc-expand);
-    grid-template-rows: 1fr;
-  }
-  .panel-inner {
-    min-height: 0;
-    overflow: hidden;
-  }
+  [data-open="true"] .panel { opacity: 1; }
   .rows {
     max-height: max(0px, min(${activityNotchVisibleRows * activityNotchRowHeight}px, calc(100dvh - var(--notch-height) - var(--bottom-inset))));
     margin: 0 var(--bottom-inset) var(--bottom-inset);
@@ -173,8 +195,12 @@ export const activityNotchStyles = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .status {
+  .row-status {
     grid-column: status;
+    display: grid;
+    justify-items: end;
+  }
+  .status {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -204,7 +230,7 @@ export const activityNotchStyles = `
     white-space: nowrap;
   }
   @media (prefers-reduced-motion: reduce) {
-    .panel { transition: none; }
+    .notch[data-animate], [data-animate] .notch-body, .panel, .state-layer { transition: none; }
     .spinner { animation: none; }
   }
 `;

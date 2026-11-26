@@ -35,14 +35,20 @@ function sameBounds(left: Rectangle, right: Rectangle) {
   return left.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height;
 }
 
-export function positionActivityNotchWindow(target: BrowserWindow, expandedRows: number, previousHeight?: number) {
+export function positionActivityNotchWindow(
+  target: BrowserWindow,
+  expandedRows: number,
+  reservedRows: number,
+  previousHeight?: number,
+) {
   const display = screen.getPrimaryDisplay();
+  const menuBand = primaryActivityNotchMenuBand();
+  const compact = activityNotchGeometry(display, 0, menuBand).bounds;
   const original = target.getBounds();
   let current = original;
   let nativeCompactHeight = process.platform === "win32" ? previousHeight : undefined;
 
-  if (process.platform === "win32" && (!expandedRows || nativeCompactHeight === undefined)) {
-    const compact = activityNotchGeometry(display, 0).bounds;
+  if (process.platform === "win32" && (!reservedRows || nativeCompactHeight === undefined)) {
     const expected = { ...compact, height: nativeCompactHeight ?? compact.height };
 
     // Win32 can enforce a taller minimum window. Always request the nominal
@@ -52,21 +58,25 @@ export function positionActivityNotchWindow(target: BrowserWindow, expandedRows:
     current = target.getBounds();
     nativeCompactHeight = current.height;
 
-    if (!expandedRows) return { headerHeight: nativeCompactHeight, moved: !sameBounds(original, current) };
+    if (!reservedRows)
+      return { center: current.width / 2, width: current.width, height: current.height, headerHeight: current.height };
   }
 
-  const { bounds, headerHeight } = activityNotchGeometry(
-    display,
-    expandedRows,
-    primaryActivityNotchMenuBand(),
-    nativeCompactHeight,
-  );
+  const reserved = activityNotchGeometry(display, reservedRows, menuBand, nativeCompactHeight);
 
-  const moved = !sameBounds(original, bounds);
+  const layout =
+    expandedRows === reservedRows
+      ? reserved
+      : activityNotchGeometry(display, expandedRows, menuBand, nativeCompactHeight);
 
-  if (!sameBounds(current, bounds)) target.setBounds(bounds);
+  if (!sameBounds(current, reserved.bounds)) target.setBounds(reserved.bounds);
 
-  return { headerHeight, moved };
+  return {
+    center: compact.x + compact.width / 2 - reserved.bounds.x,
+    width: layout.bounds.width,
+    height: layout.bounds.height,
+    headerHeight: layout.headerHeight,
+  };
 }
 
 export function createActivityNotchWindow() {

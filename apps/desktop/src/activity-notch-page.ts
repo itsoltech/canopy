@@ -27,7 +27,7 @@ const glyphs = Object.entries(activityGlyphs)
       ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths.map((path) => `<path d="${path}"/>`).join("")}</svg>`
       : '<span class="spinner"></span>';
 
-    return `<span data-glyph="${state}" hidden>${icon}</span>`;
+    return `<span class="state-layer" data-state="${state}">${icon}</span>`;
   })
   .join("");
 
@@ -40,7 +40,7 @@ const script = `
   const panel = document.getElementById("activity-panel");
   const summary = document.getElementById("activity-summary");
   const summaryText = document.getElementById("activity-description");
-  const glyphs = summary.querySelectorAll("[data-glyph]");
+  const glyphs = summary.querySelectorAll("[data-state]");
   const total = document.getElementById("activity-count");
   const list = document.querySelector(".rows");
   const statuses = ${JSON.stringify(statuses)};
@@ -70,6 +70,22 @@ const script = `
     if (setExpanded(expanded)) bridge.setExpanded(expanded);
   }
 
+  function showState(layers, state) {
+    for (const layer of layers) layer.classList.toggle("active", layer.dataset.state === state);
+  }
+
+  function applyLayout({ center, width, height, headerHeight, revision }) {
+    if (notch.hasAttribute("data-layout")) notch.dataset.animate = "";
+    notch.style.setProperty("--notch-center", center + "px");
+    notch.style.setProperty("--notch-width", width + "px");
+    notch.style.setProperty("--notch-size", height + "px");
+    notch.style.setProperty("--notch-height", headerHeight + "px");
+    notch.dataset.layout = "";
+
+    const animations = [...notch.getAnimations(), ...surface.getAnimations()];
+    void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => bridge.layoutSettled(revision));
+  }
+
   function createRow(id) {
     const item = document.createElement("li");
     const button = document.createElement("button");
@@ -82,7 +98,15 @@ const script = `
     badge.hidden = true;
     badge.setAttribute("aria-hidden", "true");
     label.className = "truncate";
-    status.className = "status";
+    status.className = "row-status";
+    status.setAttribute("aria-hidden", "true");
+    for (const [state, { label }] of Object.entries(statuses)) {
+      const layer = document.createElement("span");
+      layer.className = "status state-layer";
+      layer.dataset.state = state;
+      layer.textContent = label;
+      status.append(layer);
+    }
     button.append(badge, label, status);
     item.append(button);
     button.addEventListener("click", () => bridge.open(id));
@@ -147,11 +171,8 @@ const script = `
       const label = kind + " " + numbers.format(number);
       const status = statuses[state].label;
       updateProjectMark(view, mark);
-      if (view.label.textContent !== label || view.status.dataset.state !== state) {
-        view.label.textContent = label;
-        view.status.textContent = status;
-        view.status.dataset.state = state;
-      }
+      if (view.label.textContent !== label) view.label.textContent = label;
+      showState(view.status.children, state);
       const project = mark ? ", project " + mark.initials : "";
       const accessibleLabel = "Open " + label + project + ", " + status;
       if (view.button.getAttribute("aria-label") !== accessibleLabel) {
@@ -171,13 +192,11 @@ const script = `
       const status = statuses[state][count === 1 ? "one" : "many"];
       const itemCount = total.textContent + (rows.length === 1 ? " item" : " items");
       description = itemCount + ". " + numbers.format(count) + " " + status + ".";
-      summary.dataset.state = state;
     } else {
-      delete summary.dataset.state;
       requestExpanded(false);
     }
     if (summaryText.textContent !== description) summaryText.textContent = description;
-    for (const glyph of glyphs) glyph.hidden = glyph.dataset.glyph !== state;
+    showState(glyphs, state);
     toggle.disabled = !state;
   }
 
@@ -210,7 +229,7 @@ const script = `
     bridge.setExpanded(false);
   });
   bridge.onCollapse(() => setExpanded(false));
-  bridge.onHeight((px) => document.documentElement.style.setProperty("--notch-height", px + "px"));
+  bridge.onLayout(applyLayout);
   bridge.onRows(renderRows);
 `;
 
@@ -236,9 +255,7 @@ export function activityNotchPage(): string {
       </button>
       <p id="activity-description" class="sr-only" role="status">No activity</p>
       <div id="activity-panel" class="panel" aria-hidden="true" inert>
-        <div class="panel-inner">
-          <ul class="rows" aria-label="Activity"></ul>
-        </div>
+        <ul class="rows" aria-label="Activity"></ul>
       </div>
     </div>
   </main>

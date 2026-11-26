@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+import type { ActivityNotchLayout } from "../src/activity-notch-geometry.ts";
 import type { ActivityNotchRow } from "../src/activity-notch.ts";
 
 export interface ActivityNotchProbe {
@@ -16,6 +17,6 @@ ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNot
   } satisfies ActivityNotchProbe);
 });
 
-ipcRenderer.on("canopy:activity-notch-height", (_event, height: number) => {
-  ipcRenderer.send("activity-notch-fixture:received-height", height);
+ipcRenderer.on("canopy:activity-notch-layout", (_event, layout: ActivityNotchLayout) => {
+  ipcRenderer.send("activity-notch-fixture:received-layout", layout);
 });

@@ -224,7 +224,7 @@
     <DeviceChoiceRow
       preference="activityNotch"
       title="Activity notch"
-      description="Show activity at the top of your screen while Canopy is in the background. Expand to see project logos or initials."
+      description="Show activity at the top of your screen. Expand to see project logos or initials."
       options={[
         { value: "on", label: "On" },
         { value: "off", label: "Off" },
