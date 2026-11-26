@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer } from "electron";
 import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 import type {
   DesktopBridge,
-  DesktopComposerMenu,
   DesktopFileDownload,
   DesktopHtmlEvent,
   DesktopStatus,
@@ -15,6 +14,7 @@ import { QuitFeedback } from "./quit-feedback.ts";
 import { quitFallback } from "./quit-fallback.ts";
 import { desktopVersionArgument } from "./startup-version.ts";
 import { isDesktopRoute } from "@canopy/ui/desktop";
+import { trackComposerContext } from "./composer-context-preload.ts";
 
 declare const CANOPY_DESKTOP_CHANNEL: AppChannel | undefined;
 
@@ -30,6 +30,8 @@ const feedback = new QuitFeedback(
 );
 
 ipcRenderer.on("canopy:quit-guard", (_event, state: QuitGuardState) => feedback.receive(state));
+
+trackComposerContext();
 
 window.addEventListener("online", (event) => {
   if (event.isTrusted) void ipcRenderer.invoke("canopy:usage-ping-online").catch(() => {});
@@ -97,10 +99,6 @@ const bridge: DesktopBridge = {
   ...(startupVersion && { startupVersion }),
   startupAppearance: ipcRenderer.sendSync("canopy:appearance-startup"),
   setAppearance: (appearance) => ipcRenderer.invoke("canopy:appearance", appearance),
-  composerMenu: {
-    subscribe: (listener) => subscribe<DesktopComposerMenu>("canopy:composer-menu", listener),
-    respond: (id, response) => ipcRenderer.invoke("canopy:composer-menu-response", id, response),
-  },
   windowState: () => ipcRenderer.invoke("canopy:window-state"),
   onWindowState: (listener) => subscribe<DesktopWindowState>("canopy:window-state", listener),
   windowControl: (control) => ipcRenderer.invoke("canopy:window-control", control),

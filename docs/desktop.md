@@ -192,13 +192,13 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    moduł natywny `notification-permission.node` dołączony do paczki aplikacji.
    Moduł prosi o zgodę tylko przy stanie `notDetermined`. Odmowę zwraca osobno
    od błędu wywołania, także gdy system zgłosi `UNErrorCodeNotificationsNotAllowed`.
-   Menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz polecenia
-   Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. Pole wiadomości wyświetla
-   menu w rendererze, w aktywnej palecie Canopy. Electron dostarcza pozycje i stan
-   dostępności poleceń oraz wykonuje wybrane polecenie po przywróceniu fokusu
-   i zaznaczenia edytora. IPC przyjmuje wybór tylko z głównej ramki zaufanego okna
-   i dla otwartego menu. Okna bez odpowiedniego renderera oraz pozostałe pola
-   korzystają z natywnego menu. Przy włączonym sprawdzaniu
+   Natywne menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz role
+   Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. W polu wiadomości
+   Electron rysuje te pozycje w izolowanym widoku powłoki z aktywną paletą Canopy.
+   Powłoka przyjmuje wybór wyłącznie z własnego menu i wykonuje natywne polecenie
+   po przywróceniu fokusu oraz zaznaczenia edytora. Treść aplikacji nie ma dostępu
+   do IPC wyboru pozycji. Jeśli widok menu nie jest dostępny, Electron otwiera
+   menu natywne. Przy włączonym sprawdzaniu
    pisowni pokazuje propozycje poprawek. Linki mają Copy link, a zewnętrzne linki
    `http:` i `https:` także Open link in browser. Wewnętrzne adresy setupu i BFF
    nie mogą być otwierane w przeglądarce, również przez `window.open`.

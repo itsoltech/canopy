@@ -32,6 +32,7 @@ for (const name of [
   "html-preload",
   "html-compile-worker",
   "activity-notch-preload",
+  "composer-menu-preload",
 ]) {
   const result = await Bun.build({
     entrypoints: [resolve(root, `src/${name}.ts`)],

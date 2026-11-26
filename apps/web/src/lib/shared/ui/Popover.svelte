@@ -59,7 +59,6 @@
     followMotion = false,
     role = "dialog",
     anchor: anchorElement,
-    positionAnchor,
     sheet = false,
     maxHeight,
     scrollable = true,
@@ -83,8 +82,6 @@
     role?: "dialog" | "menu" | "none";
     /** Anchor when there is no `trigger` snippet (a combobox's input). */
     anchor?: HTMLElement | undefined;
-    /** Position at a separate element while returning focus to the trigger or `anchor`. */
-    positionAnchor?: HTMLElement | undefined;
     /** Bottom sheet below `sm` (pickers with long lists). */
     sheet?: boolean;
     /** Override the anchored panel's height cap; mobile sheets retain their viewport cap. */
@@ -185,7 +182,7 @@
 
   // Follow the anchor while open (a sheet sits at the bottom instead).
   $effect(() => {
-    const target = positionAnchor ?? anchorElement ?? anchor;
+    const target = anchorElement ?? anchor;
 
     if (!open || !panel || narrow || !target) return;
 
