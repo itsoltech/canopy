@@ -82,6 +82,7 @@ export class ActivityNotch {
   #expanded = false;
   #loaded = false;
   #layout: ActivityNotchLayout | undefined;
+  #rowsRevision = 0;
   #reservedRows = 0;
   #invalidated = false;
 
@@ -103,18 +104,21 @@ export class ActivityNotch {
       if (this.#status.phase === "running" && !this.#status.needsPairing) this.#update(decodeItems(raw));
     });
     ipcMain.on("canopy:activity-notch-expanded", (event, expanded: boolean) => {
-      if (!this.#fromNotch(event) || (expanded !== true && expanded !== false)) return;
+      if (!this.#fromNotch(event) || !this.#entries.length || (expanded !== true && expanded !== false)) return;
 
       if (expanded === this.#expanded) return;
       this.#expanded = expanded;
       this.#position();
     });
     ipcMain.on("canopy:activity-notch-layout-settled", (event, revision: number) => {
-      if (!this.#fromNotch(event) || revision !== this.#layout?.revision) return;
+      if (!this.#fromNotch(event) || !this.#entries.length || revision !== this.#layout?.revision) return;
 
       if (this.#reservedRows === this.#expandedRows) return;
       this.#reservedRows = this.#expandedRows;
       this.#position();
+    });
+    ipcMain.on("canopy:activity-notch-hidden", (event, revision: number) => {
+      if (this.#fromNotch(event) && revision === this.#rowsRevision && !this.#entries.length) this.#destroyWindow();
     });
     ipcMain.on("canopy:activity-notch-open", (event, id: number) => {
       if (!this.#fromNotch(event) || !this.#expanded) return;
@@ -183,7 +187,14 @@ export class ActivityNotch {
     }
 
     if (!byPath.size) {
-      this.clear();
+      if (this.#entries.length) {
+        this.#entries = [];
+        this.#botNumber = 0;
+        this.#expanded = false;
+
+        if (this.#loaded) this.#sendRows();
+        else this.#destroyWindow();
+      }
 
       return;
     }
@@ -248,7 +259,8 @@ export class ActivityNotch {
       ...(projectMark && { projectMark }),
     }));
 
-    sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows));
+    const revision = ++this.#rowsRevision;
+    sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows, revision));
   }
 
   #displayChanged = () => this.#position({ displayChanged: true });
@@ -260,7 +272,7 @@ export class ActivityNotch {
   #position({ show = false, displayChanged = false } = {}) {
     const target = this.#target;
 
-    if (!this.#loaded || !target || target.isDestroyed()) return;
+    if (!this.#entries.length || !this.#loaded || !target || target.isDestroyed()) return;
 
     const rows = this.#expandedRows;
     const previous = this.#layout;

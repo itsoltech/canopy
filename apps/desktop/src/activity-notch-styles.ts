@@ -1,4 +1,6 @@
 import { motion, palette, radius } from "@canopy/ui";
+import { interfaceFonts } from "@canopy/ui/fonts";
+import { workingColors } from "@canopy/ui/thread-row";
 import { themeVariables } from "@canopy/ui/themes";
 import {
   activityNotchBottomInset,
@@ -10,6 +12,10 @@ import {
 } from "./activity-notch-geometry.ts";
 
 const colors = themeVariables("ash", "dark");
+const ease = (points: readonly number[]) => `cubic-bezier(${points.join(", ")})`;
+
+/** The list fades in once even the seventh row fits inside the growing outline. */
+export const activityNotchPanelDelay = motion.micro * 2;
 
 export const activityNotchStyles = `
   @property --notch-width {
@@ -27,21 +33,40 @@ export const activityNotchStyles = `
     --type-meta: 0.71875rem;
     --radius-md: ${radius.md}px;
     --notch-radius: ${radius.xl}px;
-    --hover: ${colors.hover};
     --ink: ${colors.ink};
     --muted: ${colors.muted};
     --border: ${colors.border};
-    --resize-duration: ${motion.fast}ms;
+    /* The outline grows without overshoot: the native window ends exactly at its open size. */
+    --morph-open-dur: ${motion.medium}ms;
+    --morph-close-dur: ${motion.fast}ms;
+    --morph-ease: ${ease(motion.smoothOut)};
+    /* A short hold and a soft start let the list fade before either edge reaches a row. */
+    --morph-close-delay: ${motion.stagger}ms;
+    --morph-close-ease: ${ease(motion.inOut)};
+    --panel-enter-dur: ${motion.fast}ms;
+    --panel-enter-delay: ${activityNotchPanelDelay}ms;
+    --panel-exit-dur: ${motion.micro}ms;
+    --panel-scale: ${motion.scale.medium};
+    --panel-blur: 2px;
+    --icon-swap-dur: ${motion.fast}ms;
+    --icon-swap-blur: 2px;
+    --icon-swap-start-scale: 0.25;
+    --text-swap-dur: ${motion.quick}ms;
+    --text-swap-blur: 2px;
     --fade-duration: ${motion.quick}ms;
-    --resize-ease: cubic-bezier(${motion.smoothOut.join(", ")});
-    --fade-ease: cubic-bezier(${motion.inOut.join(", ")});
+    --press-dur: ${motion.quick}ms;
+    --spin-duration: ${motion.spin}ms;
+    --count-distance: ${motion.distance.micro}px;
+    --ease-smooth-out: ${ease(motion.smoothOut)};
+    --ease-in-out: ${ease(motion.inOut)};
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     overflow: hidden;
     color: var(--ink);
-    font: var(--type-compact) / 1.25rem system-ui, sans-serif;
+    font: var(--type-compact) / 1.25rem ${interfaceFonts[0]?.stack ?? "system-ui, sans-serif"};
+    -webkit-font-smoothing: antialiased;
     user-select: none;
   }
   button {
@@ -57,18 +82,28 @@ export const activityNotchStyles = `
   }
   .notch {
     position: relative;
-    width: max(0px, calc(var(--notch-width) - 2 * var(--ear)));
-    margin-left: calc(var(--ear) + clamp(
-      0px,
-      var(--notch-center, 50vw) - var(--notch-width) / 2,
-      100vw - var(--notch-width)
-    ));
+    opacity: 0;
     --notch-height: ${activityNotchSimulatedHeight}px;
-    --size-duration: var(--fade-duration);
+    --open-width: 100vw;
+    /* Where the outline starts now and where it starts once open, from the left of the window. */
+    --notch-offset: clamp(0px, var(--notch-center, 50vw) - var(--notch-width) / 2, 100vw - var(--notch-width));
+    --open-offset: clamp(0px, var(--notch-center, 50vw) - var(--open-width) / 2, 100vw - var(--open-width));
+    width: max(0px, calc(var(--notch-width) - 2 * var(--ear)));
+    margin-left: calc(var(--ear) + var(--notch-offset));
+    transition: opacity var(--fade-duration) var(--ease-smooth-out);
   }
   .notch:not([data-layout]) { visibility: hidden; }
-  .notch[data-open="true"] { --size-duration: var(--resize-duration); }
-  .notch[data-animate] { transition: --notch-width var(--size-duration) var(--resize-ease); }
+  .notch[data-active] { opacity: 1; }
+  .notch[data-animate] {
+    transition:
+      --notch-width var(--morph-open-dur) var(--morph-ease),
+      opacity var(--fade-duration) var(--ease-smooth-out);
+  }
+  .notch[data-animate][data-shrinking] {
+    transition:
+      --notch-width var(--morph-close-dur) var(--morph-close-ease) var(--morph-close-delay),
+      opacity var(--fade-duration) var(--ease-smooth-out);
+  }
   .notch::before, .notch::after {
     position: absolute;
     top: 0;
@@ -94,7 +129,10 @@ export const activityNotchStyles = `
     background: #000;
     color-scheme: dark;
   }
-  [data-animate] .notch-body { transition: height var(--size-duration) var(--resize-ease); }
+  [data-animate] .notch-body { transition: height var(--morph-open-dur) var(--morph-ease); }
+  [data-animate][data-shrinking] .notch-body {
+    transition: height var(--morph-close-dur) var(--morph-close-ease) var(--morph-close-delay);
+  }
   .notch-toggle {
     display: grid;
     grid-template-columns: var(--wing) minmax(0, 1fr) var(--wing);
@@ -109,28 +147,45 @@ export const activityNotchStyles = `
     display: grid;
     place-items: center;
     color: var(--muted);
+    transition: scale var(--press-dur) var(--ease-smooth-out);
   }
+  .notch-toggle:active .wing { scale: ${motion.scale.large}; }
   .state-layer {
     grid-area: 1 / 1;
     color: var(--indicator, var(--muted));
     opacity: 0;
+    filter: blur(var(--text-swap-blur));
     visibility: hidden;
-    transition: opacity var(--fade-duration) var(--fade-ease), visibility var(--fade-duration);
+    transition:
+      opacity var(--text-swap-dur) var(--ease-in-out),
+      filter var(--text-swap-dur) var(--ease-in-out),
+      visibility var(--text-swap-dur);
   }
   .state-layer.active {
     opacity: 1;
+    filter: none;
     visibility: visible;
   }
-  .wing svg, .spinner {
+  .wing .state-layer {
+    filter: blur(var(--icon-swap-blur));
+    scale: var(--icon-swap-start-scale);
+    transition:
+      opacity var(--icon-swap-dur) var(--ease-in-out),
+      filter var(--icon-swap-dur) var(--ease-in-out),
+      scale var(--icon-swap-dur) var(--ease-in-out),
+      visibility var(--icon-swap-dur);
+  }
+  .wing .state-layer.active {
+    filter: none;
+    scale: 1;
+  }
+  .wing svg {
     display: block;
     width: 16px;
     height: 16px;
   }
   .spinner {
-    border: 1.5px solid currentColor;
-    border-right-color: transparent;
-    border-radius: 50%;
-    animation: spin ${motion.spin}ms linear infinite;
+    animation: spin var(--spin-duration) linear infinite;
     animation-play-state: paused;
   }
   .active > .spinner { animation-play-state: running; }
@@ -141,11 +196,52 @@ export const activityNotchStyles = `
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
-  .panel {
-    opacity: 0;
-    transition: opacity var(--fade-duration) var(--resize-ease);
+  #activity-count {
+    display: inline-flex;
+    justify-content: end;
+    width: 2ch;
   }
-  [data-open="true"] .panel { opacity: 1; }
+  .count-slot {
+    display: inline-grid;
+    width: 1ch;
+    place-items: center;
+  }
+  .count-slot > span { grid-area: 1 / 1; }
+  .count-in { animation: count-in var(--fade-duration) var(--ease-smooth-out) both; }
+  .count-out { animation: count-out var(--fade-duration) var(--ease-smooth-out) both; }
+  @keyframes count-in {
+    from { opacity: 0; translate: 0 calc(var(--count-direction) * var(--count-distance)); }
+  }
+  @keyframes count-out {
+    to { opacity: 0; translate: 0 calc(-1 * var(--count-direction) * var(--count-distance)); }
+  }
+  /* The list keeps its open width and place, so the moving outline clips it instead of reflowing its titles. */
+  .panel {
+    position: relative;
+    width: calc(var(--open-width) - 2 * var(--ear));
+    margin-left: calc(var(--open-offset) - var(--notch-offset));
+    opacity: 0;
+    filter: blur(var(--panel-blur));
+    scale: var(--panel-scale);
+    transform-origin: calc(var(--notch-center, 50vw) - var(--open-offset) - var(--ear)) 0;
+    visibility: hidden;
+    transition:
+      opacity var(--panel-exit-dur) var(--ease-smooth-out),
+      filter var(--panel-exit-dur) var(--ease-smooth-out),
+      scale var(--panel-exit-dur) var(--ease-smooth-out),
+      visibility 0s var(--panel-exit-dur);
+  }
+  .panel[data-visible] {
+    opacity: 1;
+    filter: none;
+    scale: 1;
+    visibility: visible;
+    transition:
+      opacity var(--panel-enter-dur) var(--ease-smooth-out) var(--panel-enter-delay),
+      filter var(--panel-enter-dur) var(--ease-smooth-out) var(--panel-enter-delay),
+      scale var(--panel-enter-dur) var(--ease-smooth-out) var(--panel-enter-delay),
+      visibility 0s;
+  }
   .rows {
     max-height: max(0px, min(${activityNotchVisibleRows * activityNotchRowHeight}px, calc(100dvh - var(--notch-height) - var(--bottom-inset))));
     margin: 0 var(--bottom-inset) var(--bottom-inset);
@@ -157,6 +253,15 @@ export const activityNotchStyles = `
     scrollbar-width: thin;
     list-style: none;
   }
+  .leaving-rows {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    pointer-events: none;
+  }
+  .leaving-rows > li { position: absolute; background: #000; }
   .row {
     display: grid;
     grid-template-columns: [label] minmax(0, 1fr) [status] auto;
@@ -168,9 +273,18 @@ export const activityNotchStyles = `
     border-radius: var(--radius-md);
     text-align: start;
     font-variant-numeric: tabular-nums;
+    transition:
+      background-color var(--press-dur) var(--ease-smooth-out),
+      scale var(--press-dur) var(--ease-smooth-out);
   }
-  .row:hover { background: var(--hover); }
-  .rows:has(.project-mark:not([hidden])) .row {
+  @media (hover: hover) {
+    .row:hover { background-color: color-mix(in srgb, var(--ink) 8%, transparent); }
+  }
+  .row:active {
+    background-color: color-mix(in srgb, var(--ink) 12%, transparent);
+    scale: ${motion.scale.tiny};
+  }
+  .panel:has(.project-mark:not([hidden])) .row {
     grid-template-columns: [mark] var(--project-mark-size) [label] minmax(0, 1fr) [status] auto;
   }
   .project-mark:not([hidden]) {
@@ -201,22 +315,12 @@ export const activityNotchStyles = `
     justify-items: end;
   }
   .status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--muted);
     font-size: var(--type-meta);
     line-height: 1rem;
     font-weight: 500;
+    white-space: nowrap;
   }
-  .status::before {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--indicator);
-    content: "";
-  }
-  [data-state="working"] { --indicator: ${palette.sky[400]}; }
+  [data-state="working"] { --indicator: ${workingColors.dark.text}; }
   [data-state="approval"], [data-state="answer"] { --indicator: ${palette.amber[400]}; }
   [data-state="completed"] { --indicator: ${palette.emerald[400]}; }
   [data-state="failed"] { --indicator: ${palette.rose[400]}; }
@@ -230,7 +334,13 @@ export const activityNotchStyles = `
     white-space: nowrap;
   }
   @media (prefers-reduced-motion: reduce) {
-    .notch[data-animate], [data-animate] .notch-body, .panel, .state-layer { transition: none; }
-    .spinner { animation: none; }
+    .notch, .notch[data-animate], .notch[data-animate][data-shrinking], [data-animate] .notch-body,
+    [data-animate][data-shrinking] .notch-body, .panel, .panel[data-visible], .state-layer, .wing .state-layer, .wing, .row {
+      transition: none;
+    }
+    .panel, .state-layer, .wing .state-layer { filter: none; scale: 1; }
+    .notch-toggle:active .wing, .row:active { scale: 1; }
+    .spinner, .count-in, .count-out { animation: none; }
+    .count-out { display: none; }
   }
 `;
