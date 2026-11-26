@@ -1,5 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-26): `update_tasks` zapisuje listę zadań wątku dla każdego harnessu.
+Web/desktop i mobile przypinają najnowszą listę nad kompozytorem, razem z natywnymi
+checklistami harnessów, a sidebar pokazuje postęp niedokończonej listy. [Lista zadań](#lista-zadań-update_tasks). Dostępność według [promocji wydań](release.md).
+
 Status (2026-11-26): `start_thread` uruchamia samodzielne wątki w wybranym projekcie
 i na wybranym workerze. `list_agents` znajduje miejsca uruchomienia oraz modele
 według nazw projektu i workera. Dostępność według [promocji wydań](release.md).
@@ -212,6 +216,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `list_interactions` / `answer_interaction` | ✓ | | pytania i prośby o zgodę od wątków bocznych |
 | `ask_user` / `get_answers` | ✓ | ✓ | trwały zestaw 1–4 pytań do człowieka albo rodzica; `wait: true` czeka, `false` pozwala pracować dalej; odczyt odpowiedzi tylko we własnym wątku |
 | `list_project_secrets` | ✓ | ✓ | nazwy zapisanych sekretów dostępnych w projekcie bieżącego wątku |
+| `update_tasks` | ✓ | ✓ | lista zadań wątku: `tasks` (≤ 50, `title`, `status` `pending`/`in_progress`/`completed`) zastępuje poprzednią; pusta lista ją czyści ([lista zadań](#lista-zadań-update_tasks)) |
 | `request_secret` | ✓ | ✓ | `project_secret` wskazuje nazwę zapisaną w projekcie. Ręczna prośba do człowieka przyjmuje `label`, `description` oraz opcjonalne `placeholder`, `name`. Oczekiwanie można odnowić przez `request_id`. Po potwierdzeniu wynik zawiera ścieżkę pliku i termin ważności ([sekrety](secrets.md)) |
 | `schedule_wakeup` | ✓ | ✓ | jednorazowo później (`delay_seconds` albo `at`, do 7 dni) |
 | `schedule_recurring` | ✓ | ✓ | cron (min. 5 min), wymagane `until` (do 30 dni) albo `max_runs` |
@@ -237,6 +242,41 @@ Narzędzia do sprawdzania własnej pracy w tle ([execution.md](execution.md#4-za
 - Wywołania nie zaczynają tur, więc nie wydłużają łańcucha przeskoków. Notatki o końcach zadań (tury `background_task`) — [execution.md](execution.md#pobudka-agent-dowiaduje-się-o-każdym-końcu-zadania).
 - `stop_reason = stopped_by_user` oznacza Stop użytkownika albo agenta.
 - Codex: wątki utworzone przed tą zmianą nie mają tych narzędzi (zestaw jest ustalany przy `thread/start`); notatki dostają mimo to.
+
+### Lista zadań (update_tasks)
+
+Agent zapisuje kroki uzgodnionej pracy i odznacza je w trakcie. Definicja: `packages/domain/src/agent-bus/tasks.ts`
+(dołączona do `AGENT_BUS_TOOLS`), więc Claude, Codex, Grok i Antigravity dostają to samo narzędzie.
+Opis narzędzia prosi o listę przed rozpoczęciem pracy, jedno zadanie `in_progress` naraz i odznaczanie
+każdego zadania od razu po wykonaniu.
+
+- **Zapis:** każde wywołanie wysyła całą listę. Gateway nie trzyma osobnego stanu: odpowiada
+  `{updated, total, completed}`, a trwałym zapisem jest item `agent_bus_call` w transkrypcie.
+  Lista przechodzi więc przez historię, forki, połączone komputery i mobile jak każdy item.
+  Odmowa (archiwalny wątek) i błąd wywołania nie zmieniają bieżącej listy.
+- **Jedna lista z natywnymi:** `@canopy/domain/task-list` czyta jako listę także checklisty harnessów:
+  Codex `turn/plan/updated` (item `plan` z krokami), ACP `plan` (Grok, Antigravity), Claude `TodoWrite`
+  (item `todo_list`) i wywołania `update_plan` / `todo_write`. Bieżąca jest ostatnia z nich wśród
+  własnych itemów najwyższego poziomu; plan bez kroków (propozycja w trybie planu) jej nie zmienia.
+  Statusy dostawców (`inProgress`, `done`, …) są normalizowane do `pending`/`in_progress`/`completed`.
+- **Kiedy panel jest widoczny** (`shownTaskList`): lista z najnowszej tury, a niedokończona także
+  podczas kolejnych tur w toku. Znika, gdy zacznie się nowa tura po skończonej liście albo gdy
+  późniejsza tura zakończy się bez aktualizacji niedokończonej listy. Tury w kolejce i anulowane się nie liczą.
+- **Web/desktop** (`features/threads/tasks`): panel w stosie nad kompozytorem, między celem a subagentami.
+  Zwinięty pokazuje pierścień postępu, bieżące zadanie (albo „All tasks done”) i „3 of 7 done”;
+  rozwinięty całą listę, przewiniętą do bieżącego zadania. Znacznik zadania (`t-task-mark` w `motion.css`)
+  przechodzi z łuku w zielony dysk z rysowanym checkiem, tylko przy zmianie na żywo, a łuk kręci się
+  wyłącznie w czasie pracy wątku. Reduced motion bez przejść. Wywołanie w transkrypcie to checklista „Tasks”.
+- **Sidebar i karta hover** (`Thread.tasks`: `completed`, `total`, `current`): gateway liczy skrót w zapytaniu
+  wątku (`apps/gateway/src/store/thread-tasks.ts`) z ostatniego itemu checklisty i statusów późniejszych tur,
+  według tej samej reguły co panel. Częściowy indeks `thread_items_task_lists` (`0219_thread_task_lists`)
+  obejmuje tylko itemy checklist, więc wątki bez listy nic nie kosztują. Item checklisty i każda tura
+  odświeżają wątek w strumieniu overview. Pomija tury cofnięte przez rewind. Web/desktop i mobile pokazują
+  pierścień postępu i „2/5” tylko przy niedokończonej liście ([wiersz wątku](threads.md)).
+- **Mobile** (`features/threads/tray/TasksPanel.tsx`): nagłówek w zasobniku z bieżącym zadaniem i postępem;
+  dotknięcie otwiera arkusz z całą listą.
+- Codex: wątki utworzone przed tą zmianą nie mają `update_tasks` (zestaw narzędzi jest ustalany przy `thread/start`),
+  ale ich natywne `update_plan` trafia do tego samego panelu.
 
 ### Checki CI
 

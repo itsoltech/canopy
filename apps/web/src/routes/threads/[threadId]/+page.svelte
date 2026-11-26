@@ -29,8 +29,8 @@
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import BackgroundTasksChip from "#lib/features/threads/components/BackgroundTasksChip.svelte";
   import BackgroundTaskDialog from "#lib/features/threads/components/BackgroundTaskDialog.svelte";
-  import { backgroundTasks, backgroundName } from "#lib/features/threads/background-tasks.ts";
-  import { provideBackgroundOutput } from "#lib/features/threads/background-output.ts";
+  import { backgroundTasks } from "#lib/features/threads/background-tasks.ts";
+  import { provideThreadOutput } from "#lib/features/threads/background-output.ts";
   import Composer from "#lib/features/threads/components/Composer.svelte";
   import { ComposerFold } from "#lib/features/threads/components/composer-fold.svelte.ts";
   import FeedRowView from "#lib/features/threads/components/FeedRowView.svelte";
@@ -43,6 +43,9 @@
   import QueuePanel from "#lib/features/threads/queue/QueuePanel.svelte";
   import { QueueState } from "#lib/features/threads/queue/queue-state.svelte.ts";
   import SubagentsPanel from "#lib/features/threads/subagents/SubagentsPanel.svelte";
+  import TasksPanel from "#lib/features/threads/tasks/TasksPanel.svelte";
+  import { shownTaskList } from "@canopy/domain/task-list";
+  import { composerPanelsLabel } from "#lib/features/threads/composer-panels.ts";
   import { retainSubagents, subagentsOf } from "#lib/features/threads/subagents/subagents.ts";
   import { subagentPresence } from "#lib/features/threads/subagents/subagent-motion.ts";
   import SubagentOrigin from "#lib/features/threads/components/SubagentOrigin.svelte";
@@ -230,6 +233,7 @@
   const subagents = $derived(keepSubagents(thread && tree ? subagentsOf(tree.sides, thread.id) : []));
   const parent = $derived(thread?.parentThreadId ? overview.threads.get(thread.parentThreadId) : undefined);
   const itemsById = $derived(new Map(view.ownEntries.map((e) => [e.id, e.item])));
+  const tasks = $derived(shownTaskList(view.ownEntries, view.ownTurns));
 
   const closed = $derived(
     !thread || thread.status === "failed" || thread.status === "archived" || Boolean(away) || worktreeRemoved,
@@ -394,6 +398,8 @@
     showsGoal(view.goal, device.viewLoaded ? device.view.dismissedGoalIds : undefined) ? view.goal : undefined,
   );
 
+  const panelsLabel = $derived(composerPanelsLabel(queue.rows.length, subagents.length, shownGoal, tasks));
+
   const setGoalLater = () => {
     if (!workspaceState.wide) workspaceState.panelOpen = false;
     goalDialog = true;
@@ -405,17 +411,7 @@
     allBackgroundTasks.filter((entry) => entry.item.status === ItemStatus.IN_PROGRESS),
   );
 
-  const openOutput = (id: string) => {
-    if (!workspaceState.wide) workspaceState.panelOpen = false;
-    const task = allBackgroundTasks.find((entry) => entry.id === id);
-    workspaceState.view.openModule({
-      module: "tasks",
-      resource: id,
-      label: task ? backgroundName(task.item.content.value) : "Task output",
-    });
-  };
-
-  provideBackgroundOutput(openOutput);
+  const openOutput = provideThreadOutput(workspaceState, () => allBackgroundTasks);
 
   let feed = $state<
     FoldReader &
@@ -794,6 +790,11 @@
                             />
                           </div>
                         {/if}
+                        {#if tasks}
+                          <div class="t-rise">
+                            <TasksPanel {tasks} live={working} compact={composer.compact} />
+                          </div>
+                        {/if}
                         {#if subagents.length > 0}
                           <div class="t-rise" bind:this={subagentsPanel} out:subagentPresence>
                             <SubagentsPanel {subagents} compact={composer.compact} embedded />
@@ -818,17 +819,11 @@
                           <Composer
                             status={away ? computerStatus : undefined}
                             compact={composer.compact}
-                            panelsLabel={queue.rows.length > 0 || subagents.length > 0
-                              ? `${subagents.length} agents · ${queue.rows.length} queued`
-                              : shownGoal
-                                ? "Goal"
-                                : undefined}
+                            {panelsLabel}
                             onexpand={(activity) => composer.expand(activity)}
                             onfocuschange={(focused) => composer.focus(focused)}
                             class="relative"
-                            top={queue.rows.length > 0 || subagents.length > 0 || subagentsPanel || shownGoal
-                              ? composerPanels
-                              : undefined}
+                            top={panelsLabel || subagentsPanel ? composerPanels : undefined}
                             questions={view.pending}
                             {thread}
                             {worker}

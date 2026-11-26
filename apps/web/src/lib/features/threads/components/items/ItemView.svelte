@@ -23,6 +23,7 @@
   import LazyItemContent from "./LazyItemContent.svelte";
   import { useLazyContent } from "./lazy-content.ts";
   import ImageGallery from "#lib/features/attachments/ImageGallery.svelte";
+  import { taskListOf } from "@canopy/domain/task-list";
   import PublishedVideoView from "#lib/features/attachments/PublishedVideoView.svelte";
 
   /**
@@ -32,6 +33,9 @@
    */
   let { item, nested, turnEnded = false }: { item: Item; nested?: Snippet | undefined; turnEnded?: boolean } = $props();
   const content = $derived(item.content);
+
+  // update_tasks reads as the checklist it set, like the harnesses' own lists.
+  const busTasks = $derived(content.case === "agentBusCall" ? taskListOf(item) : undefined);
   const directory = useThreadDirectory();
 
   provideThreadFileLinks(
@@ -65,13 +69,20 @@
 {:else if content.case === "webSearch"}
   <WebSearchView search={content.value} status={item.status} />
 {:else if content.case === "plan"}
-  <ChecklistView title="Plan" text={content.value.text} steps={content.value.steps} status={item.status} />
+  <ChecklistView
+    title={content.value.steps.length > 0 ? "Tasks" : "Plan"}
+    text={content.value.text}
+    steps={content.value.steps}
+    status={item.status}
+  />
 {:else if content.case === "todoList"}
-  <ChecklistView title="To do" steps={content.value.items} status={item.status} />
+  <ChecklistView title="Tasks" steps={content.value.items} status={item.status} />
 {:else if content.case === "subagent"}
   <SubagentView agent={content.value} status={item.status} {nested} />
 {:else if content.case === "backgroundTask"}
   <BackgroundTaskView task={content.value} itemId={item.itemId} status={item.status} />
+{:else if content.case === "agentBusCall" && busTasks}
+  <ChecklistView title="Tasks" steps={busTasks.steps} status={item.status} />
 {:else if content.case === "agentBusCall"}
   <AgentBusCallView call={content.value} status={item.status} />
 {:else if content.case === "image"}

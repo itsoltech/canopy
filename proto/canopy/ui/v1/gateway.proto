@@ -877,6 +877,9 @@ message Thread {
   bool snoozed = 1100;
   // Absent for an indefinite snooze.
   google.protobuf.Timestamp snoozed_until = 1101;
+  // The agent's task list in short (docs/agent-bus.md, "Lista zadań"): update_tasks or the harness's own
+  // checklist, whichever came last. Absent without a list that still describes current work.
+  ThreadTasks tasks = 1110;
   // Puste = dziedziczenie/domyślne profilu; default = jawny standard.
   string service_tier = 43;
   canopy.worker.v1.SandboxProfileBinding sandbox_profile = 44;
@@ -1746,6 +1749,13 @@ message ThreadUpdate {
     // Retire this abandoned live admission. An empty id resets all live activity for the watch.
     string automation_activity_reset = 818;
   }
+}
+
+message ThreadTasks {
+  uint32 completed = 1;
+  uint32 total = 2;
+  // The task in progress, else the next pending one; empty once all are done.
+  string current = 3;
 }
 
 message ThreadControls {

@@ -8,6 +8,7 @@ import { ui } from "@canopy/contracts";
 import {
   agentCatalog,
   SETTINGS_GUIDE_TOOL,
+  taskProgress,
   type AgentBusArgs,
   type AgentBusCall,
   type SpawnTarget,
@@ -47,6 +48,9 @@ export async function busExecute(
   switch (call.tool) {
     case SETTINGS_GUIDE_TOOL:
       return findCanopySettings(call.args);
+    case "update_tasks":
+      // The call itself is the record: its transcript item carries the list to every client.
+      return { updated: true, ...taskProgress(call.args.tasks) };
     case "switch_worktree":
       return hostContext[busState].host.switchWorktree(source, caller, call.args, hops);
     case "show_images":

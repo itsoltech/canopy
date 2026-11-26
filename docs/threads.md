@@ -190,6 +190,9 @@ funkcją (`threadRowPlace`, `packages/domain/src/git-heads.ts`):
 - **Gałąź** to bieżąca gałąź checkoutu ([worktrees.md](worktrees.md#bieżąca-gałąź)): `ThreadWorktree`
   albo `Thread.checkout_head`. Zmiana dociera jako zwykły przyrost `thread` w strumieniu overview, bez
   odpytywania i bez snapshotu. Odłączony HEAD pokazuje skrócony commit (tytuł i etykieta: „Detached at ‹commit›”).
+- **Lista zadań.** Niedokończona lista zadań wątku ([`update_tasks`](agent-bus.md#lista-zadań-update_tasks))
+  jest pierwszym znacznikiem: pierścień postępu i „2/5”. Tooltip, etykieta dostępności i karta hover podają
+  bieżące zadanie. Skończona lista nie ma znacznika, bo status wątku mówi to samo.
 - **Każda wartość raz.** Worktree: miejscem jest gałąź, więc linia pokazuje tylko gałąź. Workspace:
   katalog o nazwie projektu powtarza pierwszą linię, więc znika; inny katalog (podkatalog, inny klon) zostaje
   przed gałęzią. Pełny katalog i gałąź pokazuje karta hover.

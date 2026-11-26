@@ -129,6 +129,12 @@ const LOOKS = new Map<string, Look>(
       tried: "list CI check watches",
       icon: "eye",
     },
+    update_tasks: {
+      doing: "Updating the task list",
+      done: "Updated the task list",
+      tried: "update the task list",
+      icon: "queue-list",
+    },
     cancel_pr_watch: {
       doing: "Stopping a CI check watch",
       done: "Stopped a CI check watch",

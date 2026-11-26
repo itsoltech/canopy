@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { ItemStatus } from "@canopy/contracts";
+import { taskListOf } from "@canopy/domain/task-list";
 import { ItemContent, useLazyItem } from "./item-content";
 import { LazyItemContent } from "./LazyItemContent";
 import type { ItemNode } from "./item-nodes";
@@ -80,10 +81,17 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       view = <WebSearchView search={content.value} status={item.status} />;
       break;
     case "plan":
-      view = <ChecklistView title="Plan" text={content.value.text} steps={content.value.steps} status={item.status} />;
+      view = (
+        <ChecklistView
+          title={content.value.steps.length > 0 ? "Tasks" : "Plan"}
+          text={content.value.text}
+          steps={content.value.steps}
+          status={item.status}
+        />
+      );
       break;
     case "todoList":
-      view = <ChecklistView title="To do" steps={content.value.items} status={item.status} />;
+      view = <ChecklistView title="Tasks" steps={content.value.items} status={item.status} />;
       break;
     case "subagent":
       view = <SubagentView agent={content.value} status={item.status} nested={nested} />;
@@ -91,9 +99,17 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
     case "backgroundTask":
       view = <BackgroundTaskView task={content.value} itemId={item.itemId} status={item.status} />;
       break;
-    case "agentBusCall":
-      view = <AgentBusCallView call={content.value} status={item.status} />;
+    case "agentBusCall": {
+      // update_tasks reads as the checklist it set, like the harnesses' own lists.
+      const tasks = taskListOf(item);
+      view = tasks ? (
+        <ChecklistView title="Tasks" steps={tasks.steps} status={item.status} />
+      ) : (
+        <AgentBusCallView call={content.value} status={item.status} />
+      );
       break;
+    }
+
     case "image":
       view = <ImageView image={content.value} status={item.status} />;
       break;
