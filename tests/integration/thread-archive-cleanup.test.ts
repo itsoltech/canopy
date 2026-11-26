@@ -104,6 +104,84 @@ describe.skipIf(!dockerAvailable)("thread archive resource cleanup", () => {
     ).schedule!;
   };
 
+  test("archiving cancels a start whose delivery is waiting for the thread", async () => {
+    const { id: threadId } = await thread("Archive versus start delivery");
+
+    const command = await gw.runtime.runPromise(
+      GatewayStore.use((store) =>
+        SqlClient.SqlClient.use((sql) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              const turn = yield* store.enqueueTurn({
+                threadId,
+                userId: gw.userId,
+                text: "Start",
+                clientRequestId: "",
+              });
+
+              return yield* store.enqueueCommand({
+                workerId: gw.workerId,
+                threadId,
+                turnId: turn.id,
+                ttlSeconds: 3600,
+                command: { kind: { case: "startTurn", value: { thread: { threadId }, turnId: turn.id } } },
+              });
+            }),
+          ),
+        ),
+      ),
+    );
+
+    const locked = Promise.withResolvers<number>();
+    const release = Promise.withResolvers<void>();
+
+    const archive = gw.runtime.runPromise(
+      GatewayStore.use((store) =>
+        SqlClient.SqlClient.use((sql) =>
+          sql.withTransaction(
+            Effect.gen(function* () {
+              yield* sql`SELECT id FROM threads WHERE id=${threadId}::uuid FOR NO KEY UPDATE`;
+              locked.resolve((yield* sql<{ pid: number }>`SELECT pg_backend_pid() AS pid`)[0]!.pid);
+              yield* Effect.promise(() => release.promise);
+              yield* store.setThreadArchived(gw.userId, threadId, true);
+            }),
+          ),
+        ),
+      ),
+    );
+
+    void archive.catch(locked.reject);
+    let delivery: Promise<boolean | undefined> | undefined;
+
+    try {
+      const pid = await locked.promise;
+      delivery = gw.runtime.runPromise(GatewayStore.use((store) => store.sendPending(command, () => true)));
+      let deliverySettled = false;
+      const markSettled = () => (deliverySettled = true);
+      void delivery.then(markSettled, markSettled);
+
+      const blocked = await eventually(
+        () =>
+          query(
+            "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND $1::int=ANY(pg_blocking_pids(pid))",
+            [String(pid)],
+          ),
+        (rows) => deliverySettled || rows.length > 0,
+      );
+
+      expect(blocked).toHaveLength(1);
+    } finally {
+      release.resolve();
+      await Promise.allSettled([archive, delivery]);
+    }
+
+    await archive;
+    expect(await delivery).toBeUndefined();
+    expect(await query("SELECT status FROM worker_commands WHERE id=$1::uuid", [command.commandId])).toEqual([
+      { status: "expired" },
+    ]);
+  }, 15_000);
+
   for (const operation of ["archive", "delete", "agent"] as const) {
     test(`${operation} cancels every pending delivery and unloads an idle thread`, async () => {
       const parent = await thread(`Caller ${operation}`);

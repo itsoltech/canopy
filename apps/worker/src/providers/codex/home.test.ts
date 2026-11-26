@@ -458,4 +458,22 @@ describe("prepareCodexHome", () => {
     ).toThrow("shadow home is also the device CLI home");
     expect(readFileSync(join(actual, "auth.json"), "utf8")).toBe('{"tokens":{}}');
   });
+
+  test("a source symlink into the shadow protects the original login even with another hard link", () => {
+    const source = device(false);
+    const shadow = mkdtempSync(join(base, "source-alias-"));
+    const login = join(shadow, "auth.json");
+    writeFileSync(login, "fixture-login");
+    const alias = join(shadow, "previous-login");
+    linkSync(login, alias);
+    const alternateCase = join(shadow, "AUTH.json");
+    const sourceLogin = lstatSync(alternateCase, { throwIfNoEntry: false }) ? alternateCase : login;
+    symlinkSync(sourceLogin, join(source, "auth.json"), "file");
+
+    expect(() =>
+      prepareCodexHome({ dataDir: shadow, path: shadow, deviceCodexHome: source, linkDeviceLogin: true }),
+    ).toThrow("The shadow home contains the device login.");
+    expect(readFileSync(login, "utf8")).toBe("fixture-login");
+    expect(statSync(alias).nlink).toBe(2);
+  });
 });

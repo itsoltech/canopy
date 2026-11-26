@@ -1,5 +1,6 @@
 import { expect } from "bun:test";
 import { nodeRef, qualifyId, splitId } from "@canopy/domain/computers";
+import { AgentBusStore } from "@canopy/gateway/store";
 import type { BotModel, BotTurn } from "../../../apps/gateway/src/bots/types.ts";
 import { failAfterCommentary } from "./agent-report.ts";
 import { eventually, failure, type TestGateway } from "./gateway.ts";
@@ -97,7 +98,17 @@ export async function checkLinkedDelegatingBot(
     const threadId = spawn!.target_id;
     target = route(threadId);
     const turnId = splitId(spawn!.result.turn_id).id;
-    expect(await eventually(async () => b.worker.started.has(turnId), Boolean)).toBe(true);
+
+    const expectTurnContext = async (expected: string) => {
+      const context = await eventually(
+        () => b.runtime.runPromise(AgentBusStore.use((store) => store.contextTurn(threadId))),
+        (turn) => turn?.id === expected,
+      );
+
+      expect(context?.id).toBe(expected);
+    };
+
+    await expectTurnContext(turnId);
     const args = { text: "Which branch should I check?" };
     const request = { callId: crypto.randomUUID(), threadId, turnId, tool: "message_delegating_bot", args };
     const sent = await b.worker.callTool(request);
@@ -200,7 +211,7 @@ export async function checkLinkedDelegatingBot(
     });
 
     const followupTurn = followup.turn!.id;
-    expect(await eventually(async () => b.worker.started.has(followupTurn), Boolean)).toBe(true);
+    await expectTurnContext(followupTurn);
     const update = "The private deployment is ready.";
 
     const sentPrivately = await b.worker.callTool({

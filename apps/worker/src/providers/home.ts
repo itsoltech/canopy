@@ -2,17 +2,17 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
   readlinkSync,
-  realpathSync,
   renameSync,
   statSync,
   symlinkSync,
   unlinkSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import type { Env } from "./profiles.ts";
-import { providerHomeProblem } from "./home-paths.ts";
+import { providerHomeProblem, resolveLoginPath } from "./home-paths.ts";
 
 /**
  * Isolated provider homes (CODEX_HOME, CLAUDE_CONFIG_DIR) under the worker's data dir
@@ -208,7 +208,7 @@ export function isLegacyHardLink(path: string, sources: readonly string[]): bool
     const stat = lstatSync(path, { bigint: true });
 
     if (!stat.isFile() || stat.nlink < 2n) return false;
-    const canonical = realpathSync(path);
+    const canonical = resolveLoginPath(path);
 
     return sources.some((source) => {
       try {
@@ -218,7 +218,7 @@ export function isLegacyHardLink(path: string, sources: readonly string[]): bool
           device.isFile() &&
           device.dev === stat.dev &&
           device.ino === stat.ino &&
-          relative(canonical, realpathSync(source)) !== ""
+          relative(dirname(canonical), dirname(resolveLoginPath(source))) !== ""
         );
       } catch {
         return false;
@@ -231,7 +231,20 @@ export function isLegacyHardLink(path: string, sources: readonly string[]): bool
 
 function sameResolvedPath(path: string, target: string): boolean {
   try {
-    return relative(realpathSync(path), realpathSync(target)) === "";
+    const left = resolveLoginPath(path);
+    const right = resolveLoginPath(target);
+
+    if (relative(left, right) === "") return true;
+    const leftName = basename(left);
+    const rightName = basename(right);
+    const parent = dirname(left);
+
+    if (parent !== dirname(right) || leftName.toLowerCase() !== rightName.toLowerCase()) return false;
+
+    // Both paths exist. If only one spelling is listed, the filesystem resolved the other case to it.
+    const entries = readdirSync(parent);
+
+    return !entries.includes(leftName) || !entries.includes(rightName);
   } catch {
     return false;
   }
