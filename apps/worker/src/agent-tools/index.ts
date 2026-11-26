@@ -27,6 +27,7 @@ import { DesktopCursors, type DesktopPresentation } from "./desktop-cursor.ts";
 import { DesktopPointerPresentation } from "./desktop-pointer.ts";
 import type { DesktopTarget } from "./desktop-window.ts";
 import { browserDefaultsInitializer } from "./browser-defaults.ts";
+import { BrowserMcp } from "./browser-mcp.ts";
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 
 type ReportInit = MessageInitShape<typeof AgentToolsReportSchema>;
@@ -47,6 +48,7 @@ export interface AgentToolsOptions {
   readonly probe?: AgentToolProbe;
   readonly env?: ToolEnv;
   readonly desktopPointer?: DesktopPresentation;
+  readManualSecret?(threadId: string, requestId: string): string | undefined;
   send(report: ReportInit): void | Promise<void>;
   progress(progress: ProgressInit): void | Promise<void>;
 }
@@ -142,7 +144,15 @@ export class AgentTools {
         const session = threadId ? agentToolSession(threadId) : "";
         const scope = session && tool !== AgentTool.DEVICE ? ["--session", session] : [];
         const headed = session && tool === AgentTool.DESKTOP && defaults?.desktop?.allowPhysicalInput;
-        const [command, ...args] = toolArgv(path, [...scope, ...(headed ? ["--headed"] : []), "mcp"], env);
+        const browserProfile = session && tool === AgentTool.BROWSER ? ["--tools", "core,tabs"] : [];
+
+        const [command, ...args] = toolArgv(
+          path,
+          [...scope, ...(headed ? ["--headed"] : []), "mcp", ...browserProfile],
+          env,
+        );
+
+        const readSecret = this.#options.readManualSecret;
 
         return command
           ? [
@@ -160,8 +170,17 @@ export class AgentTools {
                 ...(session && { scope: { tool, session, ...(defaults && { defaults }) } }),
                 ...(session &&
                   tool === AgentTool.BROWSER &&
-                  defaults?.browser && {
+                  threadId && {
                     prepare: browserDefaultsInitializer(path, env, session, defaults?.browser),
+                    configure: (nativeEnv: ToolEnv) => ({
+                      prepare: browserDefaultsInitializer(path, nativeEnv, session, defaults?.browser),
+                      managed: new BrowserMcp(
+                        path,
+                        nativeEnv,
+                        session,
+                        readSecret && ((id) => readSecret(threadId, id)),
+                      ),
+                    }),
                   }),
                 ...(session &&
                   tool !== AgentTool.DESKTOP && {

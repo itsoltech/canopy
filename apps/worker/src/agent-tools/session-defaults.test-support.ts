@@ -36,7 +36,8 @@ if (args.includes("mcp")) {
 } else {
  appendFileSync(${JSON.stringify(log)}, JSON.stringify({kind:"cli", args}) + "\\n");
  const state = JSON.parse(readFileSync(${JSON.stringify(statePath)}, "utf8"));
- if (args.includes("session")) output({runtime:state.launched ? {browserLaunched:true} : null});
+ if (args.includes("cdp-url")) console.log(JSON.stringify({success:false,error:"CDP unavailable in fixture"}));
+ else if (args.includes("session")) output({runtime:state.launched ? {browserLaunched:true} : null});
  else {
   await Bun.sleep(20);
   state.launched = true;

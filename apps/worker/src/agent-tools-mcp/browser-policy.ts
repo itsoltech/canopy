@@ -9,6 +9,28 @@ const browserArguments = z.object({
   extraArgs: z.array(z.string()).optional(),
 });
 
+export const browserDialogStatus = "agent_browser_dialog_status";
+export const browserDialogAccept = "agent_browser_dialog_accept";
+export const browserDialogDismiss = "agent_browser_dialog_dismiss";
+export const browserBasicAuth = "agent_browser_open_with_basic_auth";
+
+const basicAuthArguments = z.strictObject({
+  url: z.string().max(8192),
+  requestId: z.uuid(),
+  session: z.string(),
+});
+
+export function basicAuthRequest(args: z.infer<typeof ToolCall>["arguments"]) {
+  const parsed = basicAuthArguments.safeParse(args);
+
+  if (!parsed.success) return;
+  const url = URL.parse(parsed.data.url);
+
+  if (!url || !["http:", "https:"].includes(url.protocol) || url.username || url.password) return;
+
+  return { url, requestId: parsed.data.requestId };
+}
+
 const headedTools = new Set(["agent_browser_open", "agent_browser_doctor"]);
 const pinnedFlags = new Set(["--session", "--namespace", "--headed", "--all"]);
 
@@ -17,6 +39,13 @@ const POLICY_INSTRUCTIONS =
 
 /** The browser and its preview must stay in the same thread session without opening an OS window. */
 export function bindBrowserCall(params: z.infer<typeof ToolCall>): z.infer<typeof ToolCall> {
+  if (params.name === browserBasicAuth) {
+    if (!basicAuthRequest(params.arguments))
+      throw new Error("Provide an HTTP or HTTPS URL without credentials and a private secret requestId.");
+
+    return params;
+  }
+
   const parsed = browserArguments.safeParse(params.arguments);
 
   if (!parsed.success) throw new Error("Invalid browser session or launch arguments");
@@ -27,6 +56,13 @@ export function bindBrowserCall(params: z.infer<typeof ToolCall>): z.infer<typeo
   if (args.headed) throw new Error(`${POLICY_INSTRUCTIONS} Omit headed and continue headless.`);
 
   if (args.all) throw new Error(`${POLICY_INSTRUCTIONS} Close only this thread's session; omit all.`);
+
+  if (params.name === browserDialogAccept) {
+    const text = z.string().optional().parse(params.arguments["text"]);
+
+    // Upstream 0.43 passes this operand before the CLI's end-of-options marker.
+    if (text?.startsWith("-")) throw new Error("Prompt text cannot start with a dash in this browser version.");
+  }
 
   for (const argument of args.extraArgs ?? []) {
     if (pinnedFlags.has(argument.split("=", 1)[0] ?? ""))
@@ -47,7 +83,8 @@ export function bindBrowserCall(params: z.infer<typeof ToolCall>): z.infer<typeo
 }
 
 export function browserCatalog(tools: Tool[]): Tool[] {
-  return tools.map((tool) => {
+  return tools.flatMap((tool) => {
+    if (tool.name === "agent_browser_window_new") return [];
     const properties = { ...tool.inputSchema.properties };
 
     if (Object.hasOwn(properties, "headed"))
@@ -66,10 +103,21 @@ export function browserCatalog(tools: Tool[]): Tool[] {
         description: "Close only this thread's session. Keep false or omit.",
       };
 
-    return {
-      ...tool,
-      description: `${tool.description ?? ""}\n${POLICY_INSTRUCTIONS} Omit session, namespace and headed launch flags.`,
-      inputSchema: { ...tool.inputSchema, properties },
-    };
+    const dialogHint = [
+      "agent_browser_open",
+      "agent_browser_click",
+      "agent_browser_press",
+      "agent_browser_eval",
+    ].includes(tool.name)
+      ? ` If a dialog opens, use ${browserDialogStatus}, ${browserDialogAccept}, or ${browserDialogDismiss} before continuing.`
+      : "";
+
+    return [
+      {
+        ...tool,
+        description: `${tool.description ?? ""}${dialogHint}\n${POLICY_INSTRUCTIONS} Omit session, namespace and headed launch flags.`,
+        inputSchema: { ...tool.inputSchema, properties },
+      },
+    ];
   });
 }
