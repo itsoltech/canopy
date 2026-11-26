@@ -47,7 +47,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     await f?.close();
   });
 
-  async function source(provider: Provider, policy = "safe") {
+  async function source(provider: Provider, policy = "safe", delivery: MessengerRoute["delivery"] = "reply") {
     const bot = await f.add(provider, f.workerId, policy);
 
     const route = await run((s) =>
@@ -59,7 +59,7 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
         directMessages: false,
         mentions: true,
         observe: false,
-        delivery: "reply",
+        delivery,
         instructions: "Maintain the task notes in Notion and delegate implementation to a work thread.",
       }),
     );
@@ -193,6 +193,40 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     )!;
 
     return { account, tool };
+  }
+
+  for (const delivery of ["reply", "notify"] as const) {
+    test(`a Slack bot can skip delivery in ${delivery} mode and still reply to the next message`, async () => {
+      const { bot, route } = await source(Provider.CODEX, "always", delivery);
+      const threadId = "710.1";
+      const turnId = await begin(route, "PROBE_CONTEXT\nTOOL:skip_slack_reply", threadId);
+      const pendingDelivery = await finished(turnId);
+
+      const context = botContexts(join(f.dir, "bots.jsonl.context")).at(-1)!;
+      expect(context.names).toContain("skip_slack_reply");
+      expect(context.instructions).toContain("call skip_slack_reply");
+
+      const [generated] = await f.query<{ text: string }>("SELECT text FROM bot_harness_turns WHERE turn_id=$1", [
+        turnId,
+      ]);
+
+      expect(generated?.text).toStartWith("TOOL_RESULT:");
+      expect(pendingDelivery).toEqual([]);
+      expect(
+        await f.query("SELECT text FROM bot_messages WHERE turn_id=$1 AND message_key='answer'", [turnId]),
+      ).toEqual([]);
+
+      const replies = async () =>
+        (await f.read(bot.id)).messages.filter((m) => m.senderId === bot.id).map((m) => m.text);
+
+      expect(await replies()).toEqual([]);
+
+      const nextTurnId = await begin(route, "A question that needs an answer", threadId);
+      const nextDelivery = await finished(nextTurnId);
+
+      if (delivery === "reply") expect(nextDelivery).toEqual([{ text: "FIXTURE_OK" }]);
+      else expect(await replies()).toEqual(["FIXTURE_OK"]);
+    }, 20_000);
   }
 
   for (const provider of [Provider.CLAUDE, Provider.CODEX, Provider.GROK]) {

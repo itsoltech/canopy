@@ -14,6 +14,7 @@ import { alwaysAsk } from "./approval-rules.ts";
 import { Invalid } from "../store/errors.ts";
 import { SLACK_POST_ACTION } from "../connectors/slack-post-tool.ts";
 import { schedulePageDescription, schedulePageFields } from "./tools/schedules.ts";
+import { SKIP_SLACK_REPLY } from "./external-instructions.ts";
 
 // External messages can request work with existing grants, never administer the owner's account.
 // New platform tools stay private until their external provenance and result routing are reviewed.
@@ -40,6 +41,7 @@ const EXTERNAL_WORK_TOOLS = new Set([
   "delete_file",
   "download_file",
   "ask_user",
+  SKIP_SLACK_REPLY,
 ]);
 
 const accountPreferenceNames = new Set(accountPreferenceTools.map(({ spec }) => spec.name));
@@ -59,6 +61,7 @@ export async function currentBotTools(
   const platform = catalog.filter(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
+      (tool.name !== SKIP_SLACK_REPLY || !!turn.conversation_id) &&
       (tool.name !== "react_to_message" || memory.ownerInput) &&
       (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
@@ -89,7 +92,14 @@ export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject =
 
   if (
     tool.source === "platform" &&
-    ["create_routine", "update_routine", "delete_routine", "message_user", "react_to_message"].includes(tool.name)
+    [
+      "create_routine",
+      "update_routine",
+      "delete_routine",
+      "message_user",
+      "react_to_message",
+      SKIP_SLACK_REPLY,
+    ].includes(tool.name)
   )
     return false;
 

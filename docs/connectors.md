@@ -1,5 +1,8 @@
 # Konektory Canopy
 
+Aktualizacja (2026-11-26): bot może obsłużyć turę Slacka bez odpowiedzi lub
+powiadomienia właściciela. Dostępność w kanałach określa [promocja wydań](release.md).
+
 Aktualizacja (2026-11-26): strona powrotu OAuth chowa kod pod „Use a sign-in code”,
 gdy może automatycznie wrócić do Canopy. Przy powrocie ręcznym pokazuje kod od razu.
 Używa logotypu Canopy i palety Birch z zielonym akcentem, w jasnym lub ciemnym wariancie
@@ -656,8 +659,10 @@ Trasa wybiera konto, dozwolone identyfikatory użytkowników i kanałów, wiadom
 prywatne, wzmianki oraz opcjonalne monitorowanie kanałów. Lista użytkowników
 jest obowiązkowa: osoby spoza niej nie uruchamiają bota. Pasujące wiadomości są grupowane bez inferencji,
 a gotowe partie uruchamiają lub uzupełniają turę zużywającą tokeny modelu;
-instrukcje trasy nie są bezkosztowym filtrem semantycznym. Odpowiedź trafia do Slack (Reply in Slack)
-albo jako powiadomienie do właściciela w Canopy (Notify me in Canopy).
+instrukcje trasy nie są bezkosztowym filtrem semantycznym. Bot decyduje według
+instrukcji właściciela, czy tura wymaga wiadomości. Tryb dostarczenia kieruje
+wybraną odpowiedź do Slacka (Reply in Slack) albo jako powiadomienie do właściciela
+w Canopy (Notify me in Canopy).
 Odpowiedzi wysyłane do Slacka mają to samo formatowanie co bezpośrednia wysyłka.
 Zewnętrzna rozmowa nie otrzymuje automatycznie prywatnej historii właściciela.
 Bot wybiera działania zgodnie z instrukcjami, korzystając ze swoich zwykłych
