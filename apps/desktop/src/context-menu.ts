@@ -1,8 +1,14 @@
 import { clipboard, Menu, shell, type BrowserWindow } from "electron";
+import { ComposerMenu } from "./composer-menu.ts";
 import { contextMenuTemplate } from "./context-menu-template.ts";
 
-export function attachContextMenu(target: BrowserWindow, internalOrigins: () => (string | undefined)[]) {
+export function attachContextMenu(
+  target: BrowserWindow,
+  internalOrigins: () => (string | undefined)[],
+  webUrl: () => string | undefined,
+) {
   const contents = target.webContents;
+  const composerMenu = new ComposerMenu(target, webUrl);
 
   // Chromium emits this only for contextmenu events the renderer has not cancelled.
   // Sidebar/bot menus and sensitive values keep their existing preventDefault behavior.
@@ -18,6 +24,9 @@ export function attachContextMenu(target: BrowserWindow, internalOrigins: () => 
       internalOrigins(),
     );
 
-    if (template.length) Menu.buildFromTemplate(template).popup({ window: target });
+    if (!template.length) return;
+    const menu = Menu.buildFromTemplate(template);
+
+    if (!composerMenu.offer(params, menu)) menu.popup({ window: target });
   });
 }

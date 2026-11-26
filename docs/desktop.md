@@ -1,5 +1,7 @@
 # Canopy Desktop
 
+Status (2026-11-26): menu kontekstowe pola wiadomości korzysta z aktywnej palety Canopy.
+
 Status (2026-11-26): popover aktualizacji w stopce paska bocznego oferuje sprawdzanie,
 instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok statusu aktualizacji.
 
@@ -191,14 +193,18 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    Moduł prosi o zgodę tylko przy stanie `notDetermined`. Odmowę zwraca osobno
    od błędu wywołania, także gdy system zgłosi `UNErrorCodeNotificationsNotAllowed`.
    Natywne menu kontekstowe (`context-menu.ts`) daje Copy dla zaznaczenia oraz role
-   Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. Przy włączonym sprawdzaniu
+   Undo, Redo, Cut, Copy, Paste i Select All w polach edycji. W polu wiadomości
+   Electron rysuje te pozycje w izolowanym widoku powłoki z aktywną paletą Canopy.
+   Powłoka przyjmuje wybór wyłącznie z własnego menu i wykonuje natywne polecenie
+   po przywróceniu fokusu oraz zaznaczenia edytora. Treść aplikacji nie ma dostępu
+   do IPC wyboru pozycji. Jeśli widok menu nie jest dostępny, Electron otwiera
+   menu natywne. Przy włączonym sprawdzaniu
    pisowni pokazuje propozycje poprawek. Linki mają Copy link, a zewnętrzne linki
    `http:` i `https:` także Open link in browser. Wewnętrzne adresy setupu i BFF
    nie mogą być otwierane w przeglądarce, również przez `window.open`.
    Akcja wątku Open in new tab jest ukryta na desktopie w menu i palecie poleceń.
    Własne menu renderera i chronione wartości nadal blokują menu systemowe przez
    lokalne `contextmenu.preventDefault()`.
-   Nie ma dodatkowego IPC ani zmiany izolacji renderera.
    Przy otwarciu pickera Typography wczytuje listę rodzin bez dodatkowej akcji.
    Korzysta najpierw z `window.queryLocalFonts()`. Uprawnienie `local-fonts`
    jest dostępne wyłącznie głównej ramce web UI; setup, iframe i obce originy nie mają

@@ -14,6 +14,7 @@ import { QuitFeedback } from "./quit-feedback.ts";
 import { quitFallback } from "./quit-fallback.ts";
 import { desktopVersionArgument } from "./startup-version.ts";
 import { isDesktopRoute } from "@canopy/ui/desktop";
+import { trackComposerContext } from "./composer-context-preload.ts";
 
 declare const CANOPY_DESKTOP_CHANNEL: AppChannel | undefined;
 
@@ -29,6 +30,8 @@ const feedback = new QuitFeedback(
 );
 
 ipcRenderer.on("canopy:quit-guard", (_event, state: QuitGuardState) => feedback.receive(state));
+
+trackComposerContext();
 
 window.addEventListener("online", (event) => {
   if (event.isTrusted) void ipcRenderer.invoke("canopy:usage-ping-online").catch(() => {});

@@ -601,6 +601,7 @@
     aria-controls={sources ? `${id}-popup-list` : undefined}
     aria-activedescendant={popupOpen && options.length > 0 ? `${id}-popup-option-${active}` : undefined}
     contenteditable={disabled ? "false" : "true"}
+    data-composer-editor
     spellcheck="true"
     tabindex={disabled ? -1 : 0}
     class={[
