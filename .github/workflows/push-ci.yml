@@ -34,4 +34,7 @@ jobs:
   checks:
     needs: select
     if: needs.select.outputs.upstream == ''
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ci.yml

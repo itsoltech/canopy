@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, setSystemTime, spyOn, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { toJsonString } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
@@ -86,8 +86,6 @@ const FILES = [
   { id: "odd.json", provider: 7, email: ["not text"] },
 ];
 
-let mode: "ok" | "remote" | "huge" | "html" | "echo" | "endless403" = "ok";
-
 const base64 = (value: string) => Buffer.from(value).toString("base64");
 
 /** A proxy that echoes the secrets it knows in every text field, raw and encoded. */
@@ -104,46 +102,10 @@ const ECHO = [
   },
 ];
 
-/** A 403 whose body never ends: only a prefix may be read. */
-const endless = () =>
-  new ReadableStream({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode("remote management disabled "));
-    },
-    pull(controller) {
-      controller.enqueue(new Uint8Array(64 * 1024).fill(32));
-    },
-  });
-
-let requests: string[] = [];
-
-const management = Bun.serve({
-  port: 0,
-  hostname: "127.0.0.1",
-  fetch(request) {
-    const url = new URL(request.url);
-
-    if (url.pathname !== "/v0/management/auth-files") return new Response("not found", { status: 404 });
-    const auth = request.headers.get("authorization") ?? "";
-    requests.push(auth === `Bearer ${KEY}` ? "key" : auth === `Bearer ${WRONG}` ? "wrong" : "other");
-
-    if (mode === "remote") return Response.json({ error: "remote management disabled" }, { status: 403 });
-
-    if (mode === "endless403") return new Response(endless(), { status: 403 });
-
-    if (auth !== `Bearer ${KEY}`) return Response.json({ error: "invalid management key" }, { status: 401 });
-
-    if (mode === "huge") return Response.json({ files: [{ id: "x".repeat(5 * 1024 * 1024) }] });
-
-    if (mode === "html") return new Response("<html>login</html>", { headers: { "content-type": "text/html" } });
-
-    if (mode === "echo") return Response.json({ files: ECHO });
-
-    return Response.json({ observed_at: new Date().toISOString(), files: FILES });
-  },
-});
-
-const root = `http://127.0.0.1:${management.port}`;
+const requests: string[] = [];
+const path = "/v0/management/auth-files";
+const responses = new Map<string, () => Response>([[path, () => Response.json({ files: FILES })]]);
+let management: ReturnType<typeof Bun.serve>;
 let gw: TestGateway;
 
 const query = <A extends object>(statement: string, params: readonly string[] = []) =>
@@ -155,7 +117,7 @@ const query = <A extends object>(statement: string, params: readonly string[] = 
     }),
   );
 
-const save = async (id: string, managementKey?: string, baseUrl = root) =>
+const save = async (id: string, managementKey?: string, baseUrl = management.url.origin) =>
   (
     await gw.api.saveProxy({
       id,
@@ -169,24 +131,55 @@ const save = async (id: string, managementKey?: string, baseUrl = root) =>
 
 const refresh = (id: string, force = true) => gw.api.refreshProxyAccounts({ id, force });
 
+async function expectSavedState(id: string, state: string) {
+  expect(
+    await eventually(
+      async () => (await gw.api.listProxies({})).proxies.find((proxy) => proxy.id === id)?.accounts?.state,
+      (actual) => actual === state,
+    ),
+  ).toBe(state);
+  // Join the save-triggered refresh if it is still publishing. The clock has not opened a new lease.
+  expect((await refresh(id)).state).toBe(state);
+}
+
+function saveWithResponse(response: () => Response) {
+  const prefix = `/${responses.size}`;
+  responses.set(`${prefix}${path}`, response);
+
+  return save("", KEY, `${management.url.origin}${prefix}`);
+}
+
 describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the management API", () => {
   let proxy: ui.Proxy;
+  let now = NOW.getTime();
 
   beforeAll(async () => {
-    gw = await startTestGateway();
-    // Quota epochs and cache age use this clock; PostgreSQL read leases still use real elapsed time.
-    setSystemTime(NOW);
+    gw = await startTestGateway({ proxyAccountsClock: () => new Date(now) });
+    management = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch(request) {
+        const respond = responses.get(new URL(request.url).pathname);
+
+        if (!respond) return new Response("not found", { status: 404 });
+        const auth = request.headers.get("authorization");
+        requests.push(auth === `Bearer ${KEY}` ? "key" : auth === `Bearer ${WRONG}` ? "wrong" : "other");
+
+        if (auth !== `Bearer ${KEY}`) return Response.json({ error: "invalid management key" }, { status: 401 });
+
+        return respond();
+      },
+    });
   }, 60_000);
   afterAll(async () => {
-    setSystemTime();
-    await gw?.close();
-    await management.stop(true);
+    try {
+      await gw?.close();
+    } finally {
+      await management?.stop(true);
+    }
   });
 
   test("an encrypted management key reads typed, sanitized accounts and pushes only that proxy's change", async () => {
-    proxy = await save("", KEY);
-    expect(proxy.managementKeySet).toBe(true);
-
     const updates: ui.OverviewUpdate[] = [];
     const abort = new AbortController();
 
@@ -195,7 +188,10 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
     })().catch(() => {});
 
     try {
-      requests = [];
+      expect(await eventually(async () => updates.some((u) => u.change.case === "feeds"), Boolean)).toBe(true);
+      requests.length = 0;
+      proxy = await save("", KEY);
+      expect(proxy.managementKeySet).toBe(true);
       const accounts = await refresh(proxy.id);
 
       expect(requests).toEqual(["key"]);
@@ -223,20 +219,26 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
       expect(byId.get("3")?.detail).toStartWith("refresh failed: Bearer [redacted]");
       expect(byId.get("4")).toMatchObject({ provider: "gemini", status: "disabled" });
 
-      await eventually(
-        async () => updates.find((u) => u.change.case === "proxyAccounts"),
-        (u) => u !== undefined,
-      );
+      const pushed = await eventually(async () => updates.find((u) => u.change.case === "proxyAccounts"), Boolean);
+      expect(pushed?.change).toEqual({ case: "proxyAccounts", value: accounts });
       expect((await gw.api.listProxies({})).proxies.find((p) => p.id === proxy.id)?.accounts?.state).toBe("ok");
 
-      // A view that opens again within a minute reuses the read; an unchanged forced read pushes nothing.
-      await refresh(proxy.id, false);
-      expect(requests).toHaveLength(1);
-      const pushed = updates.filter((u) => u.change.case === "proxyAccounts").length;
-      await Bun.sleep(5_100);
-      await refresh(proxy.id);
-      expect(requests).toHaveLength(2);
-      expect(updates.filter((u) => u.change.case === "proxyAccounts")).toHaveLength(pushed);
+      const published = spyOn(gw.core.hub, "publishOverview");
+
+      try {
+        // A reopened view reuses the cache. A forced read must also wait for the persisted spacing interval.
+        expect(await refresh(proxy.id, false)).toEqual(accounts);
+        now += 4_999;
+        expect(await refresh(proxy.id)).toEqual(accounts);
+        expect(requests).toHaveLength(1);
+        now += 2;
+        const reread = await refresh(proxy.id);
+        expect(reread.checkedAt).not.toEqual(accounts.checkedAt);
+        expect(requests).toHaveLength(2);
+        expect(published.mock.calls.some(([update]) => update.change.case === "proxyAccounts")).toBe(false);
+      } finally {
+        published.mockRestore();
+      }
     } finally {
       abort.abort();
       await watching;
@@ -266,20 +268,32 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
       ),
     );
 
-    const claims = spyOn(store, "claimProxyRead").mockImplementation((owner, id, identity, spacing) => {
+    const claims = spyOn(store, "claimProxyRead").mockImplementation((owner, id, identity, spacing, readAt) => {
       claiming.resolve();
 
-      return Effect.promise(() => arrived.promise).pipe(Effect.andThen(claim(owner, id, identity, spacing)));
+      return Effect.promise(() => arrived.promise).pipe(Effect.andThen(claim(owner, id, identity, spacing, readAt)));
     });
 
     const monitor = new ProxyAccountsMonitor(gw.core);
     const first = monitor.refresh(proxy.id, true);
-    await claiming.promise;
-
-    const second = monitor.refresh(proxy.id, true);
+    let second: Promise<ui.ProxyAccounts> | undefined;
 
     try {
-      const committed = await first;
+      await Promise.race([
+        claiming.promise,
+        first.then(() => {
+          throw new Error("First refresh finished before reaching the lease");
+        }),
+      ]);
+      second = monitor.refresh(proxy.id, true);
+
+      const committed = await Promise.race([
+        first,
+        second.then(() => {
+          throw new Error("Overlapping refresh finished before the first committed");
+        }),
+      ]);
+
       release.resolve();
       expect(committed).toMatchObject({ proxyId: proxy.id, state: "ok", total: 5 });
       expect(await second).toEqual(committed);
@@ -319,51 +333,56 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
   });
 
   test("a wrong key is read once and never retried on its own; Refresh tries again", async () => {
+    requests.length = 0;
     proxy = await save(proxy.id, WRONG);
-    requests = [];
-    await eventually(
-      async () => (await gw.api.listProxies({})).proxies.find((p) => p.id === proxy.id)?.accounts?.state,
-      (state) => state === "unauthorized",
-    );
+    await expectSavedState(proxy.id, "unauthorized");
     expect(requests).toEqual(["wrong"]);
     // A view that opens and the periodic check take the same path: the rejection is not sent again.
+    now += 3_600_001;
     expect((await refresh(proxy.id, false)).state).toBe("unauthorized");
     expect(requests).toEqual(["wrong"]);
-    await Bun.sleep(5_100);
     expect((await refresh(proxy.id)).state).toBe("unauthorized");
     expect(requests).toEqual(["wrong", "wrong"]);
   }, 30_000);
 
-  test("disabled remote management, oversized or non-JSON bodies, an unreachable host and no key degrade to states", async () => {
-    proxy = await save(proxy.id, KEY);
-    mode = "remote";
-    await Bun.sleep(5_100);
-    expect((await refresh(proxy.id)).state).toBe("remote_disabled");
-    mode = "huge";
-    await Bun.sleep(5_100);
-    expect((await refresh(proxy.id)).state).toBe("invalid_response");
-    mode = "html";
-    await Bun.sleep(5_100);
-    expect(await refresh(proxy.id)).toMatchObject({ state: "invalid_response", accounts: [] });
-    mode = "ok";
+  test.each([
+    [
+      "disabled remote management",
+      "remote_disabled",
+      () => Response.json({ error: "remote management disabled" }, { status: 403 }),
+    ],
+    ["an oversized listing", "invalid_response", () => Response.json({ files: [{ id: "x".repeat(5 * 1024 * 1024) }] })],
+    [
+      "a non-JSON listing",
+      "invalid_response",
+      () => new Response("<html>login</html>", { headers: { "content-type": "text/html" } }),
+    ],
+  ] as const)("%s maps to %s", async (_scenario, state, respond) => {
+    const target = await saveWithResponse(respond);
+    expect(await refresh(target.id)).toMatchObject({ state, accounts: [] });
+  });
 
+  test("an unreachable management URL and a removed key have distinct states", async () => {
+    const target = await save("", KEY);
+    expect((await refresh(target.id)).state).toBe("ok");
     const closed = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response() });
-    const gone = `http://127.0.0.1:${closed.port}`;
+    const gone = closed.url.origin;
     await closed.stop(true);
-    proxy = await save(proxy.id, undefined, gone);
-    expect((await refresh(proxy.id)).state).toBe("unreachable");
+    await save(target.id, undefined, gone);
+    expect((await refresh(target.id)).state).toBe("unreachable");
 
-    proxy = await save(proxy.id, "", root);
-    expect(proxy.managementKeySet).toBe(false);
-    requests = [];
-    expect((await refresh(proxy.id)).state).toBe("no_key");
+    requests.length = 0;
+    const keyless = await save(target.id, "");
+    expect(keyless.managementKeySet).toBe(false);
+    expect((await refresh(target.id)).state).toBe("no_key");
     expect(requests).toEqual([]);
     // The proxy itself keeps working: its inference secret is untouched.
-    expect(proxy.secretSet).toBe(true);
-  }, 40_000);
+    expect(keyless.secretSet).toBe(true);
+  });
 
   test("only proxies a profile uses are checked periodically, and only by their owner", async () => {
     proxy = await save(proxy.id, KEY);
+    expect((await refresh(proxy.id)).state).toBe("ok");
     const use = gw.runtime.runPromise.bind(gw.runtime);
     expect(await use(InstanceStore.use((s) => s.managedProxies(gw.userId)))).toEqual([]);
     await gw.api.saveProviderInstance({
@@ -385,19 +404,15 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
     });
     await expect(gw.api.refreshProxyAccounts({ id: crypto.randomUUID() })).rejects.toThrow();
     // The periodic check reads the proxy in use once its last read is no longer fresh.
-    await query("UPDATE proxies SET management_status = NULL, management_read_at = NULL WHERE id = $1::uuid", [
-      proxy.id,
-    ]);
-    requests = [];
+    now += 60_000;
+    requests.length = 0;
     await gw.core.proxyAccounts.check();
     expect(requests).toEqual(["key"]);
   });
 
   test("echoed management keys and proxy secrets never leave the gateway, raw or encoded", async () => {
-    mode = "echo";
-    await Bun.sleep(5_100);
-    const accounts = await refresh(proxy.id);
-    mode = "ok";
+    const target = await saveWithResponse(() => Response.json({ files: ECHO }));
+    const accounts = await refresh(target.id);
 
     expect(accounts.state).toBe("ok");
 
@@ -420,24 +435,33 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
     expect(accounts.accounts[0]?.detail).toContain("[redacted]");
   }, 30_000);
 
-  test("an endless 403 body is read only as a short prefix", async () => {
-    mode = "endless403";
-    await Bun.sleep(5_100);
-    const started = Date.now();
-    const accounts = await refresh(proxy.id);
-    mode = "ok";
+  test("the gateway classifies an open 403 body by its prefix and cancels the stream", async () => {
+    let cancelled = false;
 
-    expect(accounts.state).toBe("remote_disabled");
-    expect(Date.now() - started).toBeLessThan(5_000);
+    const target = await saveWithResponse(() => {
+      const stream = new ReadableStream({
+        start(controller) {
+          const bytes = new Uint8Array(513).fill(32);
+          bytes.set(new TextEncoder().encode("remote management disabled"));
+          controller.enqueue(bytes);
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+
+      return new Response(stream, { status: 403 });
+    });
+
+    expect((await refresh(target.id)).state).toBe("remote_disabled");
+    expect(await eventually(async () => cancelled, Boolean)).toBe(true);
   }, 30_000);
 
   test("a rejected key stays rejected after a restart and across gateway processes until the key changes", async () => {
     proxy = await save(proxy.id, WRONG);
-    await eventually(
-      async () => (await gw.api.listProxies({})).proxies.find((p) => p.id === proxy.id)?.accounts?.state,
-      (state) => state === "unauthorized",
-    );
-    requests = [];
+    await expectSavedState(proxy.id, "unauthorized");
+    requests.length = 0;
+    now += 3_600_001;
 
     // Fresh monitors stand for a restarted gateway and a second gateway process: neither sends the key again.
     for (const restarted of [new ProxyAccountsMonitor(gw.core), new ProxyAccountsMonitor(gw.core)]) {
@@ -449,14 +473,11 @@ describe.skipIf(!dockerAvailable)("CLIProxyAPI upstream accounts through the man
 
     // A new key reads again, and two processes opening the view at once send one request.
     proxy = await save(proxy.id, KEY);
-    await eventually(
-      async () => (await gw.api.listProxies({})).proxies.find((p) => p.id === proxy.id)?.accounts?.state,
-      (state) => state === "ok",
-    );
+    await expectSavedState(proxy.id, "ok");
     await query("UPDATE proxies SET management_status = NULL, management_read_at = NULL WHERE id = $1::uuid", [
       proxy.id,
     ]);
-    requests = [];
+    requests.length = 0;
     const [a, b] = [new ProxyAccountsMonitor(gw.core), new ProxyAccountsMonitor(gw.core)];
     await Promise.all([a.refresh(proxy.id), b.refresh(proxy.id)]);
     expect(requests).toEqual(["key"]);

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { appendFileSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { appendFileSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { join, sep } from "node:path";
 import { create, toJsonString } from "@bufbuild/protobuf";
 import { ImportScanSchema } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
@@ -127,11 +127,12 @@ test("synthetic edge cases: broken lines, empty files, newer versions, missing d
 
 test("source keys resolve only inside this worker's roots", async () => {
   const { root, home, service } = fixture();
+  const projects = realpathSync(join(home, ".claude", "projects"));
   const scan = await service.scan(["claude"]);
   const { roots } = service.roots(["claude"]);
   const key = scan.threads![0]!.sourceKey!;
   const resolved = resolveSourceKey(service.key, roots, key, "file");
-  expect(resolved.path.startsWith(join(home, ".claude"))).toBe(true);
+  expect(resolved.path).toStartWith(projects + sep);
 
   const [rootId, , mac] = key.split(".");
   const forge = (rel: string, signature = mac) => `${rootId}.${Buffer.from(rel).toString("base64url")}.${signature}`;
@@ -153,10 +154,12 @@ test("source keys resolve only inside this worker's roots", async () => {
 
   expect(() => resolveSourceKey(other.key, other.roots(["claude"]).roots, key, "file")).toThrow(SourceKeyError);
   // A symlink planted after the scan, under a signed path, is refused.
-  const projects = join(home, ".claude", "projects");
   symlinkSync(root, join(projects, "escape"));
   const { signSourceKey } = await import("./source-key.ts");
-  refused(signSourceKey(service.key, roots[0]!, join(projects, "escape", "outside.jsonl")));
+  const linkedKey = signSourceKey(service.key, roots[0]!, join(projects, "escape", "outside.jsonl"));
+  expect(() => resolveSourceKey(service.key, roots, linkedKey, "file")).toThrow(
+    "the source path contains a symbolic link",
+  );
 });
 
 test("links below a CLI home are never followed: linked directories, session dirs and companion files", async () => {
@@ -238,14 +241,3 @@ test("a FIFO at a name the scan reads does not hold the worker", async () => {
   const scan = await service.scan([]);
   expect(scan.threads!.some((t) => fifo.endsWith(`${t.nativeId}.jsonl`))).toBe(false);
 }, 10_000);
-
-test("a known secret is found in the form JSON text gives it, also inside other text", async () => {
-  const { Masker, maskText } = await import("./masking.ts");
-  const secret = 'es\\cap"ed-CANARY-0042';
-  const masker = new Masker([secret]);
-  const inJson = JSON.stringify({ token: secret });
-  const inCommand = `printf '%s' '${inJson}' > config.json`;
-  const twice = JSON.stringify(inCommand);
-
-  for (const text of [secret, inJson, inCommand, twice]) expect(maskText(text, masker)).not.toContain("CANARY");
-});

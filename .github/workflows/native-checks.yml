@@ -7,9 +7,6 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: read
-
 env:
   BUN_VERSION: 1.4.5
 
@@ -24,10 +21,12 @@ jobs:
           - { target: darwin-x64, runner: macos-26-intel }
           - { target: windows-x64, runner: windows-2025, suffix: .exe }
     runs-on: ${{ matrix.runner }}
-    # Include time for the Bun cache to be saved after the native checks finish.
-    timeout-minutes: 15
+    # PR source tests start with the shards and may wait for their binary build at the end.
+    timeout-minutes: ${{ inputs.check-binaries && 20 || 15 }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - name: Decode the small Dev app icon representations with macOS
         if: runner.os == 'macOS'
         shell: bash
@@ -39,6 +38,13 @@ jobs:
             test -s "$iconset/icon_${size}x${size}@2x.png"
           done
       - uses: ./.github/actions/setup-bun
+        with:
+          install: "false"
+      - name: Install native test workspaces
+        run: >-
+          bun install --frozen-lockfile
+          --filter @canopy/desktop --filter @canopy/gateway --filter @canopy/web
+          --filter @canopy/worker --filter @canopy/integration-tests
       - name: Activity notch window and IPC in Electron
         timeout-minutes: 3
         env:
@@ -110,31 +116,46 @@ jobs:
       - name: Windows worktree checkout and cleanup
         if: matrix.target == 'windows-x64'
         run: bun test ./apps/worker/src/git/failed-worktree-cleanup.test.ts ./tests/integration/worktree-creation-failure.test.ts
+      - name: Wait for the binary build in this PR run
+        if: inputs.check-binaries
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/wait-for-ci-binaries.sh
       - uses: actions/download-artifact@v5
         if: inputs.check-binaries
         with:
-          name: native-binaries
+          name: native-binaries-${{ matrix.target }}
+          path: ${{ runner.temp }}/canopy-binaries
       - name: Open, stat, read and export an image through the pinned native calls
         if: inputs.check-binaries
         shell: bash
+        working-directory: ${{ runner.temp }}/canopy-binaries
         env:
           CANOPY_NATIVE_DIR: ${{ runner.temp }}/canopy-native
         run: |
           binary="./canopy-worker-${{ matrix.target }}${{ matrix.suffix }}"
           chmod +x "$binary"
-          "$binary" --version
+          expected="$(cat ci-version.txt)"
+          test -n "$expected"
+          actual="$("$binary" --version | tr -d '\r')"
+          echo "$binary: $actual"
+          test "$actual" = "$expected"
           "$binary" self-check
       # A reduced environment once prevented the embedded web from listening on Windows.
       - name: Embedded web answers with the build version
         if: inputs.check-binaries && matrix.target == 'windows-x64'
         shell: bash
+        working-directory: ${{ runner.temp }}/canopy-binaries
         env:
           CANOPY_WEB_DIR: ${{ runner.temp }}/canopy-web
           CANOPY_WEB_PORT: "39231"
         run: |
           binary="./canopy-gateway-${{ matrix.target }}${{ matrix.suffix }}"
           chmod +x "$binary"
-          expected="$("$binary" --version | tr -d '\r')"
+          expected="$(cat ci-version.txt)"
+          test "$("$binary" --version | tr -d '\r')" = "$expected"
           CANOPY_UI_SERVICE_TOKEN="ci-$RANDOM-$RANDOM-0123456789abcdef0123456789" "$binary" web &
           web=$!
           health=""

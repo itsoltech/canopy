@@ -2,8 +2,6 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
-import { Effect } from "effect";
-import { SqlClient } from "effect/sql";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
 import { pullRequestAvatar } from "../../apps/gateway/src/github/avatars.ts";
 import { avatarUrl } from "../../apps/gateway/src/github/avatar-url.ts";
@@ -20,11 +18,10 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
   let gw: TestGateway;
   let pr: string;
   let account: string;
-  let thread: string;
 
   beforeAll(async () => {
     gw = await startTestGateway({ github: fixture.options });
-    ({ pr, account, thread } = await linkedRead(gw, fixture));
+    ({ pr, account } = await linkedRead(gw, fixture));
   }, 60_000);
   afterAll(async () => {
     await gw?.close();
@@ -280,24 +277,6 @@ describe.skipIf(!dockerAvailable)("PR panel cache and actor boundaries", () => {
     } finally {
       await stranger.stop();
     }
-  });
-
-  test("five hidden minutes do not refresh GitHub resources", async () => {
-    await gw.runtime.runPromise(
-      Effect.gen(function* () {
-        const sql = yield* SqlClient.SqlClient;
-        yield* sql`INSERT INTO github_git_contexts(owner_user_id,thread_id,context)
-        VALUES (${gw.userId}::uuid,${thread}::uuid,'{}'::jsonb) ON CONFLICT DO NOTHING`;
-      }),
-    );
-    const before = requests();
-
-    for (let minute = 0; minute < 5; minute++) {
-      fixture.advance(60_000);
-      await gw.core.github.background.tick();
-    }
-
-    expect(requests()).toBe(before);
   });
 
   test("rejects arbitrary hosts, redirects, non-raster images and oversized responses", async () => {

@@ -238,10 +238,8 @@ test.skipIf(!dockerAvailable)("shares one overview stream and serves materialize
     expect((await second.next()).value?.change.case).toBe("feeds");
     expect(watchCalls).toBe(1);
 
-    const [overview, threads, settings] = await Promise.all([bff.overview(), bff.threads(), bff.settings()]);
-    expect(overview.workers.length).toBeGreaterThan(0);
-    expect(threads.threads.length).toBeGreaterThanOrEqual(0);
-    expect(settings).toBeDefined();
+    const [overview, settings] = await Promise.all([bff.overview(), bff.settings()]);
+    expect(overview.workers.map((worker) => worker.id)).toContain(gateway.workerId);
 
     const changed = await gateway.api.updateUserSettings({
       expectedVersion: settings.user?.version ?? 0n,
@@ -253,7 +251,7 @@ test.skipIf(!dockerAvailable)("shares one overview stream and serves materialize
       (current) => current.user?.version === changed.settings?.version,
     );
 
-    expect(currentSettings.user?.timezone).toBe("Europe/Warsaw");
+    expect(currentSettings.user).toMatchObject({ version: changed.settings!.version, timezone: "Europe/Warsaw" });
     const project = (await gateway.api.createProject({ name: "BFF materialized project" })).project!;
 
     const workspace = (
@@ -273,12 +271,15 @@ test.skipIf(!dockerAvailable)("shares one overview stream and serves materialize
         )
       )?.title,
     ).toBe("Live title");
-    await eventually(
+
+    const currentOverview = await eventually(
       () => bff.overview(),
       (current) => current.projects.some((candidate) => candidate.id === project.id),
     );
 
-    expect((await bff.threads(project.id)).threads.every((thread) => thread.projectId === project.id)).toBe(true);
+    expect(currentOverview.projects.map((candidate) => candidate.id)).toContain(project.id);
+    expect((await bff.threads()).threads.map((candidate) => candidate.id)).toContain(thread.id);
+    expect((await bff.threads(project.id)).threads.map((candidate) => candidate.id)).toEqual([thread.id]);
   } finally {
     firstAbort.abort();
     secondAbort.abort();

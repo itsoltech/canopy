@@ -40,6 +40,8 @@ export class PeerReads {
   private closed = false;
   private listeners = new Set<(method: string) => void>();
 
+  constructor(private readonly backoffNow = Date.now) {}
+
   subscribe(listener: (method: string) => void) {
     this.listeners.add(listener);
 
@@ -53,7 +55,7 @@ export class PeerReads {
   }
 
   blocked(node: string) {
-    return (this.circuits.get(node)?.until ?? 0) > Date.now();
+    return (this.circuits.get(node)?.until ?? 0) > this.backoffNow();
   }
 
   disconnected(node: string) {
@@ -61,7 +63,7 @@ export class PeerReads {
     const failures = (this.circuits.get(node)?.failures ?? 0) + 1;
     this.circuits.set(node, {
       failures,
-      until: Date.now() + Math.min(PEER_MAX_BACKOFF_MS, PEER_BACKOFF_MS * 2 ** (failures - 1)),
+      until: this.backoffNow() + Math.min(PEER_MAX_BACKOFF_MS, PEER_BACKOFF_MS * 2 ** (failures - 1)),
     });
   }
 

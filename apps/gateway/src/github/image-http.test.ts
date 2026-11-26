@@ -1,9 +1,31 @@
 import { describe, expect, test } from "bun:test";
 import { githubHtmlParts, githubImageUrl } from "@canopy/domain/github-images";
+import { Code } from "@connectrpc/connect";
 import { imageHttp } from "./image-http.ts";
 
 const asset = "https://github.com/user-attachments/assets/fixture";
-const raster = Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00\x00;", "binary");
+const raster = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==", "base64");
+
+function gifWithComment(size: number) {
+  const gif = Buffer.alloc(size, 0x61);
+  raster.copy(gif, 0, 0, raster.length - 1);
+  let offset = raster.length - 1;
+  gif[offset++] = 0x21;
+  gif[offset++] = 0xfe;
+
+  // A GIF comment is split into sub-blocks of up to 255 bytes. Leave two bytes for its terminator and the trailer.
+  while (offset < size - 2) {
+    const remaining = size - 2 - offset;
+    const length = remaining === 257 ? 254 : Math.min(255, remaining - 1);
+    gif[offset] = length;
+    offset += length + 1;
+  }
+
+  gif[offset] = 0;
+  gif[offset + 1] = 0x3b;
+
+  return gif;
+}
 
 describe("GitHub image trust boundary", () => {
   test("rejects SSRF hosts, credentials, schemes, ports and non-attachment GitHub paths", () => {
@@ -80,11 +102,10 @@ describe("GitHub image trust boundary", () => {
     }
   });
 
-  test("rejects SVG, spoofed raster MIME types and oversized streamed bodies", async () => {
+  test("rejects SVG and spoofed raster MIME types", async () => {
     for (const [body, mime] of [
       ["<svg onload='alert(1)'/>", "image/svg+xml"],
       ["<html>unsafe</html>", "image/png"],
-      ["x".repeat(2 * 1024 * 1024 + 1), "image/gif"],
     ]) {
       const fetcher: typeof fetch = Object.assign(
         async () => new Response(body, { headers: { "content-type": mime! } }),
@@ -92,6 +113,54 @@ describe("GitHub image trust boundary", () => {
       );
 
       await expect(imageHttp(asset, "", new AbortController().signal, fetcher, "fixture-secret")).rejects.toThrow();
+    }
+  });
+
+  test("accepts a streamed GIF at 2 MiB and cancels a valid GIF one byte over", async () => {
+    const limit = 2 * 1024 * 1024;
+
+    for (const size of [limit, limit + 1]) {
+      const gif = gifWithComment(size);
+      let offset = 0;
+      let cancelled = false;
+
+      const stream = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            if (offset === gif.length) {
+              controller.close();
+
+              return;
+            }
+
+            const end = Math.min(offset + 64 * 1024, gif.length);
+            controller.enqueue(gif.subarray(offset, end));
+            offset = end;
+          },
+          cancel() {
+            cancelled = true;
+          },
+        },
+        { highWaterMark: 0 },
+      );
+
+      const fetcher: typeof fetch = Object.assign(
+        async () => new Response(stream, { headers: { "content-type": "image/gif" } }),
+        { preconnect: fetch.preconnect },
+      );
+
+      const response = imageHttp(asset, "", new AbortController().signal, fetcher, "fixture-secret");
+
+      if (size === limit) {
+        expect((await response).value?.dataUrl).toBe(`data:image/gif;base64,${gif.toString("base64")}`);
+        expect(cancelled).toBe(false);
+      } else {
+        await expect(response).rejects.toMatchObject({
+          code: Code.Unavailable,
+          rawMessage: "Image unavailable. Open it on GitHub.",
+        });
+        expect(cancelled).toBe(true);
+      }
     }
   });
 });

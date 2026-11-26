@@ -61,6 +61,8 @@ export type Options = {
   watchTiming?: { heartbeatMs: number; timeoutMs: number; legacyProbeMs: number };
   /** Clock for persisted presence and expiry; transport heartbeat timing stays independent. */
   presenceNow?: () => number;
+  /** Clock for the circuit breaker shared by peer reads and reconnects. */
+  backoffNow?: () => number;
   /** Serves linked computers' calls on this computer's threads (stage 2). Without it the capability is not offered. */
   serve?: RemoteServe;
   /** Configuration shared with linked computers. Without it the capability is not offered. */

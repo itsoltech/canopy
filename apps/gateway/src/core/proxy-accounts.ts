@@ -34,8 +34,8 @@ const WAITING = new Set(["no_key", "unauthorized", "remote_disabled"]);
 const sameAccounts = (a: ui.ProxyAccounts | undefined, b: ui.ProxyAccounts) =>
   !!a && equals(ui.ProxyAccountsSchema, { ...a, checkedAt: undefined }, { ...b, checkedAt: undefined });
 
-const ageOf = (accounts: ui.ProxyAccounts | undefined) =>
-  accounts?.checkedAt ? Date.now() - Number(accounts.checkedAt.seconds) * 1000 : Infinity;
+const ageOf = (accounts: ui.ProxyAccounts, now = Date.now()) =>
+  accounts.checkedAt ? now - Number(accounts.checkedAt.seconds) * 1000 : Infinity;
 
 /**
  * Upstream accounts of the owner's CLIProxyAPI proxies (docs/proxies.md, "Konta upstream"). The last sanitized read
@@ -70,13 +70,18 @@ export class ProxyAccountsMonitor {
 
   /** Owner-scoped: an unknown or foreign id fails as not found before anything is sent. */
   async refresh(id: string, force = false): Promise<ui.ProxyAccounts> {
-    const owner = this.core[coreState].options.userId;
+    const { userId: owner, proxyAccountsClock } = this.core[coreState].options;
     const target = await coreInstances(this.core, (s) => s.proxyManagement(owner, id));
 
     if (!target.key) return create(ui.ProxyAccountsSchema, { proxyId: id, state: "no_key" });
     const last = target.last;
 
-    if (!force && last && (WAITING.has(last.state) || ageOf(last) < this.#delay(id, target.identity, last.state)))
+    if (
+      !force &&
+      last &&
+      (WAITING.has(last.state) ||
+        ageOf(last, proxyAccountsClock?.().getTime()) < this.#delay(id, target.identity, last.state))
+    )
       return last;
 
     const running = this.#flights.get(id);
@@ -91,9 +96,12 @@ export class ProxyAccountsMonitor {
   }
 
   async #read(id: string, target: ProxyTarget, force: boolean): Promise<ui.ProxyAccounts> {
-    const owner = this.core[coreState].options.userId;
+    const { userId: owner, proxyAccountsClock } = this.core[coreState].options;
     const spacing = force ? FORCE_MS : FRESH_MS;
-    const claimed = await coreInstances(this.core, (s) => s.claimProxyRead(owner, id, target.identity, spacing));
+
+    const claimed = await coreInstances(this.core, (s) =>
+      s.claimProxyRead(owner, id, target.identity, spacing, proxyAccountsClock?.()),
+    );
 
     if (!claimed) {
       // The read that held the lease may have finished while our target lookup was still in flight.
@@ -102,7 +110,7 @@ export class ProxyAccountsMonitor {
       return current.last ?? create(ui.ProxyAccountsSchema, { proxyId: id });
     }
 
-    const value = await readProxyAccounts(id, target.root, target.key, [target.secret]);
+    const value = await readProxyAccounts(id, target.root, target.key, [target.secret], proxyAccountsClock);
 
     return this.#store(id, target.identity, target.last, value);
   }

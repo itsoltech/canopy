@@ -784,9 +784,10 @@ Kontrolki opcji automatyzacji w UI mogą zostać dodane osobno; edytor harmonogr
 ## Weryfikacja (etap 1)
 
 - `tests/integration/worktrees.test.ts`: gateway + PostgreSQL + prawdziwy `WorkerHost` i repo
-  tymczasowe (bare origin + klon): refy, worktree z lokalnej i zdalnej bazy, checkout trwający ponad 90 s
-  z późniejszym uruchomieniem wątku, wygaśnięcie równoległego żądania w kolejce, nazwy gałęzi (w tym
-  semantyczny prefiks przez zaślepkę `GenerateText`), konfinacja ścieżek, owner scoping, ustawienia
+  tymczasowe (bare origin + klon): refy, worktree z lokalnej i zdalnej bazy, wybór wydłużonego limitu
+  i wysłanie terminu rozpoczęcia checkoutu przez gateway, wygaśnięcie równoległego żądania podczas
+  rzeczywistego hooka Git, raportowanie postępu i uruchomienie wątku po zwolnieniu hooka, nazwy gałęzi
+  (w tym semantyczny prefiks przez zaślepkę `GenerateText`), konfinacja ścieżek, owner scoping, ustawienia
   w czterech zakresach ze źródłem dziedziczenia i konfliktem wersji, wątki boczne, ponowne użycie,
   wzmianki plików pierwszej wiadomości rozstrzygane względem nowego, użytego ponownie i odziedziczonego worktree,
   odmowa operacji zdalnych i starszy worker bez capability. Start z remote obejmuje inny upstream,

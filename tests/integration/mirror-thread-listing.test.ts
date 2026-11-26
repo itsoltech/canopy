@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
+import { create, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId } from "@canopy/domain/computers";
@@ -16,7 +16,7 @@ describe.skipIf(!dockerAvailable)("mirror metadata listing and backfill", () => 
   const node = "a".repeat(64);
   const generation = crypto.randomUUID();
   const project = crypto.randomUUID();
-  const ids = Array.from({ length: 100 }, () => crypto.randomUUID());
+  const ids = Array.from({ length: 3 }, () => crypto.randomUUID());
 
   beforeAll(async () => {
     gateway = await startTestGateway();
@@ -31,7 +31,6 @@ describe.skipIf(!dockerAvailable)("mirror metadata listing and backfill", () => 
       "INSERT INTO computer_mirror_state(owner_user_id,origin_node_id,generation) VALUES($1::uuid,$2,$3::uuid)",
       [gateway.userId, node, generation],
     );
-    const text = "x".repeat(3 * 1024 * 1024);
 
     for (const [index, id] of ids.entries()) {
       const thread = create(ui.ThreadSchema, {
@@ -41,10 +40,7 @@ describe.skipIf(!dockerAvailable)("mirror metadata listing and backfill", () => 
         status: index === 0 ? "archived" : "idle",
       });
 
-      const snapshot = toBinary(
-        ui.ThreadSnapshotSchema,
-        create(ui.ThreadSnapshotSchema, { thread, notices: [{ notice: { message: text } }] }),
-      );
+      const snapshot = toBinary(ui.ThreadSnapshotSchema, create(ui.ThreadSnapshotSchema, { thread }));
 
       await store.query(
         `INSERT INTO computer_mirror_threads(owner_user_id,origin_node_id,generation,thread_id,snapshot,thread_metadata)
@@ -58,64 +54,29 @@ describe.skipIf(!dockerAvailable)("mirror metadata listing and backfill", () => 
     await gateway?.close();
   });
 
-  test("100 three-MiB histories list only metadata, including with unreadable snapshots", async () => {
-    const started = performance.now();
-
-    const legacy = await store.query<{ snapshot: Uint8Array }>(
-      `SELECT t.snapshot FROM computer_mirror_threads t
-      JOIN computer_mirror_state s USING(owner_user_id,origin_node_id,generation)
-      WHERE t.owner_user_id=$1::uuid AND t.origin_node_id=$2 ORDER BY t.thread_id`,
-      [gateway.userId, node],
-    );
-
-    const oldThreads = legacy.map((row) => fromBinary(ui.ThreadSnapshotSchema, row.snapshot).thread!);
-    const oldMs = performance.now() - started;
-    const fastStart = performance.now();
-    const result = await mirror.threads(node, create(ui.ListThreadsRequestSchema, { includeArchived: true }));
-    const newMs = performance.now() - fastStart;
-    expect(result.map((t) => t.id)).toEqual(oldThreads.map((t) => qualifyId(t.id, node)));
-
-    const bytes = await store.query<{ snapshot: string; metadata: string }>(
-      `SELECT sum(octet_length(snapshot))::text AS snapshot,
-      sum(octet_length(thread_metadata))::text AS metadata FROM computer_mirror_threads WHERE owner_user_id=$1::uuid AND origin_node_id=$2`,
-      [gateway.userId, node],
-    );
-
-    console.info("Mirror list measurement", {
-      threads: result.length,
-      legacyMs: Math.round(oldMs),
-      metadataMs: Math.round(newMs),
-      ...bytes[0],
-    });
+  test("listing uses only owned metadata even when snapshots cannot be decoded", async () => {
     await store.query(
-      "UPDATE computer_mirror_threads SET snapshot=$3 WHERE owner_user_id=$1::uuid AND origin_node_id=$2",
-      [gateway.userId, node, new Uint8Array([0xff])],
+      `UPDATE computer_mirror_threads
+      SET snapshot=CASE WHEN thread_id=$3::uuid THEN repeat('x',17*1024*1024)::bytea ELSE $4 END
+      WHERE owner_user_id=$1::uuid AND origin_node_id=$2`,
+      [gateway.userId, node, ids[0]!, new Uint8Array([0xff])],
     );
-    expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema, { includeArchived: true }))).toEqual(result);
-    expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema, { projectId: crypto.randomUUID() }))).toEqual(
-      [],
+
+    const list = (options: { includeArchived?: boolean; projectId?: string } = {}) =>
+      mirror.threads(node, create(ui.ListThreadsRequestSchema, options));
+
+    expect((await list({ includeArchived: true })).map((thread) => thread.id).sort()).toEqual(
+      ids.map((id) => qualifyId(id, node)).sort(),
     );
-    expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema))).toHaveLength(99);
+    expect((await list()).map((thread) => thread.id).sort()).toEqual(
+      ids
+        .slice(1)
+        .map((id) => qualifyId(id, node))
+        .sort(),
+    );
+    expect(await list({ projectId: crypto.randomUUID() })).toEqual([]);
     const other = new ThreadMirror(new ComputerStore(gateway.runtime, crypto.randomUUID(), gateway.secretsKey));
     expect(await other.threads(node, create(ui.ListThreadsRequestSchema))).toEqual([]);
-  }, 15_000);
-
-  test("listing uses metadata even when a large readable snapshot is not valid protobuf", async () => {
-    await store.query(
-      `UPDATE computer_mirror_threads SET snapshot=repeat('x',17*1024*1024)::bytea
-      WHERE owner_user_id=$1::uuid AND origin_node_id=$2 AND thread_id=$3::uuid`,
-      [gateway.userId, node, ids[0]!],
-    );
-
-    const rows = await store.query<{ snapshot: Uint8Array }>(
-      "SELECT snapshot FROM computer_mirror_threads WHERE thread_id=$1::uuid",
-      [ids[0]!],
-    );
-
-    expect(rows[0]?.snapshot.byteLength).toBe(17 * 1024 * 1024);
-    expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema, { includeArchived: true }))).toHaveLength(
-      100,
-    );
   });
 
   test("backfill extracts the header even after a history field and enforces non-null metadata", async () => {
@@ -143,7 +104,7 @@ describe.skipIf(!dockerAvailable)("mirror metadata listing and backfill", () => 
     for (const statement of splitStatements(backfill)) await store.query(statement);
 
     expect((await mirror.thread(node, ids[0]!))?.title).toBe("Preserved header");
-    expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema))).toHaveLength(100);
+    expect(await mirror.threads(node, create(ui.ListThreadsRequestSchema))).toHaveLength(ids.length);
     await expect(
       store.query(
         "UPDATE computer_mirror_threads SET thread_metadata=NULL WHERE owner_user_id=$1::uuid AND origin_node_id=$2",

@@ -17,6 +17,7 @@ export interface SlackTransport {
   fetch?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
   connect?: (url: string) => SlackWebSocket;
   reconnectDelayMs?: number;
+  waitForReconnect?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 }
 
 export type SlackErrorKind = "configuration" | "retryable" | "unknown_write";

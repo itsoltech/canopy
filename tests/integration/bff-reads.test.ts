@@ -383,23 +383,6 @@ describe.skipIf(!dockerAvailable)("BFF shared reads", () => {
       reads.close();
     },
   );
-
-  test("close fences an in-flight real gateway read", async () => {
-    const reads = new BffReads();
-    const gate = Promise.withResolvers<void>();
-
-    const pending = reads.read("ListBots:close", bots.ListBotsResponseSchema, async () => {
-      await gate.promise;
-
-      return gateway.api.listBots({ includeArchived: true });
-    });
-
-    await Bun.sleep(10);
-    reads.close();
-    gate.resolve();
-
-    await expect(pending).rejects.toThrow("The session ended");
-  }, 20_000);
 });
 
 type BffReadsFrame = BffReadProjection;

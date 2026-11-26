@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
 import { agentBusToolSpecs } from "./tool-specs.ts";
 import { decodeAgentBusCall } from "./tools.ts";
-import { agentBusToolsFor } from "./policy.ts";
 import { decodeUserAnswers, questionAnswerInput, questionResult, type UserQuestion } from "./questions.ts";
 
 const question: UserQuestion = {
@@ -15,8 +14,7 @@ const question: UserQuestion = {
 };
 
 describe("platform question contract", () => {
-  test("both harnesses and side threads share the schema, with bounded questions and options", () => {
-    expect(agentBusToolsFor(1)).toEqual(expect.arrayContaining(["ask_user", "get_answers"]));
+  test("the ask_user schema and decoder enforce question and option constraints", () => {
     const spec = agentBusToolSpecs().find((s) => s.name === "ask_user")!;
     expect(spec.inputSchema).toMatchObject({
       properties: { questions: { minItems: 1, maxItems: 4 }, wait: { type: "boolean" } },

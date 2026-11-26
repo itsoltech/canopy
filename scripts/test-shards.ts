@@ -1,6 +1,6 @@
 /** Deterministic, duration-balanced file lists; each shard goes through the same temp-directory gate. */
 import { resolve } from "node:path";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import recorded from "./test-timings.json";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 
@@ -47,12 +47,12 @@ export function checkedShards() {
 }
 
 /** Compare reports from actual runs too, so a missing shard or ignored file cannot turn the gate green. */
-function verifyReports(directory: string) {
+function verifyReports(directory: string): Map<string, number> {
   const reports = readdirSync(directory).filter((file) => /^timings-\d+\.json$/.test(file));
 
   if (reports.length !== shardCount) throw new Error(`Expected ${shardCount} timing reports, got ${reports.length}`);
 
-  const executed: string[] = [];
+  const timings = new Map<string, number>();
 
   for (const report of reports) {
     const data: JsonValue = JSON.parse(readFileSync(resolve(directory, report), "utf8"));
@@ -60,16 +60,42 @@ function verifyReports(directory: string) {
     if (!jsonObject(data) || data["version"] !== 1 || !jsonObject(data["files"]))
       throw new Error(`Invalid report ${report}`);
 
-    executed.push(...Object.keys(data["files"]));
+    for (const [file, duration] of Object.entries(data["files"])) {
+      if (timings.has(file)) throw new Error(`Duplicate test file ${file} in shard reports`);
+      const milliseconds = Number(duration);
+
+      if (milliseconds !== duration || !Number.isSafeInteger(milliseconds) || milliseconds < 0)
+        throw new Error(`Invalid duration for ${file} in ${report}`);
+      timings.set(file, milliseconds);
+    }
   }
 
   const expected = testFiles();
-  executed.sort();
 
-  if (executed.length !== expected.length || executed.some((file, index) => file !== expected[index]))
+  if (timings.size !== expected.length || expected.some((file) => !timings.has(file)))
     throw new Error("Shard reports must contain every test file exactly once");
 
   console.log(`Verified ${expected.length} test files executed exactly once across ${reports.length} shards`);
+
+  return timings;
+}
+
+function refreshTimings(directories: string[]) {
+  if (directories.length === 0) throw new Error("--refresh-timings requires at least one report directory");
+  const reports = directories.map(verifyReports);
+
+  const files = Object.fromEntries(
+    testFiles().map((file) => {
+      // SAFETY: verifyReports checked every expected path in each report.
+      const samples = reports.map((report) => report.get(file)!).sort((left, right) => left - right);
+      const lower = samples[Math.floor((samples.length - 1) / 2)]!;
+      const upper = samples[Math.floor(samples.length / 2)]!;
+
+      return [file, Math.round(lower + (upper - lower) / 2)];
+    }),
+  );
+
+  writeFileSync(resolve(import.meta.dir, "test-timings.json"), `${JSON.stringify({ version: 1, files }, null, 2)}\n`);
 }
 
 function jsonObject(value: JsonValue | undefined): value is JsonObject {
@@ -91,6 +117,8 @@ if (import.meta.main) {
     if (!directory) throw new Error("--verify-reports requires a directory");
 
     verifyReports(directory);
+  } else if (selection === "--refresh-timings") {
+    refreshTimings(process.argv.slice(3));
   } else if (selection !== "--check") {
     const shard = shards[Number(selection) - 1];
 

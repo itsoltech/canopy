@@ -2142,7 +2142,11 @@ po śmierci najlepszej, ręczne dodanie/usunięcie, wyłączone wykrywanie (cisz
 trwałe ustawienie) i Unlink. `linked-computers.test.ts` sprawdza dalej fałszywą trasę z niezgodnym
 pinem. `linked-routes-status.test.ts` sprawdza łącze przychodzące przy nieudanych trasach wychodzących,
 trasę „in use” i koniec porażki po ponownym połączeniu oraz zmianę portu partnera (stary adres oznaczony,
-próbowany na końcu i usunięty po sukcesie nowej trasy). `config-sync.test.ts` sprawdza, że obie strony
+próbowany na końcu i usunięty po sukcesie nowej trasy). Test statusu tras sprawdza granice pierwszego
+i podwojonego okna blokady na zegarze instancji. `linked-timeouts.test.ts` używa tego zegara po
+wykryciu utraty łącza, aby sprawdzić odzyskanie go z tym samym pinem. W obu testach pomiar żywotności
+łącza, próby TCP i TLS oraz zapis tras w PostgreSQL działają w czasie rzeczywistym.
+`config-sync.test.ts` sprawdza, że obie strony
 wskazują starszy komputer jako wymagający aktualizacji. `schema.test.ts` obejmuje 0052. Sieć na fizycznych urządzeniach wymaga osobnej
 kontroli, w tym zgody na sieć lokalną i współistnienia z mDNSResponder na macOS.
 

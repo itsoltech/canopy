@@ -68,6 +68,13 @@ describe.skipIf(!dockerAvailable)("speed capability with mixed worker versions",
   const sendBot = async (botId: string) =>
     gw.api.sendBotMessage({ botId, text: "Continue", clientRequestId: crypto.randomUUID() });
 
+  const waitForBotDispatch = (worker: ScriptedWorker, botId: string) =>
+    eventually(
+      async () =>
+        worker.commands.flatMap((c) => (c.case === "runBotTurn" && c.value.botId === botId ? [c.value.turnId] : [])),
+      (turnIds) => turnIds.length > 0,
+    );
+
   const readBot = (botId: string) => gw.core.bots.run((s) => s.conversation(gw.userId, botId));
 
   const reconnectLegacy = async () => {
@@ -93,13 +100,10 @@ describe.skipIf(!dockerAvailable)("speed capability with mixed worker versions",
   for (const serviceTier of ["fast", "default"]) {
     test(`automatic bot placement requires support for explicit ${serviceTier}`, async () => {
       const bot = await addBot(serviceTier);
-      await sendBot(bot.id);
+      const { turnId } = await sendBot(bot.id);
 
       try {
-        await eventually(
-          async () => modern.commands.filter((c) => c.case === "runBotTurn" && c.value.botId === bot.id),
-          (commands) => commands.length === 1,
-        );
+        expect(new Set(await waitForBotDispatch(modern, bot.id))).toEqual(new Set([turnId]));
         expect((await gw.api.getBot({ botId: bot.id })).bot?.configuration?.workerId).toBe(modernId);
         expect(legacy.commands.some((c) => c.case === "runBotTurn" && c.value.botId === bot.id)).toBe(false);
       } finally {
@@ -219,13 +223,10 @@ describe.skipIf(!dockerAvailable)("speed capability with mixed worker versions",
 
   test("unspecified bot speed remains compatible with an older worker", async () => {
     const bot = await addBot("", gw.workerId);
-    await sendBot(bot.id);
+    const { turnId } = await sendBot(bot.id);
 
     try {
-      await eventually(
-        async () => legacy.commands.filter((c) => c.case === "runBotTurn" && c.value.botId === bot.id),
-        (commands) => commands.length === 1,
-      );
+      expect(new Set(await waitForBotDispatch(legacy, bot.id))).toEqual(new Set([turnId]));
     } finally {
       await gw.api.interruptBot({ botId: bot.id });
     }

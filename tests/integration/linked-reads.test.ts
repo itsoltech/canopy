@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { Message } from "@bufbuild/protobuf";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Provider, type ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
@@ -34,13 +35,12 @@ describe.skipIf(!dockerAvailable)("reads and pushed changes across linked homes"
       expect(local.workers.map((w) => w.workerId)).toEqual([f.a.workerId]);
     }
 
-    await Bun.sleep(300);
     expect(reads).toBe(0);
     expect(calls()).toBe(before);
 
     const remoteWorker = qualifyId(f.b.workerId, f.node);
     const remote = await f.a.api.listModels({ workerId: remoteWorker });
-    expect(remote.workers.every((w) => w.workerId === remoteWorker)).toBe(true);
+    expect(remote.workers.map((w) => w.workerId)).toEqual([remoteWorker]);
     expect(calls()).toBe(before + 1);
   });
 
@@ -50,7 +50,9 @@ describe.skipIf(!dockerAvailable)("reads and pushed changes across linked homes"
       (response) => response.workers.some((w) => w.workerId === qualifyId(f.b.workerId, f.node)),
     );
 
-    expect(all.workers.map((w) => w.workerId)).toContain(f.a.workerId);
+    expect(new Set(all.workers.map((w) => w.workerId))).toEqual(
+      new Set([f.a.workerId, qualifyId(f.b.workerId, f.node)]),
+    );
   });
 
   test("a linked home's bot changes reach this computer's subscribers with qualified ids", async () => {
@@ -69,7 +71,6 @@ describe.skipIf(!dockerAvailable)("reads and pushed changes across linked homes"
       );
 
       expect(pushed).toContain("bots");
-      await Bun.sleep(2500);
 
       const bot = (
         await f.b.api.createBot({
@@ -96,35 +97,73 @@ describe.skipIf(!dockerAvailable)("reads and pushed changes across linked homes"
 
       expect(seen?.change.case).toBe("bot");
       await f.b.api.deleteBot({ botId: bot.id });
-      await eventually(
+
+      const removed = await eventually(
         async () => updates.some((u) => u.change.case === "botRemoved" && u.change.value === remote),
         Boolean,
         5000,
       );
+
+      expect(removed).toBe(true);
     } finally {
       abort.abort();
       await reading;
     }
   }, 30_000);
 
-  test("a peer read that returns the same answer announces nothing, so clients read nothing again", async () => {
-    const completed: string[] = [];
-    const stop = f.la.reads.subscribe((method) => completed.push(method));
+  test("only the changed peer response announces a linked read completion", async () => {
+    const requests = () => f.requests.get("ListSchedules") ?? 0;
+    const before = requests();
+    let announcements = 0;
+
+    const stop = f.la.reads.subscribe((method) => {
+      if (method === "ListSchedules") announcements++;
+    });
+
+    const originalRead = f.la.reads.read;
+    const read = originalRead.bind(f.la.reads);
+    const responses: Promise<[PromiseSettledResult<Message>]>[] = [];
+    f.la.reads.read = (node, method, request, load, ...options) =>
+      read(
+        node,
+        method,
+        request,
+        (signal) => {
+          const response = load(signal);
+
+          // PeerReads awaits the original promise and publishes before this aggregate can resume the test.
+          if (node === f.node && method.name === "ListSchedules") responses.push(Promise.allSettled([response]));
+
+          return response;
+        },
+        ...options,
+      );
 
     try {
-      // The first answer is new: it is announced.
       await f.a.api.listSchedules({});
-      await eventually(
-        async () => completed.filter((m) => m === "ListSchedules").length,
-        (n) => n > 0,
-        5000,
+      const initial = (await responses[0])?.[0];
+      expect(initial?.status).toBe("fulfilled");
+      expect(requests()).toBe(before + 1);
+      expect(announcements).toBe(1);
+
+      f.stall();
+      f.la.reads.due(f.node, "ListSchedules");
+      await f.a.api.listSchedules({});
+
+      const arrived = await eventually(
+        async () => requests(),
+        (count) => count === before + 2,
       );
-      const first = completed.filter((m) => m === "ListSchedules").length;
-      await Bun.sleep(5600);
-      await f.a.api.listSchedules({});
-      await Bun.sleep(800);
-      expect(completed.filter((m) => m === "ListSchedules").length).toBe(first);
+
+      expect(arrived).toBe(before + 2);
+      f.resume();
+
+      expect((await responses[1])?.[0]).toEqual(initial);
+      expect(announcements).toBe(1);
     } finally {
+      f.resume();
+      f.la.reads.read = originalRead;
+      await Promise.all(responses);
       stop();
     }
   }, 20_000);

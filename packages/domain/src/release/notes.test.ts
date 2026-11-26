@@ -157,12 +157,12 @@ test("a PR lookup returns the earliest indexed publication per channel and prese
 });
 
 test("unknown versions, first installs, repeated launches and downgrades do not open full history", () => {
-  for (const from of ["", "garbage", "0.0.0-dev", "0.2.0", "0.3.0-nightly.1"]) {
+  for (const from of ["", "garbage", "0.0.0-dev", "0.1.0-dev.abc1234", "0.2.0", "0.3.0-nightly.1"]) {
     expect(appVersionIncreased(from, "0.2.0")).toBe(false);
     expect(aggregateNotes(index([release("0.2.0", [entry(1)])]), from, "0.2.0").entries).toEqual([]);
   }
 
-  expect(appVersionIncreased("0.2.0", "0.0.0-dev")).toBe(false);
+  expect(appVersionIncreased("0.2.0", "0.3.0-dev.abc1234")).toBe(false);
 });
 
 test("bounded history and publication lag are explicit rather than claiming complete release notes", () => {

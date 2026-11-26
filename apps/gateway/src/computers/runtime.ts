@@ -45,7 +45,7 @@ import { UsageSync } from "./usage.ts";
 export { computerGuard, type ComputerChange } from "./runtime-context.ts";
 
 export class LinkedComputers {
-  readonly reads = new PeerReads();
+  readonly reads: PeerReads;
   readonly usage = new UsageSync(this);
   declare hello: ComputersPresenceMethods["hello"];
   declare start: ComputersPresenceMethods["start"];
@@ -105,6 +105,7 @@ export class LinkedComputers {
     requireDesktopRole(options.network.role);
 
     if (options.core) requireDesktopRole(options.core.role);
+    this.reads = new PeerReads(options.backoffNow);
     this[computersState].routes = new Routes(options.store);
     const interceptors = options.core ? [options.core.diagnostics.interceptor] : [];
 
