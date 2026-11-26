@@ -4,6 +4,7 @@ import type { SqlClient } from "effect/sql";
 import { channelActivity } from "./store-activity.ts";
 import { privateMessengerNotice } from "./store-notify.ts";
 import { activeConversation } from "./conversation-access.ts";
+import { SKIP_SLACK_REPLY } from "../bots/external-instructions.ts";
 import type { BotTurn } from "../bots/types.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type { AccountLease, ConversationContext, OutboundMessage, OutboundResult } from "./types.ts";
@@ -15,6 +16,15 @@ export function conversationContext(sql: SqlClient.SqlClient, turn: BotTurn) {
     c.thread_id AS "threadId",r.instructions,r.delivery FROM bot_channel_conversations c
     JOIN bot_channel_routes r ON r.id=c.route_id WHERE c.id=${turn.conversation_id}::uuid AND r.bot_id=${turn.bot_id}::uuid`.pipe(
     Effect.map((rows) => rows[0]),
+  );
+}
+
+/** The successful tool result is durable and read under the same turn fence as delivery. */
+export function skippedSlackReply(sql: SqlClient.SqlClient, turnId: string) {
+  return sql<{ skipped: boolean }>`SELECT EXISTS (SELECT 1 FROM bot_tool_calls
+    WHERE turn_id=${turnId}::uuid AND status='completed' AND tool->>'source'='platform'
+      AND tool->>'name'=${SKIP_SLACK_REPLY} AND result @> '{"skipped":true}'::jsonb) AS skipped`.pipe(
+    Effect.map(([row]) => row!.skipped),
   );
 }
 

@@ -3,6 +3,8 @@ import { BotStore } from "../store.ts";
 import { MessengerStore } from "../../messengers/store.ts";
 import { slackChannels } from "../../messengers/slack-channels.ts";
 import { slackChannelMembers, slackUsers } from "../../messengers/slack-members.ts";
+import { Invalid } from "../../store/errors.ts";
+import { SKIP_SLACK_REPLY } from "../external-instructions.ts";
 import { bool, decoded, define, object, str, strings, type ToolContext } from "./shared.ts";
 
 const authority =
@@ -30,6 +32,19 @@ async function mutation<A, E>(c: ToolContext, run: (s: MessengerStore["Service"]
 }
 
 export const messengerTools = [
+  define(
+    SKIP_SLACK_REPLY,
+    "Finish this Slack conversation turn without sending a reply or notifying the owner. Call after completing any needed work, when the owner's instructions and the conversation call for silence. Once this succeeds, any final text in this turn is suppressed.",
+    object({}),
+    "Skipping reply",
+    (c) => {
+      if (!c.turn.conversation_id) throw new Invalid("Skipping delivery requires a Slack conversation.");
+
+      return c.options.runtime.runPromise(
+        BotStore.use((s) => s.action(c.turn, c.call, Effect.succeed({ skipped: true }))),
+      );
+    },
+  ),
   define(
     "list_messenger_accounts",
     `Messengers: list your owner's connected messenger accounts, including enabled state and connection status, without credentials. ${authority}`,
@@ -131,7 +146,7 @@ export const messengerTools = [
   ),
   define(
     "save_messenger_subscription",
-    `Messengers: create or replace your own subscription for an account. If subscription_id is omitted, update your existing subscription for that account or create one. Supply the full desired configuration; list subscriptions first to preserve existing channels/instructions. user_ids is a required nonempty Slack author allowlist, never assume everyone. observe listens to every allowed message and consumes model tokens; mentions listens for mentions; direct_messages enables DMs. delivery=reply sends answers to Slack, notify delivers intentional summaries to your owner in Canopy. Persist the owner's conditional reaction instructions here; choose actions with your ordinary granted tools when messages arrive. No channel-to-tool bindings. ${authority}`,
+    `Messengers: create or replace your own subscription for an account. If subscription_id is omitted, update your existing subscription for that account or create one. Supply the full desired configuration; list subscriptions first to preserve existing channels/instructions. user_ids is a required nonempty Slack author allowlist, never assume everyone. observe listens to every allowed message and consumes model tokens; mentions listens for mentions; direct_messages enables DMs. delivery=reply sends chosen replies to Slack, notify delivers intentional summaries to your owner in Canopy. Persist the owner's conditions for replying, notifying, or acting on messages here. No channel-to-tool bindings. ${authority}`,
     object(
       {
         account_id: str,

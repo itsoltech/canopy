@@ -1,5 +1,8 @@
 # Boty
 
+Status (2026-11-26): bot obsługujący Slack może zakończyć turę bez wysyłania
+odpowiedzi ani powiadomienia. Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-25): cytaty w wysłanych wiadomościach w web i desktopie dopasowują
 kolor do dymku w jasnym i ciemnym trybie.
 Dostępność w kanałach określa [promocja wydań](release.md).
@@ -338,12 +341,19 @@ wzmianki o osobach w składni `<@USER_ID>`. Przy uruchomieniu wątku roboczego i
 kolejnych wiadomościach do niego Canopy dołącza instrukcję zwrócenia pytań i wyników do bota.
 Instrukcja zabrania wysyłania i szkicowania odpowiedzi do rozmowy źródłowej
 przez konektor Slack. Dotychczasowe granty konektora obowiązują nadal.
-Trasa „Notify me” prosi o zwięzłe podsumowanie dla właściciela. Jej wynik tworzy
+Trasa „Notify me” prosi o zwięzłe podsumowanie, gdy coś wymaga uwagi właściciela. Jej wynik tworzy
 osobną, ukończoną prywatną turę z notką; pełny wynik może pojawić się
 w prywatnej historii i handoff.
 To świadome dostarczenie wyniku, bez importowania całego kanału.
 
-Zakończenie tury zapisuje odpowiedź do outboxa w tej samej transakcji co jej wynik.
+W obu trybach bot ocenia według instrukcji właściciela, czy trzeba coś wysłać.
+Może wykonać potrzebne działania i zakończyć turę bez wiadomości. Wywołanie
+`skip_slack_reply` trwale zapisuje decyzję dla tej tury. Tekst wygenerowany przez
+model w tej turze pomija się przy zapisie odpowiedzi i dostarczeniu. Pusty wynik
+również nie trafia do wysyłki. Historia pokazuje ukończoną turę bez stanu dostarczenia.
+
+Zakończenie tury z odpowiedzią na Slack zapisuje ją do outboxa w tej samej
+transakcji co wynik tury.
 Żadne wywołanie Slack nie działa wewnątrz transakcji. Osobny nadawca oznacza wpis
 jako wysyłany przed siecią; potwierdzony błąd przejściowy może odroczyć wysyłkę.
 Nieznany wynik zapisu lub przerwany proces nie powoduje automatycznego wysłania

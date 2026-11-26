@@ -3,7 +3,7 @@ import { bots, MentionKind, MentionSchema, type Mention, type ui } from "@canopy
 import { ConnectorFailure } from "../connectors/store.ts";
 import { connectorType } from "../connectors/catalog.ts";
 import { checkMentions, DEFAULT_BUS_LIMITS, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
-import { finishChannelTurn } from "../messengers/store-outbound.ts";
+import { finishChannelTurn, skippedSlackReply } from "../messengers/store-outbound.ts";
 import { activeConversation } from "../messengers/conversation-access.ts";
 import { botImages, storedBotImage } from "./attachments.ts";
 import { Effect } from "effect";
@@ -199,7 +199,7 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
   const finish = (
     turn: BotTurn,
     status: "completed" | "failed" | "interrupted",
-    text: string,
+    generatedText: string,
     errorCode = "",
     errorSource = "",
   ) =>
@@ -207,6 +207,14 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
       Effect.gen(function* () {
         yield* fenced(turn);
         const bot = (yield* sql<BotRow>`SELECT * FROM bots WHERE id = ${turn.bot_id}::uuid FOR UPDATE`)[0]!;
+
+        const text =
+          turn.conversation_id &&
+          status === "completed" &&
+          generatedText.trim() &&
+          (yield* skippedSlackReply(sql, turn.id))
+            ? ""
+            : generatedText;
 
         if (text.trim() && !turn.reaction_input && !turn.routine_id && !turn.handoff_configuration)
           yield* sql`INSERT INTO bot_messages(id, bot_id, turn_id, message_key, sender_id, recipient_id, kind, text, exchange_id, error_code, error_source)
