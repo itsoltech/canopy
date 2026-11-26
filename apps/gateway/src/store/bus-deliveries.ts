@@ -186,7 +186,7 @@ export function busDeliveryStore(sql: SqlClient.SqlClient): BusDeliveryStore {
               FROM agent_bus_calls c
               LEFT JOIN turn_steers st ON st.agent_call_id = c.id
               LEFT JOIN turns u ON u.id = coalesce(c.target_turn_id, st.queued_turn_id)
-             WHERE c.tool IN ('spawn_thread', 'send_message') AND c.status = 'completed' AND c.target_thread_id IS NOT NULL`;
+             WHERE c.tool IN ('spawn_thread', 'start_thread', 'send_message') AND c.status = 'completed' AND c.target_thread_id IS NOT NULL`;
 
       return "sourceThreadId" in by
         ? sql.unsafe<DeliveryRow>(

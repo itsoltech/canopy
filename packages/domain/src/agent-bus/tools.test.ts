@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Result } from "effect";
 import type { JsonObject } from "../json.ts";
 import { agentBusToolSpecs } from "./tool-specs.ts";
-import { AGENT_BUS_TOOLS, decodeAgentBusCall } from "./tools.ts";
+import { AGENT_BUS_TOOLS, decodeAgentBusCall, type AgentBusArgs } from "./tools.ts";
 import { agentBusToolsFor } from "./policy.ts";
 
 const THREAD = "0196f0c1-0000-7000-8000-000000000000";
@@ -48,6 +48,10 @@ describe("agent bus tool specs", () => {
     expect(wait.properties["until"]).toMatchObject({ enum: ["any", "all"] });
     const spawn = specs.find((s) => s.name === "spawn_thread")!.inputSchema;
     expect(spawn["properties"]).not.toHaveProperty("permission_mode");
+    const start = specs.find((s) => s.name === "start_thread")!.inputSchema;
+    expect(start["required"]).toEqual(["title", "prompt"]);
+    expect(start["properties"]).toHaveProperty("permission_mode");
+    expect(start["properties"]).not.toHaveProperty("fork");
     const send = specs.find((s) => s.name === "send_message")!;
     expect(send.description).toContain("identify the concrete action the recipient must take before you finish");
     expect(send.description).toContain("Do not send progress reports");
@@ -134,6 +138,21 @@ describe("decodeAgentBusCall", () => {
     });
     const list = decodeAgentBusCall("list_agents", "");
     expect(Result.isSuccess(list) && list.success).toEqual({ tool: "list_agents", args: {} });
+    const placement = { project: "Canopy", worker: THREAD };
+    const discovery = decodeAgentBusCall("list_agents", JSON.stringify(placement));
+    expect(Result.isSuccess(discovery) && discovery.success).toEqual({ tool: "list_agents", args: placement });
+
+    const args: AgentBusArgs["start_thread"] = {
+      ...placement,
+      workspace: "/repos/Canopy test",
+      workspace_mode: "new_worktree",
+      base_ref: "dev",
+      title: "Review",
+      prompt: "Review the diff",
+    };
+
+    const start = decodeAgentBusCall("start_thread", JSON.stringify(args));
+    expect(Result.isSuccess(start) && start.success).toEqual({ tool: "start_thread", args });
   });
 
   test("rejects unknown tools, invalid JSON, unknown properties and out-of-range values", () => {
@@ -151,6 +170,10 @@ describe("decodeAgentBusCall", () => {
     expect(failure("send_message", { thread_id: THREAD, prompt: "x", delivery: "now" })).toContain("delivery");
     expect(failure("spawn_thread", { title: "", prompt: "x" })).toContain("title");
     expect(failure("spawn_thread", { title: "t", prompt: "x", interactions: "robot" })).toContain("interactions");
+    expect(failure("start_thread", { title: "t", prompt: "x", workspace_mode: "inherit_parent" })).toContain(
+      "workspace_mode",
+    );
+    expect(failure("start_thread", { title: "t", prompt: "x", fork: true })).toContain("excess property");
     expect(failure("answer_interaction", { request_id: THREAD, response: "maybe" })).toContain("response");
     expect(failure("schedule_wakeup", { prompt: "x", delay_seconds: 10 })).toContain("delay_seconds");
     expect(failure("watch_pr_checks", { pull_request: "#1", notify_on: ["sometimes"] })).toContain("notify_on");

@@ -5,10 +5,16 @@ import { busScheduleTool } from "./agent-bus-schedules.ts";
 export { busScheduleTool } from "./agent-bus-schedules.ts";
 
 import { ui } from "@canopy/contracts";
-import { agentCatalog, SETTINGS_GUIDE_TOOL, type AgentBusCall, type SpawnTarget } from "@canopy/domain";
+import {
+  agentCatalog,
+  SETTINGS_GUIDE_TOOL,
+  type AgentBusArgs,
+  type AgentBusCall,
+  type SpawnTarget,
+} from "@canopy/domain";
 import { Predicate, type Effect } from "effect";
 import { AgentBusStore, GatewayStore, type CallSource, type ThreadRow } from "../store/index.ts";
-import { BusRefusal, busState, scheduleIdOf } from "./agent-bus-context.ts";
+import { BusRefusal, busState, scheduleIdOf, type BusHost } from "./agent-bus-context.ts";
 import { busWait } from "./agent-bus-waiting.ts";
 import { busRead } from "./agent-bus-reads.ts";
 import type { AgentBus } from "./agent-bus.ts";
@@ -67,27 +73,19 @@ export async function busExecute(
 
     case "get_answers":
       return busAnswers(hostContext, source, call.args.question_set_id, call.args.wait ?? false);
-    case "list_agents":
-      return agentCatalog(target, await hostContext[busState].host.spawnInstances(caller));
-    case "spawn_thread": {
-      if (threadSandbox(caller)) throw new BusRefusal(SANDBOX_DERIVATION_UNAVAILABLE);
-      const placement = await hostContext[busState].host.prepareWorkspace?.(caller, call.args);
+    case "list_agents": {
+      const host = hostContext[busState].host;
 
-      const spawn = () =>
-        store((s) => s.spawn({ source, caller, args: call.args, target, hops, ...(placement && { placement }) }));
-
-      const { thread, turn, result } = hostContext[busState].host.permissionMutation
-        ? await hostContext[busState].host.permissionMutation(source.threadId, spawn)
-        : await spawn();
-
-      await hostContext[busState].host.startThread(thread);
-
-      if (placement?.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE)
-        await hostContext[busState].host.nameWorkspace?.(thread, call.args.prompt);
-      await hostContext[busState].host.queued(thread.id, turn);
-
-      return result;
+      return {
+        ...agentCatalog(target, await host.spawnInstances(caller)),
+        ...(await host.agentThreadCatalog(caller, call.args)),
+      };
     }
+
+    case "start_thread":
+      return hostContext[busState].host.startAgentThread(source, caller, call.args, hops, target);
+    case "spawn_thread":
+      return spawnSideThread(hostContext[busState].host, source, caller, call.args, target, hops);
 
     case "message_delegating_bot":
       return hostContext[busState].host.messageDelegatingBot(source, call.args.text);
@@ -168,6 +166,34 @@ export async function busExecute(
     case "cancel_pr_watch":
       return await hostContext[busState].host.prChecks(call, source, caller, hops);
   }
+}
+
+async function spawnSideThread(
+  host: BusHost,
+  source: CallSource,
+  caller: ThreadRow,
+  args: AgentBusArgs["spawn_thread"],
+  target: SpawnTarget,
+  hops: number,
+) {
+  if (threadSandbox(caller)) throw new BusRefusal(SANDBOX_DERIVATION_UNAVAILABLE);
+  const placement = await host.prepareWorkspace?.(caller, args);
+
+  const spawn = () =>
+    host.run(
+      AgentBusStore.use((s) => s.spawn({ source, caller, args, target, hops, ...(placement && { placement }) })),
+    );
+
+  const { thread, turn, result } = host.permissionMutation
+    ? await host.permissionMutation(source.threadId, spawn)
+    : await spawn();
+
+  await host.startThread(thread);
+
+  if (placement?.workspaceMode === ui.WorkspaceMode.NEW_WORKTREE) await host.nameWorkspace?.(thread, args.prompt);
+  await host.queued(thread.id, turn);
+
+  return result;
 }
 
 export async function busAnswers(

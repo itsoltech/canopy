@@ -1,5 +1,10 @@
 # Połączone komputery
 
+Status (2026-11-26): `start_thread` tworzy samodzielny wątek w projekcie i na
+workerze połączonego komputera. Dom zatwierdza workspace, wybraną instancję
+i uprawnienia. Wymagana obsługa `agent_start_thread_v1` po stronie domu.
+[Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
+
 Status (2026-11-25): w zdalnym trybie desktopu Settings → Linked computers wskazuje komputer
 uruchamiający gateway jako miejsce zarządzania połączeniami, także podczas awarii gatewaya.
 W aplikacji webowej i desktopowej **App updates → Status** pokazuje aktualizacje Canopy na połączonych

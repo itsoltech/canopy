@@ -212,4 +212,5 @@ export const expectedSchemaMigrations = [
   "215_antigravity_provider",
   "216_automatic_pr_notifications",
   "217_show_video",
+  "218_start_thread",
 ];

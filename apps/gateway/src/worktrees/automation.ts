@@ -93,6 +93,12 @@ export function createWorktreeRefusal(cause: unknown): string | undefined {
 /** Called only after bus authorization. An omitted option always inherits, even if the scoped default is new. */
 export async function prepareSpawnWorkspace(core: GatewayCore, caller: ThreadRow, args: AgentBusArgs["spawn_thread"]) {
   if (caller.owner_user_id !== core[coreState].options.userId) throw new InvalidError("thread not found");
+
+  if (
+    (args.project_id && args.project_id !== caller.project_id) ||
+    (args.workspace_id && args.workspace_id !== caller.workspace_id)
+  )
+    throw new BusRefusal("Use start_thread to start an independent thread in another project or on another worker.");
   let mode = automationModes[args.workspace_mode ?? "inherit_parent"];
 
   if (args.workspace_mode === "default") {

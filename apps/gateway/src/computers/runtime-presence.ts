@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import {
   MIRROR_PAUSED,
   AGENT_MEMORY_AUDIENCE,
+  AGENT_START_THREAD,
   BOT_THREAD_ACCESS,
   AGENT_PREVIEW_CLIENT_ACK,
   PROJECT_CONNECTOR_ACCESS,
@@ -160,6 +161,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           ? [
               PROVIDER_SETTINGS_CAPABILITY,
               AGENT_MEMORY_AUDIENCE,
+              AGENT_START_THREAD,
               PROJECT_CONNECTOR_ACCESS,
               ISSUE_SEARCH,
               LINKED_SANDBOX_PROFILES,

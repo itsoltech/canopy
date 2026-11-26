@@ -14,6 +14,7 @@ import { BotStore } from "../bots/store.ts";
 import {
   requireLinkedChainCapacity,
   SEND_ISOLATED_BOT_MESSAGE,
+  START_INDEPENDENT_THREAD,
   fail,
   record,
   text,
@@ -28,6 +29,7 @@ import { ConfigIds } from "../api/routed-config.ts";
 import { threadNotice } from "../bots/thread-notice.ts";
 import { receiveDelegatingBotMessage } from "./delegating-bot.ts";
 import { botDeliveryOrigin } from "./bot-delivery-origin.ts";
+import { receiveAgentThreadStart } from "./agents-receive-start.ts";
 
 export async function agentsDeliverAtHome(
   hostContext: LinkedAgents,
@@ -191,7 +193,7 @@ export const agentsReceiveMethods: AgentsReceiveMethods = {
       return receiveLinkedTurn(this, node, { ...call, operation: "send" }, args);
     }
 
-    if (["spawn", "send"].includes(call.operation)) {
+    if (["spawn", "send", START_INDEPENDENT_THREAD].includes(call.operation)) {
       return await receiveLinkedTurn(this, node, call, args);
     }
 
@@ -368,9 +370,12 @@ async function receiveLinkedTurn(
     let turn: string;
     let kind = "thread";
     let steerId = "";
+    let placement: Record<string, string> | undefined;
 
     if (call.operation === "spawn") {
       ({ target, turn } = await spawnReceivedThread(hostContext, node, call, args));
+    } else if (call.operation === START_INDEPENDENT_THREAD) {
+      ({ target, turn, placement } = await receiveAgentThreadStart(hostContext, node, call, args));
     } else {
       target = text(args, "target");
 
@@ -427,7 +432,7 @@ async function receiveLinkedTurn(
 
     if (!turn) return fail("Target did not accept the turn");
 
-    if (kind === "thread") {
+    if (kind === "thread" && call.operation !== START_INDEPENDENT_THREAD) {
       if (steerId)
         await hostContext.query(
           "UPDATE turn_steers SET hops=$2,linked_call_id=$3::uuid,author_user_id=NULL WHERE id=$1::uuid",
@@ -441,6 +446,7 @@ async function receiveLinkedTurn(
       turn_id: qualifyId(turn, hostContext.core.computers!.hello().nodeId),
       target_kind: kind,
       machine: hostContext.core.computers!.hello().name,
+      ...placement,
     };
 
     await hostContext.query(

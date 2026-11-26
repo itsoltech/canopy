@@ -43,7 +43,9 @@ export function codexViewImageTool(): v2.DynamicToolSpec {
  * Goals are Codex's own (thread/goal/*), not agent bus tools.
  */
 export function codexAgentBusTools(depth: number): v2.DynamicToolSpec[] {
-  return agentBusToolSpecs(agentBusToolsFor(depth)).map((tool) => ({
+  const tools = agentBusToolsFor(depth).filter((name) => name !== "list_agents" && name !== "start_thread");
+
+  return agentBusToolSpecs(tools).map((tool) => ({
     type: "function" as const,
     name: tool.name,
     description: tool.description,

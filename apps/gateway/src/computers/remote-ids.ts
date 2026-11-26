@@ -145,8 +145,12 @@ export function qualify(desc: DescMessage, message: Message, nodeId: string): vo
     (d, message) => {
       if (STAMPED.has(d.typeName)) reflect(d, message).set(d.field["nodeId"]!, nodeId);
 
-      // A stored spawn result can carry its only child link in the originating computer's JSON.
-      if (isMessage(message, AgentBusCallSchema) && message.toolName === "spawn_thread" && !message.targetThreadId) {
+      // A thread start can carry its target link only in the originating computer's JSON.
+      if (
+        isMessage(message, AgentBusCallSchema) &&
+        ["spawn_thread", "start_thread"].includes(message.toolName) &&
+        !message.targetThreadId
+      ) {
         const child = str(parseObject(message.resultJson)["thread_id"]);
 
         if (isEntityId(child)) message.targetThreadId = child;

@@ -1,5 +1,9 @@
 # Worktrees (git)
 
+Status (2026-11-26): `start_thread` może utworzyć worktree w projekcie
+docelowym. Gateway przypina lokalny commit bazowy, a worker używa checkoutu
+agenta bez hooków i filtrów. [Szyna agentów](agent-bus.md#uruchamianie-samodzielnych-wątków)
+
 Kopiowanie workspace'u na nowy worker tworzy samodzielny checkout także ze
 źródłowego linked worktree'u. Całe repozytorium jest kopiowane obowiązkowo;
 wybór obejmuje tylko ignorowane pliki lokalne bez zależności i wyniku builda. Ograniczenia Git:

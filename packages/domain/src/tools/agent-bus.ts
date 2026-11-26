@@ -44,6 +44,12 @@ const LOOKS = new Map<string, Look>(
       tried: "start a subagent",
       icon: "sparkles",
     },
+    start_thread: {
+      doing: "Starting a thread",
+      done: "Started a thread",
+      tried: "start a thread",
+      icon: "chat-bubble-left",
+    },
     switch_worktree: {
       doing: "Switching worktree",
       done: "Switched worktree",
@@ -435,7 +441,7 @@ export function worktreeSwitchFacts(args: JsonObject, result: JsonObject): strin
 }
 
 /**
- * list_agents rows: the provider instances a subagent can run on ({provider: "claude/native", name, models: [{id, name,
+ * list_agents rows: the provider instances a thread can run on ({provider: "claude/native", name, models: [{id, name,
  * efforts, default}], note}); `settings` is the instance key, `description` its models (the default first named so).
  */
 export interface AgentRow {

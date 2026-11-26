@@ -96,6 +96,40 @@ describe("two levels: main thread orchestrates, side threads work", () => {
     expect(reason(spawn, facts(a))).toContain("not available in side threads");
   });
 
+  test("independent starts enforce caller access and hops without using side-thread quotas", () => {
+    const call: AgentBusCall = { tool: "start_thread", args: { title: "Review", prompt: "Review the changes" } };
+
+    expect(reason(call, facts(a))).toContain("not available in side threads");
+    expect(reason(call, facts({ ...root, archived: true }))).toContain("archived");
+    expect(reason(call, facts(root, { callerRestricted: true }))).toContain("Restricted");
+    expect(
+      reason(
+        { ...call, args: { ...call.args, permission_mode: "ask" } },
+        facts(root, { callerPermissionMode: "read_only" }),
+      ),
+    ).toContain("broader than yours");
+    expect(
+      authorizeBusCall(
+        call,
+        facts(root, {
+          callerChildren: DEFAULT_BUS_LIMITS.maxChildrenPerThread,
+          activeInTree: DEFAULT_BUS_LIMITS.maxActiveThreadsPerTree,
+        }),
+      ),
+    ).toEqual({ allowed: true, hops: 1 });
+    const lastHop = facts(root, { callerHops: DEFAULT_BUS_LIMITS.maxHops - 1 });
+    expect(reason(call, lastHop)).toContain("limit");
+    expect(reason({ ...call, args: { ...call.args, notify: false } }, lastHop)).toBe("allowed");
+  });
+
+  test("restricted threads may use the current agent catalog but cannot select placements", () => {
+    const restricted = facts(root, { callerRestricted: true });
+
+    expect(reason({ tool: "list_agents", args: {} }, restricted)).toBe("allowed");
+    expect(reason({ tool: "list_agents", args: { project: "Project" } }, restricted)).toContain("restricted");
+    expect(reason({ tool: "list_agents", args: { worker: "Worker" } }, restricted)).toContain("restricted");
+  });
+
   test("side threads cannot interrupt, close or answer for others", () => {
     expect(reason({ tool: "interrupt_thread", args: { thread_id: "b" } }, facts(a))).toContain(
       "not available in side threads",

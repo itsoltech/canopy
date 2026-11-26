@@ -7,6 +7,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { AgentToolCallSchema, type AgentToolCall, type AgentToolResult, type ConnectorTool } from "@canopy/contracts";
 import { agentBusToolSpecs, agentBusToolsFor, VIEW_IMAGE_TOOL, viewImageSpec, type ToolJsonSpec } from "@canopy/domain";
+import { WORKTREE_CLIENT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { ListToolsRequestSchema, ToolSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ViewImageResult } from "../../images/index.ts";
@@ -60,8 +61,12 @@ const IMAGE_PUBLICATION_TIMEOUT_MS = 15 * 60_000;
 
 /** Cancel the durable gateway wait at the tool's deadline, within the SDK's server-wide bound. */
 function timedCall(options: ClaudeBusOptions, call: AgentToolCall): Promise<AgentToolResult> {
-  const timeout =
-    call.toolName === "show_images" && !call.connectorAccountId ? IMAGE_PUBLICATION_TIMEOUT_MS : BUS_TIMEOUT_MS;
+  let timeout = BUS_TIMEOUT_MS;
+
+  if (!call.connectorAccountId) {
+    if (call.toolName === "show_images") timeout = IMAGE_PUBLICATION_TIMEOUT_MS;
+    else if (call.toolName === "start_thread") timeout = WORKTREE_CLIENT_TIMEOUT_MS + 10_000;
+  }
 
   const deadline = Date.now() + timeout;
   call.expiresAt = timestampFromDate(new Date(deadline));

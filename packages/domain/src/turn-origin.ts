@@ -6,7 +6,7 @@ import type { ui } from "@canopy/contracts";
  */
 export type TurnOrigin =
   | { readonly kind: "user" }
-  /** spawn_thread: the first task of a side thread, from `threadId`. */
+  /** spawn_thread or start_thread: the first task of a thread, from `threadId`. */
   | { readonly kind: "task"; readonly threadId: string }
   /** send_message from another thread of the tree. */
   | { readonly kind: "message"; readonly threadId: string }

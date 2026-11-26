@@ -1,5 +1,9 @@
 # Szyna agentów: delegowanie, interakcje, harmonogram
 
+Status (2026-11-26): `start_thread` uruchamia samodzielne wątki w wybranym projekcie
+i na wybranym workerze. `list_agents` znajduje miejsca uruchomienia oraz modele
+według nazw projektu i workera. Dostępność według [promocji wydań](release.md).
+
 Status (2026-11-25): `show_video({path, caption?})` publikuje nagranie z workera
 jako odtwarzalny załącznik odpowiedzi w wątku. [Publikacja nagrań](agent-visuals.md#10-nagrania-show_video)
 
@@ -197,8 +201,9 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 
 | Narzędzie | Poziom 0 | Poziom 1 | Co robi |
 |---|:-:|:-:|---|
-| `list_agents` | ✓ | ✓ | na czym można uruchomić subagenta: instancje dostawców workera (`claude/native`, `codex/cliproxyapi`, ...) z modelami, wysiłkami i domyślnymi; plus własne ustawienia wywołującego |
+| `list_agents` | ✓ | ✓ | dostępne projekty, workspace’y i workery oraz instancje dostawców z modelami i wysiłkami; opcjonalne filtry `project` i `worker` |
 | `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
+| `start_thread` | ✓ | | samodzielny wątek z pierwszą turą w wybranym projekcie i na wybranym workerze. [Argumenty i raport](#uruchamianie-samodzielnych-wątków) |
 | `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
 | `message_delegating_bot` | tylko w wątku bota | tylko w wątku bota | wiadomość do bota, który uruchomił wątek. Automatyczny wynik wraca przy obserwowanej turze. |
 | `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status i wynik ostatniej tury każdego, wcześniej także pytania lub skierowane do wywołującego wiadomości (`messages`) |
@@ -379,6 +384,36 @@ Subagent może działać na **dowolnej instancji dostawcy + modelu + wysiłku**,
 - **Fork** zachowuje dostawcę i instancję (historia żyje w katalogu domowym instancji).
 - **Uprawnienia** bez zmian: subagent nigdy szerzej niż tryb tury wywołującego; poziomy, limity i przeskoki też.
 - Sterowanie (`send_message` `steer`/`queue`) działa niezależnie od dostawcy dziecka: steer z wątku Codexa trafia do tury Claude (strumień wejścia) i odwrotnie (`turn/steer`) — sprawdzone w `agent-bus-cross.test.ts`.
+
+### Uruchamianie samodzielnych wątków
+
+`start_thread({ title, prompt, project?, worker?, workspace?, … })` tworzy wątek
+główny w katalogu skonfigurowanym przez właściciela. Projekt i worker można podać
+po nazwie lub po ID, a workspace po etykiecie, ścieżce lub ID. Na przykład
+`project: "itsol-github"` wystarczy, gdy projekt wskazuje jedno miejsce uruchomienia.
+Przy kilku pasujących miejscach pierwszeństwo ma bieżący workspace, a bez wskazania
+workera gateway może wybrać jedyny pasujący workspace online. Pozostałe niejednoznaczne
+wybory zwracają listę pasujących miejsc wraz z ID. Sam worker wybiera **No project**.
+Bez selektorów gateway wybiera bieżący workspace, o ile wciąż można go użyć.
+
+`list_agents({ project?, worker? })` zwraca projekty, workery i workspace’y właściciela,
+w tym dostępne cele na połączonych komputerach. Podanie workera zawęża katalog
+dostawców i modeli do niego. Agent może ustawić dostawcę, model, wysiłek i prędkość
+tak jak dla wątku bocznego. Na innym workerze bez jawnego wyboru gateway preferuje
+dostępną instancję wywołującego, a model bierze z domyślnych ustawień instancji docelowej.
+
+Narzędzie jest dostępne w wątkach głównych. Wywołania z sandbox profile lub
+ograniczonej grupy odbiorców są odrzucane. Uprawnienia nowej tury mają ten sam sufit
+co przy delegacji do wątku bocznego. Użytkownik odpowiada na pytania nowego wątku.
+`workspace_mode` korzysta z ustawień miejsca docelowego albo jawnie wybiera jego
+checkout lub nowy worktree. Worktree tworzony przez agenta korzysta z lokalnego
+commita bazowego i checkoutu bez hooków oraz filtrów. `read_only` pozwala użyć checkoutu.
+
+Pierwsza tura zachowuje pochodzenie, licznik `hops` i powiązanie z wywołaniem.
+Narzędzie zwraca ID wątku, tury i miejsca uruchomienia. Domyślnie początkowa tura
+wysyła raport zwrotny. Agent może też sprawdzić stan przez `get_thread` i kontynuować
+pracę przez `send_message`. Ponowne dostarczenie tego samego wywołania odczytuje
+zapisany wynik. `spawn_thread` obsługuje delegację w drzewie i fork historii.
 
 ### Wiadomości między dowolnymi wątkami
 

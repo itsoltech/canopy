@@ -53,7 +53,7 @@ export type SpawnResolution =
   | { readonly ok: true; readonly target: SpawnTarget }
   | { readonly ok: false; readonly reason: string };
 
-/** The id a model passes as spawn_thread.provider: "<harness>/<instance id>", e.g. "codex/native". */
+/** Provider ID for spawn_thread and start_thread, e.g. "codex/native". */
 export const agentKey = (target: Pick<SpawnTarget, "harness" | "instance">): string =>
   `${target.harness}/${target.instance || "native"}`;
 
@@ -238,7 +238,7 @@ function modelProblem(instance: SpawnInstance, model: string, effort: string): s
   return undefined;
 }
 
-/** list_agents: what spawn_thread can start, compact enough for a model to choose from. */
+/** Compact worker model catalog for spawn_thread and start_thread. */
 export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInstance[] | undefined) {
   const you = agentKey({ harness: caller.harness, instance: caller.instance });
 
@@ -275,7 +275,7 @@ export function agentCatalog(caller: SpawnTarget, instances: readonly SpawnInsta
     },
     agents,
     note:
-      "Pass provider (and optionally model and effort from its list) to spawn_thread to run the subagent there, e.g. a Claude subagent " +
-      "from a Codex thread or the other way round. Omit them to start a copy of yourself. fork keeps your provider.",
+      "Choose provider, model and effort from this worker's catalog. Use spawn_thread to delegate to a side thread. " +
+      "Its defaults copy your settings, and fork keeps your provider. Use start_thread for an independent task in a configured placement.",
   };
 }
