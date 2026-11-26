@@ -1,5 +1,8 @@
 # Konto GitHub i pull requesty
 
+Status (2026-11-25): natywny mobilny Code pokazuje kompaktowe wiersze diffu z numerami
+obu wersji pliku i automatycznym zawijaniem układu Stacked (§8).
+
 Status (2026-11-25) — menu kontekstowe PR w podsumowaniu wątku web i desktop
 otwiera PR na GitHubie, odświeża jego stan i pozwala go odpiąć (§3).
 
@@ -1275,15 +1278,22 @@ workspace'em zachowują ekran trasy. Overflow otwiera arkusz akcji.
 Timeline i pliki korzystają z list wirtualnych, strony po 50/30, z jedną zakotwiczoną pozycją
 podczas doczytywania. Filtry i wybór commitu są arkuszami/pickerami, nie małymi desktopowymi menu.
 
-Diff domyślnie Stacked; Side by side pozostaje dostępne także na telefonie, z przewijaniem
-poziomym, a na tablecie wykorzystuje szerokość. Jest wrap, whitespace, drzewo, Viewed,
-komentarze, odpowiedzi i wszystkie trzy akcje composera z tymi samymi limitami.
+Diff domyślnie używa układu Stacked. Wiersze mają zwarte kolumny numerów starej i nowej
+wersji, tło zmiany obejmuje cały wiersz, a zawinięty kod zachowuje wyrównanie za numerami.
+Side by side pokazuje osobną kolumnę numerów dla każdej wersji. Tryb Automatic zawija
+wiersze w Stacked, a w Side by side pozostawia przewijanie poziome. Przycisk Wrap lines
+wybiera jawne zawijanie albo przewijanie. Zapisane wybory On i Off nadal obowiązują.
+Lista plików pokazuje nazwę nad katalogiem. Otwarcie diffu nie przesuwa akcji pliku.
+Są też filtr whitespace, drzewo, Viewed, komentarze, odpowiedzi i trzy akcje composera
+z tymi samymi limitami.
 Natywny diff montuje najwyżej 100 oryginalnie numerowanych wierszy na stronę;
 wybór zakresu zachowuje kotwicę przy przejściu między stronami.
+Comment on a line powiększa cele dotykowe numerów do co najmniej 48 × 48 dp.
+Stop selecting lines przywraca zwartą gęstość czytania.
 
 | Funkcja v1 | Telefon i tablet |
 | --- | --- |
-| Inline i review | Tap numeru linii w gutter wybiera stronę; **Select range** pozwala wskazać początek i koniec bez gestu drag. Arkusz pokazuje path, LEFT/RIGHT, SHA i zakres w unified oraz split; edytor ma **Add single comment**/**Add to review**. Pending badge otwiera listę wszystkich uwag i **Comment / Approve / Request changes** z **Submit review**; resolve/unresolve i reply przy rozmowie, edit/delete własnego komentarza w jego menu, discard z potwierdzeniem |
+| Inline i review | Po wybraniu **Comment on a line** dotknięcie numeru linii wybiera stronę. **Extend range** pozwala wskazać ostatnią linię zakresu. Arkusz pokazuje path, LEFT/RIGHT, SHA i zakres w unified oraz split; edytor ma **Add single comment**/**Add to review**. Pending badge otwiera listę wszystkich uwag i **Comment / Approve / Request changes** z **Submit review**; resolve/unresolve i reply przy rozmowie, edit/delete własnego komentarza w jego menu, discard z potwierdzeniem |
 | Viewed | Checkbox przy pliku zapisuje na GitHub; optymistyczny stan/rollback, `DISMISSED` i blokada offline identyczne jak §7; zmiana AppState/fokusu rewaliduje stronę |
 | Create i lifecycle | **Create pull request** pod Branch; pełnoekranowy formularz base/head/konto/draft z **Draft with agent**, edycją propozycji i osobnym Create. Nagłówek i arkusz overflow mają ready/draft, update branch, close/reopen, merge/squash/rebase i auto-merge on/off; dialog merge pokazuje metodę/SHA i blokady, close/update/enable auto-merge wymagają takich samych potwierdzeń jak web |
 | Metadane | **Edit title and description** otwiera edytor z preview; reviewers (users/teams), request/re-request, assignees i labels mają arkusze wyszukiwania z Apply. Podpowiedzi/slug zespołu i ostrzeżenie o powiadomieniu działają bez desktopowego hover |

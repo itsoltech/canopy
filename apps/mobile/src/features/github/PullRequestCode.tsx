@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { SectionList, Text, View } from "react-native";
+import { SectionList, StyleSheet, Text, View } from "react-native";
 import type { github } from "@canopy/contracts";
 import { fileRows } from "@canopy/domain/github-read";
 import { useContentPadding } from "../../ui/ScreenFrame";
@@ -77,7 +77,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
               }
             />
           ) : (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.background }}>
+            <View style={[styles.fileHeader, { backgroundColor: c.background, borderColor: c.line }]}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <CodeFileHeader
                   file={section.file}
@@ -132,3 +132,7 @@ export function PullRequestCode({ snapshot, header }: { snapshot: github.PullReq
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  fileHeader: { flexDirection: "row", alignItems: "center", gap: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+});

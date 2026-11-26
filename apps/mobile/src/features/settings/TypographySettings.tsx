@@ -51,8 +51,9 @@ export function TypographySettings() {
           <DeviceChoiceRow
             preference="wrapDiffs"
             title="Wrap diffs"
-            description="Fit long lines in diffs to the available width."
+            description="Automatic wraps lines in stacked pull request diffs."
             options={[
+              { value: "auto", label: "Automatic" },
               { value: "off", label: "Off" },
               { value: "on", label: "On" },
             ]}

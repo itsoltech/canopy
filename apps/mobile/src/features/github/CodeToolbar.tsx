@@ -7,6 +7,7 @@ import { useColors, useTypography } from "../../ui/theme";
 import { IconAction } from "./IconAction";
 import { PageControls } from "./PageControls";
 import type { usePages } from "./usePages";
+import { wrapReviewDiff } from "./ReviewDiffLines";
 
 export function CodeToolbar({
   commit,
@@ -26,6 +27,7 @@ export function CodeToolbar({
   const c = useColors();
   const type = useTypography();
   const { values, set } = useDevicePreferences();
+  const wrapped = wrapReviewDiff(values);
 
   return (
     <View
@@ -64,9 +66,9 @@ export function CodeToolbar({
       />
       <IconAction
         icon="text-wrap"
-        label="Wrap"
-        selected={values.wrapDiffs === "on"}
-        onPress={() => set("wrapDiffs", values.wrapDiffs === "on" ? "off" : "on")}
+        label="Wrap lines"
+        selected={wrapped}
+        onPress={() => set("wrapDiffs", wrapped ? "off" : "on")}
       />
       <IconAction
         icon="space"
