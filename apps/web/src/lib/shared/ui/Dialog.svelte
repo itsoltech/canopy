@@ -29,6 +29,7 @@
     stickyHeader = false,
     dismissible = true,
     onkeydown,
+    onexited,
     class: className,
     children,
     footer,
@@ -45,6 +46,7 @@
     stickyHeader?: boolean;
     dismissible?: boolean;
     onkeydown?: ((event: KeyboardEvent) => void) | undefined;
+    onexited?: (() => void) | undefined;
     class?: ClassValue;
     children: Snippet;
     footer?: Snippet;
@@ -62,7 +64,10 @@
     closing = true;
     clearTimeout(closed);
     // After `[open]` went away: the closing rule's duration.
-    closed = setTimeout(() => (closing = false), exitDuration(dialog));
+    closed = setTimeout(() => {
+      closing = false;
+      onexited?.();
+    }, exitDuration(dialog));
   }
 
   $effect(() => () => clearTimeout(closed));

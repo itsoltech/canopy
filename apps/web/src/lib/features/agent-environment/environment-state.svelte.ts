@@ -1,5 +1,5 @@
 import { clone, create } from "@bufbuild/protobuf";
-import { ui, type EnvironmentFileStatus } from "@canopy/contracts";
+import { ui, type EnvironmentFileStatus, type EnvironmentSkillStatus } from "@canopy/contracts";
 import { HttpError, requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { revealEnvironmentItem } from "./environment-feedback.ts";
@@ -112,6 +112,23 @@ export class EnvironmentState {
     });
 
     await this.mutate("POST", "/resolve", encode(ui.ResolveEnvironmentDriftRequestSchema, body));
+  }
+
+  resolveSkill(
+    workerId: string,
+    file: EnvironmentSkillStatus,
+    action: "archive" | "keep" | "overwrite" | "import",
+    expectedRevision: bigint,
+  ) {
+    const body = create(ui.ResolveSkillDriftRequestSchema, {
+      workerId,
+      targetId: file.targetId,
+      action,
+      observedChecksum: action === "archive" ? file.archiveToken : file.observedChecksum,
+      expectedRevision,
+    });
+
+    return this.mutate("POST", "/skills/resolve", encode(ui.ResolveSkillDriftRequestSchema, body));
   }
 
   async mutate(

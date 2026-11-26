@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { clone, create, toJson } from "@bufbuild/protobuf";
 import { AgentEnvironmentReportSchema, SkillFileSchema, ui, type EnvironmentSkillStatus } from "@canopy/contracts";
@@ -522,9 +522,9 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     expect(readFileSync(join(linux.deviceHomes.agents, "personal/SKILL.md"), "utf8")).toContain("Private user skill");
   });
 
-  test("existing folders and symlink destinations cannot be adopted, and status never includes user content", async () => {
+  test("existing folders cannot be adopted and assigned symlink conflicts can keep the local copy", async () => {
     writeUserSkill(join(linux.deviceHomes.agents, "occupied"));
-    const state = await save(librarySkill(), skillFiles("occupied"));
+    await save(librarySkill(), skillFiles("occupied"));
     const status = (await settled()).report!.skills.find((f) => f.path === join(linux.deviceHomes.agents, "occupied"))!;
     expect(status.status).toBe("drift");
     expect(status.managedFiles).toEqual([]);
@@ -532,12 +532,35 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     await resolve(status, "overwrite");
     await settled();
     expect(readFileSync(join(linux.deviceHomes.agents, "occupied/SKILL.md"), "utf8")).toContain("Private user skill");
+
+    const target = join(root, "linked-copy-source");
     const link = join(linux.deviceHomes.agents, "linked");
-    symlinkSync(join(linux.deviceHomes.agents, "personal"), link);
-    await save(librarySkill(), skillFiles("linked"));
-    expect((await settled()).report?.skills.find((f) => f.path === link)?.status).toBe("error");
-    expect(readFileSync(join(link, "SKILL.md"), "utf8")).toContain("Private user skill");
-    expect(state.skills.length).toBeGreaterThan(0);
+    writeUserSkill(target);
+    const original = readFileSync(join(target, "SKILL.md"));
+    symlinkSync(target, link);
+
+    const state = await save(librarySkill(), skillFiles("linked"));
+    const skill = state.skills.find((s) => s.artifact?.name === "linked")!;
+    const conflict = (await settled()).report!.skills.find((f) => f.path === link)!;
+    expect(conflict).toMatchObject({
+      skillId: skill.id,
+      scope: "device",
+      status: "error",
+      owned: false,
+      localLink: true,
+    });
+    expect(conflict.archiveToken).toHaveLength(64);
+    expect(conflict.observedChecksum).toBe(conflict.archiveToken);
+
+    await resolve(conflict, "keep");
+
+    const report = (await settled()).report!;
+    expect(report.skills.find((f) => f.targetId === conflict.targetId)?.status).toBe("kept");
+    expect(readlinkSync(link)).toBe(target);
+    expect(readFileSync(join(target, "SKILL.md"))).toEqual(original);
+    expect(report.skills.find((f) => f.path === join(linux.deviceHomes.claude, "skills/linked"))?.status).toBe(
+      "applied",
+    );
   });
 
   test("removing a locally edited skill waits for a fresh decision and preserves user additions", async () => {

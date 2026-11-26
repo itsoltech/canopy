@@ -1,5 +1,6 @@
 import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { AgentEnvironmentDesiredSchema, ui } from "@canopy/contracts";
+import { canKeepBlockedSkill } from "@canopy/domain/environment-library";
 import { validateSkillFiles } from "@canopy/domain/skill-artifact";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
@@ -148,7 +149,11 @@ export class EnvironmentSkills {
         if (!machine) return yield* Effect.fail(new ConnectError("Worker not found.", Code.NotFound));
         const file = machine.report?.skills.find((s) => s.targetId === request.targetId);
 
-        if (!file || !["drift", "kept"].includes(file.status) || file.observedChecksum !== request.observedChecksum)
+        if (
+          !file ||
+          file.observedChecksum !== request.observedChecksum ||
+          (!["drift", "kept"].includes(file.status) && !(request.action === "keep" && canKeepBlockedSkill(file)))
+        )
           return yield* Effect.fail(
             new ConnectError("The skill changed. Refresh before resolving.", Code.FailedPrecondition),
           );
