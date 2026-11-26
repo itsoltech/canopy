@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Aktualizacja (2026-11-26): Settings → Keybindings w web i desktopie ma
+zwarte wiersze z chipami klawiszy i wirtualizowaną listę.
+
 Aktualizacja (2026-11-26): web i desktop pobierają pliki wskazanej lokalnej
 kopii skilla do przeglądu przed dodaniem jej do biblioteki.
 
@@ -3570,6 +3573,13 @@ Edytor normalizuje Mod zgodnie z platformą, wykrywa konflikty nakładających s
 kontekstów i blokuje zastrzeżone skróty przeglądarki. Nagrywanie nie wykonuje komend.
 Kompozytor respektuje wybrane skróty po obsłudze nawigacji edytora; bloki kodu
 zachowują zwykły Enter jako nową linię.
+
+Lista w web i desktopie jest wirtualizowana w przewijanym panelu ustawień
+(`WindowedList`): DOM zawiera wiersze w pobliżu widoku, a fokus klawiatury
+pozostaje zamontowany. Wiersz komendy ma jedną linię w szerokim panelu: nazwę,
+kontekst działania i skróty jako zwarte chipy klawiszy. Klawisze w chipie otwierają
+edycję, a × usuwa skrót. Wąski panel przenosi kontekst i skróty pod nazwę.
+Wyszukiwarka i Restore device defaults dzielą jeden pasek.
 
 - **Jeden użytkownik deweloperski** (`CANOPY_DEV_USER_EMAIL`). Logowanie powstanie w SvelteKit (sesja w cookie `HttpOnly`), a tożsamość użytkownika trafi do gateway w metadanych wywołania z tokenem usługi.
 - **Jedna instancja gateway** (`Hub` w procesie).
