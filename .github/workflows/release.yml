@@ -396,6 +396,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.desktop_matrix) }}
     uses: ./.github/workflows/release-desktop.yml
+    secrets: inherit
     with:
       target: ${{ matrix.target }}
       build_runner: ${{ matrix.runner }}
