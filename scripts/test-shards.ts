@@ -5,7 +5,7 @@ import recorded from "./test-timings.json";
 import type { JsonObject, JsonValue } from "@canopy/domain";
 
 const root = resolve(import.meta.dir, "..");
-export const shardCount = 8;
+export const shardCount = 12;
 
 function testFiles(): string[] {
   const tracked = Bun.spawnSync(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root });

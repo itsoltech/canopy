@@ -124,8 +124,39 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
   let lb: LinkedComputers;
   let app: FakeApp;
   let localApp: FakeApp | undefined;
+  let overview: { abort: AbortController; done: Promise<void> } | undefined;
   let bNode = "";
   let journal = "";
+
+  async function watchLinkedUpdates() {
+    // The client holds this stream open so B's update notices refresh A's cached snapshot.
+    const abort = new AbortController();
+    let ready = false;
+    let failure: ConnectError | undefined;
+
+    const done = (async () => {
+      try {
+        for await (const { change } of a.api.watchOverview({}, { signal: abort.signal })) {
+          if (change.case === "feeds" && change.value.pushed.includes("updates")) ready = true;
+        }
+      } catch (cause) {
+        if (!abort.signal.aborted) failure = ConnectError.from(cause);
+      }
+    })();
+
+    overview = { abort, done };
+    await eventually(async () => {
+      if (failure) throw failure;
+
+      return ready;
+    });
+  }
+
+  async function stopWatchingUpdates() {
+    overview?.abort.abort();
+    await overview?.done;
+    overview = undefined;
+  }
 
   const linkedB = (port: number, capable = true) =>
     linkedComputers({
@@ -188,10 +219,12 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     const invitation = await a.api.createComputerPairing({});
     await b.api.linkComputer({ address: la.addresses[0]!, code: invitation.code });
     await eventually(async () => la.reachable().includes(bNode), 15_000);
+    await watchLinkedUpdates();
     journal = join(makeTemp("canopy-linked-app-"), "remote-update.json");
     app = new FakeApp(b, journal, "1.0.0", "1.1.0");
   }, 90_000);
   afterAll(async () => {
+    await stopWatchingUpdates();
     await localApp?.stop();
     await app?.stop();
     await Promise.allSettled([la?.close(), lb?.close()]);
@@ -410,6 +443,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     expect((await a.api.getUpdates({})).run?.state).toBe("failed");
     const key = la.options.store.key;
     const port = Number(new URL(la.addresses[0]!).port);
+    await stopWatchingUpdates();
     await la.close();
     const storage = { pg: a.pg, secretsKey: a.secretsKey, workerId: a.workerId, workerCredential: a.workerCredential };
     await a.close(true);
@@ -427,6 +461,7 @@ describe.skipIf(!dockerAvailable)("linked computers' app updates", () => {
     a.core.network = la.options.network;
     await la.start();
     await eventually(async () => la.reachable().includes(bNode), 15_000);
+    await watchLinkedUpdates();
     expect((await a.api.getUpdates({})).run?.state).toBe("failed");
     await app.stop();
     app = new FakeApp(b, journal, "1.4.0");

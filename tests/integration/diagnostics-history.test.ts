@@ -617,12 +617,17 @@ describe.skipIf(!dockerAvailable)("diagnostics durability and bounded retention"
       FOR EACH ROW WHEN (NEW.computer_id='bounded-failure') EXECUTE FUNCTION reject_bounded_diagnostics()`);
 
     try {
-      for (let minute = 0; minute < 72; minute++) {
+      for (let minute = 1; minute <= 72; minute++) {
         live.start(method.id)!.finish();
-        await writer.flush(true);
-        expect(writer.status).toBe("unavailable");
-        expect(writer.pending.size).toBeLessThanOrEqual(60);
-        expect(writer.pendingBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+
+        // Accumulate several minutes per write while PostgreSQL rejects each batch.
+        if (minute % 12 === 0) {
+          await writer.flush(true);
+          expect(writer.status).toBe("unavailable");
+          expect(writer.pending.size).toBeLessThanOrEqual(60);
+          expect(writer.pendingBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
+        }
+
         now += 60_000;
         live.tick();
       }

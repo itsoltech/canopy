@@ -40,9 +40,11 @@ jobs:
       - uses: ./.github/actions/setup-bun
         with:
           install: "false"
+      # Windows source checks do not need the optional host-built SSH addons.
+      # The notch test downloads the pinned Electron binary on first use.
       - name: Install native test workspaces
         run: >-
-          bun install --frozen-lockfile
+          bun install --frozen-lockfile ${{ runner.os == 'Windows' && '--ignore-scripts' || '' }}
           --filter @canopy/desktop --filter @canopy/gateway --filter @canopy/web
           --filter @canopy/worker --filter @canopy/integration-tests
       - name: Activity notch window and IPC in Electron
