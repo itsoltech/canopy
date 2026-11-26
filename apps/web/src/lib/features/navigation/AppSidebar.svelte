@@ -181,7 +181,7 @@
 
   {#if settings.loaded}
     <nav
-      class="sidebar-foreground sidebar-inset min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
+      class="sidebar-foreground sidebar-list min-h-0 flex-1 scroll-stable overflow-y-auto pb-3"
       aria-label={section === "threads" ? "Threads" : "Bots"}
     >
       {#if section === "threads"}
@@ -252,6 +252,16 @@
 </div>
 
 <style>
+  .sidebar-list {
+    padding-inline: var(--sidebar-row-inset) calc(var(--sidebar-row-inset) / 2);
+  }
+  .sidebar-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar-list::-webkit-scrollbar-thumb {
+    border-inline-width: 1px;
+  }
+
   /* Keep muted navigation controls and list captions legible in both themes. */
   .sidebar-scale :global(.sidebar-foreground) {
     --theme-zinc-500: color-mix(in srgb, var(--theme-muted) 80%, var(--theme-ink));
