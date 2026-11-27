@@ -1,7 +1,7 @@
 # Tailscale
 
-Status: opis zaimplementowanego zachowania (2026-11-24), w tym wykrywania CLI
-poza `PATH` na Windows i wymuszania trybu CLI na macOS.
+Status: opis zaimplementowanego zachowania (2026-11-27), w tym wykrywania CLI
+poza `PATH` na Windows, wymuszania trybu CLI na macOS i twardego limitu czasu wywołań CLI.
 Dostępność w nightly/beta/stable określają
 [zasady wydań](release.md) i GitHub Releases.
 
@@ -33,6 +33,9 @@ pokazuje stan sparowanego gatewaya. Gateway szuka w tej kolejności:
    wyłącznie `GET /localapi/v0/status`.
 
 Odczyt: `tailscale status --json` (lub LocalAPI) ze stałą tablicą argumentów, bez powłoki, z limitem 5 s.
+Limit nie czeka na zakończenie procesu: po jego upływie Canopy wysyła `SIGKILL` i od razu zwraca błąd,
+nawet jeśli proces utknął w `exec` albo jego potomek trzyma otwarte wyjście. Wspólny odczyt nie blokuje
+więc kolejnych odświeżeń.
 Na macOS wywołania Canopy ustawiają `TAILSCALE_BE_CLI=1` w procesie potomnym, aby aplikacja
 zwróciła wynik polecenia w trybie CLI.
 Canopy bierze tylko: `BackendState`, `Self.DNSName` (bez końcowej kropki), adresy tailnetu IPv4/IPv6,
