@@ -1,17 +1,11 @@
-import {
-  namesOf,
-  colorThemes,
-  themeOf,
-  widthChoices,
-  chatWidthOf,
-  schemeChoices,
-  schemeOf,
-} from "#lib/features/settings/appearance.ts";
+import { namesOf, widthChoices, chatWidthOf, schemeChoices, schemeOf } from "#lib/features/settings/appearance.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import type { IconName } from "#lib/shared/ui/icons.ts";
 import type { Command } from "./registry.ts";
 import { threadWidthPreference } from "@canopy/domain";
 import { themes, themeNames } from "@canopy/ui/themes";
+import { builtinChoice, choiceOf, customChoice } from "#lib/features/settings/custom-themes.ts";
+import { customThemes } from "#lib/features/settings/custom-themes.svelte.ts";
 
 const SCHEME_ICONS = {
   system: "computer-desktop",
@@ -34,19 +28,29 @@ export function appearanceCommands(settings: SettingsState): Command[] {
       rank: 11,
       searchChildren: true,
       children: () =>
-        (["light", "dark"] as const).flatMap((mode) =>
-          themeNames.map((name) => ({
-            id: `${mode}-${name}`,
-            title: `${themes[name].label} · ${mode === "light" ? "Light" : "Dark"}`,
-            group: "actions",
-            keywords: `theme palette ${mode}`,
-            checked: themeOf(appearance, mode) === name,
-            run: () =>
-              void settings.updateAppearance(
-                mode === "light" ? { lightTheme: colorThemes[name] } : { darkTheme: colorThemes[name] },
-              ),
-          })),
-        ),
+        (["light", "dark"] as const).flatMap((mode) => {
+          const choice = choiceOf(appearance, mode, customThemes.list);
+          const label = mode === "light" ? "Light" : "Dark";
+
+          return [
+            ...themeNames.map((name) => ({
+              id: `${mode}-${name}`,
+              title: `${themes[name].label} · ${label}`,
+              group: "actions" as const,
+              keywords: `theme palette ${mode}`,
+              checked: choice.kind === "builtin" && choice.name === name,
+              run: () => void settings.updateAppearance(builtinChoice(mode, name)),
+            })),
+            ...customThemes.list.map((theme) => ({
+              id: `${mode}-custom-${theme.id}`,
+              title: `${theme.name} · ${label}`,
+              group: "actions" as const,
+              keywords: `custom theme palette ${mode}`,
+              checked: choice.kind === "custom" && choice.theme.id === theme.id,
+              run: () => void settings.updateAppearance(customChoice(mode, theme)),
+            })),
+          ];
+        }),
     },
     {
       id: "appearance",

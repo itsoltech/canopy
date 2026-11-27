@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import {
@@ -12,8 +13,12 @@
   import { colorSchemePreference, deviceAppearanceDefaults, threadWidthPreference } from "@canopy/domain";
   import ThemePreview from "#lib/features/settings/ThemePreview.svelte";
   import ThemePicker from "#lib/features/settings/ThemePicker.svelte";
-  import ThemeBuilder from "#lib/features/settings/ThemeBuilder.svelte";
+  import ThemeEditor from "#lib/features/settings/ThemeEditor.svelte";
+  import { colorOptionsOf, newCustomTheme } from "#lib/features/settings/custom-themes.ts";
+  import { customThemes } from "#lib/features/settings/custom-themes.svelte.ts";
+  import ThemeShapeSettings from "#lib/features/settings/ThemeShapeSettings.svelte";
   import { themeCustomizationDefaults, themeOverridesOf } from "#lib/features/settings/theme-customization.ts";
+  import { useThemeProposal, type ThemeEditing } from "#lib/features/settings/theme-proposal.svelte.ts";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import Select from "#lib/shared/ui/Select.svelte";
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
@@ -30,7 +35,23 @@
   const scheme = $derived(schemeOf(settings.appearance));
   const chatWidth = $derived(chatWidthOf(settings.appearance));
   const schemes = namesOf(schemeChoices);
-  let builder = $state<ThemeBuilder>();
+  let editing = $state<ThemeEditing>();
+
+  /** Focus returns to the pencil of the edited theme, or to New theme after a cancel or delete. */
+  async function closeEditor() {
+    const id = editing?.theme.id ?? "";
+    const mode = editing?.mode ?? "light";
+    editing = undefined;
+    await tick();
+
+    const opener =
+      document.querySelector<HTMLElement>(`[data-edit-theme="${CSS.escape(id)}"]`) ??
+      document.querySelector<HTMLElement>(`[data-new-theme="${mode}"]`);
+
+    opener?.focus();
+  }
+
+  useThemeProposal((proposal) => (editing = proposal));
 </script>
 
 <svelte:head><title>Appearance · Settings · {applicationName}</title></svelte:head>
@@ -42,7 +63,7 @@
     icon="arrow-path"
     onclick={() => {
       settings.updateAppearance({ ...deviceAppearanceDefaults, ...themeCustomizationDefaults });
-      builder?.discard();
+      editing = undefined;
       devicePreferences.reset(appearanceDeviceKeys);
       setAnimatedMascots(true);
     }}>Reset appearance</Button
@@ -52,19 +73,33 @@
 <SettingsTopics
   label="Appearance settings"
   topics={[
-    { id: "themes", label: "Themes", content: themes },
     {
-      id: "theme-builder",
-      label: "Theme builder",
-      keywords: "custom theme color palette accent corner radius rounding rounded spacing density compact spacious",
-      content: themeBuilder,
+      id: "themes",
+      label: "Themes",
+      keywords: "custom theme new edit builder editor color palette accent",
+      content: themes,
     },
-    { id: "interface", label: "Interface", content: interfaceOptions },
+    {
+      id: "interface",
+      label: "Interface",
+      keywords: "corner radius rounding rounded spacing density compact spacious",
+      content: interfaceOptions,
+    },
     { id: "typography", label: "Typography", content: typography },
   ]}
 />
 
 {#snippet themes()}
+  {#if editing}
+    {#key editing}
+      <ThemeEditor {...editing} onclose={closeEditor} />
+    {/key}
+  {:else}
+    {@render themeChoices()}
+  {/if}
+{/snippet}
+
+{#snippet themeChoices()}
   <SettingsGroup title={colorSchemePreference.group}>
     <PreferenceRow
       title={colorSchemePreference.label}
@@ -104,16 +139,21 @@
     </PreferenceRow>
   </SettingsGroup>
 
-  <ThemePicker />
-{/snippet}
-
-{#snippet themeBuilder()}
-  <ThemeBuilder bind:this={builder} />
+  <ThemePicker
+    onedit={(theme, mode) => (editing = { theme, created: false, mode })}
+    oncreate={(mode) =>
+      (editing = {
+        theme: newCustomTheme(customThemes.list, colorOptionsOf(settings.appearance)),
+        created: true,
+        mode,
+      })}
+  />
 {/snippet}
 
 {#snippet interfaceOptions()}
   <SettingsGroup title={threadWidthPreference.group}>
     <InterfaceSettings />
+    <ThemeShapeSettings />
     {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
     {#if settings.moduleEnabled("threads")}
       <PreferenceRow

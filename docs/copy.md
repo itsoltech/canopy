@@ -124,7 +124,8 @@ appear only as the literal name used by an external tool).
 | Tool accounts | the section for connected accounts that provide tools to agents and bots | Your accounts (when distinguishing from Slack Bot accounts) |
 | allowed action | a standing bot approval rule explicitly saved by the owner | trusted prompt, automatic grant |
 | schedule | a scheduled message or wake-up | cron, job, timer |
-| theme builder | the Appearance editor for colors, corner radius, and spacing | style editor, theme generator |
+| custom theme | a named theme with its own light and dark colors, saved on the device | user theme, personal palette |
+| theme editor | the Appearance → Themes view that creates or edits a custom theme | theme builder, style editor, theme generator |
 | skill, plugin, marketplace | items in Agent environment | extension, add-on |
 | update channel | Stable, Beta, Nightly | track, ring, branch |
 | rewind | return the conversation to an earlier message in the same thread | rollback, reset |

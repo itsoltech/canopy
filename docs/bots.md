@@ -1464,7 +1464,7 @@ z czytelnym komunikatem (etap 5). Opcje dostępne przez narzędzia i API, bez no
 | `search_canopy_preferences` | Wyszukuje kontrolki Appearance według słów, do pięciu dopasowań | R |
 | `get_canopy_preference` | Zwraca możliwe wybory oraz dawną wartość domyślną i jej wersję. Potwierdza ścieżkę dla rozpoznanej wersji klienta | R |
 | `set_canopy_preference` | Zmienia dawną wartość domyślną z wersją z odczytu i zwraca zapisaną wartość | A |
-| `propose_canopy_theme` | Zapisuje w prywatnym czacie propozycję kolorów Light lub Dark, zaokrąglenia i odstępów | Apply theme w kreatorze |
+| `propose_canopy_theme` | Zapisuje w prywatnym czacie propozycję kolorów Light lub Dark, zaokrąglenia i odstępów | Create theme w edytorze motywu |
 | `get_settings` | Domyślne ustawienia wątków i generacji tekstu, wersje użytkownika i projektów; bez wyglądu | R |
 | `update_settings` | Zastąpienie podanych sekcji, optimistic version; zagnieżdżone pola w protobuf JSON | P dla text generation; A dla thread defaults (mogą zmieniać permissions) |
 | `list_bots` | Boty właściciela | R |
@@ -1492,9 +1492,10 @@ propozycję zmiany wyglądu. Gateway sprawdza, czy aktualną turę rozpoczęła 
 wiadomość właściciela. Przyjmuje tylko znane tokeny palety, kolory w formacie
 `#RRGGBB` oraz opcje zaokrąglenia i odstępów z kreatora. Narzędzie działa również
 bez Web access i modułu Threads.
-**Review theme** przygotowuje podgląd z tymi zmianami w **Settings → Appearance → Theme builder**.
-**Apply theme** zapisuje je w profilu przeglądarki lub desktopu, w którym właściciel
-zatwierdził propozycję. [Wygląd i pełne palety](appearance.md#kreator-motywu)
+**Review theme** otwiera w **Settings → Appearance → Themes** edytor nowego motywu własnego
+z bieżącymi kolorami urządzenia i zmianami z propozycji. **Create theme** zapisuje motyw
+i wybiera go w profilu przeglądarki lub desktopu, w którym właściciel zatwierdził
+propozycję. [Wygląd i pełne palety](appearance.md#motywy-własne)
 
 Mutacje używają **tych samych metod `GatewayCore` i walidacji co UI API**.
 `core/action-context.ts` przenosi kontekst transakcji Effect SQL przez asynchroniczne

@@ -9,11 +9,12 @@ jeden ciągły brzeg na całej koronie drzewa.
 Domyślny font interfejsu web i desktop ma etykietę Inter.
 Oba pickery typografii współdzielą automatycznie wczytywaną listę rodzin, gdy klient ma do niej dostęp.
 W web i desktopie Thread width obejmuje także widok PR i podgląd `Rendered` plików Markdown.
-Aktualizacja (2026-11-26): Theme builder pozwala edytować i losować palety
-Light oraz Dark, zmieniać zaokrąglenie i odstępy oraz stosować propozycje
-bota w web i desktopie.
+Aktualizacja (2026-11-28): w web i desktopie Themes pozwala tworzyć nazwane motywy
+własne i edytować je w edytorze motywu zamiast osobnej zakładki Theme builder.
+Corner radius i Spacing są w zakładce Interface. Propozycje bota otwierają się
+jako nowy motyw własny.
 **Preview in app** pokazuje edytowany motyw na ekranie, z którego otwarto
-Settings. **Draft** i **Applied** przełączają motyw w podglądzie.
+Settings. **Draft** i **Current** przełączają motyw w podglądzie.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -42,10 +43,38 @@ natywnej obsługi przycisku. Widoczny znacznik i komunikat statusu opisują oba
 wybory. Nie ma natywnych radio ani animacji wymagających osobnych wyjątków dla
 ograniczonego ruchu; pozostałe przejścia używają tokenów zestawu UI.
 
-## Kreator motywu
+## Motywy własne
 
-**Settings → Appearance → Theme builder** pozwala wybrać dla Light i Dark osobną
-paletę bazową i gotowy akcent. Przełącznik w podglądzie wybiera edytowany wariant.
+Web i desktop. Wbudowane motywy mają stałe palety; wybór jednego z nich usuwa
+akcent i nadpisania kolorów w danym wariancie. Własne kolory należą do nazwanych
+motywów własnych. Picker **Settings → Appearance → Themes** pokazuje je po wbudowanych,
+w obu kolumnach. Motyw własny, tak jak wbudowany, ma wariant Light i Dark, a Light
+i Dark można wybrać z różnych motywów. Paleta poleceń wymienia je jako
+`Change theme › <nazwa> · Light` i `… · Dark`.
+
+Karta motywu własnego ma w rogu wiersza nazwy okrągły przycisk z ołówkiem
+(**Edit theme**). Przycisk leży obok radia, a nie w nim, więc strzałki nadal
+przechodzą tylko między motywami, a Tab trafia też na ołówek. Przy kursorze
+myszy jest półprzezroczysty i powiększa się po najechaniu na kartę. Po najechaniu
+na sam przycisk albo fokusie z klawiatury wypełnia się kolorem akcji, a ołówek się
+przechyla. Na ekranach dotykowych jest zawsze w pełni widoczny. Przy ograniczonym
+ruchu przejścia są wyłączone. Nazwa ma zarezerwowane miejsce, więc długa nazwa
+zawija się przed przyciskiem.
+
+Ostatnia karta w każdej kolumnie, **New theme** z przerywaną ramką, otwiera edytor
+z kopią kolorów używanych teraz w obu wariantach i nazwą `Custom theme` (kolejne:
+`Custom theme 2` itd.). Edytor zaczyna od wariantu kolumny, z której go otwarto.
+Motyw trafia do biblioteki dopiero po **Create theme**, które wybiera go dla Light
+i Dark. Ołówek otwiera ten sam edytor dla istniejącego motywu; **Save theme**
+zapisuje go i od razu aktualizuje każdy wariant, który go używa. **Cancel**
+i **Themes** wracają do pickera bez zapisu, a fokus wraca na ołówek lub **New theme**.
+**Delete theme** w edytorze po potwierdzeniu usuwa motyw; wariant, który go używał,
+przechodzi na jego paletę bazową.
+
+### Edytor motywu
+
+Edytor zastępuje widok Themes w tej samej zakładce. Zawiera nazwę motywu oraz,
+dla wariantu wybranego przełącznikiem Light / Dark, paletę bazową i gotowy akcent.
 Aktywnym wariantem aplikacji nadal steruje Color scheme.
 
 Każdy ze 102 kolorów w wariancie ma własny próbnik i pole hex. Podstawowa
@@ -57,24 +86,42 @@ losuje wspólny odcień bazowy i jedną z trzech harmonii na kole OKLCH
 dobierane są oddzielnie, a kolory statusów zachowują swoje znaczenie.
 Podgląd sygnalizuje niski kontrast tekstu, akcentu i przycisków.
 
-**Corner radius** skaluje wspólne promienie narożników kontrolek i powierzchni
-w obu wariantach. **Spacing** zmienia padding dymków wiadomości, odstępy
-w Settings oraz padding kart wątków w sidebarze przy precyzyjnym wskaźniku.
-Minimalne cele dotykowe korzystają ze skali interfejsu.
-
 **Preview in app** odsłania bieżący ekran Canopy i tymczasowo zmienia jego
-paletę, narożniki i odstępy. Pasek podglądu pozwala przełączyć Light lub Dark
-oraz porównać **Draft** i **Applied**. **Back to editor** lub Escape przywraca
+paletę. Pasek podglądu pozwala przełączyć Light lub Dark oraz porównać **Draft**
+z **Current**, czyli wyglądem używanym teraz. **Back to editor** lub Escape przywraca
 wygląd okna i zachowuje szkic w edytorze. Podgląd dotyczy bieżącego okna.
-**Apply theme** stosuje zmiany w aplikacji i zapisuje je w cookie profilu,
-odczytywanym również przy pierwszym renderze. **Discard changes** przywraca ostatnie zastosowane
-wartości w kreatorze. Zmiana palety w Themes lub palecie poleceń zachowuje
-wybrany akcent i nadpisania kolorów. **Reset appearance** przywraca wartości
-domyślne i czyści edytowane zmiany kreatora.
+
+### Kształt interfejsu
+
+**Settings → Appearance → Interface → Corner radius** skaluje wspólne promienie
+narożników kontrolek i powierzchni. **Spacing** zmienia padding dymków wiadomości,
+odstępy w Settings oraz padding kart wątków w sidebarze przy precyzyjnym wskaźniku.
+Oba ustawienia działają od razu i dotyczą każdego motywu, więc różne motywy Light
+i Dark mają te same narożniki i odstępy. Minimalne cele dotykowe korzystają ze skali
+interfejsu. **Reset appearance** przywraca wartości domyślne wyglądu, w tym Birch /
+Birch; biblioteka motywów własnych zostaje.
+
+### Propozycje bota
 
 W prywatnej rozmowie właściciel może poprosić bota o zmianę motywu. Akcja
-**Review theme** w rozmowie otwiera kreator z propozycją. **Apply theme** zapisuje
-ją w bieżącym profilu. [Boty](bots.md).
+**Review theme** w rozmowie otwiera edytor nowego motywu `Proposed theme`, z kolorami
+używanymi teraz i zmianami z propozycji. Jeśli propozycja zmienia też zaokrąglenie
+lub odstępy, edytor o tym informuje, a podgląd je uwzględnia. **Create theme**
+zapisuje motyw, wybiera go dla obu wariantów i stosuje te ustawienia kształtu. [Boty](bots.md).
+
+### Zapis motywów własnych
+
+Biblioteka motywów własnych jest w localStorage profilu przeglądarki dla hosta Canopy
+albo profilu Electron desktopu, tak jak inne lokalne preferencje Appearance. Cookie
+wyglądu przechowuje identyfikator wybranego motywu oraz jego rozwiązane kolory,
+akcent i paletę bazową dla każdego wariantu, więc pierwszy render, cache startowy
+desktopu i natywny chrom okna nie potrzebują biblioteki. Zapis lub usunięcie motywu
+odświeża inne karty tego samego profilu.
+
+Kolory, akcent lub nadpisania zastosowane bez motywu w bibliotece (zapisane przed
+motywami własnymi albo po wyczyszczeniu localStorage) przy starcie stają się motywem
+`Custom theme`, który wybrany jest w tych samych wariantach. Dzięki temu picker
+zawsze pokazuje i pozwala edytować to, czego używa aplikacja.
 
 ## Palety i tokeny
 
