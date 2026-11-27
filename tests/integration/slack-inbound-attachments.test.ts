@@ -67,6 +67,8 @@ test.skipIf(!dockerAvailable)(
           botId: bot.id,
           accountId: account.id,
           channelIds: ["CGENERAL"],
+          // Channel topic analysis would also prompt the harness and race the turn input inspected below.
+          channelContext: false,
           userIds: ["UOWNER"],
           mentions: true,
           delivery: "reply",

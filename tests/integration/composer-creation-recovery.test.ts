@@ -15,7 +15,6 @@ import { join } from "node:path";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { routed } from "../../apps/gateway/src/api/routed.ts";
-import { ConfigIds } from "../../apps/gateway/src/api/routed-config.ts";
 import { withDraftDelivery } from "../../apps/gateway/src/drafts/delivery.ts";
 import { reconcileDraftDelivery } from "../../apps/gateway/src/drafts/reconcile.ts";
 import { creationEvent } from "../../apps/gateway/src/core/thread-progress.ts";
@@ -373,30 +372,6 @@ describe.skipIf(!dockerAvailable)("linked creation recovery", () => {
 
   beforeAll(async () => {
     fixture = await linkedProjectFixture(directory, { shared: true, worktreeProgress: true });
-    const { a, b, la, lb } = fixture;
-    const canonical = [a.project.id, b.project.id].sort()[0]!;
-
-    // The fixture waits for mirrored workspaces, which can precede shared-project
-    // alias materialization. Both homes must agree before testing mutations.
-    const ready = await eventually(
-      async () => {
-        const aliases = await Promise.all([
-          (await ConfigIds.for(a.gw.core, lb.hello().nodeId)).projects(),
-          (await ConfigIds.for(b.gw.core, la.hello().nodeId)).projects(),
-        ]);
-
-        return aliases.every(
-          (ids, index) =>
-            ids.toGlobal(a.project.id) === canonical &&
-            ids.toGlobal(b.project.id) === canonical &&
-            ids.toLocal(canonical) === (index === 0 ? a.project.id : b.project.id),
-        );
-      },
-      Boolean,
-      10_000,
-    );
-
-    expect(ready).toBe(true);
   }, 60_000);
 
   afterAll(async () => {

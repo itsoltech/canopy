@@ -14,6 +14,7 @@ import { remoteServe, serviceTokenAuth, uiHandlers, uiRoutes } from "@canopy/gat
 import { GatewayCore } from "@canopy/gateway/core";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers } from "./support/computers.ts";
+import { computersState } from "../../apps/gateway/src/computers/runtime-context.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkClient } from "../../apps/gateway/src/computers/transport.ts";
 import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
@@ -79,7 +80,15 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     await lb.options.network.update(
       create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: false }),
     );
-    await eventually(async () => !la.reachable().length && !lb.reachable().length);
+    // While the second switch is pending, the first one's outgoing link can still restart a subscriber.
+    // It fences the mirror state a few queries later, so wait for it to end, not only for reachability.
+    await eventually(
+      async () =>
+        !la.reachable().length &&
+        !lb.reachable().length &&
+        !la[computersState].mirroring.size &&
+        !lb[computersState].mirroring.size,
+    );
   }
 
   async function reconnect() {
