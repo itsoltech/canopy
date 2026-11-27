@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { setTimeout as delay } from "node:timers/promises";
-import type { SlackEvent, SlackIdentity } from "./slack-events.ts";
+import { slackTimestamp, type SlackEvent, type SlackIdentity } from "./slack-events.ts";
 import { escapeSlackText, formatSlackMessage } from "./slack-format.ts";
 import {
   checkSlackCredentials,
@@ -11,6 +10,7 @@ import {
   type SlackTransport,
 } from "./slack-http.ts";
 import { slackSocket } from "./slack-socket.ts";
+import { runWithReconnect, type MessengerAdapter } from "./provider.ts";
 import type { MessengerIngestOutcome } from "./types.ts";
 
 export { SlackMessengerError } from "./slack-http.ts";
@@ -111,45 +111,19 @@ export class SlackMessenger {
   /** Lifecycle belongs to the account lease holder; abort closes the socket and cancels backoff. */
   async run(signal: AbortSignal): Promise<void> {
     let identity: SlackIdentity | undefined;
-    let failures = 0;
 
-    while (!signal.aborted) {
-      await this.options.onStatus?.("connecting");
-      let retryAfterMs = 0;
-      const started = Date.now();
-
-      try {
+    await runWithReconnect(signal, {
+      onStatus: this.options.onStatus,
+      transport: this.options.transport,
+      connect: async () => {
         identity ??= await slackIdentity(this.options.credentials, signal, this.options.transport);
 
         if (identity.botUserId !== this.options.botUserId)
           throw new SlackMessengerError("configuration", "bot_identity_mismatch");
         const url = await slackSocketUrl(this.options.credentials, signal, this.options.transport);
         await slackSocket({ ...this.options, identity, url, signal });
-      } catch (error) {
-        if (signal.aborted) return;
-
-        if (error instanceof SlackMessengerError) {
-          if (error.kind === "configuration") throw error;
-          retryAfterMs = error.retryAfterMs ?? 0;
-        }
-      }
-
-      if (signal.aborted) return;
-
-      await this.options.onStatus?.("retrying");
-
-      if (Date.now() - started > 30_000) failures = 0;
-      const baseDelay = this.options.transport?.reconnectDelayMs ?? 1000;
-      const backoff = Math.min(30_000, baseDelay * 2 ** Math.min(failures++, 8));
-      const milliseconds = Math.max(retryAfterMs, backoff + Math.random() * backoff * 0.2);
-      const wait = this.options.transport?.waitForReconnect;
-
-      try {
-        await (wait ? wait(milliseconds, signal) : delay(milliseconds, undefined, { signal }));
-      } catch {
-        return;
-      }
-    }
+      },
+    });
   }
 
   /** Never retries a write. The durable outbox must distinguish rate limits from ambiguous success. */
@@ -200,3 +174,20 @@ export async function postSlackMessage(
 
   return { messageId: result.ts, channelId: result.channel };
 }
+
+export const slackAdapter: MessengerAdapter = {
+  provider: "slack",
+  channelId: /^[CG][A-Z0-9]{1,79}$/,
+  userId: /^[UW][A-Z0-9]{1,79}$/,
+  channelContext: true,
+  validate: validateSlackAccount,
+  run: (options, signal) => new SlackMessenger(options).run(signal),
+  send: async (credentials, message, signal, transport) => {
+    const confirmed = await postSlackMessage(credentials, message, signal, transport);
+
+    if (confirmed.channelId !== message.channelId || !slackTimestamp.test(confirmed.messageId))
+      throw new SlackMessengerError("unknown_write", "invalid_send_response");
+
+    return confirmed;
+  },
+};

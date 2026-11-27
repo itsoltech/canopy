@@ -15,7 +15,7 @@ export function activeConversationSource(
     WHERE c.id=${conversationId}::uuid AND b.id=${botId}::uuid AND b.deleted_at IS NULL
       AND b.archived_at IS NULL AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
       AND ${linkedMessengerActive(sql)} AND ${ownerModule(sql, sql`b.owner_user_id`, "bots")}
-      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))`;
+      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.direct))`;
 }
 
 /** Recheck a subscription before a delayed callback or another external action. */

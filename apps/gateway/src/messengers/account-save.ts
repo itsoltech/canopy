@@ -6,6 +6,7 @@ import { encryptSecret } from "../store/secrets.ts";
 import { Invalid, NotFound } from "../store/store.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
 import { accountView, openMessengerCredentials, type AccountRow } from "./account-records.ts";
+import { invalidMessengerTokens, messengerIdentityName } from "./account-tokens.ts";
 import type { SaveMessengerAccount } from "./types.ts";
 
 export function saveMessengerAccount(
@@ -21,7 +22,14 @@ export function saveMessengerAccount(
         if (!input.name.trim() || input.name.length > 120) return yield* Effect.fail(new Invalid("A name is required"));
         yield* sql`SELECT id FROM users WHERE id=${owner}::uuid FOR NO KEY UPDATE`;
         const initial = input.id ? yield* owned(owner, input.id) : undefined;
+        const provider = initial?.provider ?? input.provider ?? "slack";
+
+        if (input.provider && input.provider !== provider)
+          return yield* Effect.fail(new Invalid("A messenger account keeps its provider"));
         const connectorId = input.connectorAccountId || initial?.connector_account_id;
+
+        if (connectorId && provider !== "slack")
+          return yield* Effect.fail(new Invalid("Only Slack accounts use a connector"));
 
         if (initial?.connector_client_id && !connectorId)
           return yield* Effect.fail(new Invalid("Reconnect the Slack connection first"));
@@ -78,13 +86,10 @@ export function saveMessengerAccount(
           botToken: input.botToken || previous?.botToken || "",
         };
 
-        if (
-          !/^xapp-[^\s]+$/.test(credentials.appToken) ||
-          credentials.appToken.length > 4096 ||
-          (!connectorId &&
-            (!/^(xoxb-|xoxe\.xoxb-)[^\s]+$/.test(credentials.botToken) || credentials.botToken.length > 4096))
-        )
-          return yield* Effect.fail(new Invalid("Slack app token is required; manual accounts also need a bot token"));
+        const invalidTokens = invalidMessengerTokens(provider, credentials, Boolean(connectorId));
+
+        if (invalidTokens) return yield* Effect.fail(new Invalid(invalidTokens));
+        const identityName = messengerIdentityName(provider);
         const id = prior?.id ?? Bun.randomUUIDv7();
         const tokensChanged = !!(input.appToken || input.botToken);
 
@@ -93,12 +98,12 @@ export function saveMessengerAccount(
           : (input.externalId ?? (tokensChanged ? undefined : prior?.external_id));
 
         if (!externalId || externalId.length > 200 || (!connectorId && prior && prior.external_id !== externalId))
-          return yield* Effect.fail(new Invalid("Reconnect using the same Slack workspace"));
+          return yield* Effect.fail(new Invalid(`Reconnect using the same ${identityName}`));
 
         const duplicate = yield* sql`SELECT id FROM messenger_accounts WHERE owner_user_id=${owner}::uuid
-      AND external_id=${externalId} AND deleted_at IS NULL AND id<>${id}::uuid`;
+      AND provider=${provider} AND external_id=${externalId} AND deleted_at IS NULL AND id<>${id}::uuid`;
 
-        if (duplicate.length) return yield* Effect.fail(new Invalid("This Slack workspace is already connected"));
+        if (duplicate.length) return yield* Effect.fail(new Invalid(`This ${identityName} is already connected`));
 
         const changed =
           tokensChanged ||
@@ -112,9 +117,9 @@ export function saveMessengerAccount(
               ? "connecting"
               : (prior?.status ?? "needs_authorization");
 
-        yield* sql`INSERT INTO messenger_accounts(id,owner_user_id,name,external_id,credentials,enabled,status,
+        yield* sql`INSERT INTO messenger_accounts(id,owner_user_id,name,provider,external_id,credentials,enabled,status,
       connector_account_id,connector_client_id)
-      VALUES(${id}::uuid,${owner}::uuid,${input.name.trim()},${externalId},${encryptSecret(key, JSON.stringify(credentials))},
+      VALUES(${id}::uuid,${owner}::uuid,${input.name.trim()},${provider},${externalId},${encryptSecret(key, JSON.stringify(credentials))},
         ${input.enabled ?? prior?.enabled ?? true},${status},${connectorId ?? null}::uuid,${app?.client_id ?? null})
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,credentials=excluded.credentials,enabled=excluded.enabled,
         status=excluded.status,connector_account_id=excluded.connector_account_id,connector_client_id=excluded.connector_client_id,

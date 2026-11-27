@@ -1,8 +1,10 @@
+import type { MessengerProvider } from "./provider.ts";
+
 export interface MessengerAccount {
   id: string;
   ownerUserId: string;
   name: string;
-  provider: "slack";
+  provider: MessengerProvider;
   externalId: string;
   connectorAccountId?: string;
   requiresSlackUser: boolean;
@@ -25,6 +27,8 @@ export interface SlackBotAuthorization extends MessengerCredentials {
 }
 
 export interface SaveMessengerAccount {
+  /** Required for a new account; an existing account keeps its provider. */
+  provider?: MessengerProvider;
   /** Verified by the gateway adapter before persisting stand-alone credentials. */
   externalId?: string;
   /** Revision of an existing stand-alone token pair used for validation outside the transaction. */
@@ -33,6 +37,7 @@ export interface SaveMessengerAccount {
   connectorAccountId?: string;
   name: string;
   enabled?: boolean;
+  /** Slack Socket Mode only. */
   appToken?: string;
   botToken?: string;
 }
@@ -74,6 +79,8 @@ export interface MessengerEvent {
   fileIds?: readonly string[];
   timestamp: string;
   editedTimestamp?: string;
+  /** Provider message this message replies to, used to find its conversation when there is no native thread. */
+  replyTo?: string;
   ownMutation?: boolean;
   mention: boolean;
   direct: boolean;
@@ -118,6 +125,7 @@ export interface OutboundResult {
 }
 
 export interface ConversationContext {
+  provider: MessengerProvider;
   conversationId: string;
   accountId: string;
   channelId: string;
@@ -145,6 +153,7 @@ export interface ConversationRow {
   route_id: string;
   channel_id: string;
   thread_id: string;
+  direct: boolean;
   open_until: Date;
   first_received_at: Date | null;
   last_received_at: Date | null;

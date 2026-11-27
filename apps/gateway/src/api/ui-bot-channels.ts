@@ -3,7 +3,10 @@ import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { slackBotAppManifest } from "../connectors/slack-app.ts";
 import { MessengerStore } from "../messengers/store.ts";
-import { validateSlackAccount, slackMessengerAppManifest, slackMessengerAppCreateUrl } from "../messengers/slack.ts";
+import { slackMessengerAppManifest, slackMessengerAppCreateUrl } from "../messengers/slack.ts";
+import { messengerAdapter } from "../messengers/adapters.ts";
+import { invalidMessengerTokens } from "../messengers/account-tokens.ts";
+import { messengerProvider, type MessengerProvider } from "../messengers/provider.ts";
 import { type GatewayCore } from "../core/core.ts";
 import { coreState } from "../core/core-context.ts";
 import { unwrap } from "./ui-errors.ts";
@@ -41,12 +44,17 @@ export function botChannelHandlers(
       }),
     saveMessengerAccount: (r, context) =>
       messengerGuard(async () => {
-        const validation = await validateStandaloneEdit(core, r, context.signal);
+        const provider = r.provider ? messengerProvider(r.provider) : undefined;
+
+        if (r.provider && !provider)
+          throw new ConnectError("Choose Slack, Telegram or Discord and try again.", Code.InvalidArgument);
+        const validation = await validateStandaloneEdit(core, r, provider, context.signal);
 
         const account = await state.options.runtime.runPromise(
           MessengerStore.use((s) =>
             s.saveAccount(owner, {
               ...(r.id && { id: r.id }),
+              ...(provider && { provider }),
               name: r.name,
               ...(r.connectorAccountId && { connectorAccountId: r.connectorAccountId }),
               ...validation,
@@ -119,7 +127,12 @@ export function botChannelHandlers(
   };
 }
 
-async function validateStandaloneEdit(core: GatewayCore, request: ui.SaveMessengerAccountRequest, signal: AbortSignal) {
+async function validateStandaloneEdit(
+  core: GatewayCore,
+  request: ui.SaveMessengerAccountRequest,
+  provider: MessengerProvider | undefined,
+  signal: AbortSignal,
+) {
   const { connectorAccountId, id, appToken, botToken } = request;
 
   if (connectorAccountId || (id && appToken === undefined && botToken === undefined)) return undefined;
@@ -132,14 +145,17 @@ async function validateStandaloneEdit(core: GatewayCore, request: ui.SaveMesseng
 
   if (id && !previous) return undefined;
 
-  const { externalId } = await validateSlackAccount(
-    {
-      appToken: appToken ?? previous?.appToken ?? "",
-      botToken: botToken ?? previous?.botToken ?? "",
-    },
-    signal,
-    messengerTransport,
-  );
+  const credentials = {
+    appToken: appToken ?? previous?.appToken ?? "",
+    botToken: botToken ?? previous?.botToken ?? "",
+  };
+
+  const accountProvider = previous?.provider ?? provider ?? "slack";
+
+  // Saving checks the token shape first, so a malformed token never reaches the provider.
+  if (invalidMessengerTokens(accountProvider, credentials, false)) return undefined;
+
+  const { externalId } = await messengerAdapter(accountProvider).validate(credentials, signal, messengerTransport);
 
   return { externalId, ...(previous && { validatedRevision: previous.revision }) };
 }
