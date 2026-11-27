@@ -1,31 +1,26 @@
 <script lang="ts">
-  import type { connectors, ui } from "@canopy/contracts";
-  import { onMount } from "svelte";
-  import { messengerAccounts } from "#lib/features/bots/messengers/api.ts";
-  import Alert from "#lib/shared/ui/Alert.svelte";
+  import type { connectors } from "@canopy/contracts";
+  import { providerOf } from "#lib/features/bots/messengers/providers.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
+  import { changed, type MessengerCatalog } from "./messenger-catalog.svelte.ts";
   import SlackBotAccount from "./SlackBotAccount.svelte";
   import SlackBotSetupDialog from "./SlackBotSetupDialog.svelte";
 
   let {
+    catalog,
     slackUsers,
     oauthCompletion,
     canAdd,
   }: {
+    catalog: MessengerCatalog;
     slackUsers: readonly connectors.ConnectorAccount[];
     oauthCompletion?: connectors.CompleteConnectorOAuthResponse;
     canAdd: boolean;
   } = $props();
 
   let adding = $state(false);
-  let ready = $state(false);
-  let catalog = $state<ui.ListMessengerAccountsResponse>();
-  let loading = $state(true);
-  let failed = $state(false);
-  let fetchId = 0;
-
-  const accounts = $derived(catalog?.accounts ?? []);
+  const accounts = $derived(catalog.accounts.filter((account) => providerOf(account) === "slack"));
 
   const availableUsers = $derived(
     slackUsers.filter(
@@ -34,78 +29,16 @@
         !accounts.some((bot) => bot.connectorAccountId === user.id),
     ),
   );
-
-  async function reload() {
-    const id = ++fetchId;
-
-    try {
-      const next = await messengerAccounts();
-
-      if (id !== fetchId) return;
-      catalog = next;
-      ready = true;
-      failed = false;
-    } catch {
-      if (id === fetchId) failed = true;
-    } finally {
-      if (id === fetchId) loading = false;
-    }
-  }
-
-  onMount(() => {
-    void reload();
-
-    const refresh = () => {
-      if (!document.hidden) void reload();
-    };
-
-    window.addEventListener("focus", refresh);
-    window.addEventListener("messenger-accounts-changed", refresh);
-    const timer = setInterval(refresh, 30_000);
-
-    return () => {
-      ++fetchId;
-      clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("messenger-accounts-changed", refresh);
-    };
-  });
-
-  function changed() {
-    window.dispatchEvent(new Event("messenger-accounts-changed"));
-  }
-
-  function saved(account: ui.MessengerAccount) {
-    if (catalog)
-      catalog.accounts = accounts.some((entry) => entry.id === account.id)
-        ? accounts.map((entry) => (entry.id === account.id ? account : entry))
-        : [...accounts, account];
-    changed();
-  }
-
-  function removed(id: string) {
-    if (catalog) catalog.accounts = accounts.filter((account) => account.id !== id);
-    changed();
-  }
 </script>
 
 <section aria-labelledby="slack-bot-heading" class="grid min-w-0 gap-4">
   <div class="flex flex-wrap items-center justify-between gap-2">
-    <h2 id="slack-bot-heading" class="text-lg font-semibold">Slack Bot accounts</h2>
-    <div class="flex flex-wrap gap-2">
-      <Button size="sm" variant="ghost" disabled={loading} onclick={reload}>Refresh status</Button>
-      {#if canAdd}<Button size="sm" disabled={!ready} onclick={() => (adding = true)}>Add Slack Bot</Button>{/if}
-    </div>
+    <h3 id="slack-bot-heading" class="text-base/6 font-semibold sm:text-sm/6">Slack Bot accounts</h3>
+    {#if canAdd}<Button size="sm" disabled={!catalog.ready} onclick={() => (adding = true)}>Add Slack Bot</Button>{/if}
     <p class="w-full text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
       Receive and reply to Slack messages as your Slack app’s bot.
     </p>
   </div>
-  {#if loading}
-    <p role="status" class="text-sm text-zinc-500 dark:text-zinc-400">Loading Slack Bot accounts…</p>
-  {/if}
-  {#if failed}
-    <Alert tone="error">Could not load Slack Bot accounts. Refresh status to try again.</Alert>
-  {/if}
   {#if accounts.length}
     <InsetList label="Slack Bot accounts" class="@container">
       {#each accounts as account (account.id)}
@@ -114,19 +47,16 @@
             {account}
             linkedUser={slackUsers.find((user) => user.id === account.connectorAccountId)}
             {availableUsers}
-            sharedManifest={catalog?.slackAppManifest ?? ""}
+            sharedManifest={catalog.response?.slackAppManifest ?? ""}
             {oauthCompletion}
-            onsaved={saved}
-            onremove={removed}
+            onsaved={(saved) => catalog.saved(saved)}
+            onremove={(id) => catalog.removed(id)}
             onrefresh={changed}
           />
         </li>
       {/each}
     </InsetList>
-    <p class="text-sm text-zinc-500 dark:text-zinc-400">
-      Choose who can message each bot in Bot settings → Messengers.
-    </p>
-  {:else if ready && !failed}
+  {:else if catalog.ready && !catalog.failed}
     <p class="text-sm text-zinc-500 dark:text-zinc-400">No Slack Bot accounts connected.</p>
   {/if}
 </section>
@@ -135,9 +65,9 @@
   <SlackBotSetupDialog
     bind:open={adding}
     {availableUsers}
-    sharedManifest={catalog?.slackAppManifest}
-    manifest={catalog?.slackBotAppManifest}
-    createUrl={catalog?.slackBotAppCreateUrl}
-    onsaved={saved}
+    sharedManifest={catalog.response?.slackAppManifest}
+    manifest={catalog.response?.slackBotAppManifest}
+    createUrl={catalog.response?.slackBotAppCreateUrl}
+    onsaved={(saved) => catalog.saved(saved)}
   />
 {/if}

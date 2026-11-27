@@ -98,12 +98,12 @@ export function saveMessengerAccount(
           : (input.externalId ?? (tokensChanged ? undefined : prior?.external_id));
 
         if (!externalId || externalId.length > 200 || (!connectorId && prior && prior.external_id !== externalId))
-          return yield* Effect.fail(new Invalid(`Reconnect using the same ${identityName}`));
+          return yield* Effect.fail(new Invalid(`Reconnect using the same ${identityName}.`));
 
         const duplicate = yield* sql`SELECT id FROM messenger_accounts WHERE owner_user_id=${owner}::uuid
       AND provider=${provider} AND external_id=${externalId} AND deleted_at IS NULL AND id<>${id}::uuid`;
 
-        if (duplicate.length) return yield* Effect.fail(new Invalid(`This ${identityName} is already connected`));
+        if (duplicate.length) return yield* Effect.fail(new Invalid(`This ${identityName} is already connected.`));
 
         const changed =
           tokensChanged ||

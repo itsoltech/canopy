@@ -73,10 +73,10 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
           }
 
           if (input.channelIds.some((id) => !adapter.channelId.test(id)))
-            return yield* Effect.fail(new Invalid(`Use ${label} channel IDs`));
+            return yield* Effect.fail(new Invalid(`Use ${label} channel IDs.`));
 
           if (input.userIds.some((id) => !adapter.userId.test(id)))
-            return yield* Effect.fail(new Invalid(`Use ${label} user IDs`));
+            return yield* Effect.fail(new Invalid(`Use ${label} user IDs.`));
 
           if (
             input.instructions.length > 10_000 ||

@@ -14,12 +14,12 @@ export function invalidMessengerTokens(
   if (provider === "telegram")
     return !credentials.appToken && telegramToken.test(credentials.botToken)
       ? undefined
-      : "Paste the bot token from BotFather";
+      : "Paste the bot token from BotFather.";
 
   if (provider === "discord")
     return !credentials.appToken && discordToken.test(credentials.botToken)
       ? undefined
-      : "Paste the bot token from the Discord Developer Portal";
+      : "Paste the bot token from the Discord Developer Portal.";
 
   const appToken = /^xapp-[^\s]+$/.test(credentials.appToken) && credentials.appToken.length <= 4096;
   const botToken = linkedConnector || (slackBotToken.test(credentials.botToken) && credentials.botToken.length <= 4096);

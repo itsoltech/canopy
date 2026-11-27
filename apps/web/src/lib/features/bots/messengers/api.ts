@@ -17,26 +17,6 @@ export const saveMessengerRoute = async (botId: string, route: JsonBody) =>
 export const deleteMessengerAccount = (id: string) => requestJson("DELETE", `/api/messengers/accounts/${id}`);
 export const deleteMessengerRoute = (id: string) => requestJson("DELETE", `/api/messengers/routes/${id}`);
 
-export function slackIds(text: string, kind: "channel" | "user"): string[] {
-  const values = [
-    ...new Set(
-      text
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  ];
-
-  const pattern = kind === "channel" ? /^[CG][A-Z0-9]+$/ : /^[UW][A-Z0-9]+$/;
-
-  if (values.some((value) => !pattern.test(value)))
-    throw new Error(`Some Slack ${kind} IDs are invalid. Separate valid IDs with commas.`);
-
-  if (kind === "user" && !values.length) throw new Error("No allowed users yet. Add a Slack user ID before saving.");
-
-  return values;
-}
-
 /** Each messenger editor saves independently of the surrounding bot form. */
 export function saveOnEnter(event: KeyboardEvent, save: () => Promise<void>): void {
   if (event.key !== "Enter" || event.isComposing) return;

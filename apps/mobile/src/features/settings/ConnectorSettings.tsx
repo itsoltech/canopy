@@ -6,6 +6,7 @@ import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { SlackBotSettings } from "./SlackBotSettings";
+import { MessengerTokenBots } from "./MessengerTokenBots";
 import { useAppearance } from "../../state/appearance";
 import { ConnectorForm } from "./ConnectorForm";
 import { ConnectorAccountRow } from "./ConnectorAccountRow";
@@ -67,7 +68,11 @@ export function ConnectorSettings() {
         )}
       </SettingsGroup>
       {botsEnabled && capabilities.data?.methods.includes("ListMessengerAccounts") && resource.data && (
-        <SlackBotSettings users={resource.data.accounts.filter((entry) => entry.connectorType === "slack")} />
+        <>
+          <SlackBotSettings users={resource.data.accounts.filter((entry) => entry.connectorType === "slack")} />
+          <MessengerTokenBots provider="telegram" />
+          <MessengerTokenBots provider="discord" />
+        </>
       )}
       {account && type && selected && (
         <ConnectorAccountDetails

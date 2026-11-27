@@ -6,18 +6,7 @@ import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { confirmAction, ResourceState, useSettingsResource } from "./resource";
 import { SlackBotEditor } from "./SlackBotEditor";
 import { SlackBotAuthorization } from "./SlackBotAuthorization";
-
-const statuses = new Map(
-  Object.entries({
-    connected: "Connected",
-    connecting: "Connecting…",
-    retrying: "Reconnecting…",
-    needs_authorization: "Authorization needed",
-    needs_reconnect: "Reconnect needed",
-    error: "Connection error",
-    disconnected: "Disconnected",
-  }),
-);
+import { disconnectDescription, messengerProvider, messengerStatus } from "./messenger-accounts";
 
 export function SlackBotSettings({ users }: { users: connectors.ConnectorAccount[] }) {
   const resource = useSettingsResource("ListMessengerAccounts", (api) => api.listMessengerAccounts({}));
@@ -25,7 +14,8 @@ export function SlackBotSettings({ users }: { users: connectors.ConnectorAccount
   const [selectedId, select] = useState("");
   const { data, busy } = resource;
   useForegroundInterval(() => void resource.reload(), 30_000, !busy);
-  const selected = data?.accounts.find((entry) => entry.id === selectedId);
+  const accounts = data?.accounts.filter((entry) => messengerProvider(entry) === "slack");
+  const selected = accounts?.find((entry) => entry.id === selectedId);
   const linked = users.find((entry) => !!selected && entry.id === selected.connectorAccountId);
   const orphaned = !!selected?.requiresSlackUser && !linked;
   const unavailable = linked && ["disconnected", "needs_reconnect"].includes(linked.status);
@@ -48,15 +38,15 @@ export function SlackBotSettings({ users }: { users: connectors.ConnectorAccount
         description="Receive and reply to Slack messages as your Slack app’s bot."
         actions={<Button title="Connect Slack Bot" size="sm" disabled={!data} onPress={() => edit("new")} />}
       >
-        {data?.accounts.map((account) => (
+        {accounts?.map((account) => (
           <SettingsRow
             key={account.id}
             title={account.name}
-            description={!account.enabled ? "Paused" : (statuses.get(account.status) ?? "Waiting for connection")}
+            description={messengerStatus(account)}
             onPress={() => select(account.id)}
           />
         ))}
-        {data && !data.accounts.length && <SettingsRow title="No Slack Bot accounts connected" />}
+        {accounts && !accounts.length && <SettingsRow title="No Slack Bot accounts connected" />}
       </SettingsGroup>
       <Sheet title={selected?.name ?? "Slack Bot"} visible={!!selected} onClose={() => select("")}>
         {selected && (
@@ -97,7 +87,7 @@ export function SlackBotSettings({ users }: { users: connectors.ConnectorAccount
                 onPress={() =>
                   confirmAction(
                     "Disconnect Slack Bot",
-                    "This removes every message route using this account. To receive messages again, reconnect the bot and add its routes.",
+                    disconnectDescription,
                     () =>
                       void resource
                         .run((api) => api.deleteMessengerAccount({ accountId: selected.id }))
