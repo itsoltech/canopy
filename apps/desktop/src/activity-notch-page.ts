@@ -1,9 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { motion } from "@canopy/ui";
 import { icons, iconStyle } from "@canopy/ui/icons";
-import { threadSpinner } from "@canopy/ui/thread-row";
 import { activityNotchMotionScript } from "./activity-notch-motion-script.ts";
 import { activityNotchMotionStyles } from "./activity-notch-motion-styles.ts";
+import {
+  activityNotchProgressGlyph,
+  activityNotchProgressScript,
+  activityNotchProgressStyles,
+} from "./activity-notch-progress.ts";
 import { activityNotchRowScript } from "./activity-notch-row-script.ts";
 import { activityNotchRowStyles } from "./activity-notch-row-styles.ts";
 import { activityNotchPanelDelay, activityNotchStyles } from "./activity-notch-styles.ts";
@@ -17,26 +21,22 @@ const statuses = {
   completed: { label: "Completed", one: "completed", many: "completed" },
 } satisfies Record<ActivityNotchRow["state"], { label: string; one: string; many: string }>;
 
-// The same marks as the thread list: a raised hand when someone has to act, the shared ring while working.
+// The same marks as the thread list: a raised hand when someone has to act. Working and completed share one badge
+// that morphs from the ring into the check (activity-notch-progress.ts).
 const activityGlyphs = {
   approval: icons["hand-raised"],
   answer: icons["hand-raised"],
   failed: icons["x-circle"],
-  working: [],
-  completed: icons["check-circle"],
-} satisfies Record<ActivityNotchRow["state"], readonly string[]>;
-
-const { center, radius: ring, strokeWidth, trackOpacity, path } = threadSpinner;
-const spinner = `<svg class="spinner" viewBox="${threadSpinner.viewBox}" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round"><circle cx="${center}" cy="${center}" r="${ring}" opacity="${trackOpacity}"/><path d="${path}"/></svg>`;
+} satisfies Partial<Record<ActivityNotchRow["state"], readonly string[]>>;
 
 const glyphs = Object.entries(activityGlyphs)
-  .map(([state, paths]) => {
-    const icon = paths.length
-      ? `<svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`
-      : spinner;
-
-    return `<span class="state-layer" data-state="${state}">${icon}</span>`;
-  })
+  .map(
+    ([state, paths]) =>
+      `<span class="state-layer" data-state="${state}"><svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg></span>`,
+  )
+  .concat(
+    `<span class="state-layer" data-state="working" data-states="working completed">${activityNotchProgressGlyph}</span>`,
+  )
   .join("")
   .concat('<span class="ping"></span>');
 
@@ -59,6 +59,7 @@ const script = `
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
 ${activityNotchMotionScript}
+${activityNotchProgressScript}
   const rowAnimations = new Set();
   let collapseTimer;
   let openedByHover = false;
@@ -184,8 +185,9 @@ ${activityNotchRowScript}
       if (view.item.style.getPropertyValue("--i") !== String(index)) view.item.style.setProperty("--i", String(index));
       const status = statuses[state].label;
       updateRowMark(view, projectMark, botMascot);
-      setText(view.label, label, label);
-      updateRowMeta(view, meta, Boolean(botMascot));
+      // A new title or branch in a row already shown swaps like its status; a new row shows them at once.
+      setTitle(view, label, Boolean(existing));
+      updateRowMeta(view, meta, Boolean(botMascot), Boolean(existing));
       showState(view.status.children, state, existing && "text");
       const project = meta?.project || projectMark?.initials ? ", project " + (meta?.project || projectMark.initials) : "";
       const accessibleLabel = "Open " + label + project + placeDescription(meta) + ", " + status;
@@ -262,7 +264,7 @@ export function activityNotchPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
-  <style nonce="${nonce}">${activityNotchStyles}${activityNotchRowStyles}${activityNotchMotionStyles}</style>
+  <style nonce="${nonce}">${activityNotchStyles}${activityNotchRowStyles}${activityNotchMotionStyles}${activityNotchProgressStyles}</style>
 </head>
 <body>
   <main class="notch" data-open="false">

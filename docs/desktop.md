@@ -11,10 +11,11 @@ instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok s
 Status (2026-11-27): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
 odsłania wiersze kolejno, gdy obrys do nich dorasta, i rozpoczyna ich wygaszanie
-przed zwijaniem obrysu. Zmiany liczby, stanów aktywności i kolejności wierszy
-przechodzą przez krótkie rozmycie.
+przed zwijaniem obrysu. Zmiany liczby, stanów aktywności, tytułów, gałęzi
+i kolejności wierszy przechodzą przez krótkie rozmycie. Po zakończeniu pracy
+pierścień ikony zamienia się w zielony znacznik ukończenia.
 Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
-Ikony stanów i kolory etykiet odpowiadają liście wątków.
+Ikony próśb i błędów oraz kolory etykiet odpowiadają liście wątków.
 Wiersze rozwiniętej listy wyglądają jak wiersze wątków w pasku bocznym: projekt
 ze znakiem i etykietą stanu, tytuł, a pod nim worker, gałąź i znak dostawcy.
 Wiersze mają ten sam odstęp od boków i dołu wycięcia. Wiersze botów pokazują
@@ -470,8 +471,9 @@ ekranu również wtedy, gdy Canopy ma fokus. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
-dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Ikona ma kolor
-stanu, a liczba kolor tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
+dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Ukończoną pracę
+oznacza zielone koło z czarnym znacznikiem. Ikona ma kolor stanu, a liczba kolor
+tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
 tego stanu; przy trwającej pracy przesuwa się po niej powolny refleks światła,
 jak w etykietach na żywo w aplikacji. Najechanie kursorem lub kliknięcie rozwija
 obrys bez odbicia poza docelowy rozmiar okna, a jego dolne rogi zaokrąglają się
@@ -486,8 +488,14 @@ dotarciem krawędzi. Ponowne najechanie w trakcie zwijania odwraca ruch od bież
 kształtu. W rozwiniętej liście nowe i usuwane wiersze zmieniają przezroczystość,
 a pozostałe przesuwają się na nowe miejsca. Przy zmianie stanu ikona wyłania się
 z rozmycia, na chwilę przekracza pełny rozmiar, a od niej rozchodzi się pierścień
-w kolorze nowego stanu. Stara etykieta stanu odpływa w górę z rozmyciem, a nowa
-wchodzi od dołu. W liczniku animują się tylko zmienione cyfry: stara odchodzi
+w kolorze nowego stanu. Przejście z pracy do ukończenia nie podmienia ikony,
+tylko ją przekształca: łuk pierścienia staje i gaśnie, w jego miejscu pojawia się
+zielone koło, a znacznik rysuje się, zanim koło nabierze pełnego koloru. Ikona
+przy tym lekko podskakuje i rośnie, na moment się rozmywając. Powrót do pracy
+odwraca te warstwy krócej. Ukończenie po innym stanie pokazuje znacznik od razu,
+z podmianą jak przy innych stanach. Stara etykieta stanu odpływa w górę
+z rozmyciem, a nowa wchodzi od dołu; tak samo zmieniają się tytuł i gałąź
+wiersza, który już jest na liście. W liczniku animują się tylko zmienione cyfry: stara odchodzi
 z rozmyciem w kierunku zmiany, nowa wskakuje z lekkim sprężynowaniem, kolejno
 od lewej. Pojawiające się wycięcie wyostrza skrzydła z rozmycia. Systemowe
 ograniczenie ruchu wyłącza animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno i otwiera

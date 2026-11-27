@@ -67,6 +67,13 @@ export const activityNotchRowStyles = `
     line-height: 1.125rem;
   }
   .row-status { grid-row: 1; }
+  /* Text that swaps stacks the old and new layer in one cell while they cross. */
+  .swap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .swap > .swap-layer { grid-area: 1 / 1; min-width: 0; }
   .row-title {
     grid-column: 1 / -1;
     color: color-mix(in srgb, var(--ink) 92%, transparent);
@@ -99,6 +106,7 @@ export const activityNotchRowStyles = `
     color: color-mix(in srgb, var(--muted) 80%, transparent);
   }
   .branch-name { display: flex; min-width: 0; }
+  .branch-swap { flex: 1 1 auto; }
   .branch-start {
     min-width: 0;
     overflow: hidden;

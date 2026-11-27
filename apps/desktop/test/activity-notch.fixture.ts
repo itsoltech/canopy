@@ -332,8 +332,9 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   await waitForRows(overlay, ["Open Review <desktop> & restore focus, Working"]);
 
   const renderedTitle = await overlay.webContents.executeJavaScript(`(() => {
-    const label = document.querySelector(".row .truncate");
-    return { text: label.textContent, tooltip: label.title, children: label.childElementCount };
+    const title = document.querySelector(".row .row-title");
+    const label = title.querySelector(".swap-layer:not([data-leaving])");
+    return { text: label.textContent, tooltip: title.title, children: label.childElementCount };
   })()`);
 
   assert.deepEqual(renderedTitle, { text: renamed.title, tooltip: renamed.title, children: 0 });

@@ -58,17 +58,50 @@ export const activityNotchMotionScript = `
     layer.animate(frames, { duration, delay, easing: swapEasing[phase], fill: "backwards" });
   }
 
-  /** Shows the layer for the state. Pass a kind to animate the change; leave it out for a first render. */
+  /**
+   * Shows the layer for the state. Pass a kind to animate the change; leave it out for a first render.
+   * A layer listing several states in data-states stays shown between them and morphs instead (setProgress).
+   */
   function showState(layers, state, kind) {
     let changed = false;
     for (const layer of layers) {
-      const active = layer.dataset.state === state;
-      if (layer.classList.contains("active") === active) continue;
+      const states = layer.dataset.states?.split(" ");
+      const active = states ? states.includes(state) : layer.dataset.state === state;
+      const shown = layer.classList.contains("active");
+      if (states && active) changed = setProgress(layer, state, shown && kind) || changed;
+      if (shown === active) continue;
       layer.classList.toggle("active", active);
       changed = true;
       if (kind && !reducedMotion.matches) playSwap(layer, kind, active ? "enter" : "exit");
     }
     return changed;
+  }
+
+  /**
+   * Replaces a text with the status pill's swap: the old text leaves upward through a blur, the new one rises in.
+   * The holder stacks its layers in one grid cell; fill writes the new layer.
+   */
+  function swapText(holder, key, fill, animate) {
+    if (holder.dataset.key === key) return;
+    holder.dataset.key = key;
+    const previous = Array.from(holder.children).filter((layer) => !layer.hasAttribute("data-leaving"));
+    const next = document.createElement("span");
+    next.className = "swap-layer";
+    fill(next);
+    holder.append(next);
+    const motion = animate && previous.length && !reducedMotion.matches;
+    for (const layer of previous) {
+      if (!motion) {
+        layer.remove();
+        continue;
+      }
+      layer.toggleAttribute("data-leaving", true);
+      const { frames, duration } = swaps.text.exit;
+      const leave = layer.animate(frames, { duration, easing: swapEasing.exit, fill: "forwards" });
+      const remove = () => layer.remove();
+      void leave.finished.then(remove, remove);
+    }
+    if (motion) playSwap(next, "text", "enter");
   }
 
   function ping(ring, state) {

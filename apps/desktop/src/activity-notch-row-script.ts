@@ -30,7 +30,7 @@ export const activityNotchRowScript = `
   const providers = ${JSON.stringify(providers)};
   const placeMarkup = ${JSON.stringify(
     `<span class="row-worker">${icon(icons["computer-desktop"])}<span class="truncate"></span></span>` +
-      `<span class="row-branch">${icon(icons["git-fork"])}<span class="branch-name"><span class="branch-start"></span><span class="branch-end"></span></span></span>` +
+      `<span class="row-branch">${icon(icons["git-fork"])}<span class="branch-swap swap"></span></span>` +
       `<span class="row-provider"></span>`,
   )};
 
@@ -54,8 +54,7 @@ export const activityNotchRowScript = `
     badge.setAttribute("data-empty", "");
     project.className = "row-project truncate";
     project.dir = "auto";
-    label.className = "row-title truncate";
-    label.dir = "auto";
+    label.className = "row-title swap";
     place.className = "row-place";
     place.hidden = true;
     place.innerHTML = placeMarkup;
@@ -75,7 +74,16 @@ export const activityNotchRowScript = `
     return { item, button, badge, project, label, place, worker, branch, provider, status };
   }
 
-  function updateRowMeta(view, meta, bot) {
+  function setTitle(view, label, animate) {
+    view.label.title = label;
+    swapText(view.label, label, (layer) => {
+      layer.classList.add("truncate");
+      layer.dir = "auto";
+      layer.textContent = label;
+    }, animate);
+  }
+
+  function updateRowMeta(view, meta, bot, animate) {
     setText(view.project, bot ? "Bot" : meta?.project ?? "", bot ? "" : meta?.project ?? "");
 
     const where = [meta?.worker, meta?.place].filter(Boolean).join(" · ");
@@ -87,9 +95,16 @@ export const activityNotchRowScript = `
     const split = branch.length - Math.min(8, Math.floor(branch.length / 2));
     view.branch.hidden = !branch;
     view.branch.title = meta?.branchLabel ?? branch;
-    const [start, end] = view.branch.lastElementChild.children;
-    setText(start, branch.slice(0, split));
-    setText(end, branch.slice(split));
+    swapText(view.branch.lastElementChild, branch, (layer) => {
+      const start = document.createElement("span");
+      const end = document.createElement("span");
+      layer.classList.add("branch-name");
+      start.className = "branch-start";
+      end.className = "branch-end";
+      start.textContent = branch.slice(0, split);
+      end.textContent = branch.slice(split);
+      layer.append(start, end);
+    }, animate);
 
     const provider = providers[meta?.provider];
     if (view.providerKey !== meta?.provider) {
