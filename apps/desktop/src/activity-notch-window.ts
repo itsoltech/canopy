@@ -64,7 +64,13 @@ export function activityNotchDisplays(): ActivityNotchDisplay[] {
 
   return screen
     .getAllDisplays()
-    .map(({ id, label, size }) => ({ id, label: label.trim(), width: size.width, height: size.height, main: id === main }))
+    .map(({ id, label, size }) => ({
+      id,
+      label: label.trim(),
+      width: size.width,
+      height: size.height,
+      main: id === main,
+    }))
     .toSorted((left, right) => Number(right.main) - Number(left.main));
 }
 
