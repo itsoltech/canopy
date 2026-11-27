@@ -28,7 +28,6 @@ import botApprovalRestrictedThread from "./0210_bot_approval_restricted_thread.s
 import antigravityProvider from "./0215_antigravity_provider.sql" with { type: "text" };
 import automaticPrNotifications from "./0216_automatic_pr_notifications.sql" with { type: "text" };
 import showVideo from "./0217_show_video.sql" with { type: "text" };
-import slackChannelContext from "./0220_slack_channel_context.sql" with { type: "text" };
 import startThread from "./0218_start_thread.sql" with { type: "text" };
 import threadTaskLists from "./0219_thread_task_lists.sql" with { type: "text" };
 import botMessageReactions from "./0214_bot_message_reactions.sql" with { type: "text" };
@@ -195,7 +194,8 @@ import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { ty
 import projectSecrets from "./0211_project_secrets.sql" with { type: "text" };
 import { memoryMigrations } from "./memory.ts";
 import { worktreeMigrations } from "./worktrees.ts";
-import { mobilePushDismissalMigrations, mobilePushMigrations } from "./mobile-push.ts";
+import { mobilePushMigrations } from "./mobile-push.ts";
+import { recentMigrations } from "./recent.ts";
 import { createMigrator, sqlFile } from "./run.ts";
 
 /** Ordered by the numeric prefix. Never edit an applied migration; add a new one (expand/contract). */
@@ -399,8 +399,7 @@ export const migrations = Migrator.fromRecord({
   "0217_show_video": sqlFile(showVideo),
   "0218_start_thread": sqlFile(startThread),
   "0219_thread_task_lists": sqlFile(threadTaskLists),
-  "0220_slack_channel_context": sqlFile(slackChannelContext),
-  ...mobilePushDismissalMigrations,
+  ...recentMigrations,
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

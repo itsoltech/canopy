@@ -16,7 +16,7 @@ export const mobilePushMigrations = {
   "0206_mobile_push_managed_selection": sqlFile(mobilePushManagedSelection),
 };
 
-/** Applied after 0220; kept apart so the map stays in migration order. */
+/** Applied after 0220 (recent.ts keeps the order). */
 export const mobilePushDismissalMigrations = {
   "0221_mobile_push_dismissals": sqlFile(mobilePushDismissals),
 };
