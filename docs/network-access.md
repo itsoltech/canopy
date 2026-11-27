@@ -143,7 +143,9 @@ Log gatewaya (również sidecar desktopu) zapisuje otwarcie TLS, protokół, ide
 zamknięcie z przyczyną i czasem trwania oraz przekroczenie terminu PING. Nie zapisuje adresów,
 certyfikatów, tokenów, nagłówków ani payloadów. `pin_check=client_side` oznacza miejsce weryfikacji:
 serwer nie może potwierdzić, czy klient porównał jego pin. Wynik „OK” probe w arkuszu telefonu
-potwierdza zgodny pin po stronie klienta. Błąd handshake'u ma osobny wpis `tls_handshake_failed`.
+potwierdza zgodny pin po stronie klienta. Błąd handshake'u ma osobny wpis `tls_handshake_failed`
+z kodem błędu (np. `ERR_SSL_UNSUPPORTED_PROTOCOL`). Handshake zerwany przez klienta (`ECONNRESET`)
+nie trafia do logu: tak kończą się sondy tras przypiętych klientów i przegrane w ich wyścigu.
 
 ### Port
 

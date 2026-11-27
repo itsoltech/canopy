@@ -112,7 +112,11 @@ export async function openListener(options: {
     // HTTP/1.1 has no PING; the system's keepalive ends a connection whose peer is gone.
     socket.setKeepAlive(true, LIVENESS.intervalMs);
   });
-  server.on("tlsClientError", () => log(0, "tls_handshake_failed"));
+  // Pinned clients probe each route with a bare handshake and drop it, and a race drops its losers mid-handshake:
+  // the server only sees ECONNRESET. Log real TLS failures, by their error code only.
+  server.on("tlsClientError", (error: NodeJS.ErrnoException) => {
+    if (error.code !== "ECONNRESET") log(0, `tls_handshake_failed code=${error.code ?? "unknown"}`);
+  });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(options.port, options.host, () => {
