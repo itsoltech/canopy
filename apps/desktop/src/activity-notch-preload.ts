@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { ActivityNotchRow } from "./activity-notch.ts";
 import type { ActivityNotchLayout } from "./activity-notch-geometry.ts";
+import { rowMeta } from "./activity-notch-meta.ts";
 
 type RowsListener = (rows: readonly ActivityNotchRow[], revision: number) => void;
 
@@ -11,8 +12,9 @@ let layoutListener: ((layout: ActivityNotchLayout) => void) | undefined;
 let collapseListener: (() => void) | undefined;
 
 ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNotchRow[], revision: number) => {
-  const sanitized = rows.map(({ id, label, state, projectMark, botMascot }) => {
-    const row = { id, label, state, ...(botMascot && { botMascot }) };
+  const sanitized = rows.map(({ id, label, meta, state, projectMark, botMascot }) => {
+    const facts = meta && rowMeta(meta);
+    const row = { id, label, ...(facts && { meta: facts }), state, ...(botMascot && { botMascot }) };
 
     if (!projectMark) return row;
     const { initials, foreground, background, pixels } = projectMark;

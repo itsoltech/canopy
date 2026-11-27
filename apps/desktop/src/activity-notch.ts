@@ -9,7 +9,8 @@ import {
   type DesktopStatus,
 } from "@canopy/ui/desktop";
 import { staticBotMascot } from "@canopy/ui/mascot";
-import { activityNotchMetaFields, rowMeta, sameMeta, type ActivityNotchMeta } from "./activity-notch-meta.ts";
+import { providerKeys } from "@canopy/ui/providers";
+import { rowMeta, sameMeta, type ActivityNotchMeta } from "./activity-notch-meta.ts";
 import { activityNotchVisibleRows, type ActivityNotchLayout } from "./activity-notch-geometry.ts";
 import {
   createActivityNotchWindow,
@@ -37,6 +38,18 @@ const projectMark = Schema.Struct({
 const title = Schema.String.check(Schema.isMaxLength(200));
 const appearanceValue = Schema.String.check(Schema.isMaxLength(32));
 
+// Each sidebar fact falls back to nothing when it is too long or malformed; the row keeps its title.
+const fact = Schema.String.check(Schema.isMaxLength(200)).pipe(Schema.catchDecoding(() => Effect.succeedNone));
+
+const metaFields = {
+  project: Schema.optionalKey(fact),
+  worker: Schema.optionalKey(fact),
+  place: Schema.optionalKey(fact),
+  branch: Schema.optionalKey(fact),
+  branchLabel: Schema.optionalKey(fact),
+  provider: Schema.optionalKey(Schema.Literals(providerKeys).pipe(Schema.catchDecoding(() => Effect.succeedNone))),
+};
+
 const botAppearance = Schema.Struct({
   shape: Schema.optionalKey(appearanceValue),
   color: Schema.optionalKey(appearanceValue),
@@ -48,7 +61,7 @@ const decodeItems = Schema.decodeUnknownSync(
       path: Schema.String,
       state: Schema.Literals(["working", "approval", "answer", "completed", "failed"]),
       title: Schema.optionalKey(title.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
-      ...activityNotchMetaFields,
+      ...metaFields,
       projectMark: Schema.optionalKey(projectMark.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
       botAppearance: Schema.optionalKey(botAppearance.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
     }),
