@@ -352,6 +352,9 @@ export class GatewayUpdates {
 
     return this.snapshot();
   }
+  get controlReady(): boolean {
+    return this.#control === "ready";
+  }
   assertControlReady(): void {
     if (this.#control !== "ready")
       throw new ConnectError(

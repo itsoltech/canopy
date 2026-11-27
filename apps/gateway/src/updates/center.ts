@@ -16,6 +16,7 @@ import { UpdateReconnects } from "./center-offline.ts";
 import { computerUpdated } from "./computer-completion.ts";
 import { gatewayUpdateLifecycle } from "@canopy/domain/release/update-status";
 import { updateBusyState } from "./versions.ts";
+import { automaticRunDue, AutoUpdates, type AutoUpdateOptions } from "./auto.ts";
 
 const UPDATE_TIMEOUT_MS = 35 * 60_000;
 
@@ -28,6 +29,8 @@ export interface UpdateCenterOptions {
   desktop(request: ui.ManageUpdatesRequest): Promise<string | void>;
   /** Asks a linked computer for an app update; returns the request id there. */
   computer(nodeId: string): Promise<string>;
+  /** Starts Update all by itself once the owner opted in and nothing runs. */
+  automatic?: Omit<AutoUpdateOptions, "begin">;
 }
 
 interface UpdateLaunch {
@@ -43,9 +46,14 @@ export class UpdateCenter {
   private ticking: Promise<void> | undefined;
   private readonly reconnects = new UpdateReconnects();
   private readonly launching = new Map<string, UpdateLaunch>();
-  constructor(readonly options: UpdateCenterOptions) {}
+  readonly automatic: AutoUpdates | undefined;
+  constructor(readonly options: UpdateCenterOptions) {
+    this.automatic =
+      options.automatic && new AutoUpdates({ ...options.automatic, begin: () => this.begin(true, true) });
+  }
 
   start() {
+    this.automatic?.start();
     this.timer ??= setInterval(() => {
       void this.tick().catch(() => undefined);
     }, 2000);
@@ -53,6 +61,7 @@ export class UpdateCenter {
     void this.tick().catch(() => undefined);
   }
   stop() {
+    this.automatic?.stop();
     clearInterval(this.timer);
     this.timer = undefined;
   }
@@ -87,15 +96,21 @@ export class UpdateCenter {
   }
   /**
    * Plans, persists and launches the first steps before it answers, so the caller's first snapshot already shows
-   * them running. Returns the snapshot it planned from (undefined when a run was already going).
+   * them running. Returns the snapshot it planned from (undefined when a run was already going). An `automatic` run
+   * also returns undefined when automaticRunDue finds nothing it should start.
    */
-  async begin(confirmRestart = false): Promise<ui.UpdatesSnapshot | undefined> {
+  async begin(confirmRestart = false, automatic = false): Promise<ui.UpdatesSnapshot | undefined> {
     if (await this.runningRun()) return undefined;
 
     const snapshot = await this.serialize(async () => {
-      if ((await this.readRun())?.state === "running") return undefined;
+      const stored = await this.readRun();
+
+      if (stored?.state === "running") return undefined;
       const snapshot = await this.options.snapshot();
       const run = plannedUpdateRun(snapshot, crypto.randomUUID());
+
+      if (automatic && !automaticRunDue(stored, run)) return undefined;
+      run.automatic = automatic;
 
       if (!run.steps.some((step) => step.state === "queued"))
         throw new ConnectError(
@@ -448,6 +463,8 @@ export class UpdateCenter {
 
       run.state = "running";
       run.reason = "";
+      // A person took over: automation may try these targets again after a later failure is dismissed.
+      run.automatic = false;
       await this.options.write(run);
     }).then(() => this.tick().catch(() => undefined));
   }

@@ -203,7 +203,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "arrow-up",
     group: "System",
     keywords:
-      "app updates status check now check for updates update all progress download install restart gateway worker updates linked computers stable beta nightly channel pinned version frequency release preferences whats new release notes changelog releases",
+      "app updates status check now check for updates update all progress download install restart gateway worker updates linked computers stable beta nightly channel pinned version frequency automatic auto update release preferences whats new release notes changelog releases",
   },
   {
     href: "/settings/workers",

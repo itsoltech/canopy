@@ -5,6 +5,7 @@ import { coreWorkers } from "../core/core-providers.ts";
 import { coreState } from "../core/core-context.ts";
 import { UpdateCenter } from "./center.ts";
 import { UpdateRunStore } from "./run-store.ts";
+import { AutoUpdateStore } from "./auto-store.ts";
 import { linkedUpdates, requestComputerUpdate } from "./linked.ts";
 import { manageRunWorker } from "./center-actions.ts";
 
@@ -14,6 +15,7 @@ export async function updatesSnapshot(core: GatewayCore, linked = true) {
   value.departure = await core.departures.snapshot();
   const states = await core.desktopControl.states();
   value.cliWorkers = await coreWorkers(core);
+  value.autoUpdateSupported = true;
 
   for (const worker of value.workers) {
     // The local-mode worker never opens desktop control: the app updates it with itself.
@@ -43,6 +45,7 @@ export async function updatesSnapshot(core: GatewayCore, linked = true) {
 export function createUpdateCenter(core: GatewayCore) {
   const { runtime, userId } = core[coreState].options;
   const store = new UpdateRunStore(runtime, userId);
+  const auto = new AutoUpdateStore(runtime, userId);
 
   return new UpdateCenter({
     read: () => store.read(),
@@ -66,6 +69,10 @@ export function createUpdateCenter(core: GatewayCore) {
       const snapshot = await requestComputerUpdate(core, nodeId, "app");
 
       return snapshot.app?.requestId ?? "";
+    },
+    automatic: {
+      due: () => auto.due([...core.online]),
+      ready: () => core.updates.kind !== "binary" || core.updates.controlReady,
     },
   });
 }

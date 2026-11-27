@@ -33,6 +33,7 @@ const userSchemas = {
   general: ui.GeneralSettingsSchema,
   threadRetention: ui.ThreadRetentionSettingsSchema,
   cliUpdates: ui.CliUpdateSettingsSchema,
+  appUpdates: ui.AppUpdateSettingsSchema,
   agentToolDefaults: AgentToolSessionDefaultsSchema,
   sandboxProfiles: ui.SandboxProfilesSchema,
 } as const;
@@ -165,6 +166,12 @@ export class SettingsState {
     return this.#writeUser("cliUpdates", () =>
       create(ui.CliUpdateSettingsSchema, { ...(intervalMinutes !== undefined && { intervalMinutes }) }),
     );
+  }
+
+  async updateAutoUpdate(autoUpdate: boolean): Promise<boolean> {
+    await this.#writeUser("appUpdates", () => create(ui.AppUpdateSettingsSchema, { autoUpdate }));
+
+    return this.#server.user.appUpdates?.autoUpdate === autoUpdate;
   }
 
   async updateAgentToolDefaults(

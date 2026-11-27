@@ -178,6 +178,7 @@ export const coreSettingsMethods: CoreSettingsMethods = {
         ...(request.composer && { composer: request.composer }),
         ...(request.general && { general: request.general }),
         ...(request.cliUpdates && { cliUpdates: request.cliUpdates }),
+        ...(request.appUpdates && { appUpdates: request.appUpdates }),
         ...(request.modules && { modules: request.modules }),
         ...(request.threadRetention && { threadRetention: request.threadRetention }),
         ...(request.agentToolDefaults && { agentToolDefaults: request.agentToolDefaults }),

@@ -6,6 +6,8 @@
   import { CliInstallStatusSchema, Provider, ui } from "@canopy/contracts";
   import type { DesktopUpdateStatus } from "@canopy/ui/desktop";
   import AppUpdatePreferences from "#lib/features/desktop/AppUpdatePreferences.svelte";
+  import { provideSettings, SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
+  import AutoUpdatePreference from "../AutoUpdatePreference.svelte";
   import WorkerCliTools from "../WorkerCliTools.svelte";
   import { homes } from "@canopy/domain/release/computer-update";
   import CompactComputerUpdate from "../CompactComputerUpdate.svelte";
@@ -23,6 +25,7 @@
    * `app=downloading|downloaded|failed|waiting` exercises the merged current-computer row.
    * `run=partial` shows independent CLI actions in settings while Claude installs on the local worker.
    * `gateway=starting|shutting_down|idle` shows binary updater phases with earlier run results.
+   * `auto=1` shows automatic updates turned on; the switch saves nothing here.
    */
   const updates = new UpdatesState();
   const gateway = page.url.searchParams.get("gateway");
@@ -193,6 +196,11 @@
 
   const states = new UpdatesState();
   const settings = page.url.searchParams.get("view") === "settings";
+  const preferences = new SettingsState();
+
+  preferences.user = create(ui.UserSettingsSchema, { appUpdates: { autoUpdate: params.get("auto") === "1" } });
+
+  provideSettings(preferences);
 
   if (settings && !gateway && !params.has("remote")) updates.snapshot.computers.push(...computerStates());
 
@@ -206,6 +214,7 @@
     <div class="settings-content mx-auto grid max-w-3xl grid-cols-1 gap-8 px-4 py-4 sm:px-6" id="settings">
       <div id="app-updates" class="settings-stack min-w-0">
         <UpdatesPanel {updates} {app} />
+        <AutoUpdatePreference />
         <AppUpdatePreferences {app} />
       </div>
       {#if updates.snapshot && homes(updates.snapshot).some((group) => group.home.cliWorkers.length)}

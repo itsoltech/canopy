@@ -1,5 +1,8 @@
 # Aktualizacje Canopy
 
+Aktualizacja (2026-11-27): opcjonalne automatyczne Update all, gdy praca właściciela jest wolna
+([Automatyczne aktualizacje](#automatyczne-aktualizacje)).
+
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
 Status: opis zaimplementowanego kodu (2026-11-27), w tym ponownego wiązania
@@ -219,6 +222,7 @@ się na „Still restarting after N min. Check that computer.”.
 Galeria `/dev/updates` pokazuje podsumowanie i przykładowe stany komputerów.
 `?view=settings` pokazuje panel Status i osobne CLI workerów na danych testowych.
 `?run=failed` dodaje zatrzymany przebieg z ponowieniem i odrzuceniem.
+`?auto=1` pokazuje włączone automatyczne aktualizacje; przełącznik w galerii niczego nie zapisuje.
 Długie nazwy i wersje mają pełną treść w podpowiedzi.
 
 Aktualizacja binarnego workera przechodzi przez Queued, Preparing (sprawdzenie
@@ -389,6 +393,41 @@ Aktualizuje całą aplikację: Electron, dołączony runtime i worker. Desktop w
 zdalnym musi być sparowany z gatewayem i obsługiwać kanał sterowania z
 [etapu 2 lokalnego frontendu](desktop-remote-frontend.md#wynik-etapu-2).
 Workery binarne zachowują niezależny mechanizm opisany poniżej.
+
+### Automatyczne aktualizacje
+
+**Update preferences → Update all → Automatic updates** (web i Electron) to opcja właściciela,
+domyślnie wyłączona. Telefon pokazuje ją w Settings → App updates → **Update preferences**
+z nazwą podłączonego komputera: przełącznik zmienia ustawienie gatewaya tego komputera,
+a nie aktualizacje OTA telefonu. Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego
+runtime ani builda EAS. Zapis trafia do `UserSettings.app_updates.auto_update` gatewaya, który ją przyjął.
+Config sync połączonych komputerów jej nie przenosi: każdy gateway decyduje o własnym Update all,
+więc dwa komputery nie zlecają sobie nawzajem aktualizacji. Przełącznik widać, gdy
+`UpdatesSnapshot.auto_update_supported` potwierdza obsługę; starszy gateway go nie pokazuje.
+
+Po włączeniu gateway co minutę (`AutoUpdates` w `updates/auto.ts`) sprawdza, czy praca właściciela
+jest wolna (`AutoUpdateStore.due`):
+
+- żadna tura nie działa ani nie czeka w kolejce na podłączonym workerze,
+- żadne zadanie w tle nie trwa na podłączonym workerze,
+- żadna tura bota nie czeka ani nie działa,
+- żadna tura nie zaczęła się ani nie skończyła w ostatnich 5 minutach.
+
+Praca na workerze offline nie wstrzymuje aktualizacji, bo nie ruszy przed jego powrotem.
+Gdy warunki są spełnione i sterowanie aktualizatorem jest gotowe, gateway wywołuje tę samą
+ścieżkę co przycisk: `UpdateCenter.begin` z potwierdzonym restartem. Plan, kolejność, limity,
+oczekiwanie workerów na koniec tur i wznawianie po restarcie są identyczne. Przebieg ma
+`UpdateRun.automatic=true`. Automat nie sprawdza niewysłanych szkiców w otwartych klientach;
+opis opcji mówi, że komputery restartują się bez pytania.
+
+Automat nie startuje, gdy zapisany przebieg trwa albo pokazuje błąd (`failed`, `blocked`):
+właściciel wybiera Retry lub Dismiss. Nie ponawia też celów, które poprzedni automatyczny
+przebieg już próbował (rodzaj, komputer, worker i wersja). Błąd tej samej wersji czeka więc
+na nowsze wydanie albo ręczne Update all. Kroki pominięte jako offline pozostają do zrobienia.
+Ręczne Retry przejmuje przebieg i zdejmuje z niego znacznik automatyczny.
+Wykrywanie wydań nie zmienia się: gateway, aplikacja i połączone komputery sprawdzają je
+według swoich ustawień. Częstotliwość Never w aplikacji wyłącza automatyczne pobieranie,
+więc automat widzi wtedy tylko wydania znalezione ręcznie.
 
 ## Dołączony gateway i worker
 

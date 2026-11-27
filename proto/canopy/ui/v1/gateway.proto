@@ -614,6 +614,9 @@ message UpdatesSnapshot {
   string gateway_target_version = 21;
   // Percentage of the gateway binary received, once its transfer begins.
   optional uint32 gateway_download_progress = 22;
+  // This gateway starts Update all by itself when the owner opts in (UserSettings.app_updates).
+  // False from older gateways.
+  bool auto_update_supported = 23;
 }
 // A linked computer's Canopy app and what runs on it. Its ids are qualified with its node.
 message ComputerUpdate {
@@ -639,6 +642,8 @@ message UpdateRun {
   string state = 2; // running | succeeded | failed | blocked | superseded | dismissed
   string reason = 3;
   repeated UpdateStep steps = 4;
+  // Started by automatic updates, not by a person.
+  bool automatic = 5;
 }
 message UpdateStep {
   string kind = 1; // gateway | worker | desktop | computer | app (older gateways also sent cli)
@@ -2116,6 +2121,13 @@ message UserSettings {
   canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
   ModuleSettings modules = 904;
   SandboxProfiles sandbox_profiles = 905;
+  AppUpdateSettings app_updates = 906;
+}
+
+// Kept by this gateway only; linked computers do not sync it.
+message AppUpdateSettings {
+  // Opt-in: when updates are found, start Update all once no work runs. Off by default.
+  bool auto_update = 1;
 }
 
 message SandboxProfiles {
@@ -2209,6 +2221,7 @@ message UpdateUserSettingsRequest {
   canopy.worker.v1.AgentToolSessionDefaults agent_tool_defaults = 903;
   ModuleSettings modules = 904;
   SandboxProfiles sandbox_profiles = 905;
+  AppUpdateSettings app_updates = 906;
 }
 
 message UpdateUserSettingsResponse {
