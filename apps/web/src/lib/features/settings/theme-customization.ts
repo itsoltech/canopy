@@ -35,6 +35,8 @@ const customization = Schema.Struct({
   darkAccent: Schema.optionalKey(accents),
   cornerRadius: Schema.optionalKey(corners),
   spacing: Schema.optionalKey(spacings),
+  lightCustomTheme: Schema.optional(Schema.String),
+  darkCustomTheme: Schema.optional(Schema.String),
 });
 
 export type WebAppearance = DeviceAppearance &
@@ -66,6 +68,8 @@ export const themeCustomizationDefaults = {
   spacing: "default",
   lightColors: noColors,
   darkColors: noColors,
+  lightCustomTheme: undefined,
+  darkCustomTheme: undefined,
 } as const satisfies Partial<WebAppearance>;
 
 const storedCustomization = customization.mapFields((fields) => ({

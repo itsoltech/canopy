@@ -15,7 +15,7 @@
 
   const themeHref = $derived(
     event.themeBuilderPatch && decodeThemeBuilderPatch(event.themeBuilderPatch)
-      ? `/settings/appearance?${new URLSearchParams({ theme: event.themeBuilderPatch })}#topic-theme-builder`
+      ? `/settings/appearance?${new URLSearchParams({ theme: event.themeBuilderPatch })}#topic-themes`
       : undefined,
   );
 

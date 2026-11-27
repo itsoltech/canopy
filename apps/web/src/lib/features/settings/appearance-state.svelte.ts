@@ -4,6 +4,8 @@ import { toast } from "#lib/shared/ui/toast.svelte.ts";
 import { appearanceCookie, appearanceFromDocument, applyAppearance } from "./appearance.ts";
 import { parseWebAppearance, serializeWebAppearance, type WebAppearance } from "./theme-customization.ts";
 import type { ThemePreview } from "./settings-theme-preview.ts";
+import { adoptAppliedColors } from "./custom-themes.ts";
+import { customThemes } from "./custom-themes.svelte.ts";
 
 const cookiePrefix = `${appearanceCookie}=`;
 
@@ -39,6 +41,8 @@ class AppearanceState {
       this.#save(this.values);
 
     this.connected = true;
+    const stopThemes = customThemes.connect();
+    this.#adoptAppliedColors();
 
     const refresh = () => {
       const next = readAppearance();
@@ -46,6 +50,7 @@ class AppearanceState {
       if (next) {
         this.#initialized = true;
         this.values = next;
+        this.#adoptAppliedColors();
       }
     };
 
@@ -63,6 +68,7 @@ class AppearanceState {
       this.#changes?.close();
       this.#changes = undefined;
       system.removeEventListener("change", follow);
+      stopThemes();
       this.connected = false;
     };
   }
@@ -81,6 +87,13 @@ class AppearanceState {
 
   update(change: Partial<WebAppearance>): boolean {
     return this.#save({ ...this.values, ...change });
+  }
+
+  #adoptAppliedColors(): void {
+    customThemes.reload();
+    const adopted = adoptAppliedColors(this.values, customThemes.list);
+
+    if (adopted && customThemes.save(adopted.theme)) this.#save({ ...this.values, ...adopted.change });
   }
 
   #save(next: WebAppearance): boolean {
