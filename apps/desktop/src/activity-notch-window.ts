@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, session, type Rectangle } from "electron";
+import { app, BrowserWindow, screen, session, type Display, type Rectangle } from "electron";
 import { join } from "node:path";
 import { activityNotchGeometry, type ActivityNotchCutout } from "./activity-notch-geometry.ts";
 import { activityNotchPage } from "./activity-notch-page.ts";
@@ -35,6 +35,16 @@ function sameBounds(left: Rectangle, right: Rectangle) {
   return left.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height;
 }
 
+/**
+ * The native window keeps the open panel's horizontal extent and only changes its height.
+ * Moving its left edge would show the notch off center until the renderer repositions it.
+ */
+function windowBounds(display: Display, menuBand: ReturnType<typeof primaryActivityNotchMenuBand>) {
+  const open = activityNotchGeometry(display, 1, menuBand).bounds;
+
+  return (layout: Rectangle): Rectangle => ({ ...layout, x: open.x, width: open.width });
+}
+
 export function positionActivityNotchWindow(
   target: BrowserWindow,
   expandedRows: number,
@@ -44,39 +54,48 @@ export function positionActivityNotchWindow(
   const display = screen.getPrimaryDisplay();
   const menuBand = primaryActivityNotchMenuBand();
   const compact = activityNotchGeometry(display, 0, menuBand).bounds;
+  const frame = windowBounds(display, menuBand);
   const original = target.getBounds();
   let current = original;
   let nativeCompactHeight = process.platform === "win32" ? previousHeight : undefined;
 
   if (process.platform === "win32" && (!reservedRows || nativeCompactHeight === undefined)) {
-    const expected = { ...compact, height: nativeCompactHeight ?? compact.height };
+    const requested = frame(compact);
 
     // Win32 can enforce a taller minimum window. Always request the nominal
     // compact height when measuring, so repeated collapse never grows the notch.
-    if (!sameBounds(original, expected)) target.setBounds(compact);
+    if (!sameBounds(original, { ...requested, height: nativeCompactHeight ?? compact.height }))
+      target.setBounds(requested);
 
     current = target.getBounds();
     nativeCompactHeight = current.height;
 
     if (!reservedRows)
-      return { center: current.width / 2, width: current.width, height: current.height, headerHeight: current.height };
+      return {
+        center: compact.x + compact.width / 2 - current.x,
+        width: compact.width,
+        height: current.height,
+        headerHeight: current.height,
+      };
   }
 
-  const reserved = activityNotchGeometry(display, reservedRows, menuBand, nativeCompactHeight);
+  const reserved = frame(activityNotchGeometry(display, reservedRows, menuBand, nativeCompactHeight).bounds);
 
-  const layout =
-    expandedRows === reservedRows
-      ? reserved
-      : activityNotchGeometry(display, expandedRows, menuBand, nativeCompactHeight);
+  const layout = activityNotchGeometry(display, expandedRows, menuBand, nativeCompactHeight);
 
-  if (!sameBounds(current, reserved.bounds)) target.setBounds(reserved.bounds);
+  if (!sameBounds(current, reserved)) target.setBounds(reserved);
 
   return {
-    center: compact.x + compact.width / 2 - reserved.bounds.x,
+    center: compact.x + compact.width / 2 - reserved.x,
     width: layout.bounds.width,
     height: layout.bounds.height,
     headerHeight: layout.headerHeight,
   };
+}
+
+/** The window is wider than the compact notch, so only the outline itself takes the pointer. */
+export function setActivityNotchInteractive(target: BrowserWindow, interactive: boolean) {
+  target.setIgnoreMouseEvents(!interactive, { forward: true });
 }
 
 export function createActivityNotchWindow() {
@@ -88,8 +107,11 @@ export function createActivityNotchWindow() {
     callback({ cancel: details.resourceType !== "mainFrame" || details.url !== url }),
   );
 
+  const display = screen.getPrimaryDisplay();
+  const menuBand = primaryActivityNotchMenuBand();
+
   const target = new BrowserWindow({
-    ...activityNotchGeometry(screen.getPrimaryDisplay(), 0, primaryActivityNotchMenuBand()).bounds,
+    ...windowBounds(display, menuBand)(activityNotchGeometry(display, 0, menuBand).bounds),
     title: "Canopy activity",
     frame: false,
     roundedCorners: false,
@@ -123,6 +145,7 @@ export function createActivityNotchWindow() {
   });
 
   target.removeMenu();
+  setActivityNotchInteractive(target, false);
 
   if (process.platform === "darwin") {
     target.excludedFromShownWindowsMenu = true;

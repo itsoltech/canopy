@@ -9,7 +9,11 @@ import {
   type DesktopStatus,
 } from "@canopy/ui/desktop";
 import { activityNotchVisibleRows, type ActivityNotchLayout } from "./activity-notch-geometry.ts";
-import { createActivityNotchWindow, positionActivityNotchWindow } from "./activity-notch-window.ts";
+import {
+  createActivityNotchWindow,
+  positionActivityNotchWindow,
+  setActivityNotchInteractive,
+} from "./activity-notch-window.ts";
 import { sendWindowMessage, windowContents } from "./window-message.ts";
 
 // The 36 × 36 RGBA buffer is divisible by three, so its base64 has no padding.
@@ -109,6 +113,10 @@ export class ActivityNotch {
       if (expanded === this.#expanded) return;
       this.#expanded = expanded;
       this.#position();
+    });
+    ipcMain.on("canopy:activity-notch-interactive", (event, interactive: boolean) => {
+      if (this.#fromNotch(event) && this.#target && (interactive === true || interactive === false))
+        setActivityNotchInteractive(this.#target, interactive);
     });
     ipcMain.on("canopy:activity-notch-layout-settled", (event, revision: number) => {
       if (!this.#fromNotch(event) || !this.#entries.length || revision !== this.#layout?.revision) return;

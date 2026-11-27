@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld("canopyActivityNotch", {
   hidden(revision: number) {
     if (Number.isSafeInteger(revision)) ipcRenderer.send("canopy:activity-notch-hidden", revision);
   },
+  setInteractive(interactive: boolean) {
+    if (interactive === true || interactive === false)
+      ipcRenderer.send("canopy:activity-notch-interactive", interactive);
+  },
   setExpanded(expanded: boolean) {
     if (expanded === true || expanded === false) ipcRenderer.send("canopy:activity-notch-expanded", expanded);
   },
