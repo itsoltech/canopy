@@ -2,6 +2,7 @@ import { ui } from "@canopy/contracts";
 import { usageReport, type UsageData } from "@canopy/domain/usage-report";
 import { decode } from "#lib/shared/wire.ts";
 import { requestJson } from "#lib/shared/http.ts";
+import { subscribeTime } from "#lib/shared/ticker.ts";
 
 interface UsageFilters {
   days: string;
@@ -10,6 +11,12 @@ interface UsageFilters {
   requestedServiceTier?: string | undefined;
   activityKind?: string;
   botId?: string;
+}
+
+export function subscribeUsageRefresh(refresh: () => void): () => void {
+  return subscribeTime(() => {
+    if (!document.hidden) refresh();
+  }, 10_000);
 }
 
 export async function loadUsage(filters: UsageFilters, signal: AbortSignal): Promise<UsageData> {

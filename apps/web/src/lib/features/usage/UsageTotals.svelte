@@ -1,4 +1,5 @@
 <script lang="ts">
+  import UsageNumber from "./UsageNumber.svelte";
   import {
     count,
     effectiveCost,
@@ -28,13 +29,18 @@
         class="mt-1 text-3xl/10 font-semibold tracking-tight tabular-nums select-text"
         title={view === "tokens" ? count(totalTokens(totals)) : undefined}
       >
-        {view === "cost" ? effectiveCost(totals) : shortCount(totalTokens(totals))}
+        {#key view}
+          <UsageNumber
+            value={view === "cost" ? effectiveCost(totals) : shortCount(totalTokens(totals))}
+            amount={view === "cost" ? totals.effectiveCost : totalTokens(totals)}
+          />
+        {/key}
       </p>
     </div>
     {#if view === "cost"}
       {#if hasPartialCost(totals)}
         <p class="text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400">
-          {count(totals.unknownEffectiveCostReports)}
+          <UsageNumber value={count(totals.unknownEffectiveCostReports)} amount={totals.unknownEffectiveCostReports} />
           {totals.unknownEffectiveCostReports === 1n ? "report" : "reports"} without cost data
         </p>
       {/if}
@@ -50,7 +56,7 @@
       <div class="min-w-0 rounded-xl border border-divider p-3">
         <dt class="text-sm/5 text-zinc-500 dark:text-zinc-400">{counter.label}</dt>
         <dd class="mt-1 text-base/6 font-medium wrap-anywhere tabular-nums select-text" title={count(counter.value)}>
-          {shortCount(counter.value)}
+          <UsageNumber value={shortCount(counter.value)} amount={counter.value} />
         </dd>
       </div>
     {/each}

@@ -228,7 +228,7 @@
             }}
           />
         {/snippet}
-        <UsageReportSummary />
+        <UsageReportSummary open={footer.usage.isOpen()} />
       </SidebarFooterPopover>
     {/if}
     {#if overview.resyncs > 0 && workerCount !== 1}
