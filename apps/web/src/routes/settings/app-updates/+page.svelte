@@ -10,6 +10,7 @@
   import ReleaseChannelField from "#lib/features/workers/ReleaseChannelField.svelte";
   import UpdatesPanel from "#lib/features/workers/UpdatesPanel.svelte";
   import UpdateNotes from "#lib/features/workers/UpdateNotes.svelte";
+  import AutoUpdatePreference from "#lib/features/workers/AutoUpdatePreference.svelte";
   import { gatewayRowTarget } from "@canopy/domain/release/update-status";
   import { updateBusy, updateCenter } from "#lib/features/workers/updates.svelte.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -19,6 +20,7 @@
   const capabilities = useGatewayCapabilities();
   const gateway = $derived(updateCenter.snapshot);
   const gatewayPreferences = $derived(gateway && !gateway.gatewayBundled);
+  const autoUpdate = $derived(gateway?.autoUpdateSupported ?? false);
 
   onMount(() => app.connect());
 
@@ -40,9 +42,9 @@
     {
       id: "preferences",
       label: "Update preferences",
-      keywords: "stable beta nightly release channel frequency schedule pinned version",
+      keywords: "stable beta nightly release channel frequency schedule pinned version automatic auto update",
       content: preferences,
-      hidden: !app.status && !gatewayPreferences,
+      hidden: !app.status && !gatewayPreferences && !autoUpdate,
     },
     { id: "releases", label: "Releases", keywords: "what's new release notes changelog", content: releases },
   ]}
@@ -56,6 +58,7 @@
 {/snippet}
 
 {#snippet preferences()}
+  {#if autoUpdate}<AutoUpdatePreference />{/if}
   <AppUpdatePreferences {app} />
   {#if gateway && gatewayPreferences}
     <SettingsGroup title="Gateway">

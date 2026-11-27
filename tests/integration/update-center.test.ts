@@ -519,6 +519,50 @@ describe.skipIf(!dockerAvailable)("ordered update all through authenticated gate
     }
   });
 
+  test("automatic updates run Update all only after opt-in and once the owner's turns are quiet", async () => {
+    const f = await fixture("binary", "1.0.0");
+    const { api, core, runtime } = f.gateway;
+    const auto = core.updateCenter.automatic!;
+    const projectId = (await api.createProject({ name: "Auto update" })).project!.id;
+
+    const workspaceId = (await api.createWorkspace({ projectId, workerId: f.gateway.workerId, rootPath: "/repo/auto" }))
+      .workspace!.id;
+
+    const thread = (
+      await api.createThread({ projectId, workspaceId, provider: Provider.CODEX, clientRequestId: crypto.randomUUID() })
+    ).thread!;
+
+    expect(await auto.tick()).toBe(false);
+    const { user } = await api.getSettings({});
+    await api.updateUserSettings({ appUpdates: { autoUpdate: true }, expectedVersion: user!.version });
+    await api.sendMessage({ threadId: thread.id, text: "Recent work" });
+
+    const sql = <A>(query: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>) =>
+      runtime.runPromise(Effect.flatMap(SqlClient.SqlClient, query));
+
+    await eventually(
+      () => sql((q) => q<{ status: string }>`SELECT status FROM turns WHERE thread_id = ${thread.id}::uuid`),
+      (rows) => rows[0]?.status === "completed",
+    );
+    expect(await auto.tick()).toBe(false);
+
+    const turns = (status: string) =>
+      sql(
+        (q) => q`UPDATE turns SET status = ${status}, queued_at = now() - interval '10 minutes',
+          started_at = now() - interval '10 minutes', completed_at = now() - interval '10 minutes'
+          WHERE thread_id = ${thread.id}::uuid`,
+      );
+
+    await turns("running");
+    expect(await auto.tick()).toBe(false);
+    await turns("completed");
+    expect(await auto.tick()).toBe(true);
+    const { run } = await api.getUpdates({});
+    expect(run?.automatic).toBe(true);
+    expect(run?.steps.map((step) => step.kind)).toEqual(["gateway", "worker"]);
+    expect(await eventually(async () => f.restarted(), Boolean)).toBe(true);
+  });
+
   test("a failed gateway blocks its workers while an independent app still updates", async () => {
     const f = await fixture("binary", "1.0.0");
     const store = new UpdateRunStore(f.gateway.runtime, f.gateway.userId);

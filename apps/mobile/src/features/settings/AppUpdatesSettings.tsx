@@ -11,6 +11,7 @@ import { useUpdates } from "../updates/state";
 import { UpdateFeedback, UpdateRun } from "../updates/UpdateSummary";
 import { UpdateRows } from "../updates/UpdateRows";
 import { AppUpdateStatus } from "./AppUpdateStatus";
+import { AutoUpdateSetting } from "./AutoUpdateSetting";
 import { confirmAction } from "./resource";
 import { SettingsActions, SettingsGroup, SettingChoice } from "./SettingsGroup";
 
@@ -95,25 +96,28 @@ export function AppUpdatesSettings() {
         {snapshot && <UpdateRows snapshot={snapshot} />}
       </SettingsGroup>
       {snapshot?.run && snapshot.run.state !== "dismissed" && <UpdateRun run={snapshot.run} />}
-      {snapshot && !snapshot.gatewayBundled && (
+      {snapshot && (!snapshot.gatewayBundled || snapshot.autoUpdateSupported) && (
         <SettingsGroup title="Update preferences">
-          <SettingChoice
-            title="Gateway release channel"
-            value={snapshot.channel}
-            disabled={active || !snapshot.admin}
-            options={[
-              { value: "stable", label: "Stable" },
-              { value: "beta", label: "Beta" },
-              { value: "nightly", label: "Nightly" },
-            ]}
-            onChange={(channel) =>
-              confirmAction(
-                "Change release channel",
-                "A channel may contain an older version. Review the available version before installing.",
-                () => void manage({ action: "channel", channel }),
-              )
-            }
-          />
+          {snapshot.autoUpdateSupported && <AutoUpdateSetting computerName={snapshot.computerName} />}
+          {!snapshot.gatewayBundled && (
+            <SettingChoice
+              title="Gateway release channel"
+              value={snapshot.channel}
+              disabled={active || !snapshot.admin}
+              options={[
+                { value: "stable", label: "Stable" },
+                { value: "beta", label: "Beta" },
+                { value: "nightly", label: "Nightly" },
+              ]}
+              onChange={(channel) =>
+                confirmAction(
+                  "Change release channel",
+                  "A channel may contain an older version. Review the available version before installing.",
+                  () => void manage({ action: "channel", channel }),
+                )
+              }
+            />
+          )}
         </SettingsGroup>
       )}
     </>

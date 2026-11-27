@@ -56,6 +56,7 @@ interface Stored extends StoredModuleState {
   sidebar?: JsonValue;
   general?: JsonValue;
   cliUpdates?: JsonValue;
+  appUpdates?: JsonValue;
   threadRetention?: JsonValue;
   agentToolDefaults?: JsonValue;
   sandboxProfiles?: JsonValue;
@@ -116,6 +117,7 @@ const toUser = (row: Row | undefined) => {
     cliUpdates: stored.cliUpdates
       ? fromJson(ui.CliUpdateSettingsSchema, stored.cliUpdates, { ignoreUnknownFields: true })
       : create(ui.CliUpdateSettingsSchema),
+    appUpdates: fromJson(ui.AppUpdateSettingsSchema, stored.appUpdates ?? {}, { ignoreUnknownFields: true }),
     general: stored.general
       ? fromJson(ui.GeneralSettingsSchema, stored.general, { ignoreUnknownFields: true })
       : create(ui.GeneralSettingsSchema),
@@ -205,6 +207,7 @@ export class SettingsStore extends Context.Service<
       sidebar?: ui.SidebarSettings;
       general?: ui.GeneralSettings;
       cliUpdates?: ui.CliUpdateSettings;
+      appUpdates?: ui.AppUpdateSettings;
       modules?: ui.ModuleSettings;
       threadRetention?: ui.ThreadRetentionSettings;
       agentToolDefaults?: AgentToolSessionDefaults;
@@ -254,6 +257,7 @@ export class SettingsStore extends Context.Service<
           sidebar: nextSidebar,
           general,
           cliUpdates,
+          appUpdates,
           modules,
           threadRetention,
           agentToolDefaults,
@@ -290,6 +294,7 @@ export class SettingsStore extends Context.Service<
                 ...(nextSidebar && { sidebar: toJson(ui.SidebarSettingsSchema, nextSidebar) }),
                 ...(general && { general: toJson(ui.GeneralSettingsSchema, general) }),
                 ...(cliUpdates && { cliUpdates: toJson(ui.CliUpdateSettingsSchema, cliUpdates) }),
+                ...(appUpdates && { appUpdates: toJson(ui.AppUpdateSettingsSchema, appUpdates) }),
                 ...(modules && storeModules(modules)),
                 ...(threadRetention && { threadRetention: toJson(ui.ThreadRetentionSettingsSchema, threadRetention) }),
                 ...(agentToolDefaults && {

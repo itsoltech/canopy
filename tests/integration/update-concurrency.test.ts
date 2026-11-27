@@ -1,10 +1,10 @@
 import { describe, expect, setSystemTime, test } from "bun:test";
 import { clone, create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
-import { UpdateCenter } from "../../apps/gateway/src/updates/center.ts";
+import { UpdateCenter, type UpdateCenterOptions } from "../../apps/gateway/src/updates/center.ts";
 
 /** Fake targets report their new versions independently of the launch acknowledgement. */
-function fleet(workers = 1) {
+function fleet(workers = 1, automatic?: UpdateCenterOptions["automatic"]) {
   const snapshot = create(ui.UpdatesSnapshotSchema, {
     gatewayVersion: "2.0.0",
     workers: Array.from({ length: workers }, (_, index) => ({
@@ -42,6 +42,7 @@ function fleet(workers = 1) {
 
       return "self-request";
     },
+    ...(automatic && { automatic }),
   });
 
   return {
@@ -71,6 +72,33 @@ function linkedApp(snapshot: ui.UpdatesSnapshot) {
 }
 
 describe("durable update scheduler with gated fake workers", () => {
+  test("automatic updates start Update all once, wait for a shown failure and retry only a newer target", async () => {
+    const f = fleet(1, { due: async () => true, ready: () => true });
+    const worker = f.snapshot.workers[0]!;
+    worker.version = "1.0.0";
+
+    expect(await f.center.automatic!.tick()).toBe(true);
+    expect(f.run()?.automatic).toBe(true);
+    expect(f.started).toEqual(["worker"]);
+    worker.state = "failed";
+    worker.reason = "Download failed";
+    await f.tick();
+    expect(f.run()?.state).toBe("failed");
+
+    // The failure waits for the owner, and dismissing it does not start the same target again.
+    expect(await f.center.automatic!.tick()).toBe(false);
+    await f.center.dismiss(f.run()!.id);
+    worker.state = "";
+    worker.reason = "";
+    expect(await f.center.automatic!.tick()).toBe(false);
+    expect(f.started).toEqual(["worker"]);
+
+    f.snapshot.gatewayVersion = "3.0.0";
+    expect(await f.center.automatic!.tick()).toBe(true);
+    expect(f.run()?.steps.map((step) => step.version)).toEqual(["3.0.0"]);
+    expect(f.started).toEqual(["worker", "worker"]);
+  });
+
   test("desktop workers launch alongside binary workers after the gateway restarts", async () => {
     const f = fleet(1);
     f.snapshot.gatewayInstallKind = "binary";
