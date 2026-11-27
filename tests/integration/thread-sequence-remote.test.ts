@@ -7,6 +7,7 @@ import { applyThreadUpdate } from "@canopy/domain/thread-snapshot";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { warmRangeMirror } from "../../apps/gateway/src/computers/range-warm.ts";
+import { BffOverview } from "../../apps/web/src/lib/server/bff-overview.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { eventually, startTestGateway } from "./support/gateway.ts";
 
@@ -122,6 +123,41 @@ test.skipIf(!dockerAvailable)(
         }
       } finally {
         headsAbort.abort();
+      }
+
+      // The BFF's head stream mixes this computer's threads with linked mirrors; both answer locally.
+      const localProject = (await a.api.createProject({ name: "Local heads" })).project!.id;
+
+      const localWorkspace = (
+        await a.api.createWorkspace({ projectId: localProject, workerId: a.workerId, rootPath: "/repo/local-heads" })
+      ).workspace!.id;
+
+      const localThread = (
+        await a.api.createThread({ projectId: localProject, workspaceId: localWorkspace, provider: Provider.CODEX })
+      ).thread!.id;
+
+      const mixed = [localThread, id].sort();
+      const bff = new BffOverview(a.api);
+      const bffAbort = new AbortController();
+
+      try {
+        for await (const heads of a.api.watchThreadHeads(
+          { threadIds: mixed },
+          { signal: bffAbort.signal, timeoutMs: 5000 },
+        )) {
+          expect(heads.heads.map((head) => head.threadId).sort()).toEqual(mixed);
+          expect(heads.heads.find((head) => head.threadId === id)?.epoch).toBe(cached?.syncCursor?.epoch);
+          break;
+        }
+
+        for await (const update of bff.subscribe(mixed, bffAbort.signal)) {
+          if (update.change.case !== "threadHeads") continue;
+          expect(update.change.value.heads.map((head) => head.threadId).sort()).toEqual(mixed);
+          break;
+        }
+      } finally {
+        bffAbort.abort();
+        bff.close();
       }
 
       const checkpointSnapshot = cached;

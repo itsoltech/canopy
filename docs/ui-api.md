@@ -1000,6 +1000,17 @@ Odczyt jest owner-scoped. Dla połączonego komputera ogłasza atomowo zatwierdz
 widoczny seq lokalnego lustra; nie pyta sieciowo domu i nie ujawnia niezatwierdzonych
 partii. Zmiana zestawu zastępuje tę samą subskrypcję overview, bez watcha na każdy wątek.
 
+`WatchThreadHeads` (`WatchThreadHeadsRequest.thread_ids`) daje te same head'y z tym samym
+zakresem właściciela i odczytem co 2 s, ale bez snapshotu overview. Pierwsza wiadomość
+niesie bieżący zestaw, kolejne tylko zmiany. BFF web/desktop prowadzi nim zestaw headów,
+a `WatchOverview` otwiera bez `thread_head_ids`; zmiana zestawu otwiera więc tylko ten
+strumień, bez nowego snapshotu overview. Identyfikatory wątków połączonych komputerów
+odczytuje lokalnie z lustra, jak `thread_head_ids`; metoda nie jest trasowana do domu
+ani udostępniana partnerom. Gateway bez tej metody odpowiada `Unimplemented`; przy nim,
+`PermissionDenied` i `FailedPrecondition` BFF wraca do `thread_head_ids` i restartu
+`WatchOverview`, a po rzeczywistej przerwie strumienia sprawdza metodę ponownie.
+Pozostałe błędy ponawia z backoffem do 10 s.
+
 Awaria samego watcha jest lokalna dla wątku. Cache pozostaje widoczny; błędy
 deterministyczne powodują jedną próbę bez kursora, jedną z mniejszym oknem, potem
 zatrzymanie z „Retry” / „Load from scratch”. Wykryta luka między partiami zachowuje
@@ -1962,6 +1973,7 @@ wobec procesu tego samego użytkownika: [desktop.md](desktop.md#granice-i-zgodno
 |---|---|
 | `GetOverview` | workery (online, OS, wykryte CLI, profile, wersja konfiguracji i raport) oraz projekty z workspace'ami; historyczne `allowed_roots` jest puste |
 | `WatchOverview` | strumień zmian workerów, projektów i wątków |
+| `WatchThreadHeads` | head'y wybranych wątków (do 32) jako osobny lekki strumień: od razu bieżące, potem tylko zmiany; nowy zestaw otwiera nowy strumień, a `WatchOverview` trwa dalej |
 | `ListDirectory` | przeglądanie dowolnego dostępnego katalogu absolutnego na workerze; pusty `path` otwiera home; odpowiedź zawiera `entries` i rzeczywisty `path` |
 | `CreateProject`, `CreateWorkspace` | projekt; workspace = katalog na workerze |
 | `AddProject` | katalog na workerze (istniejący, nowy z `git init` albo klon) jako workspace: dołącza do jedynego projektu z tym samym git origin albo tworzy projekt o nazwie katalogu; trasowane do domu workera ([linked-computers.md](linked-computers.md#dodawanie-projektu-na-dowolnym-komputerze)) |
@@ -2847,8 +2859,8 @@ ma osobny strumień z odtwarzaniem według pozycji w trwałym dzienniku.
 
 Wczytane panele, listy PR, proxy, katalogi modeli, boty i aktualizacje dzielą cache
 BFF i odczyt w toku. Zdarzenia unieważniają odpowiedni model, a BFF odświeża go
-raz na serię zmian. Snapshot po zmianie headów zachowuje wczytane projekcje i
-odświeża je w BFF; pełny reset prywatnych danych następuje po rzeczywistej przerwie
+raz na serię zmian. Snapshot po zmianie headów (tylko starszy gateway bez
+`WatchThreadHeads`) zachowuje wczytane projekcje i odświeża je w BFF; pełny reset prywatnych danych następuje po rzeczywistej przerwie
 lub zmianie widoczności wątków. Nazwane zdarzenie SSE `read-model` niesie klucz, typ i pełny
 protobuf JSON odpowiedzi; frontend stosuje je bez kolejnego HTTP ani cyklicznego
 odpytywania panelu i list PR. Pełna projekcja zastępuje starszą odpowiedź w toku
@@ -3078,7 +3090,7 @@ Trasy:
 - Wzmianki: `POST api/mentions/catalog`, `api/mentions/files`, `api/mentions/threads` (ciało: `ListMentionCatalogRequest`, `SearchFilesRequest`, `SearchThreadsRequest` w JSON protobuf; odczyty, POST tylko dlatego, że ciałem jest wiadomość kontraktu); `POST api/threads/[id]/messages` przyjmuje `mentions` (JSON protobuf `Mention`, najwyżej 50), formularz nowego wątku ukryte pole `mentions` (to samo jako JSON) obok `message`.
 - Kolejka: `POST api/threads/[id]/queue` (`{turnIds}`, nowa kolejność), `POST api/threads/[id]/queue/[turnId]` (`{action: "edit", text, expectedRevision, mentions?}` | `{action: "delete" | "restore" | "steer"}`); wiadomość, która już ruszyła = 409 z powodem.
 - Załączniki: `POST api/attachments` (surowe bajty w ciele, nazwa w `x-file-name` zakodowana URI, wymagany nagłówek `x-requested-with: canopy`, a `Origin`, jeśli jest, musi wskazywać ten host → `Attachment`), `GET api/attachments/[id]` (`?thumbnail`, `?download`, `?preview`, `?image`), `GET api/threads/[id]/blobs/[sha256]` (podgląd z transkryptu). Odpowiedzi z bajtami: `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: private, immutable`; inline PNG, JPEG, GIF i WebP oraz SVG wyłącznie przez `?image` do elementu `<img>`. Pozostałe pliki mają `Content-Disposition: attachment` (SVG domyślnie jako `application/octet-stream`, tekst i HTML jako `text/plain`). `?preview` zwraca ograniczony prefiks do odczytu jako tekst. `POST api/threads/[id]/messages` przyjmuje `attachmentIds` (tekst może być pusty), formularz nowego wątku pola `attachmentId`.
-- SSE: `api/overview/events`, `api/threads/[id]/events`. Overview po zerwaniu zaczyna od świeżego snapshotu. Watch wątku otwiera nowy `EventSource` z ostatnim atomowym kursorem kopii klienta; gateway zwraca deltę albo pełny snapshot według reguł opisanych wyżej. W `api/threads/[id]/events` BFF łączy kolejne `item_delta` tego samego itemu i pola w jedno zdarzenie (`lib/server/coalesce.ts`): wychodzi, gdy fragment niesie koniec linii, po 200 ms, przed każdą inną zmianą i na końcu strumienia; kolejność i wynik reduktora są te same co dla pojedynczych delt, scalone zdarzenie ma `seq` ostatniej delty i puste `raw_json`.
+- SSE: `api/overview/events`, `api/threads/[id]/events`. Overview po zerwaniu zaczyna od świeżego snapshotu. Karta otwiera jeden `api/overview/events` z bieżącym wyborem (`heads`, `active`) i trzyma go przez całą nawigację. Pierwsze zdarzenie `overview-subscription` niesie losowy identyfikator subskrypcji (UUID, wysyłany tylko tym strumieniem); zmiana wątku lub zestawu dogrzewania idzie jako `PUT api/overview/events/{id}` z `{ heads, active }` i aktualizuje dogrzewanie oraz head'y otwartego strumienia, bez ponownego połączenia, odtworzenia snapshotu i `feeds`. Identyfikator działa tylko w sesji BFF tego właściciela i celu gatewaya; nieznany albo zamknięty strumień daje 404, a następne połączenie otwiera się z bieżącym wyborem. Watch wątku otwiera nowy `EventSource` z ostatnim atomowym kursorem kopii klienta; gateway zwraca deltę albo pełny snapshot według reguł opisanych wyżej. W `api/threads/[id]/events` BFF łączy kolejne `item_delta` tego samego itemu i pola w jedno zdarzenie (`lib/server/coalesce.ts`): wychodzi, gdy fragment niesie koniec linii, po 200 ms, przed każdą inną zmianą i na końcu strumienia; kolejność i wynik reduktora są te same co dla pojedynczych delt, scalone zdarzenie ma `seq` ostatniej delty i puste `raw_json`.
 
 `automationActivity`, `automationActivityFinished` i `automationActivityReset`
 przechodzą tą samą ścieżką SSE tylko na żywo. Początek i koniec niosą

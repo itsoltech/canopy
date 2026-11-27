@@ -45,6 +45,17 @@ import { linkedThreadPanel } from "./routed-thread-panel.ts";
 import { requireLinkedModules, requiresLinkedModules } from "../computers/agents-module-access.ts";
 import { linkedArchive } from "./routed-archived.ts";
 
+/**
+ * Answered by this gateway even for qualified ids of linked computers, never refused or forwarded:
+ * - private drafts belong to this owner's connected gateway; their handlers authorize the target separately and
+ *   draft contents never enter mirror/config feeds;
+ * - heads of linked threads are this gateway's own visible mirror checkpoints, read owner-scoped and locally
+ *   (overviewThreadHeads), as for WatchOverview.thread_head_ids.
+ */
+function servedHere(method: string): boolean {
+  return /ComposerDraft/.test(method) || method === "WatchThreadHeads";
+}
+
 export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   // SAFETY: Each entry is invoked with the request decoded by its own GatewayService method descriptor.
   const own = local as Record<string, Handler>;
@@ -53,9 +64,7 @@ export function routed(core: GatewayCore, local: UiHandlers): UiHandlers {
   for (const method of ui.GatewayService.methods) {
     const handler = own[method.localName]!;
 
-    // Private drafts belong to this owner's connected gateway, including qualified remote targets.
-    // Their handlers authorize the target separately; draft contents never enter mirror/config feeds.
-    if (/ComposerDraft/.test(method.name)) {
+    if (servedHere(method.name)) {
       handlers[method.localName] = handler;
       continue;
     }

@@ -478,59 +478,64 @@ test.skipIf(!dockerAvailable)("authenticated linked snapshots prune revoked rows
   }
 });
 
-test.skipIf(!dockerAvailable)("identical leases do not restart a bounded multiplexed head union", async () => {
-  const gw = await startTestGateway();
-  gateway = gw;
-  const requests: string[][] = [];
-  let active = 0;
-  let peak = 0;
+test.skipIf(!dockerAvailable)(
+  "head unions reopen only a bounded head stream, never WatchOverview",
+  async () => {
+    const gw = await startTestGateway();
+    gateway = gw;
+    const overviewRequests: string[][] = [];
+    const headRequests: string[][] = [];
 
-  async function* watchOverview(...args: Parameters<Client<typeof ui.GatewayService>["watchOverview"]>) {
-    requests.push([...(args[0].threadHeadIds ?? [])]);
-    peak = Math.max(peak, ++active);
+    async function* watchOverview(...args: Parameters<Client<typeof ui.GatewayService>["watchOverview"]>) {
+      overviewRequests.push([...(args[0].threadHeadIds ?? [])]);
+      yield* gw.api.watchOverview(...args);
+    }
+
+    function watchThreadHeads(...args: Parameters<Client<typeof ui.GatewayService>["watchThreadHeads"]>) {
+      headRequests.push([...(args[0].threadIds ?? [])]);
+
+      return gw.api.watchThreadHeads(...args);
+    }
+
+    const bff = new BffOverview({ ...gw.api, watchOverview, watchThreadHeads });
+    const abort = new AbortController();
+    const firstHeads = Array.from({ length: 32 }, () => crypto.randomUUID()).sort();
+    const secondHeads = Array.from({ length: 32 }, () => crypto.randomUUID());
 
     try {
-      yield* gw.api.watchOverview(...args);
+      const first = bff.subscribe(firstHeads, abort.signal)[Symbol.asyncIterator]();
+      expect((await first.next()).value?.change.case).toBe("mobileSnapshot");
+      const second = bff.subscribe(secondHeads, abort.signal)[Symbol.asyncIterator]();
+      expect((await second.next()).value?.change.case).toBe("mobileSnapshot");
+      const third = bff.subscribe(firstHeads, abort.signal)[Symbol.asyncIterator]();
+      expect((await third.next()).value?.change.case).toBe("mobileSnapshot");
+      const project = (await gw.api.createProject({ name: "Union settled" })).project!;
+      await eventually(
+        () => bff.overview(),
+        (current) => current.projects.some((row) => row.id === project.id),
+      );
+      expect(overviewRequests).toEqual([[]]);
+      expect(headRequests).toHaveLength(2);
+      expect(headRequests.every((heads) => heads.length === 32)).toBe(true);
+      await third.return?.();
+      await gw.api.renameProject({ projectId: project.id, name: "Same union" });
+      await eventually(
+        () => bff.overview(),
+        (current) => current.projects.some((row) => row.name === "Same union"),
+      );
+      expect(headRequests).toHaveLength(2);
+      await second.return?.();
+      await eventually(
+        async () => headRequests.length,
+        (count) => count === 3,
+      );
+      expect(headRequests.at(-1)).toEqual(firstHeads);
+      expect(overviewRequests).toEqual([[]]);
+      expect(bff.revision).toBe(0);
     } finally {
-      active--;
+      abort.abort();
+      bff.close();
     }
-  }
-
-  const bff = new BffOverview({ ...gw.api, watchOverview });
-  const abort = new AbortController();
-  const firstHeads = Array.from({ length: 32 }, () => crypto.randomUUID());
-  const secondHeads = Array.from({ length: 32 }, () => crypto.randomUUID());
-
-  try {
-    const first = bff.subscribe(firstHeads, abort.signal)[Symbol.asyncIterator]();
-    expect((await first.next()).value?.change.case).toBe("mobileSnapshot");
-    const second = bff.subscribe(secondHeads, abort.signal)[Symbol.asyncIterator]();
-    await bff.overview();
-    const third = bff.subscribe(firstHeads, abort.signal)[Symbol.asyncIterator]();
-    expect((await third.next()).value?.change.case).toBe("mobileSnapshot");
-    const project = (await gw.api.createProject({ name: "Union settled" })).project!;
-    await eventually(
-      () => bff.overview(),
-      (current) => current.projects.some((row) => row.id === project.id),
-    );
-    expect(requests).toHaveLength(2);
-    expect(requests.every((heads) => heads.length === 32)).toBe(true);
-    expect(peak).toBe(1);
-    expect(bff.revision).toBe(0);
-    await third.return?.();
-    await gw.api.renameProject({ projectId: project.id, name: "Same union" });
-    expect(
-      (
-        await eventually(
-          () => bff.overview(),
-          (current) => current.projects.some((row) => row.name === "Same union"),
-        )
-      ).projects.some((row) => row.name === "Same union"),
-    ).toBe(true);
-    expect(requests).toHaveLength(2);
-    await second.return?.();
-  } finally {
-    abort.abort();
-    bff.close();
-  }
-});
+  },
+  20_000,
+);

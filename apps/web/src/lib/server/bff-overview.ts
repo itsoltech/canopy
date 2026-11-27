@@ -3,6 +3,7 @@ import { ui } from "@canopy/contracts";
 import { AsyncChannel } from "@canopy/transport";
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import { BffOverviewState } from "./bff-overview-state.ts";
+import { BffThreadHeads } from "./bff-thread-heads.ts";
 
 const MAX_HEADS = 32;
 const MAX_SUBSCRIBERS = 32;
@@ -21,8 +22,21 @@ type Listener = (update: ui.OverviewUpdate) => void;
 
 type QueuedUpdate = { epoch: number; update: ui.OverviewUpdate };
 
+/** A renderer stream's updates; `select` changes its thread heads without reopening it. */
+export type OverviewSubscription = AsyncIterable<ui.OverviewUpdate> & {
+  readonly select: (headIds: readonly string[]) => void;
+};
+
+function uniqueHeads(headIds: readonly string[]): string[] {
+  const heads = [...new Set(headIds)];
+
+  if (heads.length > MAX_HEADS) throw new RangeError(`At most ${MAX_HEADS} thread IDs are allowed`);
+
+  return heads;
+}
+
 interface Subscriber {
-  readonly heads: readonly string[];
+  heads: readonly string[];
   readonly queue: AsyncChannel<QueuedUpdate>;
   readonly close: () => void;
 }
@@ -50,14 +64,28 @@ export class BffOverview {
   #epoch = 0;
   #headRotation = 0;
   #requestedHeads = "";
+  #followedHeads = "";
   #headRelease: ReturnType<typeof setTimeout> | undefined;
   #restartRequested = false;
   #pending: { update: ui.OverviewUpdate; bytes: number }[] = [];
   #pendingBytes = 0;
+  readonly #headStream: BffThreadHeads;
+  /** An older gateway without WatchThreadHeads: a new head set restarts WatchOverview. */
+  #headsInOverview = false;
+  #streamHeads: ui.ThreadHeads | undefined;
 
   constructor(api: Gateway) {
     this.#api = api;
     this.#ready = this.#newReady();
+    this.#headStream = new BffThreadHeads(
+      api,
+      (heads) => this.#receiveHeads(heads),
+      () => {
+        this.#headsInOverview = true;
+        this.#streamHeads = undefined;
+        this.#headsChanged();
+      },
+    );
   }
 
   /** Gaps requiring browser read-model invalidation; head-selection changes keep the same revision. */
@@ -98,10 +126,8 @@ export class BffOverview {
   }
 
   /** A browser subscription gets the current materialized snapshot before live changes. */
-  subscribe(headIds: readonly string[], signal: AbortSignal): AsyncIterable<ui.OverviewUpdate> {
-    const heads = [...new Set(headIds)];
-
-    if (heads.length > MAX_HEADS) throw new RangeError(`At most ${MAX_HEADS} thread IDs are allowed`);
+  subscribe(headIds: readonly string[], signal: AbortSignal): OverviewSubscription {
+    const heads = uniqueHeads(headIds);
 
     if (this.#subscribers.size >= MAX_SUBSCRIBERS) throw new Error("Too many BFF overview subscribers");
 
@@ -125,16 +151,25 @@ export class BffOverview {
 
     const subscriber: Subscriber = { heads, queue, close: release };
 
+    // A changed selection keeps this subscriber and its queue: no reconnect, replay or snapshot.
+    const select = (ids: readonly string[]) => {
+      const next = uniqueHeads(ids);
+
+      if (released || next.join(",") === subscriber.heads.join(",")) return;
+      subscriber.heads = next;
+      this.#headsChanged();
+    };
+
     if (this.#closed) {
       queue.close();
 
-      return { async *[Symbol.asyncIterator]() {} };
+      return { async *[Symbol.asyncIterator]() {}, select };
     }
 
     if (signal.aborted) {
       release();
 
-      return { async *[Symbol.asyncIterator]() {} };
+      return { async *[Symbol.asyncIterator]() {}, select };
     }
 
     this.#subscribers.add(subscriber);
@@ -148,7 +183,7 @@ export class BffOverview {
     const active = () => !this.#closed && !signal.aborted;
     const epoch = () => this.#epoch;
 
-    return (async function* () {
+    const updates = (async function* () {
       try {
         for await (const entry of queue) {
           if (!active()) return;
@@ -159,6 +194,8 @@ export class BffOverview {
         release();
       }
     })();
+
+    return { [Symbol.asyncIterator]: () => updates, select };
   }
 
   listen(listener: Listener): () => void {
@@ -175,6 +212,7 @@ export class BffOverview {
     this.#closed = true;
     this.#epoch++;
     clearTimeout(this.#headRelease);
+    this.#headStream.close();
     this.#upstream?.abort();
     this.#retryWake?.abort();
     this.#upstream = undefined;
@@ -227,7 +265,7 @@ export class BffOverview {
       this.#beginEpoch();
 
       try {
-        const heads = this.#allHeads();
+        const heads = this.#headsInOverview ? this.#allHeads() : [];
         this.#requestedHeads = heads.join(",");
 
         const request = create(ui.WatchOverviewRequestSchema, {
@@ -235,8 +273,6 @@ export class BffOverview {
           threadHeadIds: this.#selectedHeads(heads),
           watchMemoryHabits: true,
         });
-
-        this.#headRotation += heads.length > MAX_HEADS ? MAX_HEADS : 0;
 
         for await (const update of this.#api.watchOverview(request, { signal: upstream.signal, timeoutMs: 0 })) {
           if (this.#closed || upstream.signal.aborted || epoch !== this.#epoch || this.#upstream !== upstream) break;
@@ -257,6 +293,8 @@ export class BffOverview {
 
       if (!this.#restartRequested) {
         this.#revision++;
+        // A dropped stream may mean an upgraded gateway: probe WatchThreadHeads again.
+        this.#headsInOverview = false;
 
         for (const subscriber of this.#subscribers) subscriber.close();
         this.#restartRequested = false;
@@ -275,8 +313,12 @@ export class BffOverview {
 
   #beginEpoch(): void {
     const hadSnapshot = this.#state.hasSnapshot;
+    const releasing = this.#headRelease !== undefined;
     clearTimeout(this.#headRelease);
     this.#headRelease = undefined;
+
+    // The head stream does not restart with WatchOverview: settle a pending release now.
+    if (releasing && !this.#headsInOverview) this.#headsChanged();
     this.#state.reset();
     this.#pending = [];
     this.#pendingBytes = 0;
@@ -342,6 +384,9 @@ export class BffOverview {
     this.#pendingBytes = 0;
 
     for (const entry of buffered) this.#apply(entry.update);
+
+    // Each overview epoch starts without heads; the separate head stream's latest value still holds.
+    if (!this.#headsInOverview && this.#streamHeads) this.#apply(this.#headsUpdate(this.#streamHeads));
   }
 
   #apply(update: ui.OverviewUpdate): void {
@@ -394,7 +439,22 @@ export class BffOverview {
   }
 
   #headsChanged(released = false): void {
-    if (this.#closed || this.#headRelease || this.#allHeads().join(",") === this.#requestedHeads) return;
+    if (this.#closed || this.#headRelease) return;
+    const heads = this.#allHeads();
+
+    if (!this.#headsInOverview) {
+      if (heads.join(",") === this.#followedHeads && this.#headStream.following) return;
+
+      if (released) this.#releaseHeads();
+      else {
+        this.#followedHeads = heads.join(",");
+        this.#headStream.select(this.#selectedHeads(heads));
+      }
+
+      return;
+    }
+
+    if (heads.join(",") === this.#requestedHeads) return;
 
     if (!this.#upstream) {
       if (!released) this.#retryWake?.abort();
@@ -402,13 +462,8 @@ export class BffOverview {
       return;
     }
 
-    // Navigation releases the old SSE lease before its replacement reaches the BFF.
-    // Keep delivering updates until the new window selection is known.
     if (released) {
-      this.#headRelease = setTimeout(() => {
-        this.#headRelease = undefined;
-        this.#headsChanged();
-      }, HEAD_RELEASE_GRACE_MS);
+      this.#releaseHeads();
 
       return;
     }
@@ -417,9 +472,33 @@ export class BffOverview {
     this.#upstream.abort();
   }
 
+  /**
+   * A reconnecting renderer releases its old SSE lease before the replacement reaches the BFF.
+   * Keep following its heads until the new window selection is known.
+   */
+  #releaseHeads(): void {
+    this.#headRelease = setTimeout(() => {
+      this.#headRelease = undefined;
+      this.#headsChanged();
+    }, HEAD_RELEASE_GRACE_MS);
+  }
+
+  #receiveHeads(heads: ui.ThreadHeads): void {
+    if (this.#closed || this.#headsInOverview) return;
+    this.#streamHeads = heads;
+
+    if (this.#state.hasSnapshot) this.#apply(this.#headsUpdate(heads));
+  }
+
+  #headsUpdate(heads: ui.ThreadHeads): ui.OverviewUpdate {
+    return create(ui.OverviewUpdateSchema, { change: { case: "threadHeads", value: heads } });
+  }
+
+  /** More than 32 heads across windows: each new selection follows the next window of the sorted union. */
   #selectedHeads(ids: string[]): string[] {
     if (ids.length <= MAX_HEADS) return ids;
     const start = this.#headRotation % ids.length;
+    this.#headRotation += MAX_HEADS;
 
     return Array.from({ length: MAX_HEADS }, (_, index) => ids[(start + index) % ids.length]!);
   }

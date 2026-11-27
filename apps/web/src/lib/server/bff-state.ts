@@ -8,15 +8,23 @@ import { BffWarming } from "./bff-warming.ts";
 import type { Client } from "@connectrpc/connect";
 
 export type BffEvent =
+  | { kind: "subscription"; id: string }
   | { kind: "overview"; update: ui.OverviewUpdate; revision: number }
   | { kind: "read-model"; projection: BffReadProjection };
+
+interface Lease {
+  ids: readonly string[];
+  active: string;
+  readonly select: (ids: readonly string[]) => void;
+}
 
 /** A single authenticated owner and gateway target: never shared across connection generations. */
 export class BffSession {
   readonly overview: BffOverview;
   readonly reads = new BffReads();
   readonly warming: BffWarming;
-  readonly #leases = new Map<symbol, { ids: readonly string[]; active: string }>();
+  /** Renderer streams by an unguessable id, sent only on that stream: it alone can change its selection. */
+  readonly #leases = new Map<string, Lease>();
   readonly #stop: () => void;
   readonly #streams = new Set<AsyncChannel<BffEvent>>();
   readonly #lifetime = new AbortController();
@@ -66,6 +74,26 @@ export class BffSession {
     if (heads) this.warming.warmer.heads(heads.heads);
   }
 
+  /**
+   * The renderer's thread selection changed: update its lease, warming and heads on the open stream, without a
+   * reconnect or snapshot. False when the stream is gone; its replacement opens with the current selection.
+   */
+  select(subscription: string, ids: readonly string[], active: string): boolean {
+    const lease = this.#leases.get(subscription);
+
+    if (!lease || this.#lifetime.signal.aborted) return false;
+    const selected = ids.slice(0, 32);
+    const navigated = lease.active !== active;
+    lease.ids = selected;
+    lease.active = active;
+    lease.select(selected);
+    this.#select();
+
+    if (navigated) this.warming.warmer.yieldToNavigation();
+
+    return true;
+  }
+
   async *subscribe(ids: readonly string[], active: string, signal: AbortSignal): AsyncGenerator<BffEvent> {
     if (this.#lifetime.signal.aborted || this.#leases.size >= 32)
       throw new ConnectError("Read model subscriptions unavailable", Code.ResourceExhausted);
@@ -83,9 +111,11 @@ export class BffSession {
       channel.close();
     };
 
-    const lease = Symbol();
+    const lease = crypto.randomUUID();
+    const overview = this.overview.subscribe(ids.slice(0, 32), abort.signal);
     this.#streams.add(channel);
-    this.#leases.set(lease, { ids: ids.slice(0, 32), active });
+    this.#leases.set(lease, { ids: ids.slice(0, 32), active, select: overview.select });
+    channel.push({ kind: "subscription", id: lease }, lease.length);
     this.#select();
     this.warming.warmer.yieldToNavigation();
     signal.addEventListener("abort", stop, { once: true });
@@ -99,7 +129,7 @@ export class BffSession {
 
     const pump = (async () => {
       try {
-        for await (const update of this.overview.subscribe(ids, abort.signal)) {
+        for await (const update of overview) {
           if (
             !channel.push(
               { kind: "overview", update, revision: this.overview.revision },

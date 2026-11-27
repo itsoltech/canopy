@@ -2,7 +2,7 @@ import { getContext, setContext } from "svelte";
 import { ui } from "@canopy/contracts";
 import { decode } from "#lib/shared/wire.ts";
 import { ComputerAway, liveSource } from "#lib/shared/live-source.ts";
-import { bodyJson, isJsonObject, isNumber } from "#lib/shared/json.ts";
+import { bodyJson, isJsonObject, isNumber, isString } from "#lib/shared/json.ts";
 import { computerName } from "@canopy/domain/computer-presence";
 import type { RecoverySnapshot, RecoveryStatus } from "@canopy/domain/connection-recovery";
 import {
@@ -61,6 +61,10 @@ export class OverviewState {
   #refreshing = false;
   #revision: number | undefined;
   #listeners = new Set<(update: ui.OverviewUpdate) => void>();
+  #selection = { heads: "", active: "" };
+  /** The open stream and the selection it last confirmed. */
+  #stream: { readonly id: string; sent: string } | undefined;
+  #selecting = false;
 
   constructor(initial: ui.GetOverviewResponse | undefined, threads: readonly ui.Thread[] = []) {
     if (initial) this.#replace(initial, threads);
@@ -294,17 +298,29 @@ export class OverviewState {
     }
   }
 
-  connect(heads = "", active = ""): () => void {
+  /**
+   * The tab's thread selection (warm heads and the open thread). The open stream follows it in place; a new
+   * connection opens with it.
+   */
+  select(heads: string, active: string): void {
+    this.#selection = { heads, active };
+    void this.#sendSelection();
+  }
+
+  /** One SSE per tab, kept open across navigation: only a dropped stream reconnects and resyncs. */
+  connect(): () => void {
     let ready: (() => void) | undefined;
     let gap = false;
-    // Changing the watched heads or active thread replaces a healthy SSE stream. Keep its last availability
-    // until the replacement supplies a snapshot or actually fails; opening it is not a dropped connection.
-    let replacing = this.resyncs > 0;
+    let opening = "";
 
-    return liveSource(`/api/overview/events?${new URLSearchParams({ heads, active })}`, {
+    const stop = liveSource("/api/overview/events", {
+      url: () => {
+        this.#stream = undefined;
+        opening = selectionKey(this.#selection);
+
+        return `/api/overview/events?${new URLSearchParams(this.#selection)}`;
+      },
       onstatus: (state) => {
-        if (replacing && state.status === "reconnecting") return;
-        replacing = false;
         this.recovery = state;
         this.connection = state.status;
       },
@@ -325,6 +341,15 @@ export class OverviewState {
         }),
       events: {
         "read-model": receiveBffRead,
+        "overview-subscription": (data) => {
+          const frame = JSON.parse(data);
+
+          const id = isJsonObject(frame) ? frame["id"] : undefined;
+
+          if (!isString(id)) throw new Error("Invalid overview subscription");
+          this.#stream = { id, sent: opening };
+          void this.#sendSelection();
+        },
         "overview-snapshot": (data) => {
           const frame = JSON.parse(data);
 
@@ -343,7 +368,7 @@ export class OverviewState {
         },
       },
       ondrop: () => {
-        replacing = false;
+        this.#stream = undefined;
         this.pushed = new Set();
 
         if (this.connection === "live") this.connection = "reconnecting";
@@ -354,7 +379,46 @@ export class OverviewState {
         this.apply(update);
       },
     });
+
+    return () => {
+      stop();
+      this.#stream = undefined;
+    };
   }
+
+  /** One request at a time; it always sends the latest selection. */
+  async #sendSelection(): Promise<void> {
+    if (this.#selecting) return;
+    this.#selecting = true;
+
+    try {
+      for (;;) {
+        const stream = this.#stream;
+        const selection = this.#selection;
+
+        if (!stream || stream.sent === selectionKey(selection)) return;
+
+        const response = await fetch(`/api/overview/events/${encodeURIComponent(stream.id)}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ heads: selection.heads.split(",").filter(Boolean), active: selection.active }),
+        }).catch(() => undefined);
+
+        if (this.#stream !== stream) continue;
+
+        if (response?.ok) stream.sent = selectionKey(selection);
+        // The stream is gone; its replacement opens with the current selection.
+        else if (response?.status === 404) return;
+        else await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } finally {
+      this.#selecting = false;
+    }
+  }
+}
+
+function selectionKey(selection: { heads: string; active: string }) {
+  return `${selection.heads}|${selection.active}`;
 }
 
 function upsert<T>(list: readonly T[], value: T, key: (v: T) => string): T[] {

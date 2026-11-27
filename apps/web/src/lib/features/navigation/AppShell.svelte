@@ -156,12 +156,15 @@
     threadsEnabled ? [...new Set([activeId, ...warmIds])].filter(Boolean).slice(0, 32).sort().join(",") : "",
   );
 
+  // The selection follows navigation on the open stream; it is set first so the stream opens with it.
   $effect(() => {
     const ids = headIds;
     const active = activeId;
 
-    return untrack(() => overview.connect(ids, active));
+    untrack(() => overview.select(ids, active));
   });
+
+  $effect(() => untrack(() => overview.connect()));
 
   $effect(() =>
     overview.subscribe((update) => {
