@@ -100,7 +100,8 @@ export async function readScope(
     }
 
     try {
-      const value = await client.read(row.id, { ...options, key }, request.refresh);
+      const seen = BigInt(cached?.generation ?? 0);
+      const value = await client.read(row.id, { ...options, key, seen }, request.refresh);
       await validateAccess();
 
       return fromJsonString(schema, JSON.stringify(value.payload));
