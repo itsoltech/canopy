@@ -171,15 +171,17 @@ export const activityNotchMotionStyles = `
     background: color-mix(in srgb, var(--indicator) 16%, transparent);
     content: "";
   }
-  /* Work in progress keeps a slow sweep of light, like the live labels in the app. */
-  .status.active[data-state="working"] {
-    background: linear-gradient(90deg,
-      var(--indicator) ${motion.shimmer.start * 100}%,
-      color-mix(in srgb, var(--indicator) 35%, var(--ink)) ${motion.shimmer.peak * 100}%,
-      var(--indicator) ${motion.shimmer.end * 100}%) 0 0 / ${motion.shimmer.backgroundSize * 100}% 100%;
-    background-clip: text;
-    color: transparent;
-    animation: shimmer ${motion.shimmer.duration}ms linear infinite;
+  @media (prefers-reduced-motion: no-preference) {
+    /* Hidden rows still exist between opens. Only animate their labels when the panel is visible. */
+    .panel[data-visible] .status.active[data-state="working"] {
+      background: linear-gradient(90deg,
+        var(--indicator) ${motion.shimmer.start * 100}%,
+        color-mix(in srgb, var(--indicator) 35%, var(--ink)) ${motion.shimmer.peak * 100}%,
+        var(--indicator) ${motion.shimmer.end * 100}%) 0 0 / ${motion.shimmer.backgroundSize * 100}% 100%;
+      background-clip: text;
+      color: transparent;
+      animation: shimmer ${motion.shimmer.duration}ms linear infinite;
+    }
   }
   @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
   @media (prefers-reduced-motion: reduce) {
@@ -189,7 +191,7 @@ export const activityNotchMotionStyles = `
     }
     .panel, .row, .notch:not([data-active]) .wing { filter: none; scale: 1; translate: 0 0; }
     .notch-toggle:active .wing { transform: none; }
-    .count-in, .count-out, .status.active[data-state="working"] { animation: none; }
+    .count-in, .count-out { animation: none; }
     .count-out { display: none; }
   }
 `;

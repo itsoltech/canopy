@@ -78,7 +78,10 @@ export const activityNotchProgressStyles = `
     animation: spin var(--spin-duration) linear infinite paused;
     transition: opacity var(--progress-revert-dur) var(--progress-revert-ease);
   }
-  .active .progress-arc { animation-play-state: running; }
+  /* Keep the compact overlay still between activity updates. */
+  .notch[data-open="true"] .active .progress[data-phase="spinning"] .progress-arc {
+    animation-play-state: running;
+  }
   .progress[data-phase="done"] .progress-arc {
     opacity: 0;
     animation-play-state: paused;
