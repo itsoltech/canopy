@@ -27,7 +27,7 @@ export const activityNotchStyles = `
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
-    --project-mark-size: 18px;
+    --row-mark-size: 18px;
     --bottom-inset: ${activityNotchBottomInset}px;
     --type-compact: 0.8125rem;
     --type-meta: 0.71875rem;
@@ -264,7 +264,7 @@ export const activityNotchStyles = `
   .leaving-rows > li { position: absolute; background: #000; }
   .row {
     display: grid;
-    grid-template-columns: [label] minmax(0, 1fr) [status] auto;
+    grid-template-columns: [mark] var(--row-mark-size) [label] minmax(0, 1fr) [status] auto;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -284,21 +284,18 @@ export const activityNotchStyles = `
     background-color: color-mix(in srgb, var(--ink) 12%, transparent);
     scale: ${motion.scale.tiny};
   }
-  .panel:has(.project-mark:not([hidden])) .row {
-    grid-template-columns: [mark] var(--project-mark-size) [label] minmax(0, 1fr) [status] auto;
-  }
-  .project-mark:not([hidden]) {
+  .row-mark:not([hidden]) {
     grid-column: mark;
     display: grid;
     place-items: center;
-    width: var(--project-mark-size);
-    height: var(--project-mark-size);
+    width: var(--row-mark-size);
+    height: var(--row-mark-size);
     overflow: hidden;
     border-radius: 0.25rem;
     font: 700 0.5625rem / 1 ui-monospace, monospace;
     letter-spacing: -0.025em;
   }
-  .project-mark canvas {
+  .row-mark canvas, .row-mark img {
     display: block;
     width: 100%;
     height: 100%;

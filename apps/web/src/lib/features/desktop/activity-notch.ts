@@ -1,5 +1,6 @@
 import { timestampMs, type Timestamp } from "@bufbuild/protobuf/wkt";
 import type { bots, ui } from "@canopy/contracts";
+import { botParticipant } from "@canopy/domain/bot-chat";
 import { sharesThreads } from "@canopy/domain/computer-presence";
 import { REMOTE_BOTS } from "@canopy/domain/computers";
 import { activityOf, unseenResult, workState } from "@canopy/domain/thread-activity";
@@ -16,6 +17,8 @@ type Activity = {
   at: number;
   expiresAt?: number;
 };
+
+type Identity = Pick<ActivityNotchItem, "title" | "botAppearance"> & { projectId?: string | undefined };
 
 const priority: Record<ActivityNotchItem["state"], number> = {
   approval: 0,
@@ -82,17 +85,12 @@ export function activityNotchSnapshot({
   markForProject: (id: string) => ActivityNotchProjectMark | undefined;
   now: number;
 }) {
-  const activities: (Activity & { path: string; title?: string; projectId?: string })[] = [];
+  const activities: (Activity & Identity & { path: string })[] = [];
   let expiresAt = Infinity;
 
-  function add(path: string, activity: Activity | undefined, thread?: ui.Thread) {
+  function add(path: string, activity: Activity | undefined, identity: Identity) {
     if (!activity || !isDesktopActivityRoute(path)) return;
-    activities.push({
-      path,
-      ...(thread?.title && { title: thread.title }),
-      ...(thread?.projectId && { projectId: thread.projectId }),
-      ...activity,
-    });
+    activities.push({ path, ...activity, ...identity });
     expiresAt = Math.min(expiresAt, activity.expiresAt ?? Infinity);
   }
 
@@ -113,7 +111,7 @@ export function activityNotchSnapshot({
         isThreadSnoozed(thread, (id) => threads.get(id))
       )
         continue;
-      add(`/threads/${thread.id}`, threadActivity(thread), thread);
+      add(`/threads/${thread.id}`, threadActivity(thread), { title: thread.title, projectId: thread.projectId });
     }
 
   for (const bot of bots) {
@@ -121,17 +119,27 @@ export function activityNotchSnapshot({
 
     if (bot.nodeId && (staleBotHomes.has(bot.nodeId) || !connectedHome(bot.nodeId)?.capabilities.includes(REMOTE_BOTS)))
       continue;
-    add(`/bots/${bot.id}`, botActivity(bot, botExecuting(bot.id), now));
+    const { name, shape, color } = botParticipant(bot);
+    add(`/bots/${bot.id}`, botActivity(bot, botExecuting(bot.id), now), {
+      title: name,
+      botAppearance: { ...(shape && { shape }), ...(color && { color }) },
+    });
   }
 
   activities.sort((a, b) => priority[a.state] - priority[b.state] || b.at - a.at || a.path.localeCompare(b.path));
 
   const items: ActivityNotchItem[] = activities
     .slice(0, maxActivityNotchItems)
-    .map(({ path, state, title, projectId }) => {
+    .map(({ path, state, title, projectId, botAppearance }) => {
       const projectMark = projectId ? markForProject(projectId) : undefined;
 
-      return { path, state, ...(title && { title }), ...(projectMark && { projectMark }) };
+      return {
+        path,
+        state,
+        ...(title && { title }),
+        ...(projectMark && { projectMark }),
+        ...(botAppearance && { botAppearance }),
+      };
     });
 
   return { items, expiresAt };

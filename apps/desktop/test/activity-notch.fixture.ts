@@ -3,7 +3,10 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, screen, session, type IpcMainEvent } from "electron";
+import { create } from "@bufbuild/protobuf";
+import { bots } from "@canopy/contracts";
 import { activityNotchLogoSize, type ActivityNotchItem } from "@canopy/ui/desktop";
+import { activityNotchSnapshot } from "../../web/src/lib/features/desktop/activity-notch.ts";
 import type { ActivityNotchLayout } from "../src/activity-notch-geometry.ts";
 import { ActivityNotch, type ActivityNotchRow } from "../src/activity-notch.ts";
 import { loadMacActivityNotchDisplay } from "../src/activity-notch-window.ts";
@@ -131,9 +134,9 @@ function waitForRows(window: BrowserWindow, expectedLabels: readonly string[]): 
       if (JSON.stringify(labels) !== JSON.stringify(${JSON.stringify(expectedLabels)})) return;
       observer.disconnect();
       resolve(rows.map((row) => {
-        const mark = row.querySelector('.project-mark:not([hidden])');
+        const mark = row.querySelector('.row-mark:not([hidden])');
         const canvas = mark?.querySelector('canvas');
-        if (!canvas) return { initials: mark?.textContent, logo: undefined };
+        if (!canvas) return { initials: mark?.textContent || undefined, logo: undefined };
         return {
           initials: undefined,
           logo: {
@@ -157,6 +160,53 @@ async function publishRows(overlay: BrowserWindow, source: BrowserWindow, items:
   return update.rows;
 }
 
+function botItem(name: string, color: string) {
+  const bot = create(bots.BotSchema, {
+    id: "synthetic-activity",
+    configuration: { name, color, shape: "diamond" },
+    unreadCount: 1,
+  });
+
+  const { items } = activityNotchSnapshot({
+    threads: undefined,
+    bots: [bot],
+    computers: new Map(),
+    staleBotHomes: new Set(),
+    botExecuting: () => false,
+    markForProject: () => undefined,
+    now: 0,
+  });
+
+  const item = items[0];
+  assert.ok(item);
+
+  return item;
+}
+
+async function mascotBodyColor(overlay: BrowserWindow, expectedImage: string): Promise<number[]> {
+  return overlay.webContents.executeJavaScript(`(async () => {
+    const panel = document.getElementById("activity-panel");
+    const image = await new Promise((resolve) => {
+      const inspect = () => {
+        const avatar = panel.querySelector(".row-mark img");
+        if (avatar?.getAttribute("src") !== ${JSON.stringify(expectedImage)}) return;
+        observer.disconnect();
+        resolve(avatar);
+      };
+      const observer = new MutationObserver(inspect);
+      observer.observe(panel, { subtree: true, childList: true, attributes: true });
+      inspect();
+    });
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 40;
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0, 40, 40);
+    // The top of the chosen diamond is above the body of the generated capsule for this fixture ID.
+    return Array.from(context.getImageData(20, 9, 1, 1).data);
+  })()`);
+}
+
 async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, workingRow: ActivityNotchRow) {
   stage = "rendering a project logo and preserving other statuses";
   await toggleOverlay(overlay);
@@ -167,32 +217,30 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
     projectMark: { ...logoMark, foreground: "url(https://fixture.invalid/mark)" },
   } as const;
 
-  const bot = {
-    path: "/bots/synthetic-activity",
-    state: "completed",
-    title: "Synthetic bot title",
-    projectMark: logoMark,
-  } as const;
+  const botName = "Release <bot>";
+  const bot = { ...botItem(botName, "#12abef"), projectMark: logoMark };
 
   const markedThread = { ...working, projectMark: unredactedMark };
   const rows = await publishRows(overlay, source, [markedThread, invalidColor, bot]);
   const [, approvalRow, botRow] = rows;
   assert.ok(approvalRow && Number.isSafeInteger(approvalRow.id));
-  assert.ok(botRow && Number.isSafeInteger(botRow.id));
+  assert.ok(botRow?.botMascot && Number.isSafeInteger(botRow.id));
 
   const otherRows: readonly ActivityNotchRow[] = [
     { id: approvalRow.id, label: "Untitled thread", state: "approval" },
-    { id: botRow.id, label: "Bot 1", state: "completed" },
+    { id: botRow.id, label: botName, state: "completed", botMascot: botRow.botMascot },
   ];
 
   assert.deepEqual(rows, [{ ...workingRow, projectMark: logoMark }, ...otherRows]);
-  const otherLabels = ["Open Untitled thread, Needs approval", "Open Bot 1, Completed"];
+  const approvalLabel = "Open Untitled thread, Needs approval";
+  const otherLabels = [approvalLabel, `Open ${botName}, Completed`];
   const logo = { width: activityNotchLogoSize, height: activityNotchLogoSize, rgba };
   assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, project NB, Working", ...otherLabels]), [
     { initials: undefined, logo },
     noMark,
     noMark,
   ]);
+  assert.deepEqual(await mascotBodyColor(overlay, botRow.botMascot), [18, 171, 239, 255]);
 
   stage = "updating the project mark and falling back to initials";
   const initialsMark = { initials: "DN", foreground: "#cceeff", background: "#112233" };
@@ -213,6 +261,16 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
     noMark,
     noMark,
   ]);
+
+  stage = "updating a bot name and mascot";
+  const renamedBot = "Release coordinator for production rollouts and customer communications";
+  const renamed = await publishRows(overlay, source, [working, invalidColor, botItem(renamedBot, "#12abef")]);
+  assert.deepEqual(renamed, [workingRow, approvalRow, { ...botRow, label: renamedBot }]);
+  const [, , recolored] = await publishRows(overlay, source, [working, invalidColor, botItem(renamedBot, "#fa5020")]);
+  assert.equal(recolored?.id, botRow.id);
+  assert.ok(recolored?.botMascot);
+  await waitForRows(overlay, ["Open Restore focus, Working", approvalLabel, `Open ${renamedBot}, Completed`]);
+  assert.deepEqual(await mascotBodyColor(overlay, recolored.botMascot), [250, 80, 32, 255]);
   await toggleOverlay(overlay);
 }
 

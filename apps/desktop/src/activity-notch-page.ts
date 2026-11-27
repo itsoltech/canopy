@@ -149,7 +149,7 @@ const script = `
     const status = document.createElement("span");
     button.type = "button";
     button.className = "row";
-    badge.className = "project-mark";
+    badge.className = "row-mark";
     badge.hidden = true;
     badge.setAttribute("aria-hidden", "true");
     label.className = "truncate";
@@ -191,21 +191,27 @@ const script = `
     return canvas;
   }
 
-  function updateProjectMark(view, mark) {
+  function updateRowMark(view, mark, mascot) {
     const previous = view.projectMark;
     if (
+      view.botMascot === mascot &&
       previous?.initials === mark?.initials &&
       previous?.foreground === mark?.foreground &&
       previous?.background === mark?.background &&
       previous?.pixels === mark?.pixels
     ) return;
 
-    const logo = projectLogo(mark?.pixels);
-    view.badge.replaceChildren(logo ?? mark?.initials ?? "");
+    const image = mascot ? document.createElement("img") : projectLogo(mark?.pixels);
+    if (mascot) {
+      image.alt = "";
+      image.src = mascot;
+    }
+    view.badge.replaceChildren(image ?? mark?.initials ?? "");
     view.badge.style.color = mark?.foreground ?? "";
-    view.badge.style.backgroundColor = logo ? "" : mark?.background ?? "";
-    view.badge.hidden = !mark;
+    view.badge.style.backgroundColor = image ? "" : mark?.background ?? "";
+    view.badge.hidden = !mark && !mascot;
     view.projectMark = mark;
+    view.botMascot = mascot;
   }
 
   function animateRow(item, frames, duration, delay = 0) {
@@ -279,11 +285,11 @@ const script = `
     }
 
     let nextItem = list.firstElementChild;
-    for (const { id, label, state, projectMark } of rows) {
+    for (const { id, label, state, projectMark, botMascot } of rows) {
       const view = rowViews.get(id) ?? createRow(id);
       rowViews.set(id, view);
       const status = statuses[state].label;
-      updateProjectMark(view, projectMark);
+      updateRowMark(view, projectMark, botMascot);
       if (view.label.textContent !== label) {
         view.label.textContent = label;
         view.label.title = label;
@@ -362,7 +368,7 @@ export function activityNotchPage(): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
   <style nonce="${nonce}">${activityNotchStyles}</style>
 </head>
