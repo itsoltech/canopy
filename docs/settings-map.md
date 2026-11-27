@@ -1,5 +1,7 @@
 # Mapa ustawień Canopy
 
+Status (2026-11-27): Threads pozwala ustawić pozycję sekcji Working na danym urządzeniu.
+
 Status (2026-11-25): web, desktop i mobile grupują sekcje według zadań.
 Preferencje listy wątków są w **Threads**, alerty użytkownika w **Notifications**,
 a aktualizacje Canopy w **App updates**. Zmiana nawigacji zachowuje zapisane
@@ -149,6 +151,7 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Threads / Thread list / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
 | Threads / Thread list / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |
 | Threads / Thread list / Sidebar | Working section | urządzenie/gateway | Off | Osobna zwijana sekcja pracujących wątków/drzew; pytania i nowe wyniki wracają do głównej listy |
+| Threads / Thread list / Sidebar | Working section position | urządzenie/gateway | Bottom | Top lub Bottom w aktywnej części listy przy włączonej sekcji Working |
 | Threads / Thread list / Confirmations | Confirm unpin / archive / delete | konto | Off / Off / On | Dialog przed odpowiednią akcją wątku we wszystkich menu i komendach |
 | General / Device / Time | Time format | urządzenie | System | Godziny w znacznikach czasu web/desktop: system, 12h lub 24h |
 | General / Device / Time | Time zone | konto, odczyt z urządzenia | IANA urządzenia, fallback UTC | Istniejąca synchronizacja dla botów i harmonogramów; przeniesiona z Appearance, bez zmiany semantyki |

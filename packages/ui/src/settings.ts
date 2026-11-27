@@ -74,7 +74,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "chat-bubble-left-right",
     group: "Workspace",
     keywords:
-      "new thread defaults project worker agent model profile permissions workspace worktree sidebar thread list grouping group by project order working section confirmations confirm unpin archive delete archived threads retention auto-delete delete after days cleanup clean up history subagents finished list turn activity while working after turn tool calls reasoning progress expanded collapsed messages steer queue delivery conversation sandbox and subagents archiving notify agent pull requests",
+      "new thread defaults project worker agent model profile permissions workspace worktree sidebar thread list grouping group by project order working section position confirmations confirm unpin archive delete archived threads retention auto-delete delete after days cleanup clean up history subagents finished list turn activity while working after turn tool calls reasoning progress expanded collapsed messages steer queue delivery conversation sandbox and subagents archiving notify agent pull requests",
   },
   {
     href: "/settings/projects",

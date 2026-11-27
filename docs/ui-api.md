@@ -14,6 +14,8 @@ Aktualizacja (2026-11-25). Automatyczny mini Preview w web i desktopie śledzi
 trwające wywołania automatyzacji. W Desktop pokazuje zrzut zwrócony agentowi
 lub bieżący obraz potwierdzonego okna z limitem 12 klatek na sekundę.
 
+Status (2026-11-27): web, desktop i mobile zapisują pozycję Working lokalnie w preferencjach widoku.
+
 Status (2026-11-25): web, desktop i mobile zapisują rozwinięcie Working i Snoozed
 w lokalnych preferencjach paska bocznego.
 
@@ -3540,7 +3542,7 @@ komputera). Zdalna kolejność jest widoczna, ale edytowalna tylko w domu wątku
 nie ma przenoszenia kluczy pomiędzy niezależnymi bazami. Przypięcia zdalnych wątków
 pozostają dostępne w istniejącym menu. Zmiana klucza jest zwykłą deltą metadanych.
 
-Filtry projektów i workerów, grupowanie i kolejność projektów, sekcja Working, rozwinięcie archiwum
+Filtry projektów i workerów, grupowanie i kolejność projektów, widoczność i pozycja sekcji Working, rozwinięcie archiwum
 wątków/botów, szerokość i zwinięcie sidebara oraz geometria paneli wątku i PR
 należą do urządzenia i gatewaya (`DevicePreferences`,
 `canopy.client-view.v2.<scope>` w profilu web/desktop; stary `canopy:preferences:view`

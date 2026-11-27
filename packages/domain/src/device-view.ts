@@ -31,6 +31,7 @@ const savedView = Schema.Struct({
   collapsedSidebarGroups: Schema.optionalKey(Schema.Array(Schema.String)),
   projectOrder: Schema.optionalKey(Schema.Literals([0, 1, 2])),
   workingSection: Schema.optionalKey(Schema.Boolean),
+  workingSectionPosition: Schema.optionalKey(Schema.Literals(["top", "bottom"])),
   threadSortMode: Schema.optionalKey(Schema.Literals(["activity", "created", "custom"])),
   lastSeenAppVersion: Schema.optionalKey(Schema.String),
   appUpdateFrom: Schema.optionalKey(Schema.String),
@@ -53,6 +54,7 @@ export interface DeviceViewValues extends DeviceSidebarValues {
   lastSeenAppVersion: string;
   appUpdateFrom: string;
   workingThreadsExpanded: boolean;
+  workingSectionPosition: "top" | "bottom";
   snoozedThreadsExpanded: boolean;
   archivedThreadsExpanded: boolean;
   archivedBotsExpanded: boolean;
@@ -77,6 +79,7 @@ export const deviceViewDefaults: DeviceViewValues = {
   lastSeenAppVersion: "",
   appUpdateFrom: "",
   workingThreadsExpanded: false,
+  workingSectionPosition: "bottom",
   snoozedThreadsExpanded: false,
   archivedThreadsExpanded: false,
   archivedBotsExpanded: false,
