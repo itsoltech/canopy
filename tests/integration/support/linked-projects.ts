@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { REMOTE_THREADS, THREAD_MIRROR, nodeRef } from "@canopy/domain/computers";
 import { remoteServe, sharedHost, uiHandlers } from "@canopy/gateway/api";
+import { ConfigIds } from "../../../apps/gateway/src/api/routed-config.ts";
 import { ComputerStore } from "../../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./computers.ts";
 import { eventually } from "./gateway.ts";
@@ -91,6 +92,11 @@ export async function linkedProjectFixture(
   )
     throw new Error("Linked fixture did not connect");
 
+  // Mirrored workspaces can appear before the shared project's aliases exist on both homes.
+  // A routed request needs both: this computer maps the project to its global id, the home maps it back.
+  if (options.shared && !(await sharedProjectAliases(a, b, la, lb)))
+    throw new Error("Linked fixture did not share its project");
+
   return {
     a,
     b,
@@ -102,4 +108,29 @@ export async function linkedProjectFixture(
       await b.close();
     },
   };
+}
+
+type Home = Awaited<ReturnType<typeof worktreeFixture>>;
+
+/** Both homes resolve each project id to one global id and back to their own project. */
+async function sharedProjectAliases(a: Home, b: Home, la: ReturnType<typeof linkedComputers>, lb: typeof la) {
+  const canonical = [a.project.id, b.project.id].sort()[0]!;
+
+  return eventually(
+    async () => {
+      const aliases = await Promise.all([
+        (await ConfigIds.for(a.gw.core, lb.hello().nodeId)).projects(),
+        (await ConfigIds.for(b.gw.core, la.hello().nodeId)).projects(),
+      ]);
+
+      return aliases.every(
+        (ids, index) =>
+          ids.toGlobal(a.project.id) === canonical &&
+          ids.toGlobal(b.project.id) === canonical &&
+          ids.toLocal(canonical) === (index === 0 ? a.project.id : b.project.id),
+      );
+    },
+    Boolean,
+    10_000,
+  );
 }
