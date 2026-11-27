@@ -47,7 +47,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
 
           const rows =
             yield* sql<MessageRow>`SELECT * FROM (SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
-        FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
+        FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id LEFT JOIN bot_tool_calls c ON ${selfCall(sql)}
         WHERE m.bot_id = ${id}::uuid AND (t.conversation_id IS NULL OR m.sender_id = 'activity') AND (${!selection} OR m.id=ANY(${selection?.ids ?? []}::uuid[])
           OR m.turn_id=ANY(${selection?.turns ?? []}::uuid[]))
           AND (${before === 0n} OR m.seq<${before}) ORDER BY m.seq DESC LIMIT ${limit ? limit + 1 : null}) recent ORDER BY seq`;
@@ -147,11 +147,20 @@ function messageUser(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, cal
   });
 }
 
+/**
+ * The tool call behind a bot's own message (`self:<call id>`). Matching on `'self:' || c.id::text` cannot use the
+ * primary key, so PostgreSQL rescanned every tool call for each message, through a temporary file.
+ */
+function selfCall(sql: SqlClient.SqlClient) {
+  return sql`c.id = CASE WHEN m.message_key ~ '^self:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    THEN substr(m.message_key, 6)::uuid END`;
+}
+
 /** Timeline activity must not displace a private reply in previews or suppress its notification. */
 function lastChatMessage(sql: SqlClient.SqlClient, id: string) {
   return sql<MessageRow>`SELECT m.*, t.status AS turn_status, c.result -> 'changes' AS setting_changes
     FROM bot_messages m JOIN bot_turns t ON t.id = m.turn_id
-    LEFT JOIN bot_tool_calls c ON m.message_key = 'self:' || c.id::text
+    LEFT JOIN bot_tool_calls c ON ${selfCall(sql)}
     WHERE m.bot_id = ${id}::uuid AND t.conversation_id IS NULL AND m.sender_id <> 'activity'
     ORDER BY m.seq DESC LIMIT 1`.pipe(Effect.map((rows) => rows[0]));
 }
