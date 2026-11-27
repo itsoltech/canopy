@@ -74,6 +74,24 @@ export function ThreadListSettings() {
           />
         }
       />
+      <SettingChoice
+        title="Working section position"
+        value={device.view.workingSectionPosition}
+        options={[
+          { value: "top", label: "Top" },
+          { value: "bottom", label: "Bottom" },
+        ]}
+        disabled={disabled || !sidebar?.workingSection}
+        onChange={(workingSectionPosition) => device.setView({ workingSectionPosition })}
+        accessory={
+          <ResetSetting
+            label="Reset working section position"
+            changed={device.view.workingSectionPosition !== "bottom"}
+            disabled={disabled}
+            onReset={() => device.setView({ workingSectionPosition: "bottom" })}
+          />
+        }
+      />
     </SettingsGroup>
   );
 }

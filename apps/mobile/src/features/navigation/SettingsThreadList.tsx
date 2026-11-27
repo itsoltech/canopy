@@ -85,8 +85,13 @@ export function SettingsThreadList({
     section: workingIndex >= 0 && index > workingIndex ? "working" : "active",
   }));
 
+  const ordered =
+    view.workingSectionPosition === "top" && workingIndex > 0
+      ? [...active.slice(workingIndex), ...active.slice(0, workingIndex)]
+      : active;
+
   const rows: SidebarListEntry[] = [
-    ...active,
+    ...ordered,
     ...(!active.length && !snoozed.count ? [{ key: "empty", section: "empty" as const }] : []),
     ...snoozed.entries,
     ...archivedEntries(archive),

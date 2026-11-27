@@ -116,6 +116,8 @@
   );
 
   const workingOpen = $derived(devicePreferences.view.workingThreadsExpanded);
+  const workingFirst = $derived(devicePreferences.view.workingSectionPosition === "top");
+  const sectionOrder = $derived(workingFirst ? ["working", "inbox"] : ["inbox", "working"]);
 
   const grouping = $derived({ groupByWorktree: devicePreferences.view.groupByWorktree });
 
@@ -253,21 +255,24 @@
     </div>
   {:else if filtered.roots.length}
     <ul role="list" class="grid min-w-0 grid-cols-1 gap-0.5" aria-label="Thread inbox" {@attach drag}>
-      {@render renderRows(shown, true)}
-      {#if working?.heading && shown.length === inboxLength}
-        <li class="min-w-0">
-          <SidebarThreadDisclosure
-            working
-            label={working.heading}
-            expanded={workingOpen}
-            ontoggle={() => devicePreferences.setView({ workingThreadsExpanded: !workingOpen })}
-          >
-            <ul role="list" aria-label="Working threads" class="grid min-w-0 grid-cols-1 gap-0.5">
-              {@render renderRows(workingKeys, false)}
-            </ul>
-          </SidebarThreadDisclosure>
-        </li>
-      {/if}
+      {#each sectionOrder as section (section)}
+        {#if section === "inbox"}
+          {@render renderRows(shown, true)}
+        {:else if working?.heading && (workingFirst || shown.length === inboxLength)}
+          <li class="min-w-0">
+            <SidebarThreadDisclosure
+              working
+              label={working.heading}
+              expanded={workingOpen}
+              ontoggle={() => devicePreferences.setView({ workingThreadsExpanded: !workingOpen })}
+            >
+              <ul role="list" aria-label="Working threads" class="grid min-w-0 grid-cols-1 gap-0.5">
+                {@render renderRows(workingKeys, false)}
+              </ul>
+            </SidebarThreadDisclosure>
+          </li>
+        {/if}
+      {/each}
     </ul>
   {/if}
   <SidebarSnoozedThreads

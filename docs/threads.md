@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-27): web, desktop, iOS i Android pozwalają ustawić sekcję Working
+na górze lub na dole aktywnej części listy wątków. Domyślna pozycja to dół.
+
 Status (2026-11-26): w web i desktop gałąź wątków bocznych rozwija się i zwija
 przez animację toru siatki CSS bez synchronicznego pomiaru wysokości. Przy
 włączonym ograniczeniu ruchu gałąź przełącza się od razu.
@@ -243,7 +246,7 @@ w desktop i nie ma połączonych komputerów, wiersz pomija nazwę i ikonę komp
 Inne konfiguracje, także pojedynczy worker serwera, nadal pokazują tę informację.
 
 W webie i na desktopie Settings → Threads → Thread list zawiera sekcje **Sidebar** i **Confirmations**.
-Pierwsza ustawia grupowanie, kolejność projektów i widoczność sekcji Working na danym urządzeniu.
+Pierwsza ustawia grupowanie, kolejność projektów oraz widoczność i pozycję sekcji Working na danym urządzeniu.
 Druga określa dla całego konta, czy odpięcie, archiwizacja i usunięcie wątku wymagają potwierdzenia.
 Domyślnie Canopy pyta przed usunięciem.
 
@@ -345,6 +348,12 @@ już pracuje ponownie. Wyniki subagentów pozostają wewnątrz wątku i nie zmie
 Pytanie skierowane do użytkownika w dowolnym aktywnym dziecku nadal wyłącza całe drzewo
 z „Working”, podobnie jak nieprzeczytany wynik niepracującego wątku głównego lub bocznego
 utworzonego przez użytkownika. Samo zadanie w tle nie przesłania takiego wyniku.
+
+Po włączeniu „Working section” ustawienie „Working section position” wybiera położenie
+całej sekcji względem pozostałych aktywnych wątków, w tym Pinned i Needs attention.
+„Top” umieszcza ją na początku, a „Bottom” na końcu aktywnej części, przed Snoozed
+i archiwum. Wybór zachowuje kolejność wątków w sekcjach i jest pamiętany po wyłączeniu
+„Working section”.
 
 Nieotwarty wątek ze szkicem (lokalnym lub z innego urządzenia) ma delikatne fioletowe
 tło i obrys, także podczas najechania. Zapis, wysłanie lub usunięcie szkicu aktualizuje

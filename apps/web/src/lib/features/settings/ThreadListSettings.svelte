@@ -96,6 +96,24 @@
         onchange={(workingSection) => settings.updateSidebar({ workingSection })}
       />{/snippet}
   </PreferenceRow>
+  <PreferenceRow
+    title="Working section position"
+    changed={device.view.workingSectionPosition !== "bottom"}
+    onreset={() => device.setView({ workingSectionPosition: "bottom" })}
+  >
+    {#snippet control()}<div class="w-48 max-w-full">
+        <Select
+          aria-label="Working section position"
+          value={device.view.workingSectionPosition}
+          options={[
+            { value: "top", label: "Top" },
+            { value: "bottom", label: "Bottom" },
+          ]}
+          onchange={(value) => device.setView({ workingSectionPosition: value === "top" ? "top" : "bottom" })}
+          disabled={!settings.sidebar.workingSection}
+        />
+      </div>{/snippet}
+  </PreferenceRow>
 </SettingsGroup>
 <SettingsGroup title="Confirmations" description="Account">
   {#each confirmations as preference (preference.key)}
