@@ -26,6 +26,7 @@ Aktualizacja (2026-11-26): web/desktop i mobile uruchamiają instalatory w termi
 Po wykryciu skilla web/desktop otwiera ten sam przegląd co dla kopii z zakładki **Computers**.
 Aktualizacja (2026-11-26): web/desktop pokazuje przy skillu przyczynę konfliktu
 i pozwala wybrać kopię z poziomu biblioteki.
+Aktualizacja (2026-11-27): podgląd skilla ponawia odczyt, gdy zmieni się raport z bieżącego połączenia.
 Dostępność w kanałach nightly/beta/stable wynika z wydań ([release.md](release.md)).
 Settings → **Agent environment** zarządza oczekiwanym stanem
 instrukcji, umiejętności i pluginów na komputerach właściciela. Ustawienia należą
@@ -472,7 +473,9 @@ której metadanych nie udało się sprawdzić w budżecie skanu.
 
 Import korzysta z `PreviewWorkerSkill` i capability `agent_local_skill_import_v1`.
 Gateway sprawdza właściciela, bieżące połączenie, rewizję raportu i token wybranej
-kopii. Worker ustala ścieżkę z własnej inwentaryzacji i sprawdza, czy wpis nie zmienił
+kopii. Jeśli raport zmieni się podczas odczytu na tym samym połączeniu, gateway
+raz ponawia odczyt i sprawdza rewizję oraz token z pierwotnego żądania.
+Worker ustala ścieżkę z własnej inwentaryzacji i sprawdza, czy wpis nie zmienił
 się przed odczytem lub w jego trakcie. Dowiązanie na poziomie skilla może prowadzić
 do folderu w znanym katalogu skilli CLI. Dowiązania wewnątrz skilla są odrzucane.
 Odczyt korzysta z limitów artefaktu skilla.
