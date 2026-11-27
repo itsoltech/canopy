@@ -135,4 +135,34 @@ describe.skipIf(!dockerAvailable)("notice replication source triggers", () => {
     expect(await changes(thread, deleted)).toEqual([]);
     expect(await query(`SELECT seq FROM thread_events WHERE thread_id=$1`, [thread])).toEqual([]);
   });
+
+  test("a worker heartbeat queues no thread change; other worker changes still fan out", async () => {
+    const w = await world();
+    const thread = await mainThread(w);
+    await seed(thread);
+
+    const workerChanges = (after: string) =>
+      query<{ entity_kind: string }>(
+        `SELECT entity_kind FROM computer_thread_changes WHERE owner_user_id=$1 AND revision>$2 AND entity_id=$3`,
+        [w.user, after, w.worker],
+      );
+
+    const head = async () =>
+      (
+        await query<{ version: string }>(
+          `SELECT change_version::text AS version FROM thread_replication_clock WHERE thread_id=$1`,
+          [thread],
+        )
+      )[0]!.version;
+
+    const before = await revision(thread);
+    const version = await head();
+    await query(`UPDATE workers SET last_seen_at=now() WHERE id=$1`, [w.worker]);
+    expect(await workerChanges(before)).toEqual([]);
+    expect(await head()).toBe(version);
+
+    await query(`UPDATE workers SET last_seen_at=now(), name='renamed' WHERE id=$1`, [w.worker]);
+    expect(await workerChanges(before)).toEqual([{ entity_kind: "workers" }]);
+    expect(await head()).not.toBe(version);
+  });
 });
