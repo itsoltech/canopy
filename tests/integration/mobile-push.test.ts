@@ -20,7 +20,14 @@ import { relayPush } from "../../apps/gateway/src/push/relay.ts";
 import { EnrollmentStore } from "../../apps/push-relay/src/enrollment-store.ts";
 import { serveRelay } from "../../apps/push-relay/src/server.ts";
 import { eventually, failure, SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
-import { finishPushThread, openPreview, readPush, relayCertificate, relayFixture } from "./support/mobile-push.ts";
+import {
+  finishPushThread,
+  openPreview,
+  readPush,
+  relayCertificate,
+  relayFixture,
+  seedBotPushes,
+} from "./support/mobile-push.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 
 const transport = nodePinnedTransport();
@@ -70,42 +77,6 @@ function phoneProof(token: string, challenge: string) {
     .digest("base64url");
 
   return `test-proof.${digest}`;
-}
-
-async function seedBotPushes(gateway: TestGateway) {
-  const query = gateway.core.linkedAgents.query.bind(gateway.core.linkedAgents);
-  const botId = crypto.randomUUID();
-  const turnId = crypto.randomUUID();
-  const approvalId = crypto.randomUUID();
-  await query(
-    `INSERT INTO bots (id, owner_user_id, client_request_id, configuration, provider, provider_instance)
-      VALUES ($1::uuid, $2::uuid, 'push-bot', '{"name":"Private bot"}', 'codex', 'native')`,
-    [botId, gateway.userId],
-  );
-  await query(
-    `INSERT INTO bot_turns (id, bot_id, client_request_id, input, status)
-      VALUES ($1::uuid, $2::uuid, 'push-turn', '', 'waiting')`,
-    [turnId, botId],
-  );
-
-  const [message] = await query<{ seq: string }>(
-    `INSERT INTO bot_messages (id, bot_id, turn_id, message_key, sender_id, recipient_id, text)
-      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'push-message', $1::uuid::text, 'user', 'Private message') RETURNING seq`,
-    [botId, turnId],
-  );
-
-  await query(
-    `INSERT INTO bot_tool_calls (id, turn_id, call_key, tool, arguments)
-      VALUES ($1::uuid, $2::uuid, 'push-question', '{}', '{}')`,
-    [approvalId, turnId],
-  );
-  await query(
-    `INSERT INTO bot_approvals (id, bot_id, turn_id, kind, prompt, expires_at)
-      VALUES ($1::uuid, $2::uuid, $3::uuid, 'question', 'Private question', now() + interval '1 day')`,
-    [approvalId, botId, turnId],
-  );
-
-  return { botId, approvalId, seq: BigInt(message!.seq) };
 }
 
 describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () => {

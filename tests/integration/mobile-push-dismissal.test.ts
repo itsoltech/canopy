@@ -8,7 +8,7 @@ import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { mountMobileNetwork } from "../../apps/gateway/src/network/devices.ts";
 import { NetworkAccess } from "../../apps/gateway/src/network/network.ts";
 import { SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
-import { finishPushThread, openBadge, relayFixture } from "./support/mobile-push.ts";
+import { finishPushThread, openBadge, relayFixture, seedBotPushes } from "./support/mobile-push.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
 
 const transport = nodePinnedTransport();
@@ -49,6 +49,12 @@ describe.skipIf(!dockerAvailable)("silent dismissal of pushes read on another de
   async function readThread(threadId: string) {
     const { thread } = await gw.api.getThread({ threadId });
     await gw.api.markThreadSeen({ threadId, upToSeq: thread!.lastSeq });
+  }
+
+  /** Moves a phone's throttle into the past instead of waiting it out. */
+  async function clearThrottle() {
+    await query("UPDATE mobile_push_subscriptions SET last_dismissal_at = now() - interval '1 minute'");
+    await query("UPDATE mobile_push_outbox SET dismiss_at = now() WHERE dismiss_at IS NOT NULL");
   }
 
   async function dismissalsAfter(run: () => Promise<void>) {
@@ -103,17 +109,57 @@ describe.skipIf(!dockerAvailable)("silent dismissal of pushes read on another de
       const second = await deliveredThread();
       expect(await dismissalsAfter(() => readThread(second.threadId))).toEqual([]);
 
-      // Move the throttle into the past instead of waiting it out.
-      const later = await dismissalsAfter(async () => {
-        await query("UPDATE mobile_push_subscriptions SET last_dismissal_at = now() - interval '1 minute'");
-        await query("UPDATE mobile_push_outbox SET dismiss_at = now() WHERE dismiss_at IS NOT NULL");
-      });
+      const later = await dismissalsAfter(clearThrottle);
 
       const laterIos = later.find((dismissal) => dismissal.token === ios.expoToken)!;
       // The earlier receipt rides along in case iOS dropped or coalesced the first silent push.
       expect(laterIos.receiptIds).toEqual([second.receipt(ios.expoToken), first.receipt(ios.expoToken)]);
     } finally {
       await Promise.all([ios.api.unpairMobileDevice({}), android.api.unpairMobileDevice({})]);
+    }
+  }, 30_000);
+
+  test("a settled thread request and bot question dismiss their pushes, an unread bot message stays", async () => {
+    const ios = await subscribedPhone("ios");
+
+    try {
+      const { threadId, receipt } = await deliveredThread();
+      await dismissalsAfter(() => readThread(threadId));
+      const requestId = crypto.randomUUID();
+      const request = JSON.stringify({ questions: [{ id: "q", question: "Proceed?", options: [] }] });
+      await query(
+        `INSERT INTO interaction_requests(id, thread_id, kind, request, routed_to)
+          VALUES ($1::uuid, $2::uuid, 'question', $3::jsonb, 'human')`,
+        [requestId, threadId, request],
+      );
+      const { approvalId } = await seedBotPushes(gw);
+      await gw.core.mobilePush.dispatch();
+
+      const rows = await query<{ id: string; event_kind: string }>(
+        "SELECT id, event_kind FROM mobile_push_outbox WHERE device_id = $1::uuid AND ticket_id IS NOT NULL",
+        [ios.deviceId],
+      );
+
+      const pushed = (kind: string) => rows.find((row) => row.event_kind === kind)!.id;
+      expect(rows.map((row) => row.event_kind).toSorted()).toEqual(["approval", "interaction", "message", "turn"]);
+
+      const sent = await dismissalsAfter(async () => {
+        await query("UPDATE interaction_requests SET status = 'expired', answered_at = now() WHERE id = $1::uuid", [
+          requestId,
+        ]);
+        await query("UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE id = $1::uuid", [
+          approvalId,
+        ]);
+        await clearThrottle();
+      });
+
+      expect(sent).toHaveLength(1);
+      const [interaction, approval] = [pushed("interaction"), pushed("approval")];
+      expect(sent[0]!.receiptIds.slice(0, 2).toSorted()).toEqual([interaction, approval].toSorted());
+      // The turn dismissed earlier rides along; the unread bot message is not listed.
+      expect(sent[0]!.receiptIds.slice(2)).toEqual([receipt(ios.expoToken)]);
+    } finally {
+      await ios.api.unpairMobileDevice({});
     }
   }, 30_000);
 

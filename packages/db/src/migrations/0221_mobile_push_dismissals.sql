@@ -24,10 +24,14 @@ BEGIN
     UPDATE mobile_push_outbox SET dismiss_at = clock_timestamp()
       WHERE destination_id = NEW.id AND owner_user_id = NEW.owner_user_id AND event_kind = 'message'
         AND attempts > 0 AND dismiss_at IS NULL AND dismissed_at IS NULL;
+  -- Each branch names only its own table's columns: PL/pgSQL resolves NEW fields per statement.
+  ELSIF event_type = 'interaction' THEN
+    UPDATE mobile_push_outbox SET dismiss_at = clock_timestamp()
+      WHERE destination_id = NEW.thread_id AND event_kind = 'interaction' AND event_id = NEW.id
+        AND attempts > 0 AND dismiss_at IS NULL AND dismissed_at IS NULL;
   ELSE
     UPDATE mobile_push_outbox SET dismiss_at = clock_timestamp()
-      WHERE destination_id = CASE WHEN event_type = 'interaction' THEN NEW.thread_id ELSE NEW.bot_id END
-        AND event_kind = event_type AND event_id = NEW.id
+      WHERE destination_id = NEW.bot_id AND event_kind = 'approval' AND event_id = NEW.id
         AND attempts > 0 AND dismiss_at IS NULL AND dismissed_at IS NULL;
   END IF;
   RETURN NULL;
