@@ -21,6 +21,7 @@
   import ScheduleOrigin from "#lib/features/schedules/ScheduleOrigin.svelte";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
+  import { showsWorker } from "#lib/features/overview/workers.ts";
   import { needsYou, workState } from "#lib/features/threads/activity.ts";
   import { formatCount } from "#lib/shared/format.ts";
 
@@ -75,16 +76,7 @@
 
   const branch = $derived(groupedWorktree ? "" : row.branch);
 
-  const showWorker = $derived(
-    !(
-      worker?.desktopBundled &&
-      !worker.revokedAt &&
-      !worker.nodeId &&
-      !thread.nodeId &&
-      overview.computers.size === 0 &&
-      overview.workers.filter((candidate) => !candidate.revokedAt).length === 1
-    ),
-  );
+  const showWorker = $derived(showsWorker(thread, worker, overview.workers, overview.computers.size));
 
   const inlineProvider = $derived(groupedWorktree && !showWorker);
   const draft = threadDraftPresence(() => thread.id);

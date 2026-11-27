@@ -51,11 +51,6 @@ export const activityNotchMotionStyles = `
     opacity: 0;
     pointer-events: none;
   }
-  .spinner {
-    animation: spin var(--spin-duration) linear infinite;
-    animation-play-state: paused;
-  }
-  .active > .spinner { animation-play-state: running; }
   @keyframes spin { to { rotate: 1turn; } }
   .count {
     grid-column: 3;
@@ -194,7 +189,7 @@ export const activityNotchMotionStyles = `
     }
     .panel, .row, .notch:not([data-active]) .wing { filter: none; scale: 1; translate: 0 0; }
     .notch-toggle:active .wing { transform: none; }
-    .spinner, .count-in, .count-out, .status.active[data-state="working"] { animation: none; }
+    .count-in, .count-out, .status.active[data-state="working"] { animation: none; }
     .count-out { display: none; }
   }
 `;

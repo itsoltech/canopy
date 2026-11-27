@@ -100,7 +100,7 @@ function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: 
   const compact = Math.max(200, cutout ? Math.ceil(cutout.width) + 2 : 0) + 80;
   // The window keeps the open panel's left edge and width, so the notch never shifts sideways.
   const width = Math.min(area.width, Math.max(480, compact) + 16);
-  const height = headerHeight + (rows ? Math.min(rows, 7) * 32 + 8 : 0);
+  const height = headerHeight + (rows ? Math.min(rows, 5) * 72 + 8 : 0);
   const x = Math.min(area.x + area.width - width, Math.max(area.x, Math.round(center - width / 2)));
 
   assertDimension("top", native.y, mac ? bounds.y : workArea.y);
@@ -174,6 +174,8 @@ function botItem(name: string, color: string) {
     staleBotHomes: new Set(),
     botExecuting: () => false,
     markForProject: () => undefined,
+    projectOf: () => undefined,
+    workerOf: () => undefined,
     now: 0,
   });
 
@@ -330,8 +332,9 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   await waitForRows(overlay, ["Open Review <desktop> & restore focus, Working"]);
 
   const renderedTitle = await overlay.webContents.executeJavaScript(`(() => {
-    const label = document.querySelector(".row .truncate");
-    return { text: label.textContent, tooltip: label.title, children: label.childElementCount };
+    const title = document.querySelector(".row .row-title");
+    const label = title.querySelector(".swap-layer:not([data-leaving])");
+    return { text: label.textContent, tooltip: title.title, children: label.childElementCount };
   })()`);
 
   assert.deepEqual(renderedTitle, { text: renamed.title, tooltip: renamed.title, children: 0 });

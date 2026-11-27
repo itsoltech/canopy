@@ -5,9 +5,12 @@ export const activityNotchSimulatedHeight = 32;
 export const activityNotchWingWidth = 40;
 export const activityNotchEarWidth = 8;
 export const activityNotchExpandedWidth = 480;
-export const activityNotchRowHeight = 32;
+
+/** Three lines, as in the sidebar: project, title, then worker, branch and provider. */
+export const activityNotchRowHeight = 72;
+
 export const activityNotchBottomInset = 8;
-export const activityNotchVisibleRows = 7;
+export const activityNotchVisibleRows = 5;
 
 export interface ActivityNotchCutout {
   center: number;

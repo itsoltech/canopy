@@ -1,10 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { motion } from "@canopy/ui";
-import { activityNotchLogoSize } from "@canopy/ui/desktop";
 import { icons, iconStyle } from "@canopy/ui/icons";
-import { threadSpinner } from "@canopy/ui/thread-row";
 import { activityNotchMotionScript } from "./activity-notch-motion-script.ts";
 import { activityNotchMotionStyles } from "./activity-notch-motion-styles.ts";
+import {
+  activityNotchProgressGlyph,
+  activityNotchProgressScript,
+  activityNotchProgressStyles,
+} from "./activity-notch-progress.ts";
+import { activityNotchRowScript } from "./activity-notch-row-script.ts";
+import { activityNotchRowStyles } from "./activity-notch-row-styles.ts";
 import { activityNotchPanelDelay, activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
 
@@ -16,26 +21,22 @@ const statuses = {
   completed: { label: "Completed", one: "completed", many: "completed" },
 } satisfies Record<ActivityNotchRow["state"], { label: string; one: string; many: string }>;
 
-// The same marks as the thread list: a raised hand when someone has to act, the shared ring while working.
+// The same marks as the thread list: a raised hand when someone has to act. Working and completed share one badge
+// that morphs from the ring into the check (activity-notch-progress.ts).
 const activityGlyphs = {
   approval: icons["hand-raised"],
   answer: icons["hand-raised"],
   failed: icons["x-circle"],
-  working: [],
-  completed: icons["check-circle"],
-} satisfies Record<ActivityNotchRow["state"], readonly string[]>;
-
-const { center, radius: ring, strokeWidth, trackOpacity, path } = threadSpinner;
-const spinner = `<svg class="spinner" viewBox="${threadSpinner.viewBox}" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round"><circle cx="${center}" cy="${center}" r="${ring}" opacity="${trackOpacity}"/><path d="${path}"/></svg>`;
+} satisfies Partial<Record<ActivityNotchRow["state"], readonly string[]>>;
 
 const glyphs = Object.entries(activityGlyphs)
-  .map(([state, paths]) => {
-    const icon = paths.length
-      ? `<svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg>`
-      : spinner;
-
-    return `<span class="state-layer" data-state="${state}">${icon}</span>`;
-  })
+  .map(
+    ([state, paths]) =>
+      `<span class="state-layer" data-state="${state}"><svg viewBox="${iconStyle.viewBox}" fill="none" stroke="currentColor" stroke-width="${iconStyle.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths.map((d) => `<path d="${d}"/>`).join("")}</svg></span>`,
+  )
+  .concat(
+    `<span class="state-layer" data-state="working" data-states="working completed">${activityNotchProgressGlyph}</span>`,
+  )
   .join("")
   .concat('<span class="ping"></span>');
 
@@ -55,12 +56,10 @@ const script = `
   const leavingRows = document.querySelector(".leaving-rows");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const statuses = ${JSON.stringify(statuses)};
-  const logoSize = ${activityNotchLogoSize};
-  const logoBytes = logoSize * logoSize * 4;
-  const encodedLogoLength = Math.ceil(logoBytes / 3) * 4;
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
 ${activityNotchMotionScript}
+${activityNotchProgressScript}
   const rowAnimations = new Set();
   let collapseTimer;
   let openedByHover = false;
@@ -106,79 +105,7 @@ ${activityNotchMotionScript}
     });
   }
 
-  function createRow(id) {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    const badge = document.createElement("span");
-    const label = document.createElement("span");
-    const status = document.createElement("span");
-    button.type = "button";
-    button.className = "row";
-    badge.className = "row-mark";
-    badge.hidden = true;
-    badge.setAttribute("aria-hidden", "true");
-    label.className = "truncate";
-    label.dir = "auto";
-    status.className = "row-status";
-    status.setAttribute("aria-hidden", "true");
-    for (const [state, { label }] of Object.entries(statuses)) {
-      const layer = document.createElement("span");
-      layer.className = "status state-layer";
-      layer.dataset.state = state;
-      layer.textContent = label;
-      status.append(layer);
-    }
-    button.append(badge, label, status);
-    item.append(button);
-    button.addEventListener("click", () => bridge.open(id));
-    return { item, button, badge, label, status };
-  }
-
-  function projectLogo(pixels) {
-    if (pixels?.length !== encodedLogoLength) return;
-
-    let decoded;
-    try {
-      decoded = atob(pixels);
-    } catch {
-      return;
-    }
-    if (decoded.length !== logoBytes) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = logoSize;
-    canvas.height = logoSize;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    const rgba = Uint8ClampedArray.from(decoded, (byte) => byte.charCodeAt(0));
-    context.putImageData(new ImageData(rgba, logoSize, logoSize), 0, 0);
-    return canvas;
-  }
-
-  function updateRowMark(view, mark, mascot) {
-    const previous = view.projectMark;
-    if (
-      view.botMascot === mascot &&
-      previous?.initials === mark?.initials &&
-      previous?.foreground === mark?.foreground &&
-      previous?.background === mark?.background &&
-      previous?.pixels === mark?.pixels
-    ) return;
-
-    const image = mascot ? document.createElement("img") : projectLogo(mark?.pixels);
-    if (mascot) {
-      image.alt = "";
-      image.src = mascot;
-    }
-    view.badge.replaceChildren(image ?? mark?.initials ?? "");
-    view.badge.style.color = mark?.foreground ?? "";
-    view.badge.style.backgroundColor = image ? "" : mark?.background ?? "";
-    view.badge.hidden = !mark && !mascot;
-    view.projectMark = mark;
-    view.botMascot = mascot;
-  }
-
+${activityNotchRowScript}
   function animateRow(item, frames, duration, delay = 0) {
     const animation = item.animate(frames, {
       duration, delay, fill: "backwards", easing: "cubic-bezier(${motion.smoothOut.join(", ")})",
@@ -250,7 +177,7 @@ ${activityNotchMotionScript}
     }
 
     let nextItem = list.firstElementChild;
-    for (const [index, { id, label, state, projectMark, botMascot }] of rows.entries()) {
+    for (const [index, { id, label, meta, state, projectMark, botMascot }] of rows.entries()) {
       const existing = rowViews.get(id);
       const view = existing ?? createRow(id);
       rowViews.set(id, view);
@@ -258,13 +185,12 @@ ${activityNotchMotionScript}
       if (view.item.style.getPropertyValue("--i") !== String(index)) view.item.style.setProperty("--i", String(index));
       const status = statuses[state].label;
       updateRowMark(view, projectMark, botMascot);
-      if (view.label.textContent !== label) {
-        view.label.textContent = label;
-        view.label.title = label;
-      }
+      // A new title or branch in a row already shown swaps like its status; a new row shows them at once.
+      setTitle(view, label, Boolean(existing));
+      updateRowMeta(view, meta, Boolean(botMascot), Boolean(existing));
       showState(view.status.children, state, existing && "text");
-      const project = projectMark ? ", project " + projectMark.initials : "";
-      const accessibleLabel = "Open " + label + project + ", " + status;
+      const project = meta?.project || projectMark?.initials ? ", project " + (meta?.project || projectMark.initials) : "";
+      const accessibleLabel = "Open " + label + project + placeDescription(meta) + ", " + status;
       if (view.button.getAttribute("aria-label") !== accessibleLabel) {
         view.button.setAttribute("aria-label", accessibleLabel);
       }
@@ -338,7 +264,7 @@ export function activityNotchPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
-  <style nonce="${nonce}">${activityNotchStyles}${activityNotchMotionStyles}</style>
+  <style nonce="${nonce}">${activityNotchStyles}${activityNotchRowStyles}${activityNotchMotionStyles}${activityNotchProgressStyles}</style>
 </head>
 <body>
   <main class="notch" data-open="false">

@@ -27,7 +27,6 @@ export const activityNotchStyles = `
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
-    --row-mark-size: 20px;
     --bottom-inset: ${activityNotchBottomInset}px;
     --type-compact: 0.8125rem;
     --type-meta: 0.71875rem;
@@ -169,8 +168,8 @@ export const activityNotchStyles = `
     padding: 0;
     overflow: auto;
     overscroll-behavior: contain;
+    /* No reserved gutter: the rows keep the same inset on the sides as at the bottom. */
     scrollbar-color: var(--border) transparent;
-    scrollbar-gutter: stable both-edges;
     scrollbar-width: thin;
     list-style: none;
   }
@@ -183,48 +182,6 @@ export const activityNotchStyles = `
     pointer-events: none;
   }
   .leaving-rows > li { position: absolute; background: #000; }
-  .row {
-    display: grid;
-    grid-template-columns: [mark] var(--row-mark-size) [label] minmax(0, 1fr) [status] auto;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    height: var(--row-height);
-    padding: 0 8px;
-    border-radius: var(--radius-md);
-    text-align: start;
-    font-variant-numeric: tabular-nums;
-  }
-  @media (hover: hover) {
-    .row:hover { background-color: color-mix(in srgb, var(--ink) 8%, transparent); }
-  }
-  .row:active {
-    background-color: color-mix(in srgb, var(--ink) 12%, transparent);
-    scale: ${motion.scale.tiny};
-  }
-  .row-mark:not([hidden]) {
-    grid-column: mark;
-    display: grid;
-    place-items: center;
-    width: var(--row-mark-size);
-    height: var(--row-mark-size);
-    overflow: hidden;
-    border-radius: 0.3125rem;
-    font: 700 0.5625rem / 1 ui-monospace, monospace;
-    letter-spacing: -0.025em;
-  }
-  .row-mark canvas, .row-mark img {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  .truncate {
-    grid-column: label;
-    color: color-mix(in srgb, var(--ink) 92%, transparent);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   [data-state="working"] { --indicator: ${workingColors.dark.text}; }
   [data-state="approval"], [data-state="answer"] { --indicator: ${palette.amber[400]}; }
   [data-state="completed"] { --indicator: ${palette.emerald[400]}; }
@@ -243,6 +200,5 @@ export const activityNotchStyles = `
     [data-animate][data-shrinking] .notch-body {
       transition: none;
     }
-    .row:active { scale: 1; }
   }
 `;

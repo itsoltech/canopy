@@ -11,12 +11,15 @@ instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok s
 Status (2026-11-27): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
 odsłania wiersze kolejno, gdy obrys do nich dorasta, i rozpoczyna ich wygaszanie
-przed zwijaniem obrysu. Zmiany liczby, stanów aktywności i kolejności wierszy
-przechodzą przez krótkie rozmycie.
+przed zwijaniem obrysu. Zmiany liczby, stanów aktywności, tytułów, gałęzi
+i kolejności wierszy przechodzą przez krótkie rozmycie. Po zakończeniu pracy
+pierścień ikony zamienia się w zielony znacznik ukończenia.
 Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
-Ikony stanów i kolory etykiet odpowiadają liście wątków.
-Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów.
-Wiersze botów pokazują ich nazwy i maskotki.
+Ikony próśb i błędów oraz kolory etykiet odpowiadają liście wątków.
+Wiersze rozwiniętej listy wyglądają jak wiersze wątków w pasku bocznym: projekt
+ze znakiem i etykietą stanu, tytuł, a pod nim worker, gałąź i znak dostawcy.
+Wiersze mają ten sam odstęp od boków i dołu wycięcia. Wiersze botów pokazują
+ich nazwy i maskotki.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
@@ -468,14 +471,15 @@ ekranu również wtedy, gdy Canopy ma fokus. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
-dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Ikona ma kolor
-stanu, a liczba kolor tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
+dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Ukończoną pracę
+oznacza zielone koło z czarnym znacznikiem. Ikona ma kolor stanu, a liczba kolor
+tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
 tego stanu; przy trwającej pracy przesuwa się po niej powolny refleks światła,
 jak w etykietach na żywo w aplikacji. Najechanie kursorem lub kliknięcie rozwija
 obrys bez odbicia poza docelowy rozmiar okna, a jego dolne rogi zaokrąglają się
 mocniej. Wiersze wysuwają się spod nagłówka z rozmyciem, jeden po drugim, gdy
 obrys do nich dorasta; od piątego wiersza kolejne dołączają razem z nim, a wiersz
-dodany poniżej widocznej listy czeka, aż obrys zrobi mu miejsce. Powyżej siedmiu
+dodany poniżej widocznej listy czeka, aż obrys zrobi mu miejsce. Powyżej pięciu
 wierszy listę można przewijać, do 24 pozycji.
 Lista zachowuje szerokość i położenie rozwiniętej nakładki, więc ruch krawędzi
 nie skraca tytułów. Po odsunięciu kursora lista zaczyna wygasać, a obrys rusza
@@ -484,8 +488,14 @@ dotarciem krawędzi. Ponowne najechanie w trakcie zwijania odwraca ruch od bież
 kształtu. W rozwiniętej liście nowe i usuwane wiersze zmieniają przezroczystość,
 a pozostałe przesuwają się na nowe miejsca. Przy zmianie stanu ikona wyłania się
 z rozmycia, na chwilę przekracza pełny rozmiar, a od niej rozchodzi się pierścień
-w kolorze nowego stanu. Stara etykieta stanu odpływa w górę z rozmyciem, a nowa
-wchodzi od dołu. W liczniku animują się tylko zmienione cyfry: stara odchodzi
+w kolorze nowego stanu. Przejście z pracy do ukończenia nie podmienia ikony,
+tylko ją przekształca: łuk pierścienia staje i gaśnie, w jego miejscu pojawia się
+zielone koło, a znacznik rysuje się, zanim koło nabierze pełnego koloru. Ikona
+przy tym lekko podskakuje i rośnie, na moment się rozmywając. Powrót do pracy
+odwraca te warstwy krócej. Ukończenie po innym stanie pokazuje znacznik od razu,
+z podmianą jak przy innych stanach. Stara etykieta stanu odpływa w górę
+z rozmyciem, a nowa wchodzi od dołu; tak samo zmieniają się tytuł i gałąź
+wiersza, który już jest na liście. W liczniku animują się tylko zmienione cyfry: stara odchodzi
 z rozmyciem w kierunku zmiany, nowa wskakuje z lekkim sprężynowaniem, kolejno
 od lewej. Pojawiające się wycięcie wyostrza skrzydła z rozmycia. Systemowe
 ograniczenie ruchu wyłącza animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno i otwiera
@@ -495,15 +505,25 @@ głównego okna od razu usuwa nakładkę.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
-Rozwinięta lista pokazuje bieżący tytuł wątku z listy Threads. Wątek bez tytułu
-ma etykietę **Untitled thread**. Obok tytułu pojawia się logo projektu lub
-inicjały w kolorach z listy wątków. Wiersz bota pokazuje jego bieżącą nazwę
-i statyczną maskotkę odpowiadającą małemu awatarowi w rozmowach botów.
-Jeśli brakuje nazwy, wiersz ma etykietę **Bot**. Długie tytuły i nazwy mieszczą
-się w jednym wierszu, a pełną wersję zachowują podpowiedź i nazwa dostępna
-przycisku. Okno dostaje identyfikator wiersza, etykietę, stan i obraz maskotki
-lub znak projektu, jeśli wiersz go ma. Logo trafia do nakładki jako miniatura
-36 × 36 pikseli. Pełne nazwy projektów i treść rozmów pozostają poza nakładką. Trasy
+Wiersz wątku ma układ wiersza z paska bocznego. Pierwsza linia to logo projektu
+lub inicjały w kolorach z listy wątków, nazwa projektu i etykieta stanu; wątek bez
+znaku projektu ma przerywany kwadrat jak w pasku bocznym. Druga linia to bieżący
+tytuł wątku; wątek bez tytułu ma etykietę **Untitled thread**. Trzecia linia
+pokazuje workera i katalog, gałąź worktree lub checkoutu oraz znak dostawcy
+agenta, z tymi samymi regułami co pasek boczny: nazwa workera znika, gdy jedynym
+workerem jest wbudowany worker aplikacji desktopowej, a długa gałąź traci środek
+i zachowuje końcówkę. Wątek z połączonego komputera, którego workera nie ma na
+liście, pokazuje nazwę komputera. Linia bez żadnej z tych informacji znika,
+a pozostałe linie zostają wyśrodkowane w pionie. Lista nie rezerwuje miejsca na
+pasek przewijania, więc wiersze mają ten sam odstęp od boków i dołu. Wiersz bota pokazuje w pierwszej linii
+statyczną maskotkę odpowiadającą małemu awatarowi w rozmowach botów i słowo
+**Bot**, a w drugiej jego bieżącą nazwę.
+Jeśli brakuje nazwy, wiersz ma etykietę **Bot**. Długie tytuły, nazwy projektów,
+workerów i gałęzi mieszczą się każde w jednej linii, a pełną wersję zachowują
+podpowiedź i nazwa dostępna przycisku. Okno dostaje identyfikator wiersza,
+etykietę, stan, obraz maskotki lub znak projektu, jeśli wiersz go ma, a dla
+wątku nazwę projektu, workera, katalog, gałąź i dostawcę. Logo trafia do nakładki jako miniatura
+36 × 36 pikseli. Treść rozmów pozostaje poza nakładką. Trasy
 rozmów zostają w procesie głównym. Przy utracie połączenia lub zmianie gatewaya
 Canopy czyści dostępne pozycje. Powiadomienia systemowe i ich preferencje
 działają niezależnie.

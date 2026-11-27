@@ -25,11 +25,11 @@ test("macOS centers the wings around a scaled physical cutout and caps the expan
     headerHeight: 39,
   });
   expect(activityNotchGeometry(display, 1, { cutout })).toEqual({
-    bounds: { x: 510, y: 0, width: 496, height: 79 },
+    bounds: { x: 510, y: 0, width: 496, height: 119 },
     headerHeight: 39,
   });
   expect(activityNotchGeometry(display, 24, { cutout })).toEqual({
-    bounds: { x: 510, y: 0, width: 496, height: 271 },
+    bounds: { x: 510, y: 0, width: 496, height: 407 },
     headerHeight: 39,
   });
   expect(activityNotchGeometry({ bounds, workArea: bounds }, 0, { cutout }).headerHeight).toBe(38);
@@ -45,7 +45,7 @@ test("Windows attaches to the display edge or the occupied top taskbar boundary"
     headerHeight: 32,
   });
   expect(activityNotchGeometry({ bounds, workArea: topTaskbar }, 2)).toEqual({
-    bounds: { x: 712, y: 176, width: 496, height: 104 },
+    bounds: { x: 712, y: 176, width: 496, height: 184 },
     headerHeight: 32,
   });
 });
