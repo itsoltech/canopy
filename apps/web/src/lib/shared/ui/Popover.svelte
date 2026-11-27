@@ -33,7 +33,7 @@
   import { autoPosition, focusables, positionNow, type Placement } from "./floating.ts";
   import { exitDuration } from "./motion.ts";
   import OverlayScope from "./OverlayScope.svelte";
-  import { popoverMorph } from "./popover-morph.ts";
+  import { openedByPress, popoverMorph } from "./popover-morph.ts";
   import SheetHandle from "./SheetHandle.svelte";
 
   /**
@@ -41,8 +41,9 @@
    * `floating.ts` (flips and shifts to stay on screen). Escape, a click outside and focus leaving it
    * close it. On open, focus goes to the first `[data-autofocus]` inside, else the first focusable
    * element, else the panel; on close it returns to the trigger. With `sheet` it is a bottom sheet on
-   * phones (with a drag handle). The trigger morphs into the panel and the panel back into it (popover-morph.ts;
-   * `morph={false}`, sheets and reduced motion keep the plain grow and fade of motion.css `t-dropdown`); content
+   * phones (with a drag handle). Opened by a press, the trigger morphs into the panel and the panel back into it
+   * (popover-morph.ts); a hover opening, `morph={false}`, sheets and reduced motion keep the plain grow and fade of
+   * motion.css `t-dropdown`. Content
    * renders while open and during that exit, inert, and `onclose` runs once it is gone. The panel is an overlay
    * (docs/ui-scale.md): its text steps are compact and kit controls inside take their compact size. The panel itself
    * mounts on the first opening (lists keep a closed popover per row).
@@ -93,7 +94,7 @@
     /** Allow the anchored panel to scroll. Otherwise its content should fit the available height. */
     scrollable?: boolean;
     focusOnOpen?: boolean;
-    /** Morph the trigger into the panel (popover-morph.ts); false for surfaces opened by hover. */
+    /** Morph the trigger into the panel when a press opens it (popover-morph.ts); false for hover-only surfaces. */
     morph?: boolean;
     /** Custom first focus (menus focus their first item); return false to fall back to the default. */
     initialFocus?: ((panel: HTMLElement) => boolean | void) | undefined;
@@ -184,7 +185,8 @@
         closing = true;
 
         // Content unmounted with `open` and comes back for the exit with `closing`: measure it after that flush.
-        if (untrack(() => morphing)) {
+        // The close follows how this opening went: a panel that opened without the morph fades out.
+        if (hidden.hasAttribute("data-morph")) {
           void tick().then(() => {
             if (!open) morpher.close(hidden, morphAnchor(), exit);
           });
@@ -209,10 +211,13 @@
     if (!panel.matches(":popover-open")) {
       // A finished close holds the panel hidden until the next morph replaces it.
       morpher.cancel();
+      // Set before showing: the attribute picks the morph or the plain fade for this opening and its close.
+      const morphs = untrack(() => morphing) && openedByPress();
+      panel.toggleAttribute("data-morph", morphs);
       panel.showPopover();
       const shown = panel;
 
-      if (untrack(() => morphing)) void tick().then(() => morphOpen(shown));
+      if (morphs) void tick().then(() => morphOpen(shown));
     }
 
     const target = panel;
@@ -343,7 +348,6 @@
     aria-label={role === "none" ? undefined : label}
     tabindex="-1"
     data-sheet={narrow || undefined}
-    data-morph={morphing || undefined}
     data-menu-panel={role === "menu" || undefined}
     inert={closing || undefined}
     style:max-height={!narrow ? maxHeight : undefined}
