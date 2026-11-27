@@ -45,7 +45,12 @@
   const directory = useThreadDirectory();
   const well = "bg-zinc-950/2.5 px-3 dark:bg-white/4";
 
-  const attached = () => (row.kind === "work-group" && row.open) || (row.kind === "timeline" && row.group === "body");
+  // A tool group's header keeps its gap open or closed; its first row is drawn up into it (`lead`), so the rows
+  // collapse under a header that stays put.
+  const attached = () => row.kind === "timeline" && row.group === "body";
+
+  const lead = (row: FeedRow) =>
+    row.kind === "timeline" && row.lead && (row.history || row.lead === "end" ? "-mt-3" : "-mt-1");
 
   const turnId = $derived.by(() => {
     if (row.kind === "work" || row.kind === "work-group" || row.kind === "answer" || row.kind === "work-gap")
@@ -122,7 +127,8 @@
 {:else if (row.kind === "timeline" || row.kind === "work" || row.kind === "work-group" || row.kind === "answer") && row.history}
   <div class={[row.last && "pb-3"]} data-turn={turnId}>
     <div class={[well, !attached() && "pb-3", row.last && "rounded-b-xl"]}>
-      <div class="opacity-90">{@render body(row)}</div>
+      <!-- Its own block context: a group's first row drawn up into its header's gap leaves this well in place. -->
+      <div class="flow-root opacity-90">{@render body(row)}</div>
     </div>
   </div>
 {:else if row.kind === "answer"}
@@ -202,7 +208,13 @@
     <AnswerSlot row={row.row} />
   {:else if row.work}
     <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
-    <div class={["ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10", !attached() && "-mb-1 pb-1"]}>
+    <div
+      class={[
+        "ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10",
+        !attached() && "-mb-1 pb-1",
+        lead(row),
+      ]}
+    >
       {#if row.group}
         <div class={[activitySurface, "activity-group-row px-2 pb-1"]} data-end={row.group === "end" || undefined}>
           <TimelineRowView row={row.row} />

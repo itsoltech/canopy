@@ -36,6 +36,11 @@ export type FeedRow =
       readonly group?: "body" | "end";
       /** The last row of an open fold: the conversation after it keeps its usual gap. */
       readonly end?: boolean;
+      /**
+       * The first row of an open tool group. Its header keeps the gap it has when closed, so the row is drawn
+       * up into that gap: the one before the fold's end (`end`) or between rows of the fold (`fold`).
+       */
+      readonly lead?: "end" | "fold";
     }
   /** Stable fold, tool group or streaming answer slot. */
   | (Extract<import("./work-groups.ts").FoldedRow, { kind: "work" | "work-group" | "answer" | "work-gap" }> & {
@@ -361,11 +366,38 @@ function shallowEqual<T extends FeedRow | TimelineRow | WorkSummary>(
 const inFold = (row: FeedRow): boolean =>
   !("history" in row && row.history) && ((row.kind === "timeline" && row.work) || row.kind === "work-group");
 
-/** Marks the last row of each open fold, so only the rows inside the fold sit close together. */
+const inGroup = (row: FeedRow | undefined): boolean => row?.kind === "timeline" && row.group !== undefined;
+
+/**
+ * Marks the last row of each open fold, so only the rows inside the fold sit close together. An open tool
+ * group's header is marked as if closed: it keeps one gap in both states, so toggling it never moves the
+ * rows under it while they collapse. The group's first row hangs up into that gap (`lead`).
+ */
 function markFoldEnds(rows: FeedRow[]): FeedRow[] {
-  return rows.map((row, index) => {
+  const ends = (index: number): boolean => {
+    const row = rows[index];
     const next = rows[index + 1];
 
-    return inFold(row) && (!next || !inFold(next)) ? { ...row, end: true } : row;
+    return row !== undefined && inFold(row) && (!next || !inFold(next));
+  };
+
+  let groupEnds = false;
+
+  return rows.map((row, index) => {
+    if (row.kind === "work-group" && row.open) {
+      let last = index;
+
+      while (inGroup(rows[last + 1])) last++;
+      groupEnds = ends(last);
+
+      return groupEnds ? { ...row, end: true } : row;
+    }
+
+    const end = ends(index);
+
+    if (row.kind === "timeline" && row.group && rows[index - 1]?.kind === "work-group")
+      return { ...row, lead: groupEnds ? "end" : "fold", ...(end && { end }) };
+
+    return end ? { ...row, end: true } : row;
   });
 }

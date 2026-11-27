@@ -74,11 +74,16 @@ function length(name: string, fallbackPx: number): number {
  * quiet fade, on --duration-fast both ways (one reversible motion). Clips only vertically, so rows that
  * bleed sideways with negative margins keep their edges while the height animates. Content that is still
  * empty when it opens (rows on their way) only fades: a height pinned at 0 would hide them until the end
- * and then snap to their full height.
+ * and then snap to their full height. `overhang`: clip only the bottom edge, so content drawn above the box
+ * (a feed row hung up into the gap of the row before it) stays in place while it collapses.
  */
 export function expand(
   node: HTMLElement,
-  { delay = 0, instantReduced = false }: { delay?: number; instantReduced?: boolean } = {},
+  {
+    delay = 0,
+    instantReduced = false,
+    overhang = false,
+  }: { delay?: number; instantReduced?: boolean; overhang?: boolean } = {},
 ): TransitionConfig {
   const ms = duration("fast");
 
@@ -92,13 +97,14 @@ export function expand(
   const padBottom = Number.parseFloat(style.paddingBottom);
   const marginTop = Number.parseFloat(style.marginTop);
   const marginBottom = Number.parseFloat(style.marginBottom);
+  const clip = overhang ? "clip-path: inset(-100vmax -100vmax 0 -100vmax)" : "overflow-x: visible; overflow-y: clip";
 
   return {
     delay,
     duration: ms,
     easing: smoothOut,
     css: (t) =>
-      `overflow-x: visible; overflow-y: clip; height: ${t * height}px; padding-top: ${t * padTop}px; padding-bottom: ${t * padBottom}px; ` +
+      `${clip}; height: ${t * height}px; padding-top: ${t * padTop}px; padding-bottom: ${t * padBottom}px; ` +
       `margin-top: ${t * marginTop}px; margin-bottom: ${t * marginBottom}px; opacity: ${t}`,
   };
 }
