@@ -125,41 +125,13 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
         }),
       ),
     outbound: (owner: string, lease: AccountLease, now: Date) =>
-      sql.withTransaction(
-        Effect.gen(function* () {
-          if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return [];
+      Effect.gen(function* () {
+        // Polled for every account several times a second: an idle account must not take row locks, which write WAL.
+        // A row added after this read is claimed on the next poll.
+        if (!(yield* outboundWork(sql, lease, now))) return [];
 
-          // Freeze the recovery set before locking bots: a newly abandoned row belongs to the next poll.
-          const candidates = yield* sql<{ id: string }>`SELECT id FROM messenger_outbound
-            WHERE account_id=${lease.accountId}::uuid AND status='sending'
-              AND lease_token IS DISTINCT FROM ${lease.token}::uuid`;
-
-          if (candidates.length)
-            yield* lockDeliveryBots(
-              sql,
-              owner,
-              lease.accountId,
-              candidates.map((row) => row.id),
-            );
-          yield* accounts.fenced(owner, lease, now);
-
-          // A previous process may have sent a message before dying. Preserve an unknown outcome without replaying it.
-          const abandoned = yield* sql<{
-            id: string;
-          }>`UPDATE messenger_outbound SET status='uncertain' WHERE account_id=${lease.accountId}::uuid
-        AND id=ANY(${candidates.map((row) => row.id)}::uuid[])
-        AND status='sending' AND lease_token IS DISTINCT FROM ${lease.token}::uuid RETURNING id`;
-
-          for (const row of abandoned) yield* deliveryNotice(sql, row.id, false);
-
-          return yield* sql<OutboundMessage>`UPDATE messenger_outbound o SET status='sending',lease_token=${lease.token}::uuid
-        WHERE o.id IN (SELECT x.id FROM messenger_outbound x
-          WHERE x.account_id=${lease.accountId}::uuid AND x.status='pending' AND x.available_at<=${now}
-          AND EXISTS (${replyRoute(sql, owner)})
-          ORDER BY x.available_at,x.id FOR UPDATE OF x SKIP LOCKED LIMIT 10)
-        RETURNING o.id,o.account_id AS "accountId",o.channel_id AS "channelId",o.thread_id AS "threadId",o.text`;
-        }),
-      ),
+        return yield* claimOutbound(sql, accounts, owner, lease, now);
+      }),
     settleOutbound: (owner: string, lease: AccountLease, id: string, result: OutboundResult, now: Date) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -198,4 +170,57 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
         }),
       ),
   };
+}
+
+/** Messages to send or to recover from an earlier process, read without locks. */
+function outboundWork(sql: SqlClient.SqlClient, lease: AccountLease, now: Date) {
+  return sql<{ due: boolean }>`SELECT EXISTS(SELECT 1 FROM messenger_outbound
+    WHERE account_id=${lease.accountId}::uuid AND ((status='pending' AND available_at<=${now})
+      OR (status='sending' AND lease_token IS DISTINCT FROM ${lease.token}::uuid))) AS due`.pipe(
+    Effect.map((rows) => rows[0]?.due === true),
+  );
+}
+
+function claimOutbound(
+  sql: SqlClient.SqlClient,
+  accounts: MessengerAccounts,
+  owner: string,
+  lease: AccountLease,
+  now: Date,
+) {
+  return sql.withTransaction(
+    Effect.gen(function* () {
+      if (!(yield* lockedOwnerModule(sql, owner, "bots"))) return [];
+
+      // Freeze the recovery set before locking bots: a newly abandoned row belongs to the next poll.
+      const candidates = yield* sql<{ id: string }>`SELECT id FROM messenger_outbound
+            WHERE account_id=${lease.accountId}::uuid AND status='sending'
+              AND lease_token IS DISTINCT FROM ${lease.token}::uuid`;
+
+      if (candidates.length)
+        yield* lockDeliveryBots(
+          sql,
+          owner,
+          lease.accountId,
+          candidates.map((row) => row.id),
+        );
+      yield* accounts.fenced(owner, lease, now);
+
+      // A previous process may have sent a message before dying. Preserve an unknown outcome without replaying it.
+      const abandoned = yield* sql<{
+        id: string;
+      }>`UPDATE messenger_outbound SET status='uncertain' WHERE account_id=${lease.accountId}::uuid
+        AND id=ANY(${candidates.map((row) => row.id)}::uuid[])
+        AND status='sending' AND lease_token IS DISTINCT FROM ${lease.token}::uuid RETURNING id`;
+
+      for (const row of abandoned) yield* deliveryNotice(sql, row.id, false);
+
+      return yield* sql<OutboundMessage>`UPDATE messenger_outbound o SET status='sending',lease_token=${lease.token}::uuid
+        WHERE o.id IN (SELECT x.id FROM messenger_outbound x
+          WHERE x.account_id=${lease.accountId}::uuid AND x.status='pending' AND x.available_at<=${now}
+          AND EXISTS (${replyRoute(sql, owner)})
+          ORDER BY x.available_at,x.id FOR UPDATE OF x SKIP LOCKED LIMIT 10)
+        RETURNING o.id,o.account_id AS "accountId",o.channel_id AS "channelId",o.thread_id AS "threadId",o.text`;
+    }),
+  );
 }

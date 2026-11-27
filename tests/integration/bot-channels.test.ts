@@ -766,6 +766,9 @@ describe.skipIf(!dockerAvailable)("durable bot messenger channels", () => {
     await query("UPDATE messenger_accounts SET connector_client_id='unrelated-client' WHERE id=$1", [f.account.id]);
     await f.dispatch(8000);
     expect(await f.turns()).toHaveLength(1);
+    // An idle poll takes no account lock; a due message still meets the mismatch before it is claimed.
+    expect(await run((s) => s.outbound(owner, f.lease, f.at(9000)))).toEqual([]);
+    await query("UPDATE messenger_outbound SET status='pending',lease_token=NULL WHERE account_id=$1", [f.account.id]);
     await expect(run((s) => s.outbound(owner, f.lease, f.at(9000)))).rejects.toThrow();
   });
 
