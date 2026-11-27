@@ -14,7 +14,7 @@ export interface SidebarUsageAccount {
 export interface UsageGlance {
   readonly provider: Provider;
   readonly name: string;
-  /** Share of the most restrictive window still available, 0–100. */
+  /** Share of the main (longest general) window still available, 0–100; `tone` covers a binding shorter one. */
   readonly percentLeft: number | undefined;
   readonly tone: UsageTone;
   readonly label: string;

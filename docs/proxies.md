@@ -320,12 +320,18 @@ klawiaturą odsłania wartość na 30 s; Escape ukrywa ją od razu. Rozmycie nie
 szerokości tekstu, a ukryta wartość nie trafia do tytułu ani etykiety dostępności.
 Tożsamość konta jest wyśrodkowana w pionie względem znaku providera; ukrycie
 i odsłonięcie wartości zachowuje to samo wyrównanie, także po skróceniu długiej nazwy.
-Popover **Provider usage** to proste podsumowanie: jeden wiersz na providera ze znakiem,
-nazwą, procentem pozostałej (ważonej) pojemności, jednym paskiem i najbliższym resetem
-(`@canopy/domain/usage-summary`). Konta z używanych proxy i bezpośrednie instancje łączą się
-w jednym wierszu; dla każdego okna zostaje niższy odczyt. Krótsze okno (np. 5-hour) pojawia
-się w tym samym wierszu tylko wtedy, gdy ogranicza bardziej niż główne. Niska pojemność to
-kolor liczby i paska oraz jedno słowo „Low”. Popover nie pokazuje list kont, jednostek,
+Popover **Provider usage** to proste podsumowanie: jeden wiersz na providera ze znakiem i nazwą;
+pod każdym paskiem okna jest jego nazwa, najbliższy reset i procent pozostałej (ważonej)
+pojemności (`@canopy/domain/usage-summary`). Konta z używanych proxy i bezpośrednie instancje łączą się
+w jednym wierszu; dla każdego okna zostaje niższy odczyt. Nad paskiem głównego okna (np. Weekly)
+każde krótsze ogólne okno (np. 5-hour), które raportuje którekolwiek konto, ma własny pasek
+tego samego rodzaju; najkrótsze jest na górze. Każde konto ma tę samą kolumnę
+we wszystkich paskach wiersza (szerokość według jednostek planu w głównym oknie), więc konto bez
+danego okna (np. Claude Ultra, Codex Pro bez limitu 5h) zostawia w tym pasku pustą kolumnę.
+Niska pojemność to kolor liczby i paska oraz jedno słowo „Low” w nagłówku wiersza. Wskaźnik
+w stopce sidebara ma po jednym pasku na providera, wypełnionym jak pasek głównego okna
+w popoverze (np. Weekly); ograniczające krótsze okno zmienia tylko jego kolor, tak jak słowo
+„Low”. Popover nie pokazuje list kont, jednostek,
 liczby raportujących kont ani nieznanych planów; szczegóły zostają w Settings → Proxies
 i Providers. Proxy w użyciu, którego kont nie da się odczytać, dostaje jedno krótkie zdanie
 z linkiem do jego karty. Korzysta wyłącznie ze wspólnego `ListProxies` aktualizowanego przez
