@@ -217,11 +217,13 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
 
         return () => readFileSync(path, "utf8");
       },
-      pairAgain: async () => {
+      pairAgain: async (version = status.version) => {
+        coordinator.stop();
         control.stop();
         client = await pairDesktop(
           toJsonString(ui.CreateMobilePairingResponseSchema, await gw.api.createDesktopPairing({})),
         );
+        status = { ...status, version, phase: "idle", updateVersion: undefined };
         await connect();
       },
       reconnect: async (version = status.version, updateVersion = status.updateVersion) => {
@@ -436,6 +438,31 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     await until(async () => (await state(app.workerId))?.phase === "failed");
     expect((await state(app.workerId))?.requestId).not.toBe(previous);
     expect(app.counts().checks).toBe(2);
+  }, 15_000);
+
+  test("a new pairing takes over the same worker's disconnected update channel without revocation", async () => {
+    const app = await fixture();
+    const oldDevice = app.client.deviceId;
+    app.result("older");
+    await manage(app.workerId);
+    await until(async () => (await state(app.workerId))?.phase === "failed");
+    app.stop();
+    await until(async () => (await state(app.workerId))?.connected === false);
+
+    await app.pairAgain("1.2.0");
+    await until(async () => (await state(app.workerId))?.phase === "idle");
+    expect(await state(app.workerId)).toMatchObject({
+      workerId: app.workerId,
+      connected: true,
+      version: "1.2.0",
+      disabledReason: "",
+      requestId: "",
+    });
+    expect(app.counts().checks).toBe(1);
+
+    const { devices } = await gw.api.getMobileDevices({});
+    expect(app.client.deviceId).not.toBe(oldDevice);
+    expect(devices.filter((device) => !device.revokedAt).map((device) => device.id)).toContain(oldDevice);
   }, 15_000);
 
   test("unreadable local history keeps the app connected but disables remote replay", async () => {

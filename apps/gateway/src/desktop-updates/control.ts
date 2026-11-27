@@ -142,13 +142,31 @@ export class DesktopControl {
       confirm: (proof, ctx) =>
         mobileGuard(async () => {
           const workerId = await this.authenticateWorker(bearer(ctx));
-          const session = this.sessions.get(proof.deviceId);
 
-          if (!workerId || !session || session.id !== proof.sessionId || session.hello.workerId !== workerId)
-            throw new ConnectError("Desktop worker proof required", Code.PermissionDenied);
           await this.serialize(async () => {
-            if (!(await this.store.bind(workerId, proof.deviceId)))
+            const session = this.sessions.get(proof.deviceId);
+
+            if (
+              !workerId ||
+              !session ||
+              session.channel.closed ||
+              session.id !== proof.sessionId ||
+              session.hello.workerId !== workerId
+            )
+              throw new ConnectError("Desktop worker proof required", Code.PermissionDenied);
+
+            const previous = (await this.store.list()).find((row) => row.workerId === workerId);
+            const incumbent = previous && this.sessions.get(previous.deviceId);
+
+            // A new pairing can replace the recorded device once its control stream is gone.
+            const replace =
+              previous && !(incumbent?.confirmed && !incumbent.channel.closed) ? previous.deviceId : undefined;
+
+            if (!(await this.store.bind(workerId, proof.deviceId, replace)))
               throw new ConnectError("Owned desktop worker required", Code.PermissionDenied);
+
+            if (this.sessions.get(proof.deviceId) !== session || session.channel.closed)
+              throw new ConnectError("Desktop session not confirmed", Code.FailedPrecondition);
             session.confirmed = true;
             const row = (await this.store.list()).find((r) => r.workerId === workerId);
             session.channel.push(

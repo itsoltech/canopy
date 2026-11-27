@@ -36,7 +36,7 @@ export class DesktopUpdateStore {
     }));
   }
 
-  async bind(workerId: string, deviceId: string) {
+  async bind(workerId: string, deviceId: string, replaceDeviceId?: string) {
     if (!isUuid(workerId) || !isUuid(deviceId)) return false;
     const owner = this.owner;
 
@@ -53,8 +53,10 @@ export class DesktopUpdateStore {
         ON CONFLICT (worker_id) DO UPDATE SET device_id = EXCLUDED.device_id,
           state = CASE WHEN desktop_updates.device_id = EXCLUDED.device_id THEN desktop_updates.state ELSE '{}'::jsonb END,
           command = CASE WHEN desktop_updates.device_id = EXCLUDED.device_id THEN desktop_updates.command ELSE '{}'::jsonb END
-        WHERE desktop_updates.device_id = EXCLUDED.device_id OR EXISTS
-          (SELECT 1 FROM mobile_devices old WHERE old.id = desktop_updates.device_id AND old.revoked_at IS NOT NULL)
+        WHERE desktop_updates.owner_user_id = EXCLUDED.owner_user_id AND (
+          desktop_updates.device_id = EXCLUDED.device_id OR desktop_updates.device_id = ${replaceDeviceId ?? null}::uuid
+          OR EXISTS (SELECT 1 FROM mobile_devices old WHERE old.id = desktop_updates.device_id AND old.revoked_at IS NOT NULL)
+        )
         RETURNING worker_id`;
 
         return rows.length > 0;
