@@ -86,7 +86,8 @@ test.skipIf(!dockerAvailable)(
         ),
       );
 
-      expect(await runtime.runPromise(migrate)).toEqual([[220, "slack_channel_context"]]);
+      // Later migrations may follow; the upgrade under test is the first one applied.
+      expect((await runtime.runPromise(migrate))[0]).toEqual([220, "slack_channel_context"]);
       expect(await run((s) => s.routes(owner))).toMatchObject([
         {
           id: route,

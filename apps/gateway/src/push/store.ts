@@ -20,7 +20,7 @@ export type PushJob = {
   encrypted_preview_key: Uint8Array;
 };
 
-const registered = (sql: SqlClient.SqlClient) => sql`
+export const registered = (sql: SqlClient.SqlClient) => sql`
   JOIN mobile_devices d ON d.id = o.device_id AND d.owner_user_id = o.owner_user_id
     AND d.revoked_at IS NULL AND d.client_kind = 'mobile' AND d.platform IN ('ios', 'android')
   JOIN mobile_push_subscriptions s ON s.device_id = d.id AND s.registration_id = o.registration_id AND s.expires_at > now()`;
@@ -51,6 +51,27 @@ export const resolveMobilePush = (owner: string, device: string, id: string) =>
     return rows[0];
   });
 
+/** The read, answer or expiry that makes a delivered push of row `o` stale. */
+export const dismissibleEvent = (sql: SqlClient.SqlClient) => sql`(
+  (o.event_kind = 'turn' AND EXISTS (
+    SELECT 1 FROM turns u JOIN thread_reads r ON r.thread_id = u.thread_id AND r.user_id = o.owner_user_id
+    WHERE u.id = o.event_id AND u.thread_id = o.destination_id AND NOT r.marked_unread
+      AND (u.last_seq <= r.seen_seq OR (u.last_seq IS NULL AND u.completed_at <= r.seen_at))
+  ))
+  OR (o.event_kind = 'interaction' AND EXISTS (
+    SELECT 1 FROM interaction_requests i WHERE i.id = o.event_id AND i.thread_id = o.destination_id
+      AND (i.status <> 'pending' OR i.expires_at <= now())
+  ))
+  OR (o.event_kind = 'message' AND EXISTS (
+    SELECT 1 FROM bot_messages m JOIN bots b ON b.id = m.bot_id AND b.owner_user_id = o.owner_user_id
+    WHERE m.id = o.event_id AND m.bot_id = o.destination_id AND m.seq <= b.last_read_seq
+  ))
+  OR (o.event_kind = 'approval' AND EXISTS (
+    SELECT 1 FROM bot_approvals a JOIN bots b ON b.id = a.bot_id AND b.owner_user_id = o.owner_user_id
+    WHERE a.id = o.event_id AND a.bot_id = o.destination_id AND (a.status <> 'pending' OR a.expires_at <= now())
+  ))
+)`;
+
 export const dismissibleMobilePush = (owner: string, device: string, ids: string[]) =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -58,26 +79,7 @@ export const dismissibleMobilePush = (owner: string, device: string, ids: string
     return yield* sql<{ id: string }>`
       SELECT o.id FROM mobile_push_outbox o ${registered(sql)}
       WHERE o.id = ANY(${ids}::uuid[]) AND o.owner_user_id = ${owner}::uuid AND o.device_id = ${device}::uuid
-        AND o.attempts > 0 AND o.created_at > now() - interval '1 day'
-        AND (
-          (o.event_kind = 'turn' AND EXISTS (
-            SELECT 1 FROM turns u JOIN thread_reads r ON r.thread_id = u.thread_id AND r.user_id = o.owner_user_id
-            WHERE u.id = o.event_id AND u.thread_id = o.destination_id AND NOT r.marked_unread
-              AND (u.last_seq <= r.seen_seq OR (u.last_seq IS NULL AND u.completed_at <= r.seen_at))
-          ))
-          OR (o.event_kind = 'interaction' AND EXISTS (
-            SELECT 1 FROM interaction_requests i WHERE i.id = o.event_id AND i.thread_id = o.destination_id
-              AND (i.status <> 'pending' OR i.expires_at <= now())
-          ))
-          OR (o.event_kind = 'message' AND EXISTS (
-            SELECT 1 FROM bot_messages m JOIN bots b ON b.id = m.bot_id AND b.owner_user_id = o.owner_user_id
-            WHERE m.id = o.event_id AND m.bot_id = o.destination_id AND m.seq <= b.last_read_seq
-          ))
-          OR (o.event_kind = 'approval' AND EXISTS (
-            SELECT 1 FROM bot_approvals a JOIN bots b ON b.id = a.bot_id AND b.owner_user_id = o.owner_user_id
-            WHERE a.id = o.event_id AND a.bot_id = o.destination_id AND (a.status <> 'pending' OR a.expires_at <= now())
-          ))
-        )`;
+        AND o.attempts > 0 AND o.created_at > now() - interval '1 day' AND ${dismissibleEvent(sql)}`;
   });
 
 export const livePushJob = (sql: SqlClient.SqlClient, owner: string, job: PushJob) => sql`
@@ -85,7 +87,7 @@ export const livePushJob = (sql: SqlClient.SqlClient, owner: string, job: PushJo
     WHERE o.id = ${job.id}::uuid AND o.owner_user_id = ${owner}::uuid AND o.attempts = ${job.attempts}
       AND o.created_at > now() - interval '5 minutes' AND ${deliverable(sql)}) o`;
 
-const managedGrant = (sql: SqlClient.SqlClient, origin: string) => sql`
+export const managedGrant = (sql: SqlClient.SqlClient, origin: string) => sql`
   JOIN mobile_push_grants g ON g.device_id = d.id AND g.id = s.managed_grant_id AND g.platform = d.platform
     AND g.origin = ${origin} AND g.expires_at > clock_timestamp()`;
 

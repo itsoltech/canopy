@@ -1,14 +1,13 @@
 import { Database } from "bun:sqlite";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create, toJsonString } from "@bufbuild/protobuf";
-import { Provider, ui } from "@canopy/contracts";
+import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { BasicConstraintsExtension, SubjectAlternativeNameExtension, X509CertificateGenerator } from "@peculiar/x509";
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
 import { routedMobileClient } from "../../apps/mobile/src/api/routes.ts";
@@ -21,55 +20,18 @@ import { relayPush } from "../../apps/gateway/src/push/relay.ts";
 import { EnrollmentStore } from "../../apps/push-relay/src/enrollment-store.ts";
 import { serveRelay } from "../../apps/push-relay/src/server.ts";
 import { eventually, failure, SERVICE_TOKEN, startTestGateway, type TestGateway } from "./support/gateway.ts";
+import {
+  finishPushThread,
+  openPreview,
+  readPush,
+  relayCertificate,
+  relayFixture,
+  seedBotPushes,
+} from "./support/mobile-push.ts";
 import { nodePinnedTransport } from "./support/phone.ts";
-
-const readPush = Schema.decodeUnknownPromise(
-  Schema.Struct({ token: Schema.String, receiptId: Schema.String, platform: Schema.String, preview: Schema.String }),
-);
 
 const transport = nodePinnedTransport();
 const canopyRelay = "https://notifications-relay.canopy.itsol.tech";
-
-async function relayCertificate() {
-  const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
-
-  const certificate = await X509CertificateGenerator.createSelfSigned({
-    name: "CN=127.0.0.1",
-    keys,
-    signingAlgorithm: { name: "ECDSA", hash: "SHA-256" },
-    extensions: [
-      new BasicConstraintsExtension(true),
-      new SubjectAlternativeNameExtension([{ type: "ip", value: "127.0.0.1" }]),
-    ],
-  });
-
-  const privateKey = Buffer.from(await crypto.subtle.exportKey("pkcs8", keys.privateKey)).toString("base64");
-
-  return {
-    cert: certificate.toString("pem"),
-    key: `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`,
-  };
-}
-
-async function relayFixture() {
-  const tls = await relayCertificate();
-  const bearer = randomBytes(32).toString("base64url");
-  const received: Array<Awaited<ReturnType<typeof readPush>>> = [];
-
-  const relay = Bun.serve({
-    hostname: "127.0.0.1",
-    port: 0,
-    tls,
-    async fetch(request) {
-      if (request.headers.get("authorization") !== `Bearer ${bearer}`) return new Response(null, { status: 401 });
-      received.push(await readPush(await request.json()));
-
-      return Response.json({ ticketId: "expo-ticket" }, { status: 202 });
-    },
-  });
-
-  return { relay, options: { origin: relay.url.origin, ca: tls.cert, bearer }, received };
-}
 
 async function managedRelayFixture(path = ":memory:") {
   const tls = await relayCertificate();
@@ -115,76 +77,6 @@ function phoneProof(token: string, challenge: string) {
     .digest("base64url");
 
   return `test-proof.${digest}`;
-}
-
-function openPreview(payload: Awaited<ReturnType<typeof readPush>>, key: Buffer, receiptId = payload.receiptId) {
-  const envelope = Buffer.from(payload.preview, "base64url");
-  const decipher = createDecipheriv("aes-256-gcm", key, envelope.subarray(0, 12));
-  decipher.setAAD(Buffer.from(`canopy-push-preview-v1:${receiptId}`));
-  decipher.setAuthTag(envelope.subarray(-16));
-
-  return Buffer.concat([decipher.update(envelope.subarray(12, -16)), decipher.final()]).toString();
-}
-
-async function finishPushThread(gateway: TestGateway, snoozed = false) {
-  const { api, workerId } = gateway;
-  const projectId = (await api.createProject({ name: "Private project" })).project!.id;
-  const workspaceId = (await api.createWorkspace({ projectId, workerId, rootPath: "/repo/push" })).workspace!.id;
-
-  const threadId = (
-    await api.createThread({ projectId, workspaceId, title: "Private title", provider: Provider.CODEX })
-  ).thread!.id;
-
-  await eventually(
-    () => api.getThread({ threadId }),
-    (result) => result.thread?.status === "idle",
-  );
-
-  if (snoozed) await api.setThreadSnooze({ threadId, snoozed: true });
-
-  await api.sendMessage({ threadId, text: "Private reply", clientRequestId: "push-1" });
-  await eventually(
-    () => api.getThread({ threadId }),
-    (result) => result.thread?.unseenResult === "completed",
-  );
-
-  return threadId;
-}
-
-async function seedBotPushes(gateway: TestGateway) {
-  const query = gateway.core.linkedAgents.query.bind(gateway.core.linkedAgents);
-  const botId = crypto.randomUUID();
-  const turnId = crypto.randomUUID();
-  const approvalId = crypto.randomUUID();
-  await query(
-    `INSERT INTO bots (id, owner_user_id, client_request_id, configuration, provider, provider_instance)
-      VALUES ($1::uuid, $2::uuid, 'push-bot', '{"name":"Private bot"}', 'codex', 'native')`,
-    [botId, gateway.userId],
-  );
-  await query(
-    `INSERT INTO bot_turns (id, bot_id, client_request_id, input, status)
-      VALUES ($1::uuid, $2::uuid, 'push-turn', '', 'waiting')`,
-    [turnId, botId],
-  );
-
-  const [message] = await query<{ seq: string }>(
-    `INSERT INTO bot_messages (id, bot_id, turn_id, message_key, sender_id, recipient_id, text)
-      VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'push-message', $1::uuid::text, 'user', 'Private message') RETURNING seq`,
-    [botId, turnId],
-  );
-
-  await query(
-    `INSERT INTO bot_tool_calls (id, turn_id, call_key, tool, arguments)
-      VALUES ($1::uuid, $2::uuid, 'push-question', '{}', '{}')`,
-    [approvalId, turnId],
-  );
-  await query(
-    `INSERT INTO bot_approvals (id, bot_id, turn_id, kind, prompt, expires_at)
-      VALUES ($1::uuid, $2::uuid, $3::uuid, 'question', 'Private question', now() + interval '1 day')`,
-    [approvalId, botId, turnId],
-  );
-
-  return { botId, approvalId, seq: BigInt(message!.seq) };
 }
 
 describe.skipIf(!dockerAvailable)("mobile push from durable gateway events", () => {

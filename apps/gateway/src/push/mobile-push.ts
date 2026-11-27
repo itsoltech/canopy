@@ -4,6 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { CoreRuntime, GatewayCoreOptions } from "../core/core-context.ts";
 import { decryptSecret } from "../store/secrets.ts";
 import { readMobilePushBadge } from "./badge.ts";
+import { dispatchPushDismissals, type DismissalRelay } from "./dismissals.ts";
 import { encryptPushPreview, readPushPreview } from "./previews.ts";
 import { EXPO_TOKEN, PUSH_ID, PUSH_KEY, relayPush, type PushRelayOptions } from "./relay.ts";
 import { loadPushRelaySettings, savePushRelaySettings, updatedRelayChoice } from "./relay-settings.ts";
@@ -28,10 +29,7 @@ import { expoTokenHash, pushRegistration, setMobilePushSubscription } from "./su
 
 export type MobilePushOptions = PushRelayOptions & { secretsKey: Buffer };
 
-type ActiveRelay = (
-  | { kind: "manual"; options: MobilePushOptions }
-  | { kind: "managed"; options: ManagedPushOptions }
-) & { abort: AbortController };
+type ActiveRelay = DismissalRelay;
 
 export class MobilePush {
   #timer: ReturnType<typeof setInterval> | undefined;
@@ -248,7 +246,15 @@ export class MobilePush {
     const relay = this.#relay;
 
     if (!relay || relay.abort.signal.aborted) return;
-    const results = await Promise.allSettled([this.#dispatchPushJobs(relay), this.#dispatchRevocations()]);
+
+    const results = await Promise.allSettled([
+      this.#dispatchPushJobs(relay),
+      this.#dispatchRevocations(),
+      dispatchPushDismissals(
+        { runtime: this.runtime, owner: this.userId, serial: (run) => this.#serial(run), log: this.log },
+        relay,
+      ),
+    ]);
 
     if (results.some((result) => result.status === "rejected") && !this.#closed)
       this.log?.("Mobile push processing deferred");

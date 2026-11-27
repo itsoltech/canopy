@@ -4,6 +4,7 @@ import com.google.firebase.messaging.RemoteMessage
 import expo.modules.notifications.notifications.model.NotificationData
 import expo.modules.notifications.service.ExpoFirebaseMessagingService
 import expo.modules.notifications.service.delegates.ExpoHandlingDelegate
+import org.json.JSONArray
 
 class CanopyFirebaseMessagingService : ExpoFirebaseMessagingService() {
   private val expoHandling by lazy { ExpoHandlingDelegate(this) }
@@ -14,6 +15,12 @@ class CanopyFirebaseMessagingService : ExpoFirebaseMessagingService() {
 
   override fun onMessageReceived(remoteMessage: RemoteMessage) {
     val data = if (remoteMessage.notification == null) NotificationData(remoteMessage.data).body else null
+    val dismissed = (data?.opt("dismiss") as? JSONArray)?.let(::receipts)
+    if (dismissed != null) {
+      // A silent dismissal lists receipts read or settled elsewhere. Missing tags are ignored.
+      PushPreviewNotifications.dismiss(this, dismissed)
+      return
+    }
     val receiptId = (data?.opt("receiptId") as? String)?.takeIf(receiptPattern::matches)
     if (data == null || receiptId == null) {
       super.onMessageReceived(remoteMessage)
@@ -28,6 +35,11 @@ class CanopyFirebaseMessagingService : ExpoFirebaseMessagingService() {
       if (!expoHandling.isAppInForeground()) PushPreviewNotifications.post(this, receiptId, preview)
     }
   }
+
+  private fun receipts(list: JSONArray): List<String> =
+    (0 until minOf(list.length(), 32)).mapNotNull { index ->
+      (list.opt(index) as? String)?.takeIf(receiptPattern::matches)?.lowercase()
+    }
 
   private fun decrypt(receiptId: String, encoded: String): PushPreview? {
     return try {

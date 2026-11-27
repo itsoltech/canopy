@@ -1035,11 +1035,14 @@ Wymagany jest nowy build Expo SDK 58 z `expo-notifications` i modułem natywnym
   Klucz podglądu jest dostępny po pierwszym odblokowaniu bieżącego urządzenia.
   Ustaw uprawnienie App Attest dla głównego App ID. Fizyczny iPhone w TestFlight
   zgłasza atestację produkcyjną.
+  Plugin Canopy dodaje tryb tła `remote-notification`. Moduł natywny obsługuje
+  w nim ciche pushe, które usuwają powiadomienia przeczytane na innym urządzeniu.
 - **Android.** Dodaj `CANOPY_ANDROID_GOOGLE_SERVICES_FILE` jako zmienną typu
   File w środowisku EAS używanym przez build. Plik `google-services.json`
   musi odpowiadać pakietowi Androida. Skonfiguruj też poświadczenie FCM v1 dla
   projektu w EAS. Canopy odbiera wysokopriorytetowe wiadomości z danymi w usłudze
-  natywnej i wyświetla je w kanale `canopy-updates`. Klucz jest chroniony
+  natywnej i wyświetla je w kanale `canopy-updates`. Ta sama usługa usuwa
+  powiadomienia z listy w cichych pushach. Klucz jest chroniony
   przez Android Keystore i przechowywany poza kopią zapasową.
   Ustaw sekret GitHub Actions `CANOPY_ANDROID_GOOGLE_SERVICES_JSON` na tę samą
   zawartość pliku, żeby workflow obliczał zgodny fingerprint i publikował OTA
@@ -1051,7 +1054,8 @@ Wymagany jest nowy build Expo SDK 58 z `expo-notifications` i modułem natywnym
 
 Próba na fizycznych urządzeniach obu platform powinna objąć wyrażenie zgody,
 podgląd przy zablokowanym ekranie, pushe przy otwartej i zamkniętej aplikacji,
-dotknięcie alertu przy zimnym starcie, zmianę parowania oraz cofnięcie zgody.
+dotknięcie alertu przy zimnym starcie, zmianę parowania, cofnięcie zgody oraz
+odczyt wątku na komputerze przy aplikacji w tle.
 Zmiana modułów natywnych i rozszerzenia zmienia fingerprint, więc dystrybucja
 tej funkcji wymaga binarki. [Wdrożenie relaya](deploy.md#relay-powiadomień-push).
 

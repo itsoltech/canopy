@@ -11,6 +11,6 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  s.source_files = 'CanopyPushPreviewModule.swift', 'Shared/*.swift'
+  s.source_files = 'CanopyPushPreviewModule.swift', 'PushDismissalAppDelegate.swift', 'Shared/*.swift'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 end

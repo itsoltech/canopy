@@ -10,7 +10,7 @@ import {
 import { Expo, type ExpoFetch } from "./expo.ts";
 import { jsonObject, readJson, type JsonObject, type JsonValue } from "./json.ts";
 import { Limits } from "./limits.ts";
-import { digest, isSecret, parsePush, parseReceipt } from "./protocol.ts";
+import { digest, isSecret, parseDismissal, parsePush, parseReceipt } from "./protocol.ts";
 
 const requestBytes = 4 * 1024;
 const completeBytes = 32 * 1024;
@@ -146,6 +146,19 @@ async function handleDelivery(
     return reply(await expo.receipt(ticketId));
   }
 
+  if (path === "/v1/dismiss") {
+    const dismissal = parseDismissal(body);
+
+    if (!dismissal) return reply(400);
+
+    if (grant && grant.scope !== pushScope(dismissal)) return reply(403);
+
+    // Dismissals keep no ticket: the gateway does not check their receipts.
+    const ticket = await expo.dismiss(dismissal);
+
+    return reply(ticket.status === 202 ? 204 : ticket.status);
+  }
+
   const push = parsePush(body);
 
   if (!push) return reply(400);
@@ -270,7 +283,7 @@ export function serveRelay(options: RelayOptions, fetcher: ExpoFetch = fetch) {
       if ("status" in admission) return reply(admission.status);
 
       try {
-        if (pathname !== "/v1/push" && pathname !== "/v1/receipt") return reply(404);
+        if (pathname !== "/v1/push" && pathname !== "/v1/receipt" && pathname !== "/v1/dismiss") return reply(404);
 
         const body = await readBody(request, requestBytes);
 
