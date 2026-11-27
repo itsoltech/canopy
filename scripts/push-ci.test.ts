@@ -1,6 +1,6 @@
 import type { JsonObject } from "@canopy/domain/json";
 import { afterEach, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -129,5 +129,30 @@ test("a release waits for a running push and observes its final conclusion", () 
     f.json("run", { status: "in_progress", conclusion: null });
     f.json("completed", { status: "completed", conclusion });
     expect(f.run("dev")).toBe(exitCode);
+  }
+});
+
+test("a release waits for the recovery retry of a fresh first-attempt failure only", () => {
+  const f = fixture();
+  f.json("dev", { workflow_runs: [branchRun] });
+  writeFileSync(join(f.cwd, "sleep"), "#!/bin/sh\ntouch slept\nmv completed run\n", { mode: 0o755 });
+
+  const failed = (minutesAgo: number, attempt = 1) => ({
+    status: "completed",
+    conclusion: "failure",
+    run_attempt: attempt,
+    updated_at: new Date(Date.now() - minutesAgo * 60_000).toISOString().replace(/\.\d+Z$/, "Z"),
+  });
+
+  f.json("run", failed(1));
+  f.json("completed", { status: "completed", conclusion: "success", run_attempt: 2 });
+  expect(f.run("dev")).toBe(0);
+
+  // An old failure, or one the retry did not fix, ends the gate without waiting.
+  for (const run of [failed(6), failed(1, 2)]) {
+    rmSync(join(f.cwd, "slept"), { force: true });
+    f.json("run", run);
+    expect(f.run("dev")).toBe(1);
+    expect(existsSync(join(f.cwd, "slept"))).toBe(false);
   }
 });
