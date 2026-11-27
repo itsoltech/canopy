@@ -1069,8 +1069,8 @@ sprawdza właściciela i monotonicznie potwierdza najwyżej istniejącą wiadomo
 W web/desktop otwarta rozmowa potwierdza odebrany snapshot w widocznej karcie.
 Na telefonie odczyt potwierdza aktywny czat przy najnowszych wiadomościach.
 Po potwierdzeniu aplikacja odświeża listę, a licznik znika przy zerze.
-Alerty systemowe web i desktop o wiadomościach, zgodach i pytaniach botów opisuje
-[notifications.md](notifications.md); push na telefon nie istnieje.
+Alerty systemowe web i desktop oraz push na sparowany telefon o wiadomościach,
+zgodach i pytaniach botów opisuje [notifications.md](notifications.md#push-na-ios-i-androidzie).
 
 `BotConversation` przenosi aktualne rutyny i niedostarczone, nieanulowane jednorazowe
 przypomnienia. Zmiana rewizji aktualizuje istniejący strumień `/api/bots/:id/events`,
