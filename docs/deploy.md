@@ -52,6 +52,13 @@ Compose uruchamia osobny PostgreSQL. Tag `postgres:17` obejmuje poprawki z 17.12
 i kolejne wydania w linii 17. W istniejącym wdrożeniu `docker compose pull postgres`
 pobiera aktualny obraz, a `docker compose up -d --no-deps postgres` odtwarza
 kontener z zachowaniem wolumenu danych.
+Compose uruchamia PostgreSQL z `checkpoint_timeout=15min`, `max_wal_size=4GB` i
+`wal_compression=lz4`. Domyślny checkpoint co 5 minut zapisuje w WAL pełną kopię każdej
+strony zmienionej po checkpoincie. Pod stałym obciążeniem wątków zmiana zmniejszyła WAL
+na rekord o ok. 2/3. Kosztem jest do ok. 4 GB plików WAL na dysku i dłuższe odtwarzanie
+po awarii. Własny PostgreSQL można skonfigurować tak samo (`ALTER SYSTEM SET …` i
+`SELECT pg_reload_conf()`, bez restartu). Istniejący kontener przyjmuje nowe parametry
+po `docker compose up -d --no-deps postgres`.
 Szczegóły cache i blokady zmiany major: [desktop.md](desktop.md#postgresql-pobierany-dla-trybu-lokalnego).
 
 ## Wybór kanału

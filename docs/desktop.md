@@ -605,6 +605,10 @@ locale C, użytkownikiem `canopy` i uwierzytelnianiem SCRAM na TCP. Katalog dany
 i hasło nie są odnawiane przy kolejnym starcie. PostgreSQL działa jako proces
 pierwszoplanowy na losowym porcie `127.0.0.1`, bez unix socketów, z limitem
 40 połączeń (pula gatewaya oraz zapas dla inicjalizacji i kontroli zdrowia).
+Checkpoint co 15 minut (`checkpoint_timeout=15min`) zamiast domyślnych 5: strona zmieniona
+po checkpoincie trafia do WAL w całości, więc rzadsze checkpointy zmniejszają zapis na dysk.
+`max_wal_size` zostaje domyślne (1 GB), żeby odtwarzanie po awarii było krótkie. Kompresji
+WAL nie włączamy: nie każda kompilacja `@embedded-postgres` musi mieć `lz4`.
 Dotyczy to również Windows; nie używamy named pipes ani poleceń powłoki do ścieżek.
 
 Przed uruchomieniem gatewaya kontroler wykonuje `canopy-gateway migrate` na tej
