@@ -115,7 +115,9 @@ appear only as the literal name used by an external tool).
 | reaction | an emoji attached to a message by the other participant in a bot conversation | vote, rating |
 | Slack User | a connected Slack account that lets agents use Slack tools as the signed-in user | Slack (when distinguishing from Slack Bot) |
 | Slack Bot | a Slack app connection that receives and replies to messages as the app’s bot | Slack messages |
-| messenger account | a reusable message connection managed in Settings → Connectors → Slack Bot | connector, MCP account |
+| Telegram Bot | a Telegram bot connected with its BotFather token that receives and replies to messages | Telegram account |
+| Discord Bot | a Discord bot connected with its bot token that receives and replies to messages | Discord app, Discord account |
+| messenger account | a reusable Slack Bot, Telegram Bot or Discord Bot connection managed in Settings → Connectors → Messaging | connector, MCP account |
 | message route | a bot’s allowed senders, channels and response destination for a connected messenger account | subscription, webhook |
 | connected account | an external app account from Settings → Connectors | integration, service, app login |
 | Tool accounts | the section for connected accounts that provide tools to agents and bots | Your accounts (when distinguishing from Slack Bot accounts) |

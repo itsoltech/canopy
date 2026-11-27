@@ -11,7 +11,7 @@
   import ConnectorIcon from "#lib/features/connectors/ConnectorIcon.svelte";
   import ConnectAccountDialog from "#lib/features/connectors/ConnectAccountDialog.svelte";
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
-  import SlackBotConnections from "#lib/features/connectors/SlackBotConnections.svelte";
+  import MessengerConnections from "#lib/features/connectors/MessengerConnections.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
@@ -174,10 +174,10 @@
     >{/if}
   <SettingsTopics
     label="Connector settings"
-    defaultTopic={notice === "slack-bot-authorized" ? "slack-bots" : undefined}
+    defaultTopic={notice === "slack-bot-authorized" ? "messaging" : undefined}
     topics={[
       { id: "accounts", label: "Tool accounts", content: toolAccounts },
-      { id: "slack-bots", label: "Slack bots", content: slackBots, hidden: !settings.moduleEnabled("bots") },
+      { id: "messaging", label: "Messaging", content: messaging, hidden: !settings.moduleEnabled("bots") },
     ]}
   />
 </div>
@@ -237,9 +237,9 @@
   </section>
 {/snippet}
 
-{#snippet slackBots()}
-  <SlackBotConnections
-    canAdd={catalog.types.some((entry) => entry.id === "slack")}
+{#snippet messaging()}
+  <MessengerConnections
+    canAddSlack={catalog.types.some((entry) => entry.id === "slack")}
     slackUsers={accounts.filter((account) => account.connectorType === "slack")}
     {oauthCompletion}
   />

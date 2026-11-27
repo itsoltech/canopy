@@ -8,7 +8,8 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Textarea from "#lib/shared/ui/Textarea.svelte";
-  import { saveMessengerRoute, slackIds, saveOnEnter } from "./api.ts";
+  import { saveMessengerRoute, saveOnEnter } from "./api.ts";
+  import { messengerIds, providerCopy, providerOf } from "./providers.ts";
 
   let {
     botId,
@@ -34,20 +35,28 @@
   let instructions = $state(untrack(() => route?.instructions ?? ""));
   let busy = $state(false);
   let error = $state("");
-  const options = $derived(accounts.map((account) => ({ value: account.id, label: account.name })));
+
+  const options = $derived(
+    accounts.map((account) => ({
+      value: account.id,
+      label: `${account.name} · ${providerCopy(providerOf(account)).label}`,
+    })),
+  );
+
+  const provider = $derived(providerOf(accounts.find((account) => account.id === accountId)));
+  const text = $derived(providerCopy(provider));
 
   async function save() {
     if (busy) return;
     error = "";
 
     try {
-      const channelIds = slackIds(channels, "channel");
-      const userIds = slackIds(users, "user");
-
-      if (!accountId) throw new Error("Choose a Slack Bot account before saving.");
+      if (!accountId) throw new Error("Choose a messenger account before saving.");
+      const channelIds = messengerIds(channels, "channel", provider);
+      const userIds = messengerIds(users, "user", provider);
 
       if ((mentions || observe) && !channelIds.length)
-        throw new Error("Add Slack channel IDs for mentions or channel monitoring.");
+        throw new Error(`Add ${text.label} channel IDs for mentions or channel monitoring.`);
 
       if (!directMessages && !mentions && !observe) throw new Error("Choose at least one kind of message to receive.");
       busy = true;
@@ -74,27 +83,26 @@
 
 <div class="grid min-w-0 gap-3 rounded-xl border border-zinc-950/10 p-4 dark:border-white/10" aria-busy={busy}>
   <h4 class="font-medium">{route ? "Edit message route" : "Add message route"}</h4>
-  <Field label="Slack Bot account"
+  <Field label="Messenger account"
     ><Select class="min-w-0" bind:value={accountId} {options} disabled={busy || !!route} /></Field
   >
-  <Field label="Allowed user IDs" description="Only these Slack users can trigger the bot. Separate IDs with commas.">
+  <Field
+    label="Allowed user IDs"
+    description={`Only these ${text.label} users can trigger the bot. Separate IDs with commas.`}
+  >
     <Input
       onkeydown={(event) => saveOnEnter(event, save)}
       bind:value={users}
-      placeholder="U0123456789, U9876543210"
+      placeholder={text.userPlaceholder}
       disabled={busy}
       spellcheck={false}
     />
   </Field>
-  <Field
-    label="Channel IDs"
-    optional={!mentions && !observe}
-    description="Invite the app to each channel and separate its channel IDs with commas."
-  >
+  <Field label="Channel IDs" optional={!mentions && !observe} description={text.channelDescription}>
     <Input
       onkeydown={(event) => saveOnEnter(event, save)}
       bind:value={channels}
-      placeholder="C0123456789, G9876543210"
+      placeholder={text.channelPlaceholder}
       disabled={busy}
       spellcheck={false}
     />
@@ -119,7 +127,7 @@
       bind:value={delivery}
       disabled={busy}
       options={[
-        { value: "reply", label: "Reply in Slack" },
+        { value: "reply", label: `Reply in ${text.label}` },
         { value: "notify", label: "Notify me in Canopy" },
       ]}
     />

@@ -1,5 +1,12 @@
 # Boty
 
+Status (2026-11-27): boty odbierają i wysyłają wiadomości także przez Telegram
+(Bot API, long polling) i Discord (gateway WebSocket z wznawianiem sesji).
+W web/desktop i na telefonie zakładka **Settings → Connectors → Messaging** zarządza
+kontami Slack Bot, Telegram Bot i Discord Bot. Szczegóły w sekcji
+[Telegram i Discord](#telegram-i-discord). Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Status (2026-11-26): subskrypcja Slack domyślnie dołącza do tury bota wspólny
 kontekst kanału i jego wątków. Dostępność w kanałach określa
 [promocja wydań](release.md).
@@ -95,7 +102,7 @@ Panel Bots w web/desktop oznacza pracujące boty na przypiętych kafelkach i zwy
 Aktualizacja rozmowy zachowuje w panelu stan pracy i oczekującej zgody z podsumowania bota.
 Mobilna rozmowa potwierdza odczyt najnowszych wiadomości i odświeża listę botów.
 Wysyłana wiadomość ma przygaszony dymek, który zachowuje wysokość po potwierdzeniu.
-Aktualizacja (2026-11-24): w web/desktop **Settings → Connectors → Slack bots** zarządza kontami
+Aktualizacja (2026-11-24): w web/desktop **Settings → Connectors → Messaging** zarządza kontami
 wiadomości przy włączonym module Bots. Konta Slack User są w zakładce **Tool accounts**.
 Zaimplementowano trwałe rozmowy botów przez Slack Socket Mode,
 buforowanie, załączniki, formatowanie odpowiedzi, izolację historii kanałów i przyznane narzędzia
@@ -258,6 +265,12 @@ wymiany między botami.
 
 ## Rozmowy przez komunikatory
 
+Konta komunikatorów mają dostawcę `slack`, `telegram` albo `discord`. Adapter dostawcy
+(`apps/gateway/src/messengers/provider.ts`) sprawdza konto, odbiera wiadomości
+i wysyła jedną odpowiedź bez ponawiania zapisu. Trasy, rozmowy, bufor, outbox
+i zgody są wspólne. Identyfikatory kanałów i użytkowników są natywne dla dostawcy;
+rozmowa zapisuje, czy jest wiadomością prywatną (`direct`).
+
 Konta Slack Bot w Settings → Connectors obsługują wiadomości przez Socket Mode. Jedna
 instalacja w workspace ma wiele tras do botów. Można użyć niezależnej aplikacji
 z tokenem bota lub aplikacji Slack User z osobną zgodą OAuth bota. Gateway
@@ -376,6 +389,43 @@ właściciela, fencing, restart bufora, autorów/kolejność, terminy, wzmiankę
 i jej wątek, izolację historii, fallback steer, notki obserwatora oraz nieznany
 wynik wysyłki. Adapter i przepływ przez gateway mają osobne testy integracyjne;
 atrapy nie dowodzą poprawności uprawnień konkretnej instalacji Slack.
+
+### Telegram i Discord
+
+Konto Telegram Bot zapisuje token z BotFather, a konto Discord Bot token bota
+z Discord Developer Portal. Tokeny są szyfrowane w gatewayu jak tokeny Slacka i nie
+trafiają do list, workera ani modelu. Zapis konta sprawdza token u dostawcy:
+Telegram odrzuca bota z ustawionym webhookiem, Discord wymaga włączonego
+Message Content Intent. Gateway pokazuje wtedy stały komunikat z kolejnym krokiem.
+
+Telegram działa przez `getUpdates`, więc gateway nie potrzebuje publicznego adresu.
+Gateway przesuwa `offset` dopiero po zapisaniu aktualizacji, a duplikaty odrzuca po
+`update_id`. Trasa wybiera grupy po ujemnym ID czatu i autorów po ID użytkownika;
+prywatne czaty wybiera opcja wiadomości prywatnych. Wzmianka `@nazwa_bota`, komenda
+z nazwą bota i odpowiedź na wiadomość bota liczą się jako wzmianka. Do obserwacji grupy
+bez wzmianek trzeba wyłączyć Group Privacy w BotFather. Telegram nie zgłasza botom
+usunięć wiadomości.
+
+Discord działa przez gateway WebSocket z intencjami Guilds, Guild Messages, Direct
+Messages i Message Content. Gateway potwierdza sekwencję zdarzenia dopiero po jego
+zapisaniu. Po rozłączeniu wznawia sesję, a Discord powtarza niezapisane zdarzenia.
+Wiadomość w wątku Discorda trafia do trasy kanału nadrzędnego; wątek tworzy osobną
+rozmowę. Trasa wybiera kanały i autorów po snowflake ID.
+
+Bez natywnych wątków odpowiedź na wzmiankę jest odpowiedzią na wiadomość, która ją
+wywołała (`reply_parameters` w Telegramie, `message_reference` w Discordzie).
+Outbox zapisuje identyfikator wysłanej odpowiedzi. Odpowiedź uczestnika na
+wiadomość bota albo na wiadomość z rozmowy wraca do tej samej rozmowy, także bez
+wzmianki. Odpowiedź Telegrama jest formatowana jako HTML Telegrama, a odrzucone
+formatowanie jest wysyłane jako zwykły tekst. Długie odpowiedzi dzielą się na części
+w limicie dostawcy; błąd po pierwszej części oznacza dostarczenie jako niepewne.
+Discord dostaje nonce dla każdej części i wzmianki ograniczone do użytkowników.
+
+Wspólny kontekst kanału, pobieranie plików z wiadomości oraz narzędzia
+`list_messenger_channels`, `list_messenger_channel_members` i `list_messenger_users`
+działają tylko dla Slacka. Właściciel podaje ID czatów i użytkowników Telegrama
+i Discorda w trasie. Narzędzie pomijania odpowiedzi zachowuje nazwę
+`skip_slack_reply` dla wszystkich dostawców.
 
 ### Wspólny kontekst kanału Slack
 

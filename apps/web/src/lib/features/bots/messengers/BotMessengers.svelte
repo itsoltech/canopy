@@ -6,6 +6,7 @@
   import Button from "#lib/shared/ui/Button.svelte";
   import MessengerRouteEditor from "./MessengerRouteEditor.svelte";
   import { messengerAccounts, messengerRoutes, deleteMessengerRoute, messengerStatus } from "./api.ts";
+  import { providerCopy, providerOf } from "./providers.ts";
 
   let { botId }: { botId: string } = $props();
   let catalog = $state(create(ui.ListMessengerAccountsResponseSchema));
@@ -92,8 +93,8 @@
   {/if}
   {#if !loading && loaded}
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-3">
-      <a href="/settings/connectors#topic-slack-bots" class="font-medium underline underline-offset-4"
-        >Manage Slack Bot accounts</a
+      <a href="/settings/connectors#topic-messaging" class="font-medium underline underline-offset-4"
+        >Manage messenger accounts</a
       >
       <Button size="sm" disabled={busy || !!editRoute} onclick={reload}>Refresh status</Button>
     </div>
@@ -103,10 +104,10 @@
         {@const account = catalog.accounts.find((item) => item.id === route.accountId)}
         <div class="grid min-w-0 gap-2 rounded-lg bg-zinc-950/3 p-3 dark:bg-white/5">
           <p class="truncate font-medium" title={account?.name}>
-            {account?.name ?? "Slack Bot account"}
+            {account?.name ?? "Messenger account"}
           </p>
           <p class="text-sm text-zinc-500 dark:text-zinc-400">
-            {route.delivery === "reply" ? "Reply in Slack" : "Notify in Canopy"}
+            {route.delivery === "reply" ? `Reply in ${providerCopy(providerOf(account)).label}` : "Notify in Canopy"}
             {#if route.observe}
               · Channel monitoring on{/if}
             {#if !account?.enabled || account.status !== "connected"}
@@ -147,7 +148,9 @@
           >
         </div>
       {:else if !routes.length}
-        <p class="text-zinc-500 dark:text-zinc-400">Connect a Slack Bot account in Settings to add a message route.</p>
+        <p class="text-zinc-500 dark:text-zinc-400">
+          Connect a Slack, Telegram or Discord bot in Settings to add a message route.
+        </p>
       {/if}
     </div>
     {#if remove}
