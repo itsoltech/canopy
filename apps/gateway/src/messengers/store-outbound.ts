@@ -1,22 +1,23 @@
 import { lockedOwnerModule } from "../store/module-access.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
-import { channelActivity } from "./store-activity.ts";
+import { channelActivity, turnProvider } from "./store-activity.ts";
 import { recordPublishedReply, type PublishedSlackReply } from "./channel-context-events.ts";
 import { slackTimestamp } from "./slack-events.ts";
 import { privateMessengerNotice } from "./store-notify.ts";
 import { activeChannelTurn, currentChannelEpoch } from "./conversation-access.ts";
 import { SKIP_SLACK_REPLY } from "../bots/external-instructions.ts";
 import type { BotTurn } from "../bots/types.ts";
+import { messengerLabel, type MessengerProvider } from "./provider.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type { AccountLease, ConversationContext, OutboundMessage, OutboundResult } from "./types.ts";
 
 export function conversationContext(sql: SqlClient.SqlClient, turn: BotTurn) {
   if (!turn.conversation_id) return Effect.succeed(undefined);
 
-  return sql<ConversationContext>`SELECT c.id AS "conversationId",r.account_id AS "accountId",c.channel_id AS "channelId",
-    c.thread_id AS "threadId",r.instructions,r.delivery FROM bot_channel_conversations c
-    JOIN bot_channel_routes r ON r.id=c.route_id WHERE c.id=${turn.conversation_id}::uuid AND r.bot_id=${turn.bot_id}::uuid`.pipe(
+  return sql<ConversationContext>`SELECT a.provider,c.id AS "conversationId",r.account_id AS "accountId",
+    c.channel_id AS "channelId",c.thread_id AS "threadId",r.instructions,r.delivery FROM bot_channel_conversations c
+    JOIN bot_channel_routes r ON r.id=c.route_id JOIN messenger_accounts a ON a.id=r.account_id WHERE c.id=${turn.conversation_id}::uuid AND r.bot_id=${turn.bot_id}::uuid`.pipe(
     Effect.map((rows) => rows[0]),
   );
 }
@@ -34,7 +35,12 @@ export function skippedSlackReply(sql: SqlClient.SqlClient, turnId: string) {
 export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, status: string, text: string) {
   return Effect.gen(function* () {
     if (status === "failed")
-      return yield* channelActivity(sql, turn.id, "failed", "Could not finish the Slack request");
+      return yield* channelActivity(
+        sql,
+        turn.id,
+        "failed",
+        `Could not finish the ${yield* turnProvider(sql, turn.id)} request`,
+      );
 
     if (status !== "completed" || !text.trim()) return;
     const context = yield* conversationContext(sql, turn);
@@ -61,7 +67,12 @@ export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, statu
 
 function deliveryNotice(sql: SqlClient.SqlClient, id: string, refused: boolean) {
   return Effect.gen(function* () {
-    const row = (yield* sql<{ bot_id: string; name: string; channel_id: string }>`SELECT r.bot_id,a.name,o.channel_id
+    const row = (yield* sql<{
+      bot_id: string;
+      name: string;
+      channel_id: string;
+      provider: MessengerProvider;
+    }>`SELECT r.bot_id,a.name,o.channel_id,a.provider
       FROM messenger_outbound o JOIN messenger_accounts a ON a.id=o.account_id
       JOIN bot_channel_conversations c ON c.id=o.conversation_id JOIN bot_channel_routes r ON r.id=c.route_id
       JOIN bots b ON b.id=r.bot_id WHERE o.id=${id}::uuid AND b.deleted_at IS NULL`)[0];
@@ -70,7 +81,7 @@ function deliveryNotice(sql: SqlClient.SqlClient, id: string, refused: boolean) 
 
     const text = refused
       ? `The reply was not sent in ${row.name} (${row.channel_id}). Check channel permissions and message limits before trying again.`
-      : `Delivery of a reply in ${row.name} (${row.channel_id}) could not be confirmed. Check Slack before resending.`;
+      : `Delivery of a reply in ${row.name} (${row.channel_id}) could not be confirmed. Check ${messengerLabel(row.provider)} before resending.`;
 
     yield* privateMessengerNotice(sql, row.bot_id, `messenger-delivery:${id}`, text);
   });
@@ -96,7 +107,7 @@ function replyRoute(sql: SqlClient.SqlClient, owner: string, checkEpoch = false)
       AND r.delivery='reply' AND r.deleted_at IS NULL AND b.deleted_at IS NULL
       AND b.archived_at IS NULL AND b.moved_to IS NULL
       ${checkEpoch ? sql`AND ${currentChannelEpoch(sql)}` : sql``}
-      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))`;
+      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.direct))`;
 }
 
 export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerAccounts) {
@@ -148,13 +159,15 @@ export function messengerOutbound(sql: SqlClient.SqlClient, accounts: MessengerA
 
           const [settled] = yield* sql<{
             turn_id: string;
-          }>`UPDATE messenger_outbound SET status=${status},available_at=${new Date(now.getTime() + Math.max(1000, result.retryAfterMs ?? 1000))}
+          }>`UPDATE messenger_outbound SET status=${status},
+          message_id=${status === "sent" ? (result.messageId ?? null) : null},available_at=${new Date(now.getTime() + Math.max(1000, result.retryAfterMs ?? 1000))}
         WHERE id=${id}::uuid AND account_id=${lease.accountId}::uuid AND lease_token=${lease.token}::uuid AND status='sending' RETURNING turn_id`;
 
           if (!settled) return;
 
           if (status === "sent") {
-            yield* channelActivity(sql, settled.turn_id, "sent", "Replied on Slack");
+            const provider = yield* turnProvider(sql, settled.turn_id);
+            yield* channelActivity(sql, settled.turn_id, "sent", `Replied on ${provider}`);
 
             if (result.messageId && slackTimestamp.test(result.messageId)) {
               const [reply] =

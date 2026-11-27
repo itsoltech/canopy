@@ -51,7 +51,7 @@ export function messengerAccounts(sql: SqlClient.SqlClient, key: Buffer) {
           if (row.connector_account_id || row.connector_client_id) return undefined;
           const { appToken, botToken } = openMessengerCredentials(key, row);
 
-          return { appToken, botToken, revision: BigInt(row.revision) };
+          return { provider: row.provider, appToken, botToken, revision: BigInt(row.revision) };
         }),
       ),
     saveAccount: saveMessengerAccount(sql, key, owned),

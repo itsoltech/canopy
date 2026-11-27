@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { MessengerError, type MessengerErrorKind } from "./messenger-error.ts";
 
 export interface SlackCredentials {
   appToken: string;
@@ -20,15 +21,11 @@ export interface SlackTransport {
   waitForReconnect?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 }
 
-export type SlackErrorKind = "configuration" | "retryable" | "unknown_write";
+export type SlackErrorKind = MessengerErrorKind;
 
-export class SlackMessengerError extends Error {
-  constructor(
-    readonly kind: SlackErrorKind,
-    readonly code: string,
-    readonly retryAfterMs?: number,
-  ) {
-    super(`Slack messenger: ${code}`);
+export class SlackMessengerError extends MessengerError {
+  constructor(kind: SlackErrorKind, code: string, retryAfterMs?: number) {
+    super(kind, code, retryAfterMs, "Slack");
     this.name = "SlackMessengerError";
   }
 }

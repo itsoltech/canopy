@@ -52,7 +52,7 @@ function dispatchConversation(sql: SqlClient.SqlClient, owner: string, id: strin
       AND b.deleted_at IS NULL AND b.archived_at IS NULL
       AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
       AND ${linkedMessengerActive(sql)}
-      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%')) FOR UPDATE OF b SKIP LOCKED`;
+      AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.direct)) FOR UPDATE OF b SKIP LOCKED`;
 
       if (!bots[0]) return undefined;
       const botId = bots[0].id;
@@ -171,7 +171,7 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
         JOIN bot_channel_routes r ON r.id=c.route_id JOIN messenger_accounts a ON a.id=r.account_id
         WHERE r.owner_user_id=${owner}::uuid AND a.owner_user_id=r.owner_user_id AND ${ownerModule(sql, owner, "bots")}
         AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL AND ${linkedMessengerActive(sql)}
-        AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))
+        AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.direct))
         AND (c.first_received_at IS NOT NULL OR EXISTS(SELECT 1 FROM bot_channel_inputs i JOIN bot_turns t ON t.id=i.turn_id
           WHERE i.conversation_id=c.id AND i.status='attempted' AND t.status NOT IN ('queued','running','waiting')))
         ORDER BY c.first_received_at NULLS FIRST,c.id LIMIT 100`;
@@ -205,7 +205,7 @@ export function messengerDispatch(sql: SqlClient.SqlClient) {
         AND a.owner_user_id=b.owner_user_id AND (NOT ${applied} OR (b.deleted_at IS NULL AND b.archived_at IS NULL
           AND b.moved_to IS NULL AND r.deleted_at IS NULL AND a.enabled AND a.deleted_at IS NULL
           AND ${linkedMessengerActive(sql)} AND ${currentChannelEpoch(sql)}
-          AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.channel_id LIKE 'D%'))))
+          AND (c.channel_id=ANY(r.channel_ids) OR (r.direct_messages AND c.direct))))
         AND i.id=${inputId}::uuid AND i.turn_id=t.id AND b.owner_user_id=${owner}::uuid AND i.status='attempted' AND (${expectedTurnId ?? null}::uuid IS NULL OR i.turn_id=${expectedTurnId ?? null}::uuid)
         RETURNING i.turn_id,t.bot_id,i.text`;
 

@@ -1,6 +1,8 @@
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "../store/store.ts";
+import { messengerAdapter } from "./adapters.ts";
+import { messengerLabel } from "./provider.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type { MessengerRoute, RouteRow, SaveMessengerRoute } from "./types.ts";
 
@@ -18,7 +20,7 @@ export const routeView = (row: RouteRow): MessengerRoute => ({
   instructions: row.instructions,
 });
 
-/** Called under the exclusive owner admission lock, which also fences Slack ingest and dispatch. */
+/** Called under the exclusive owner admission lock, which also fences messenger ingest and dispatch. */
 export function retireBotRoutes(sql: SqlClient.SqlClient, owner: string, botId: string) {
   return sql`WITH retired_routes AS (
     UPDATE bot_channel_routes SET deleted_at = coalesce(deleted_at, now())
@@ -54,10 +56,11 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
 
           if (!bot.length) return yield* Effect.fail(new NotFound("Bot not found"));
           // Account lock serializes responder overlap checks; bots never carry account credentials.
-          yield* accounts.owned(owner, input.accountId);
+          const account = yield* accounts.owned(owner, input.accountId);
           yield* sql`SELECT id FROM messenger_accounts WHERE id=${input.accountId}::uuid FOR UPDATE`;
-
-          let channelContext = input.channelContext ?? true;
+          const adapter = messengerAdapter(account.provider);
+          const label = messengerLabel(account.provider);
+          let channelContext = adapter.channelContext && (input.channelContext ?? true);
 
           if (input.id) {
             const existing = yield* sql<{
@@ -66,16 +69,20 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
           AND bot_id=${input.botId}::uuid AND account_id=${input.accountId}::uuid AND owner_user_id=${owner}::uuid AND deleted_at IS NULL`;
 
             if (!existing[0]) return yield* Effect.fail(new NotFound("Messenger route not found"));
-            channelContext = input.channelContext ?? existing[0].channel_context;
+            channelContext = adapter.channelContext && (input.channelContext ?? existing[0].channel_context);
           }
+
+          if (input.channelIds.some((id) => !adapter.channelId.test(id)))
+            return yield* Effect.fail(new Invalid(`Use ${label} channel IDs`));
+
+          if (input.userIds.some((id) => !adapter.userId.test(id)))
+            return yield* Effect.fail(new Invalid(`Use ${label} user IDs`));
 
           if (
             input.instructions.length > 10_000 ||
             input.channelIds.length > 100 ||
             !input.userIds.length ||
             input.userIds.length > 100 ||
-            input.channelIds.some((id) => !/^[CG][A-Z0-9]{1,79}$/.test(id)) ||
-            input.userIds.some((id) => !/^[UW][A-Z0-9]{1,79}$/.test(id)) ||
             (!input.channelIds.length && !input.directMessages) ||
             (!input.mentions &&
               !input.observe &&
@@ -117,7 +124,7 @@ export function messengerRoutes(sql: SqlClient.SqlClient, accounts: MessengerAcc
           yield* sql`UPDATE bot_channel_messages m SET deleted=true FROM bot_channel_conversations c
             WHERE m.conversation_id=c.id AND c.route_id=${id}::uuid AND m.state='buffered'
             AND (NOT (m.author_id=ANY(${input.userIds}::text[])) OR NOT (
-              c.channel_id=ANY(${input.channelIds}::text[]) OR (${input.directMessages} AND c.channel_id LIKE 'D%')))`;
+              c.channel_id=ANY(${input.channelIds}::text[]) OR (${input.directMessages} AND c.direct)))`;
 
           return routeView(rows[0]!);
         }),

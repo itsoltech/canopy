@@ -24,14 +24,31 @@ interface RecordedMessage {
   source_edited: boolean;
 }
 
+/** Without native threads, a reply to a message from an existing conversation continues that conversation. */
+function replyThread(sql: SqlClient.SqlClient, route: RouteRow, event: MessengerEvent) {
+  return Effect.gen(function* () {
+    if (!event.replyTo || event.threadId || event.direct) return event;
+
+    const [conversation] = yield* sql<{ thread_id: string }>`SELECT c.thread_id FROM bot_channel_conversations c
+      WHERE c.route_id=${route.id}::uuid AND c.channel_id=${event.channelId} AND (
+        EXISTS(SELECT 1 FROM messenger_outbound o WHERE o.account_id=${route.account_id}::uuid
+          AND o.channel_id=${event.channelId} AND o.message_id=${event.replyTo} AND o.conversation_id=c.id)
+        OR EXISTS(SELECT 1 FROM bot_channel_messages m WHERE m.conversation_id=c.id AND m.message_id=${`${event.replyTo}:0`}))
+      ORDER BY c.open_until DESC LIMIT 1`;
+
+    return conversation ? { ...event, threadId: conversation.thread_id } : event;
+  });
+}
+
 function bufferEvent(
   sql: SqlClient.SqlClient,
   route: RouteRow,
-  event: MessengerEvent,
+  source: MessengerEvent,
   now: Date,
   capturedAlready = false,
 ) {
   return Effect.gen(function* () {
+    const event = yield* replyThread(sql, route, source);
     const kind = event.kind ?? "message";
     const threadId = route.delivery === "reply" && !event.direct && !event.threadId ? event.messageId : event.threadId;
     const sourceKey = `${event.messageId}:0`;
@@ -118,8 +135,8 @@ function bufferEvent(
 
     if (!conversation) {
       conversation =
-        (yield* sql<ConversationRow>`INSERT INTO bot_channel_conversations(id,route_id,channel_id,thread_id,open_until,root_author_id)
-        VALUES(${Bun.randomUUIDv7()}::uuid,${route.id}::uuid,${event.channelId},${threadId},${new Date(now.getTime() + 300_000)},${!event.direct && !event.threadId && route.delivery === "reply" ? event.authorId : null})
+        (yield* sql<ConversationRow>`INSERT INTO bot_channel_conversations(id,route_id,channel_id,thread_id,direct,open_until,root_author_id)
+        VALUES(${Bun.randomUUIDv7()}::uuid,${route.id}::uuid,${event.channelId},${threadId},${event.direct},${new Date(now.getTime() + 300_000)},${!event.direct && !event.threadId && route.delivery === "reply" ? event.authorId : null})
         RETURNING *`)[0]!;
     }
 
@@ -153,6 +170,7 @@ export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAcc
           !event.messageId ||
           event.messageId.length > 100 ||
           event.threadId.length > 100 ||
+          (event.replyTo?.length ?? 0) > 100 ||
           (!event.authorId && event.kind !== "delete") ||
           event.authorId.length > 80 ||
           event.timestamp.length > 100 ||

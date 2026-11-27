@@ -1,12 +1,13 @@
 import { Schema } from "effect";
 import { decryptSecret } from "../store/secrets.ts";
+import type { MessengerProvider } from "./provider.ts";
 import type { MessengerAccount } from "./types.ts";
 
 export interface AccountRow {
   id: string;
   owner_user_id: string;
   name: string;
-  provider: "slack";
+  provider: MessengerProvider;
   external_id: string;
   connector_account_id: string | null;
   connector_client_id: string | null;

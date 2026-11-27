@@ -592,7 +592,7 @@ describe.skipIf(!dockerAvailable)("private owner messenger subscription tools", 
         "routing settings",
       );
       await expect(call(f.turn, "save_messenger_subscription", { ...args, user_ids: ["everyone"] })).rejects.toThrow(
-        "routing settings",
+        "Use Slack user IDs",
       );
       await expect(
         call(f.turn, "save_messenger_subscription", { ...args, subscription_id: Bun.randomUUIDv7() }),
