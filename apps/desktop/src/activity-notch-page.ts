@@ -3,6 +3,8 @@ import { motion } from "@canopy/ui";
 import { activityNotchLogoSize } from "@canopy/ui/desktop";
 import { icons, iconStyle } from "@canopy/ui/icons";
 import { threadSpinner } from "@canopy/ui/thread-row";
+import { activityNotchMotionScript } from "./activity-notch-motion-script.ts";
+import { activityNotchMotionStyles } from "./activity-notch-motion-styles.ts";
 import { activityNotchPanelDelay, activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
 
@@ -34,7 +36,8 @@ const glyphs = Object.entries(activityGlyphs)
 
     return `<span class="state-layer" data-state="${state}">${icon}</span>`;
   })
-  .join("");
+  .join("")
+  .concat('<span class="ping"></span>');
 
 const script = `
   const bridge = window.canopyActivityNotch;
@@ -45,7 +48,8 @@ const script = `
   const panel = document.getElementById("activity-panel");
   const summary = document.getElementById("activity-summary");
   const summaryText = document.getElementById("activity-description");
-  const glyphs = summary.querySelectorAll("[data-state]");
+  const glyphs = summary.querySelectorAll(".state-layer");
+  const ring = summary.querySelector(".ping");
   const total = document.getElementById("activity-count");
   const list = document.querySelector(".rows");
   const leavingRows = document.querySelector(".leaving-rows");
@@ -56,12 +60,12 @@ const script = `
   const encodedLogoLength = Math.ceil(logoBytes / 3) * 4;
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
+${activityNotchMotionScript}
   const rowAnimations = new Set();
   let collapseTimer;
   let openedByHover = false;
   let layoutRevision;
   let layoutHeight;
-  let count = 0;
 
   function setExpanded(expanded) {
     clearTimeout(collapseTimer);
@@ -82,10 +86,6 @@ const script = `
     if (setExpanded(expanded)) bridge.setExpanded(expanded);
   }
 
-  function showState(layers, state) {
-    for (const layer of layers) layer.classList.toggle("active", layer.dataset.state === state);
-  }
-
   function applyLayout({ center, width, height, headerHeight, revision }) {
     layoutRevision = revision;
     if (notch.hasAttribute("data-layout")) notch.dataset.animate = "";
@@ -104,41 +104,6 @@ const script = `
     void Promise.allSettled(animations.map((animation) => animation.finished)).then(() => {
       if (revision === layoutRevision) bridge.layoutSettled(revision);
     });
-  }
-
-  function renderCount(next) {
-    const formatted = next ? numbers.format(next) : "";
-    if (count === next) return formatted;
-
-    const previous = count;
-    count = next;
-    if (reducedMotion.matches) {
-      total.textContent = formatted;
-      return formatted;
-    }
-
-    const old = previous ? numbers.format(previous) : "";
-    const places = Math.max(old.length, formatted.length);
-    const before = old.padStart(places);
-    total.style.setProperty("--count-direction", next > previous ? "1" : "-1");
-    total.replaceChildren(...Array.from(formatted.padStart(places), (digit, index) => {
-      const slot = document.createElement("span");
-      slot.className = "count-slot";
-      if (digit === before[index]) {
-        slot.textContent = digit;
-        return slot;
-      }
-
-      const outgoing = document.createElement("span");
-      const incoming = document.createElement("span");
-      outgoing.className = "count-out";
-      incoming.className = "count-in";
-      outgoing.textContent = before[index];
-      incoming.textContent = digit;
-      slot.append(outgoing, incoming);
-      return slot;
-    }));
-    return formatted;
   }
 
   function createRow(id) {
@@ -285,16 +250,19 @@ const script = `
     }
 
     let nextItem = list.firstElementChild;
-    for (const { id, label, state, projectMark, botMascot } of rows) {
-      const view = rowViews.get(id) ?? createRow(id);
+    for (const [index, { id, label, state, projectMark, botMascot }] of rows.entries()) {
+      const existing = rowViews.get(id);
+      const view = existing ?? createRow(id);
       rowViews.set(id, view);
+      // The reveal staggers rows by their place in the list.
+      if (view.item.style.getPropertyValue("--i") !== String(index)) view.item.style.setProperty("--i", String(index));
       const status = statuses[state].label;
       updateRowMark(view, projectMark, botMascot);
       if (view.label.textContent !== label) {
         view.label.textContent = label;
         view.label.title = label;
       }
-      showState(view.status.children, state);
+      showState(view.status.children, state, existing && "text");
       const project = projectMark ? ", project " + projectMark.initials : "";
       const accessibleLabel = "Open " + label + project + ", " + status;
       if (view.button.getAttribute("aria-label") !== accessibleLabel) {
@@ -317,7 +285,7 @@ const script = `
       description = itemCount + ". " + numbers.format(count) + " " + status + ".";
     }
     if (summaryText.textContent !== description) summaryText.textContent = description;
-    showState(glyphs, state);
+    if (showState(glyphs, state, "icon") && state) ping(ring, state);
     toggle.disabled = !state;
   }
 
@@ -370,7 +338,7 @@ export function activityNotchPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
-  <style nonce="${nonce}">${activityNotchStyles}</style>
+  <style nonce="${nonce}">${activityNotchStyles}${activityNotchMotionStyles}</style>
 </head>
 <body>
   <main class="notch" data-open="false">
