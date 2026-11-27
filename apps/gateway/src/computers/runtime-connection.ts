@@ -33,11 +33,17 @@ export function computersBroadcast(hostContext: LinkedComputers, frame: MessageI
       );
 }
 
-/** Wake and network changes retire the old sockets; the next dial still verifies the saved pin. */
-export function computersReconnect(hostContext: LinkedComputers, flushMs = 0) {
+/** Dial unlinked partners on the next tick: drop backed-off retries and open read circuits. A dial controller
+ * also owns its live link, so links and attempts in flight are left alone. */
+export function computersRedial(hostContext: LinkedComputers) {
   hostContext[computersState].retry.clear();
 
   for (const node of hostContext[computersState].capabilities.keys()) hostContext.reads.connected(node);
+}
+
+/** Wake and network changes retire the old sockets; the next dial still verifies the saved pin. */
+export function computersReconnect(hostContext: LinkedComputers, flushMs = 0) {
+  computersRedial(hostContext);
 
   for (const controller of hostContext[computersState].dialing.values()) controller.abort();
 

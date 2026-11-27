@@ -1041,6 +1041,8 @@ sprawdza zapisany pin TLS 1.3. Nowe trasy idą starym łączem przed jego zamkni
 (okno 100 ms), również dla partnera bez listenera. Otwarcie listenera (start gatewaya,
 włączenie dostępu sieciowego) nie jest zmianą sieci: nikt nie mógł użyć wcześniejszego adresu,
 więc łącza nawiązane przed nim zostają, a partnerzy dostają trasy samą ramką `routes`.
+Otwarcie listenera kasuje jednak backoff ponownych prób i obwód odczytów dla partnerów,
+żeby gateway od razu połączył się z partnerem bez łącza, zamiast czekać 30 s na koniec backoffu z okresu niedostępności.
 
 `ListBotsResponse.unavailable_computers` wskazuje utracone domy, a
 `refreshing_computers` — powolne odświeżenia. Connectors pokazuje notkę przy lokalnych

@@ -2,7 +2,7 @@ import { LAN_ROUTES } from "@canopy/domain/computers";
 
 import { LanDiscovery } from "./lan.ts";
 
-import { computersReconnect, computersTick } from "./runtime-connection.ts";
+import { computersReconnect, computersRedial, computersTick } from "./runtime-connection.ts";
 import { computersState, WILDCARD } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
 import type { LinkedComputers } from "./runtime.ts";
@@ -25,6 +25,10 @@ export function computersAdvertise(hostContext: LinkedComputers) {
   // earlier address of this computer, and the links it dialled meanwhile keep working.
   const opened = network.listening && !hostContext[computersState].listening;
   hostContext[computersState].listening = network.listening;
+
+  // Dial unlinked partners at once: their retries and read circuits backed off while this computer was unreachable.
+  if (opened) computersRedial(hostContext);
+
   const knownNetwork = Boolean(hostContext[computersState].network) && !opened;
   const changedInterfaces = knownNetwork && key !== hostContext[computersState].network;
 
