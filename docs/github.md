@@ -1,7 +1,8 @@
 # Konto GitHub i pull requesty
 
-Aktualizacja (2026-11-26): odświeżenie listy w tle może zapisać podsumowanie tylko
-z odpowiedzi, która nadal znajduje się w cache bieżącej rewizji dostępu (§3).
+Aktualizacja (2026-11-27): odświeżenie listy w tle może zapisać podsumowanie tylko
+z odpowiedzi, która nadal znajduje się w cache bieżącej rewizji dostępu (§3). Jawne odświeżenie
+strony PR przyjmuje wypełnienie cache zapisane po jego pierwszym odczycie zamiast pobierać ponownie.
 
 Status (2026-11-26): odczyt jobs i logów rozpoznaje workflow wskazany przez check PR-a,
 gdy GitHub pomija listę powiązanych PR-ów. Web i desktop pokazują zadania i logi
@@ -364,6 +365,8 @@ Cache PostgreSQL jest współdzielony przez UI, autodetekcję i procesy tego gat
 mały LRU RAM ogranicza deserializację. Klucz zawiera owner, dom, account, rewizję dostępu,
 repository ID, PR, parametry strony i SHA. Nigdy nie współdzielimy prywatnej treści między
 właścicielami ani kontami. Single-flight i krótka dzierżawa SQL deduplikują odczyt;
+jawne odświeżenie przyjmuje każde wypełnienie cache zapisane po tym, jak zapytanie pierwszy raz
+odczytało swój wiersz, więc odświeżenia z kilku klientów naraz pobierają GitHub raz.
 I/O HTTP odbywa się poza transakcją. Po zmianie zapisujemy tylko zmienione projekcje i publikujemy
 rewizję przez istniejący Hub/owner feed. `QueryCache` web/mobile odrzuca spóźnione odpowiedzi.
 

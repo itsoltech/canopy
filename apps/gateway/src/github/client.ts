@@ -40,6 +40,11 @@ export interface GitHubRead {
   /** A bounded batch already fetched this envelope through the same account and budget. */
   prefetched?: { payload: Schema.JsonObject; revision: bigint; source: CachePayloadVersion };
   signal?: AbortSignal;
+  /**
+   * Cache generation the caller already read for this key. A fill committed after it answers the
+   * request, so an explicit refresh that arrives after another client's fill ended does not fetch again.
+   */
+  seen?: bigint;
   project?: (value: Schema.JsonObject, headers: Headers) => Promise<Schema.JsonObject>;
 }
 
@@ -151,7 +156,7 @@ export class GitHubClient {
     const deadline = Date.now() + 55_000;
     let previous = await this.cached(row, read.key);
     signal.throwIfAborted();
-    const generation = BigInt(previous?.generation ?? 0);
+    const generation = read.seen ?? BigInt(previous?.generation ?? 0);
 
     while (!(await run((s) => s.cacheClaim(row, read.key, lease))).length) {
       signal.throwIfAborted();

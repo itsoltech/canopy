@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { GitHubAccounts } from "../../apps/gateway/src/github/service.ts";
+import type { GitHubClient } from "../../apps/gateway/src/github/client.ts";
 import { readScope } from "../../apps/gateway/src/github/read-scope.ts";
 import { timeline } from "../../apps/gateway/src/github/timeline-query.ts";
 import { create } from "@bufbuild/protobuf";
@@ -10,7 +11,14 @@ import { startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { linkedRead, readFixture, readHead, readBase } from "./support/github-read.ts";
 
 describe.skipIf(!dockerAvailable)("paginated GitHub read RPCs", () => {
-  const fixture = readFixture();
+  let timelineHeld = Promise.resolve();
+
+  const fixture = readFixture(async (query) => {
+    if (query.startsWith("query CanopyTimeline")) await timelineHeld;
+
+    return undefined;
+  });
+
   let gw: TestGateway;
   let pr: string;
 
@@ -103,12 +111,28 @@ describe.skipIf(!dockerAvailable)("paginated GitHub read RPCs", () => {
     const other = new GitHubAccounts(gw.runtime, gw.userId, fixture.options);
     const before = fixture.counts.get("CanopyTimeline") ?? 0;
     const request = create(github.PullRequestPageRequestSchema, { pullRequestId: pr, kind: "commit", refresh: true });
+    const sampled = Promise.withResolvers<void>();
+    let callers = 0;
+
+    // Each refresh samples the cache before it reaches its client. Hold GitHub until all three have, so they overlap.
+    const reaching = (client: GitHubClient) => {
+      const read = client.read.bind(client);
+
+      return spyOn(client, "read").mockImplementation((id, value, force) => {
+        if (force && value.key.startsWith("timeline:") && ++callers === 3) sampled.resolve();
+
+        return read(id, value, force);
+      });
+    };
+
+    const spies = [reaching(gw.core.github.prs.client), reaching(other.prs.client)];
+    timelineHeld = sampled.promise;
 
     try {
       await Promise.all([
         gw.api.listPullRequestTimeline(request),
         gw.api.listPullRequestTimeline(request),
-        timeline(await readScope(other.prs, request, "timeline")),
+        readScope(other.prs, request, "timeline").then(timeline),
       ]);
       expect((fixture.counts.get("CanopyTimeline") ?? 0) - before).toBe(1);
       fixture.partial(true);
@@ -126,6 +150,10 @@ describe.skipIf(!dockerAvailable)("paginated GitHub read RPCs", () => {
       expect(cached.items).toHaveLength(50);
       await restarted.stop();
     } finally {
+      sampled.resolve();
+      timelineHeld = Promise.resolve();
+
+      for (const spy of spies) spy.mockRestore();
       await other.stop();
       fixture.partial(false);
     }
