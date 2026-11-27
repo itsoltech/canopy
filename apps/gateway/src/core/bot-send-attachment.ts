@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
-import { AttachmentStore } from "../store/attachments.ts";
+import { AttachmentStore, type AttachmentRow } from "../store/attachments.ts";
+import { messengerAdapter } from "../messengers/adapters.ts";
+import { MessengerStore } from "../messengers/store.ts";
+import { messengerLabel } from "../messengers/provider.ts";
 import { BotStore, botConfiguration } from "../bots/store.ts";
 import { storedBotImage } from "../bots/attachments.ts";
 import { botFileResponse } from "../bots/tools/workspace.ts";
@@ -55,6 +58,46 @@ async function receiveFile(ctx: ToolContext) {
   return { name, data };
 }
 
+/** In an external conversation the file joins this turn's reply instead of the owner's private chat. */
+async function queueReplyFile(ctx: ToolContext, row: AttachmentRow) {
+  const actions = ctx.core[coreState].actions;
+
+  await actions.run(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`UPDATE attachments SET bot_id=${ctx.turn.bot_id}::uuid, bot_turn_id=${ctx.turn.id}::uuid
+        WHERE id=${row.id}::uuid AND owner_user_id=${ctx.options.userId}::uuid AND bot_id IS NULL AND thread_id IS NULL`;
+    }),
+  );
+
+  // The upload is still uncommitted inside this action, so the queue entry must join the same transaction.
+  const queued = await actions.run(
+    MessengerStore.use((s) =>
+      s.queueReplyFile(ctx.options.userId, ctx.turn, row.id, (provider) => messengerAdapter(provider).maxFileBytes),
+    ),
+  );
+
+  await actions.run(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
+        VALUES (${ctx.call.id}::uuid,${ctx.options.userId}::uuid,'bot.send_attachment','bot',${ctx.turn.bot_id}::uuid,
+        ${JSON.stringify({ attachment_id: row.id, name: row.name, size_bytes: Number(row.size_bytes), mime_type: row.mime_type, conversation_id: ctx.turn.conversation_id })}::jsonb)
+        ON CONFLICT(id) DO NOTHING`;
+    }),
+  );
+
+  return {
+    attachment_id: row.id,
+    name: row.name,
+    size_bytes: Number(row.size_bytes),
+    mime_type: row.mime_type,
+    delivered: false,
+    queued_for_reply: queued.queued,
+    note: `Sent to ${messengerLabel(queued.provider)} with your final reply. Skipping the reply also skips this file.`,
+  };
+}
+
 /** Existing upload validation plus one fenced transaction for storage, message, audit and tool result. */
 export async function sendBotAttachment(ctx: ToolContext) {
   const file = await receiveFile(ctx);
@@ -67,6 +110,8 @@ export async function sendBotAttachment(ctx: ToolContext) {
       throw new Invalid("Files are disabled for this bot. Enable Files in bot settings.");
     const attachment = await ctx.core.uploadAttachment(file.name, file.data);
     const row = await actions.run(AttachmentStore.use((s) => s.owned(ctx.options.userId, attachment.id)));
+
+    if (ctx.turn.conversation_id) return queueReplyFile(ctx, row);
     const caption = ctx.optional("caption").slice(0, 4000);
 
     await actions.run(

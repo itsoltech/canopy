@@ -11,6 +11,8 @@ export const localOnlyTables = [
   "mobile_pairings",
   "mobile_push_subscriptions",
   "mobile_push_outbox",
+  // Delivery queue for unsent external replies; pending replies are not imported either.
+  "messenger_outbound_files",
   "mobile_push_relay_settings",
   "mobile_push_enrollments",
   "mobile_push_grants",

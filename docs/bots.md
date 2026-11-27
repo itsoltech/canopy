@@ -1,5 +1,10 @@
 # Boty
 
+Status (2026-11-27): w rozmowie Slack, Telegram lub Discord z dostarczaniem odpowiedzi
+`send_attachment` dołącza plik do odpowiedzi tury. Szczegóły w sekcji
+[Pliki w odpowiedziach](#pliki-w-odpowiedziach). Dostępność w kanałach określa
+[promocja wydań](release.md).
+
 Status (2026-11-27): boty odbierają i wysyłają wiadomości także przez Telegram
 (Bot API, long polling) i Discord (gateway WebSocket z wznawianiem sesji).
 W web/desktop i na telefonie zakładka **Settings → Connectors → Messaging** zarządza
@@ -421,6 +426,33 @@ formatowanie jest wysyłane jako zwykły tekst. Długie odpowiedzi dzielą się 
 w limicie dostawcy; błąd po pierwszej części oznacza dostarczenie jako niepewne.
 Discord dostaje nonce dla każdej części i wzmianki ograniczone do użytkowników.
 
+#### Pliki w odpowiedziach
+
+W turze rozmowy zewnętrznej z dostarczaniem `reply` narzędzie `send_attachment`
+zapisuje plik ze scratch rozmowy jako załącznik i dodaje go do kolejki odpowiedzi
+tej tury (`messenger_outbound_files`). Plik nie trafia do prywatnego czatu właściciela.
+Kolejka powstaje w transakcji akcji narzędzia, więc wycofana akcja nie zostawia pliku.
+Odpowiedź zawiera najwyżej 10 plików i 50 MB. Plik większy niż limit dostawcy jest
+odrzucany przy wywołaniu narzędzia (Slack i Telegram 50 MB, Discord 10 MB).
+Trasa `notify` odrzuca pliki, bo nie wysyła nic do rozmowy. Pominięcie odpowiedzi
+przez `skip_slack_reply` pomija także jej pliki. Tura bez tekstu, ale z plikami,
+wysyła same pliki.
+
+Gateway czyta bajty plików przed zajęciem wiersza outboxa, poza blokadami. Brak pliku
+oznacza odpowiedź niewysłaną i powiadomienie właściciela. Wysyłka zachowuje zasady
+outboxa: zapis nie jest ponawiany, a błąd po pierwszym widocznym zapisie oznacza
+dostarczenie niepewne.
+
+- Slack: gateway najpierw rezerwuje i przesyła pliki (`files.getUploadURLExternal`),
+  co niczego nie publikuje. Potem wysyła tekst i udostępnia pliki w tym samym wątku
+  (`files.completeUploadExternal`). Aplikacja bez zakresu `files:write` odrzuca
+  całą odpowiedź przed publikacją tekstu.
+- Telegram: pliki idą po tekście jako odpowiedzi na tę samą wiadomość. JPEG, PNG
+  i WebP do 10 MB przez `sendPhoto`, pozostałe przez `sendDocument`.
+- Discord: pliki dołączają do ostatniej części tekstu w multipart `files[n]`.
+  Wiadomość ma najwyżej 10 plików i 10 MB; nadmiar trafia do kolejnych wiadomości
+  bez tekstu.
+
 Wspólny kontekst kanału, pobieranie plików z wiadomości oraz narzędzia
 `list_messenger_channels`, `list_messenger_channel_members` i `list_messenger_users`
 działają tylko dla Slacka. Właściciel podaje ID czatów i użytkowników Telegrama
@@ -669,9 +701,10 @@ audyt i wynik narzędzia są atomowe i deduplikowane po call id; reconnect nie
 wysyła drugiej kopii. Zwykła polityka zgód pozostaje egzekwowana w gatewayu.
 
 Załącznik pojawia się jako wiadomość bota w web, desktop i mobile: nazwa,
-rozmiar, ikona typu, pobranie i obsługiwany podgląd. Kanały Telegram/Slack lub
-inne kanały dostarczają plik wyłącznie przez istniejący, uprawniony adapter
-obsługujący pliki. Sam grant konta MCP nie tworzy kanału dostarczania.
+rozmiar, ikona typu, pobranie i obsługiwany podgląd. W rozmowie Slack, Telegram
+lub Discord plik dołącza do odpowiedzi tury przez adapter komunikatora
+([Pliki w odpowiedziach](#pliki-w-odpowiedziach)). Sam grant konta MCP nie tworzy
+kanału dostarczania.
 Brak obsługi plików daje jawną informację; plik nadal jest dostępny w rozmowie
 Canopy. Sekrety kanałów i connectorów pozostają w gatewayu, nigdy w scratch,
 argumentach modelu ani logach workera.

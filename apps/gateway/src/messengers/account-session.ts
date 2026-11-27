@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { messengerAdapter } from "./adapters.ts";
+import { coreState } from "../core/core-context.ts";
+import { AttachmentStore } from "../store/attachments.ts";
 import { MessengerError } from "./messenger-error.ts";
 import type { MessengerAdapter, MessengerTransport } from "./provider.ts";
 import type { AccountLease, MessengerAccount, MessengerCredentials, OutboundMessage, OutboundResult } from "./types.ts";
@@ -117,7 +119,17 @@ export class MessengerAccountSession {
   async #send(): Promise<void> {
     const rows = await this.runtime.run((s) => s.outbound(this.runtime.owner, this.lease, this.runtime.now()));
 
-    for (const message of rows) {
+    for (const row of rows) {
+      // File bytes are read before the send is claimed, so no row locks are held during the read.
+      const message = await this.#withFiles(row).catch(() => undefined);
+
+      if (!message) {
+        await this.runtime.run((s) =>
+          s.settleOutbound(this.runtime.owner, this.lease, row.id, { sent: false, refused: true }, this.runtime.now()),
+        );
+        continue;
+      }
+
       const delivery = this.abort.signal.aborted
         ? undefined
         : await this.runtime.run((s) =>
@@ -137,6 +149,23 @@ export class MessengerAccountSession {
         s.settleOutbound(this.runtime.owner, this.lease, message.id, result, this.runtime.now()),
       );
     }
+  }
+
+  async #withFiles(message: OutboundMessage): Promise<OutboundMessage> {
+    const rows = await this.runtime.run((s) => s.outboundFiles(this.runtime.owner, message.id));
+
+    if (!rows.length) return message;
+    const { actions } = this.runtime.core[coreState];
+
+    const files = await Promise.all(
+      rows.map(async (file) => {
+        const blob = await actions.run(AttachmentStore.use((s) => s.blob(file.sha256)));
+
+        return { name: file.name, mimeType: file.mime_type, data: blob.data };
+      }),
+    );
+
+    return { ...message, files };
   }
 
   async close(): Promise<void> {

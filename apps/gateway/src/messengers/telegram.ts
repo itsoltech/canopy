@@ -1,6 +1,13 @@
 import { Option, Schema } from "effect";
 import { MessengerError } from "./messenger-error.ts";
-import { runWithReconnect, splitMessage, type MessengerAdapter, type MessengerRunOptions } from "./provider.ts";
+import {
+  runWithReconnect,
+  sendInOrder,
+  splitMessage,
+  type MessengerAdapter,
+  type MessengerRunOptions,
+} from "./provider.ts";
+import { sendTelegramFile } from "./telegram-files.ts";
 import { TelegramBot, TelegramUpdates, telegramEvent, type TelegramIdentity } from "./telegram-events.ts";
 import { formatTelegramMessage } from "./telegram-format.ts";
 import { telegramError, telegramRequest, type TelegramBody } from "./telegram-http.ts";
@@ -105,6 +112,7 @@ export const telegramAdapter: MessengerAdapter = {
   channelId: /^-\d{1,20}$/,
   userId: /^\d{1,20}$/,
   channelContext: false,
+  maxFileBytes: 50 * 1024 ** 2,
   async validate(credentials, signal, transport) {
     const bot = await telegramIdentity(credentials, signal, transport);
 
@@ -132,25 +140,22 @@ export const telegramAdapter: MessengerAdapter = {
     }),
   async send(credentials, message, signal, transport) {
     const parts = splitMessage(message.text, partLength);
+    const files = message.files ?? [];
 
     if (
-      !parts.length ||
+      (!parts.length && !files.length) ||
       !/^-?\d{1,20}$/.test(message.channelId) ||
       (message.threadId && !/^\d{1,20}$/.test(message.threadId))
     )
       throw telegramError("configuration", "invalid_message_target");
-    let messageId = "";
 
-    for (const [index, part] of parts.entries()) {
-      try {
-        messageId = await sendPart(credentials, message, part, signal, transport);
-      } catch (error) {
-        // Earlier parts are already visible: any later failure leaves the reply partially delivered.
-        if (index > 0) throw telegramError("unknown_write", "partial_send");
-
-        throw error;
-      }
-    }
+    const messageId = await sendInOrder(
+      [
+        ...parts.map((part) => () => sendPart(credentials, message, part, signal, transport)),
+        ...files.map((file) => () => sendTelegramFile(credentials, message, file, signal, transport)),
+      ],
+      () => telegramError("unknown_write", "partial_send"),
+    );
 
     return { channelId: message.channelId, messageId };
   },

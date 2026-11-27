@@ -10,7 +10,8 @@ import {
   type SlackTransport,
 } from "./slack-http.ts";
 import { slackSocket } from "./slack-socket.ts";
-import { runWithReconnect, type MessengerAdapter } from "./provider.ts";
+import { runWithReconnect, sendInOrder, type MessengerAdapter } from "./provider.ts";
+import { shareSlackFiles, uploadSlackFiles } from "./slack-uploads.ts";
 import type { MessengerIngestOutcome } from "./types.ts";
 
 export { SlackMessengerError } from "./slack-http.ts";
@@ -180,14 +181,36 @@ export const slackAdapter: MessengerAdapter = {
   channelId: /^[CG][A-Z0-9]{1,79}$/,
   userId: /^[UW][A-Z0-9]{1,79}$/,
   channelContext: true,
+  maxFileBytes: 50 * 1024 ** 2,
   validate: validateSlackAccount,
   run: (options, signal) => new SlackMessenger(options).run(signal),
   send: async (credentials, message, signal, transport) => {
-    const confirmed = await postSlackMessage(credentials, message, signal, transport);
+    const files = message.files ?? [];
 
-    if (confirmed.channelId !== message.channelId || !slackTimestamp.test(confirmed.messageId))
-      throw new SlackMessengerError("unknown_write", "invalid_send_response");
+    if (!message.text.trim() && !files.length) throw new SlackMessengerError("configuration", "message_size_limit");
+    const uploaded = files.length ? await uploadSlackFiles(credentials, files, signal, transport) : [];
 
-    return confirmed;
+    const messageId = await sendInOrder(
+      [
+        ...(message.text.trim()
+          ? [
+              async () => {
+                const confirmed = await postSlackMessage(credentials, message, signal, transport);
+
+                if (confirmed.channelId !== message.channelId || !slackTimestamp.test(confirmed.messageId))
+                  throw new SlackMessengerError("unknown_write", "invalid_send_response");
+
+                return confirmed.messageId;
+              },
+            ]
+          : []),
+        ...(uploaded.length
+          ? [() => shareSlackFiles(credentials, uploaded, message.channelId, message.threadId, signal, transport)]
+          : []),
+      ],
+      () => new SlackMessengerError("unknown_write", "partial_send"),
+    );
+
+    return { channelId: message.channelId, messageId };
   },
 };

@@ -3,10 +3,14 @@ import { Option, Schema } from "effect";
 import { DiscordChannels, DiscordUser } from "./discord-events.ts";
 import { discordGateway, type DiscordState } from "./discord-gateway.ts";
 import { discordError, discordRequest } from "./discord-http.ts";
-import { runWithReconnect, splitMessage, type MessengerAdapter, type MessengerTransport } from "./provider.ts";
+import { discordForm, discordMessages } from "./discord-files.ts";
+import { runWithReconnect, sendInOrder, type MessengerAdapter, type MessengerTransport } from "./provider.ts";
 import type { MessengerCredentials, OutboundMessage } from "./types.ts";
 
 const partLength = 1900;
+
+/** Discord's upload limit for bots in servers without boosts, per message. */
+const maxFileBytes = 10 * 1024 ** 2;
 const snowflake = /^\d{17,20}$/;
 
 const GatewayBot = Schema.Struct({ url: Schema.String.check(Schema.isPattern(/^wss:\/\/[^\s/]+$/)) });
@@ -57,6 +61,7 @@ export const discordAdapter: MessengerAdapter = {
   channelId: snowflake,
   userId: snowflake,
   channelContext: false,
+  maxFileBytes,
   async validate(credentials, signal, transport) {
     const id = await botUser(credentials, signal, transport);
     const timeout = AbortSignal.timeout(20_000);
@@ -95,39 +100,39 @@ export const discordAdapter: MessengerAdapter = {
     });
   },
   async send(credentials, message, signal, transport) {
-    const parts = splitMessage(message.text, partLength);
     const { channel, reply } = target(message);
+    const messages = discordMessages(message, partLength, maxFileBytes);
 
-    if (!parts.length) throw discordError("configuration", "message_size_limit");
-    let messageId = "";
+    if (!messages.length) throw discordError("configuration", "message_size_limit");
 
-    for (const [index, content] of parts.entries()) {
-      try {
+    const messageId = await sendInOrder(
+      messages.map((entry, index) => async () => {
+        const fields = {
+          ...(entry.content && { content: entry.content }),
+          nonce: nonce(message.id, index),
+          enforce_nonce: true,
+          allowed_mentions: { parse: ["users"], replied_user: true },
+          ...(reply && index === 0 && { message_reference: { message_id: reply, fail_if_not_exists: false } }),
+        };
+
+        const body = entry.files.length ? discordForm(fields, entry.files) : fields;
+
         const sent = Option.getOrUndefined(
           Schema.decodeUnknownOption(SentMessage)(
             await discordRequest(`channels/${channel}/messages`, credentials.botToken, signal, transport, {
               method: "POST",
               write: true,
-              body: {
-                content,
-                nonce: nonce(message.id, index),
-                enforce_nonce: true,
-                allowed_mentions: { parse: ["users"], replied_user: true },
-                ...(reply && index === 0 && { message_reference: { message_id: reply, fail_if_not_exists: false } }),
-              },
+              body,
             }),
           ),
         );
 
         if (!sent || sent.channel_id !== channel) throw discordError("unknown_write", "invalid_send_response");
-        messageId = sent.id;
-      } catch (error) {
-        // Earlier parts are already visible: any later failure leaves the reply partially delivered.
-        if (index > 0) throw discordError("unknown_write", "partial_send");
 
-        throw error;
-      }
-    }
+        return sent.id;
+      }),
+      () => discordError("unknown_write", "partial_send"),
+    );
 
     return { channelId: message.channelId, messageId };
   },

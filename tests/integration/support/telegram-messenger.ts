@@ -62,6 +62,22 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
     return reply({ message_id: ++nextMessage, chat: { id: Number(body["chat_id"]) }, date: 1 });
   }
 
+  /** Records a multipart upload by its fields, file name and size. */
+  async function upload(request: Request, method: "sendPhoto" | "sendDocument") {
+    const form = await request.formData();
+    const file = form.get(method === "sendPhoto" ? "photo" : "document");
+    const reply = form.get("reply_parameters");
+
+    return {
+      method,
+      chat_id: String(form.get("chat_id")),
+      file: file instanceof File ? file.name : "",
+      bytes: file instanceof File ? file.size : 0,
+      ...(reply !== null &&
+        !(reply instanceof File) && { reply_parameters: Schema.decodeSync(Schema.fromJsonString(Schema.Json))(reply) }),
+    };
+  }
+
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -69,6 +85,8 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
       const [, bot, method] = new URL(request.url).pathname.split("/");
 
       if (bot !== `bot${telegramToken}`) return Response.json({ ok: false, error_code: 401 }, { status: 401 });
+
+      if (method === "sendPhoto" || method === "sendDocument") return sendMessage(await upload(request, method));
       const body = Schema.decodeSync(Body)(await request.text());
 
       if (method === "getMe") return reply({ id: 777, is_bot: true, username: "canopy_fixture_bot" });
@@ -77,7 +95,7 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
 
       if (method === "getUpdates") return getUpdates(body);
 
-      if (method === "sendMessage") return sendMessage(body);
+      if (method === "sendMessage") return sendMessage({ method, ...body });
 
       return Response.json({ ok: false, error_code: 404 }, { status: 404 });
     },

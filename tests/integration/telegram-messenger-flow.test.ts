@@ -155,3 +155,87 @@ test.skipIf(!dockerAvailable)(
   },
   60_000,
 );
+
+test.skipIf(!dockerAvailable)(
+  "a file sent with send_attachment leaves with the conversation reply, not the owner's chat",
+  async () => {
+    const telegram = telegramMessengerFixture();
+    let clockOffset = 0;
+
+    const f = await harnessBots({
+      messengerTransport: telegram.transport,
+      botClock: () => new Date(Date.now() + clockOffset),
+    });
+
+    const reply = async (count: number) => {
+      clockOffset += 4000;
+      await f.gw.core.messengers.tick();
+      await eventually(
+        async () => telegram.sent.length,
+        (n) => n === count,
+      );
+    };
+
+    try {
+      const bot = await f.add(Provider.CODEX);
+
+      const account = (
+        await f.gw.api.saveMessengerAccount({ name: "Fixture Telegram", provider: "telegram", botToken: telegramToken })
+      ).account!;
+
+      await f.gw.api.saveBotMessengerRoute({
+        route: {
+          botId: bot.id,
+          accountId: account.id,
+          channelIds: ["-100200"],
+          userIds: ["42"],
+          mentions: true,
+          delivery: "reply",
+          instructions: "Prepare requested files.",
+        },
+      });
+      f.gw.core.messengers.start();
+
+      const request = telegram.emit({
+        chat: -100200,
+        from: 42,
+        text: 'TOOL:write_file\nARGS:{"path":"report.txt","text":"Weekly report"}',
+        mention: true,
+      });
+
+      await eventually(async () => telegram.acknowledged(request.updateId), Boolean);
+      await reply(1);
+
+      const [first] = await eventually(
+        () => f.query<{ message_id: string }>("SELECT message_id FROM messenger_outbound WHERE status='sent'"),
+        (rows) => rows.length === 1,
+      );
+
+      const send = telegram.emit({
+        chat: -100200,
+        from: 42,
+        text: 'TOOL:send_attachment\nARGS:{"path":"report.txt"}',
+        replyTo: { id: Number(first!.message_id), from: 777 },
+      });
+
+      await eventually(async () => telegram.acknowledged(send.updateId), Boolean);
+      await reply(3);
+
+      expect(telegram.sent.map((body) => body["method"])).toEqual(["sendMessage", "sendMessage", "sendDocument"]);
+      expect(telegram.sent[2]).toMatchObject({
+        chat_id: "-100200",
+        file: "report.txt",
+        bytes: "Weekly report".length,
+        reply_parameters: { message_id: request.messageId },
+      });
+
+      // The file belongs to the external conversation; the owner's private chat gets no copy.
+      const chat = await f.read(bot.id);
+      expect(chat.messages.some((m) => m.attachments.length > 0)).toBe(false);
+    } finally {
+      await f.close();
+      await telegram.close();
+    }
+  },
+  60_000,
+);

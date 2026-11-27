@@ -185,3 +185,50 @@ describe("Telegram messenger adapter", () => {
     expect(failure).toMatchObject({ kind: "unknown_write", code: "partial_send" });
   });
 });
+
+describe("Telegram reply files", () => {
+  const png = { name: "chart.png", mimeType: "image/png", data: new Uint8Array([137, 80, 78, 71]) };
+  const pdf = { name: "report.pdf", mimeType: "application/pdf", data: new Uint8Array(2048) };
+
+  test("files follow the text in the same reply thread, photos inline and documents as files", async () => {
+    const f = fixture();
+
+    await telegramAdapter.send(
+      credentials,
+      message({ threadId: "321", text: "Here is the report.", files: [png, pdf] }),
+      AbortSignal.timeout(2000),
+      f.transport,
+    );
+
+    expect(f.sent.map((body) => body["method"])).toEqual(["sendMessage", "sendPhoto", "sendDocument"]);
+    expect(f.sent[1]).toMatchObject({ chat_id: "-100200", file: "chart.png", reply_parameters: { message_id: 321 } });
+    expect(f.sent[2]).toMatchObject({ file: "report.pdf", bytes: 2048 });
+  });
+
+  test("a refused file after visible text is an unknown outcome, a reply of only a refused file is not sent", async () => {
+    const f = fixture();
+    f.acceptNextSend();
+    f.refuseNextSend(400, "Bad Request: file is too big");
+
+    const partial = await telegramAdapter
+      .send(credentials, message({ text: "Report:", files: [pdf] }), AbortSignal.timeout(2000), f.transport)
+      .then(
+        () => undefined,
+        (error: Error) => error,
+      );
+
+    // The text is already in the chat; retrying would post it twice.
+    expect(partial).toMatchObject({ kind: "unknown_write", code: "partial_send" });
+
+    f.refuseNextSend(400, "Bad Request: file is too big");
+
+    const refused = await telegramAdapter
+      .send(credentials, message({ files: [pdf] }), AbortSignal.timeout(2000), f.transport)
+      .then(
+        () => undefined,
+        (error: Error) => error,
+      );
+
+    expect(refused).toMatchObject({ kind: "configuration" });
+  });
+});
