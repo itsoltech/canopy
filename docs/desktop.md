@@ -524,7 +524,10 @@ zachowują fokus aktywnej aplikacji.
 Test integracyjny Electron sprawdza widoczność przy aktywnym oknie Canopy,
 zwijanie po animacji, wygaszanie i powrót aktywności podczas wygaszania, IPC,
 przejście po kliknięciu w rendererze i sprzątanie po zmianie połączenia lub
-zamknięciu okna. Pełną obsługę
+zamknięciu okna. Zimny start pobranego Electron do pierwszego załadowanego
+okna ma osobny limit 60 s, a samo zachowanie 25 s od tego momentu. Przy
+niepowodzeniu test wypisuje etapy z czasem od uruchomienia procesu, więc
+odróżnia wolny start od zablokowanego kroku. Pełną obsługę
 wejścia i zachowanie systemu trzeba sprawdzić w sesji graficznej na obu
 platformach:
 
