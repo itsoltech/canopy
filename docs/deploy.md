@@ -990,6 +990,12 @@ push w projekcie Expo aplikacji i udostępnij relayowi poświadczenie z dostępe
 do tego projektu. Relay wysyła przez HTTPS do Expo Push Service. APNs i FCM
 konfiguruje właściciel aplikacji w EAS.
 
+Gateway wysyła powiadomienia przez `/v1/push` i sprawdza potwierdzenia przez
+`/v1/receipt`. Trasa `/v1/dismiss` wysyła cichy push z listą identyfikatorów
+do schowania. Ma ten sam zakres poświadczenia i limity co `/v1/push`, ale relay
+nie zapisuje dla niej potwierdzeń. Zaktualizuj relay przed gatewayami. Starszy relay
+odpowiada na `/v1/dismiss` kodem 404, a gateway wtedy nie usuwa powiadomień w tle.
+
 | Zmienna relaya | Wartość |
 | --- | --- |
 | `CANOPY_PUSH_RELAY_TLS_CERT_FILE` | Plik PEM z certyfikatem i łańcuchem dla nazwy hosta relaya |

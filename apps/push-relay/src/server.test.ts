@@ -753,3 +753,38 @@ test("revokes only the exact bearer, including when all attestation providers ar
   expect((await post(renewPath, "{}", current.bearer)).status).toBe(401);
   expect((await post("/v1/push", JSON.stringify(push), current.bearer)).status).toBe(401);
 });
+
+test("sends silent dismissals only within the grant scope and keeps no ticket", async () => {
+  const bodies: JsonValue[] = [];
+  const badge = randomBytes(40).toString("base64url");
+  const dismissal = { token: iosTarget.token, platform: "ios", dismissId: randomUUID(), receiptIds: [randomUUID()] };
+
+  startManaged({
+    provider: async (_url, init) => {
+      bodies.push(JSON.parse(String(init.body)));
+
+      return accepted();
+    },
+  });
+  const { bearer } = await enroll(proof(await challengeFor()));
+
+  const invalid = [
+    { ...dismissal, receiptIds: [] },
+    { ...dismissal, receiptIds: Array.from({ length: 33 }, () => randomUUID()) },
+    { ...dismissal, receiptIds: [dismissal.receiptIds[0], dismissal.receiptIds[0]] },
+    { ...dismissal, receiptIds: ["not-a-receipt"] },
+    { ...dismissal, badge: badge + "=" },
+    { ...dismissal, preview },
+  ];
+
+  for (const body of invalid) expect((await post("/v1/dismiss", JSON.stringify(body), bearer)).status).toBe(400);
+  const elsewhere = { ...dismissal, token: "ExpoPushToken[other-token]" };
+  expect((await post("/v1/dismiss", JSON.stringify(elsewhere), bearer)).status).toBe(403);
+  expect(bodies).toHaveLength(0);
+
+  expect((await post("/v1/dismiss", JSON.stringify({ ...dismissal, badge }), bearer)).status).toBe(204);
+  const { dismissId, receiptIds } = dismissal;
+  const data = { dismiss: receiptIds, dismissId, badge };
+  expect(bodies).toEqual([{ to: iosTarget.token, ttl: 3600, data, priority: "normal", _contentAvailable: true }]);
+  expect((await post("/v1/receipt", JSON.stringify({ ticketId }), bearer)).status).toBe(404);
+});

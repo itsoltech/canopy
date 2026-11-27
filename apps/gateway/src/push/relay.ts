@@ -138,3 +138,34 @@ export async function relayPush(
 
   return { outcome: "retry" };
 }
+
+export type PushDismissalPayload = {
+  token: string;
+  platform: "ios" | "android";
+  dismissId: string;
+  receiptIds: string[];
+  badge?: string;
+};
+
+/** A relay without the dismissal route answers 404; dismissals are best effort, so that ends the attempt. */
+export async function relayDismissal(
+  options: PushRelayOptions,
+  payload: PushDismissalPayload,
+  signal: AbortSignal,
+): Promise<{ outcome: "sent" | "done" | "retry" | "unauthorized" }> {
+  try {
+    const { status } = await postPushRelay(options, "/v1/dismiss", JSON.stringify(payload), signal, {
+      bearer: options.bearer,
+    });
+
+    if (status === 202 || status === 204) return { outcome: "sent" };
+
+    if (status === 401) return { outcome: "unauthorized" };
+
+    if (status === 404 || status === 410 || status === 422) return { outcome: "done" };
+  } catch {
+    // Transport errors can contain the request. Keep credentials and push data outside diagnostics.
+  }
+
+  return { outcome: "retry" };
+}

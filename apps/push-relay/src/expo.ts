@@ -1,5 +1,5 @@
 import { jsonArray, jsonObject, readJson, type JsonObject, type JsonValue } from "./json.ts";
-import { isTicketId, type Push } from "./protocol.ts";
+import { isTicketId, type Dismissal, type Push } from "./protocol.ts";
 
 const sendUrl = "https://exp.host/--/api/v2/push/send";
 const receiptUrl = "https://exp.host/--/api/v2/push/getReceipts";
@@ -22,7 +22,7 @@ export class Expo {
     private readonly fetcher: ExpoFetch,
   ) {}
 
-  async send(push: Push): Promise<SendResult> {
+  send(push: Push): Promise<SendResult> {
     const data = { receiptId: push.receiptId, ...(push.preview !== undefined && { preview: push.preview }) };
     const common = { to: push.token, ttl: 600, data };
 
@@ -31,6 +31,19 @@ export class Expo {
         ? { ...common, title: "Canopy", body: "You have a new update.", sound: "default", mutableContent: true }
         : { ...common, priority: "high" };
 
+    return this.#ticket(message);
+  }
+
+  /** Silent: no alert or sound. iOS wakes the app in the background; Android's messaging service runs. */
+  dismiss(dismissal: Dismissal): Promise<SendResult> {
+    const { dismissId, receiptIds, badge } = dismissal;
+    const data = { dismiss: [...receiptIds], dismissId, ...(badge !== undefined && { badge }) };
+    const common = { to: dismissal.token, ttl: 3600, data, priority: "normal" };
+
+    return this.#ticket(dismissal.platform === "ios" ? { ...common, _contentAvailable: true } : common);
+  }
+
+  async #ticket(message: JsonObject): Promise<SendResult> {
     const result = await this.#post(sendUrl, message);
 
     if ("status" in result) return result;

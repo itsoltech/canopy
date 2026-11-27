@@ -101,9 +101,18 @@ export const readPushPreview = (owner: string, job: PushJob) =>
   });
 
 export function encryptPushPreview(key: Buffer, receiptId: string, content: Preview & { badge?: number }): string {
+  return seal(key, `canopy-push-preview-v1:${receiptId}`, content);
+}
+
+/** A silent dismissal carries only the badge. Its own label keeps it from opening as a preview. */
+export function encryptPushBadge(key: Buffer, dismissId: string, badge: number): string {
+  return seal(key, `canopy-push-badge-v1:${dismissId}`, { badge });
+}
+
+function seal(key: Buffer, aad: string, content: (Preview & { badge?: number }) | { badge: number }) {
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
-  cipher.setAAD(Buffer.from(`canopy-push-preview-v1:${receiptId}`));
+  cipher.setAAD(Buffer.from(aad));
 
   return Buffer.concat([
     nonce,

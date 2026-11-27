@@ -195,7 +195,7 @@ import secretDeliveryBatches from "./0108_secret_delivery_batches.sql" with { ty
 import projectSecrets from "./0211_project_secrets.sql" with { type: "text" };
 import { memoryMigrations } from "./memory.ts";
 import { worktreeMigrations } from "./worktrees.ts";
-import { mobilePushMigrations } from "./mobile-push.ts";
+import { mobilePushDismissalMigrations, mobilePushMigrations } from "./mobile-push.ts";
 import { createMigrator, sqlFile } from "./run.ts";
 
 /** Ordered by the numeric prefix. Never edit an applied migration; add a new one (expand/contract). */
@@ -400,6 +400,7 @@ export const migrations = Migrator.fromRecord({
   "0218_start_thread": sqlFile(startThread),
   "0219_thread_task_lists": sqlFile(threadTaskLists),
   "0220_slack_channel_context": sqlFile(slackChannelContext),
+  ...mobilePushDismissalMigrations,
 });
 
 export const { migrate, migrateOnline } = createMigrator(migrations);

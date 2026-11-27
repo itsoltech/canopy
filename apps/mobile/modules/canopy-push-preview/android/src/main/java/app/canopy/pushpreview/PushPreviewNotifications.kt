@@ -57,6 +57,11 @@ internal object PushPreviewNotifications {
     manager.notify(identifier, 0, notification)
   }
 
+  fun dismiss(context: Context, receiptIds: List<String>) {
+    val manager = context.getSystemService(NotificationManager::class.java) ?: return
+    for (receiptId in receiptIds) manager.cancel(TAG_PREFIX + receiptId, 0)
+  }
+
   fun cancel(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
     for (notification in manager.activeNotifications) {

@@ -1,5 +1,10 @@
 # Powiadomienia
 
+Aktualizacja (2026-11-27): odczyt wyniku lub rozstrzygnięcie prośby na komputerze
+wysyła na telefon cichy push. Telefon usuwa wtedy dostarczone powiadomienie także
+w tle, a iOS aktualizuje licznik na ikonie. Wymaga nowego buildu natywnego
+i relaya z trasą `/v1/dismiss`.
+
 Aktualizacja (2026-11-25): ustawienia alertów użytkownika w webie, na desktopie
 i w aplikacji mobilnej są w Settings → Notifications.
 
@@ -271,6 +276,27 @@ Nowsze nieprzeczytane wyniki i nadal otwarte prośby pozostają widoczne. Porów
 wymaga połączenia i obejmuje powiadomienia z ostatniej doby. Bez połączenia telefon
 sprawdza je po odzyskaniu trasy.
 
+Żeby powiadomienie znikało także przy aplikacji w tle lub zamkniętej, gateway wysyła
+cichy push. Trigger w transakcji
+odczytu (`thread_reads`, `bots.last_read_seq`) albo rozstrzygnięcia prośby
+(`interaction_requests`, `bot_approvals`) oznacza dostarczone wiersze
+`mobile_push_outbox` jako do schowania (`dismiss_at`). Pętla wysyłki push sprawdza co 2 s
+częściowy indeks tych oznaczeń. Przed wysyłką ponownie sprawdza stan odczytu.
+Wiersz wątku znów oznaczonego jako nieprzeczytany wypada z kolejki. Każdy telefon dostaje jeden push
+z listą do 32 identyfikatorów, najwyżej raz na 10 s. Lista zawiera też identyfikatory
+schowane w ciągu ostatnich 6 godzin, na wypadek gdyby system pominął wcześniejszy
+cichy push. Push nie zawiera tytułu ani treści, tylko losowe identyfikatory powiadomień.
+Na iOS dołącza licznik zaszyfrowany kluczem podglądu z etykietą
+`canopy-push-badge-v1:<dismissId>`.
+
+Android usuwa powiadomienia w natywnej usłudze FCM także przy zamkniętej aplikacji.
+Wiadomość ma zwykły priorytet, więc w trybie Doze może dotrzeć z opóźnieniem.
+iOS budzi aplikację w tle (`remote-notification`). Aplikacja usuwa pasujące
+powiadomienia i ustawia licznik. System dławi ciche pushe i nie dostarcza ich
+aplikacji zamkniętej przez użytkownika w przełączniku aplikacji. Wtedy powiadomienie
+zniknie przy następnym otwarciu Canopy. Relay bez trasy `/v1/dismiss` odpowiada 404,
+a gateway kończy próbę. Po błędach sieci ponawia do 5 razy co 30 s.
+
 Relay Canopy wydaje poświadczenie automatycznie po weryfikacji aplikacji przez
 Apple App Attest lub Google Play Integrity. Użytkownik włącza powiadomienia
 na sparowanym telefonie i zatwierdza zgodę systemu. Weryfikacja używa jednorazowego
@@ -331,6 +357,9 @@ Aplikacja odnawia 30-dniową ważność rejestracji, gdy użytkownik do niej wra
   i licznik iOS przez HTTPS, weryfikacja powiązania podglądu z identyfikatorem,
   izolacja urządzeń, czyszczenie alertów botów oraz aktywacja relaya z testowym
   weryfikatorem atestacji.
+- `tests/integration/mobile-push-dismissal.test.ts`: cichy push po odczycie na
+  komputerze, zaszyfrowany licznik iOS, limit 10 s z dołączonymi wcześniejszymi
+  identyfikatorami, ponowne oznaczenie jako nieprzeczytane i relay bez trasy.
 - `apps/push-relay/src`: testy relaya przez TLS, walidacja przykładów App Attest
   i weryfikacja werdyktów Play Integrity z symulowaną odpowiedzią Google.
 - Ręcznie w Chromium: dwie karty, ta sama origin, alerty wątku i bota, oglądanie,

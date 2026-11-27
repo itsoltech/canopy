@@ -23,7 +23,13 @@ module.exports = (config) => {
   const group = `$(AppIdentifierPrefix)${bundleIdentifier}`;
   const entitlements = { [keychainGroups]: [group] };
 
-  config.ios.infoPlist = { ...config.ios.infoPlist, CanopyPushPreviewKeychainGroup: group };
+  // Silent dismissals wake the app in the background to remove alerts read on another device.
+  const backgroundModes = config.ios.infoPlist?.UIBackgroundModes ?? [];
+  config.ios.infoPlist = {
+    ...config.ios.infoPlist,
+    CanopyPushPreviewKeychainGroup: group,
+    UIBackgroundModes: [...new Set([...backgroundModes, "remote-notification"])],
+  };
   // iOS adds new Keychain items to the first access group by default. Keep app credentials private.
   const appGroups = config.ios.entitlements?.[keychainGroups];
   const existingGroups = appGroups?.length ? appGroups : [`$(AppIdentifierPrefix)${appId}`];
