@@ -117,6 +117,13 @@ Przy pracy w tle główny wątek ma pozostawać wolny dla wejścia użytkownika:
   jego zwolnienie animuje się razem z treścią, bez zmiany zmierzonej rezerwy kompozytora.
   Na mobile pomiar całego stosu i natywny
   inset działają na wątku UI, bez pomiarów i korekt scrolla przez JS na każdej klatce.
+- Renderer desktopu łączy się z lokalnym BFF przez HTTP/1.1, bez priorytetów. Żądania
+  niższe niż MEDIUM (obrazki, media) Chromium uznaje wtedy za odraczalne. Przy ECT 3G i
+  gorszym każde żądanie wysokiego priorytetu w locie, w tym otwarty EventSource, liczy się
+  potrójnie przy limicie 8. Trzy strumienie (overview, wątek, szkice) blokują więc obrazki
+  aż do limitu kolejki Chromium (co najmniej 15 s). Obrazek ukryty do załadowania nie
+  dostaje podbicia priorytetu widocznych obrazków, dlatego `AttachmentImage` ustawia
+  `fetchpriority="high"`. Sprawdzaj to w DevTools: kolumna Priority i „Queueing” w Timing.
 - W mobile pętle działają na UI/native thread, korzystają ze wspólnej kolejki
   widoczności listy, zatrzymują się w tle, a dekoracyjne
   `Animated.loop` mają `isInteraction: false`, aby nie blokować batchy listy.
