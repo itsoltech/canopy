@@ -2,6 +2,7 @@
   import type { Mention, ui } from "@canopy/contracts";
   import { queuePreview } from "@canopy/domain/queue";
   import { tick } from "svelte";
+  import type { DragPhase } from "./queue-drag.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
@@ -16,8 +17,9 @@
   /**
    * One queued message: its handle (the queue icon; the grip on hover or focus, always on touch), the text on
    * one line, what it overrides, and its actions — Steer (into the running turn now), delete, and "…". Drag the
-   * handle to reorder, or press Alt+↑/↓ anywhere in the row (↑/↓ on the handle). While dragged the row lifts and
-   * follows the pointer (`offset`); released, it eases into its slot.
+   * handle to reorder, or press Alt+↑/↓ anywhere in the row (↑/↓ on the handle). While dragged (`drag`) the row
+   * lifts, tilts and follows the pointer (`offset`), the rows it passes slide aside, and on release it settles
+   * into its new slot (QueueDrag).
    */
   let {
     turn,
@@ -26,7 +28,7 @@
     running,
     fallback,
     editing,
-    dragging,
+    drag,
     offset,
     delivery,
     shellUnavailable,
@@ -47,7 +49,7 @@
     /** The steer that could not join the running turn: this message runs at its place instead. */
     fallback: ui.Steer | undefined;
     editing: boolean;
-    dragging: boolean;
+    drag: DragPhase | undefined;
     offset: number;
     delivery: "steer" | "queue" | undefined;
     shellUnavailable?: string | undefined;
@@ -88,13 +90,15 @@
 <!-- svelte-ignore a11y_no_static_element_interactions (keys bubble from the row's buttons) -->
 <div
   class={[
-    "group/row relative rounded-xl",
-    dragging
-      ? "z-10 cursor-grabbing bg-white shadow-md ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:shadow-none dark:ring-white/10"
-      : "transition-[translate] duration-(--duration-fast) ease-smooth-out",
+    "group/row relative rounded-xl motion-reduce:transition-none",
+    drag === "held" &&
+      "z-10 scale-(--scale-lift) rotate-(--rotate-tilt) cursor-grabbing bg-white shadow-md ring-1 ring-zinc-950/10 transition-[scale,rotate,box-shadow,background-color] duration-(--duration-quick) ease-smooth-out dark:bg-zinc-800 dark:shadow-none dark:ring-white/10",
+    drag === "settling" &&
+      "z-10 transition-[translate,scale,rotate,box-shadow,background-color] duration-(--duration-fast) ease-smooth-out",
+    drag === "shifted" && "transition-[translate] duration-(--duration-fast) ease-smooth-out",
     className,
   ]}
-  style:translate={dragging ? `0 ${offset}px` : undefined}
+  style:translate={drag ? `0 ${offset}px` : undefined}
   {onkeydown}
 >
   {#if editing}

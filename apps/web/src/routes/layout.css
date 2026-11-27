@@ -256,6 +256,8 @@ html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), 
   --scale-medium: 0.97; /* menu open */
   --scale-small: 0.98; /* tooltip */
   --scale-tiny: 0.99; /* menu close */
+  --scale-lift: 1.01; /* a dragged row lifts */
+  --rotate-tilt: 0.6deg; /* a dragged row tilts */
   --blur-small: 2px;
   --blur-medium: 3px;
   --blur-large: 8px;
@@ -273,6 +275,8 @@ html[data-canopy-platform]:not(:has(:popover-open:not([data-window-keep-drag]), 
     --scale-medium: 1;
     --scale-small: 1;
     --scale-tiny: 1;
+    --scale-lift: 1;
+    --rotate-tilt: 0deg;
     --blur-small: 0px;
     --blur-medium: 0px;
     --blur-large: 0px;

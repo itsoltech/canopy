@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { AnimationConfig } from "svelte/animate";
   import type { ClassValue } from "svelte/elements";
   import { expand, reorder } from "#lib/shared/ui/motion.ts";
@@ -13,8 +14,8 @@
   /**
    * The queued messages, attached above the composer: the composer's surface with only its
    * top corners rounded, sliding under the composer's top edge (`class` sets the overlap). One row per message in
-   * the order they run. Rows glide to a new place (`reorder`, FLIP), grow in and shrink out (`expand`); the row
-   * under the pointer follows it instead. Moves are announced politely.
+   * the order they run. Rows glide to a new place (`reorder`, FLIP), grow in and shrink out (`expand`); while a row
+   * is dragged, the gesture places them instead (`QueueDrag`). Moves are announced politely.
    */
   let {
     queue,
@@ -42,12 +43,7 @@
 
   const drag = new QueueDrag({
     list: () => list,
-    onmove: (id, index) => queue.preview(id, index),
-    ondrop: (id) => {
-      queue.announce(queue.rows.findIndex((t) => t.id === id));
-      void queue.commit();
-    },
-    oncancel: () => (queue.order = undefined),
+    ondrop: (id, index) => void queue.move(id, index),
   });
 
   $effect(() => {
@@ -56,12 +52,15 @@
     return () => drag.dispose();
   });
 
-  /** The dragged row is placed by the pointer, not by the glide. */
-  const glide = (
-    node: Element,
-    positions: { from: DOMRect; to: DOMRect },
-    { held }: { held: boolean },
-  ): AnimationConfig => (held ? { duration: 0 } : reorder(node, positions));
+  // Rows that start or arrive mid-gesture are measured again (after the update that placed them).
+  $effect(() => {
+    void queue.rows;
+    untrack(() => drag.refresh());
+  });
+
+  /** While a row is dragged, the gesture places the rows, not the glide. */
+  const glide = (node: Element, positions: { from: DOMRect; to: DOMRect }): AnimationConfig =>
+    drag.still ? { duration: 0 } : reorder(node, positions);
 </script>
 
 {#if queue.rows.length > 0}
@@ -79,7 +78,7 @@
     <ComposerPanelBody id="{id}-queue" open={expanded}>
       <ol bind:this={list} role="list" class="relative grid grid-cols-1 py-1">
         {#each queue.rows as turn, index (turn.id)}
-          <li data-queue-row class="relative" animate:glide={{ held: drag.id === turn.id }} transition:expand>
+          <li data-queue-row={turn.id} class="relative" animate:glide transition:expand>
             <QueueRow
               {turn}
               {index}
@@ -87,8 +86,8 @@
               running={queue.running}
               fallback={queue.fallback(turn.id)}
               editing={queue.editing === turn.id}
-              dragging={drag.id === turn.id}
-              offset={drag.id === turn.id ? drag.offset : 0}
+              drag={drag.phase(turn.id)}
+              offset={drag.offset(turn.id)}
               delivery={sandboxBound ? undefined : delivery}
               shellUnavailable={sandboxBound ? sandboxShellUnavailable : undefined}
               onmove={(to) => void queue.move(turn.id, to)}

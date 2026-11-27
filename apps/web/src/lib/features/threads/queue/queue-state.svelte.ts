@@ -22,12 +22,12 @@ const failure = (cause: unknown) => (cause instanceof Error ? cause.message : St
 
 /**
  * The queue panel's state (docs/ui-api.md, "Kolejka"): the queued turns as shown, with what the user just did
- * applied at once — a new order (also live while a row is dragged), a deleted or steered message gone, a row in
+ * applied at once — a new order, a deleted or steered message gone, a row in
  * edit. The gateway confirms each change; a refusal (the message already started) puts back what it has and says
  * why. `announcement` is for a polite live region (moves by keyboard or drag).
  */
 export class QueueState {
-  /** The order shown while a reorder is being dragged or sent; undefined = the gateway's. */
+  /** The order shown while a reorder is being sent; undefined = the gateway's. */
   order = $state.raw<string[] | undefined>(undefined);
   /** Messages deleted or steered here and not yet out of the stream's queue. */
   hidden = $state.raw<ReadonlySet<string>>(new Set());
@@ -55,7 +55,7 @@ export class QueueState {
     return this.#source().steers.findLast((s) => s.queuedTurnId === turnId && s.status === "queued");
   }
 
-  /** Moves a row in the shown order only (dragging); `commit` sends it. */
+  /** Moves a row in the shown order only; `commit` sends it. */
   preview(id: string, index: number): void {
     this.order = moveTo(
       this.rows.map((t) => t.id),
