@@ -66,6 +66,10 @@ export async function startDatabase(options: {
       ...(process.platform === "win32" ? [] : ["-k", ""]),
       "-c",
       "max_connections=40",
+      // Each page changed after a checkpoint is written to WAL in full; fewer checkpoints mean far fewer of
+      // those writes. max_wal_size stays at its default, so crash recovery stays short.
+      "-c",
+      "checkpoint_timeout=15min",
     ],
     cwd: directory,
     env,

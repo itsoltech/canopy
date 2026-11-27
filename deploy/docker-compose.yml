@@ -9,6 +9,8 @@ name: canopy
 services:
   postgres:
     image: postgres:17
+    # Fewer checkpoints and compressed full-page images cut WAL writes (docs/deploy.md).
+    command: ["postgres", "-c", "checkpoint_timeout=15min", "-c", "max_wal_size=4GB", "-c", "wal_compression=lz4"]
     restart: unless-stopped
     networks: [control]
     environment:
