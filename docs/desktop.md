@@ -10,8 +10,9 @@ instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok s
 
 Status (2026-11-27): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
-odsłania listę, gdy mieści się w rozwijanym obrysie, i rozpoczyna jej wygaszanie
-przed zwijaniem obrysu. Animuje zmiany liczby, stanów aktywności i kolejności wierszy.
+odsłania wiersze kolejno, gdy obrys do nich dorasta, i rozpoczyna ich wygaszanie
+przed zwijaniem obrysu. Zmiany liczby, stanów aktywności i kolejności wierszy
+przechodzą przez krótkie rozmycie.
 Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
 Ikony stanów i kolory etykiet odpowiadają liście wątków.
 Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów.
@@ -467,19 +468,27 @@ ekranu również wtedy, gdy Canopy ma fokus. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
-dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Etykieta stanu
-w wierszu ma kolor tego stanu. Najechanie kursorem lub kliknięcie rozwija obrys
-bez odbicia poza docelowy rozmiar okna. Lista pojawia się z lekkim rozmyciem
-i powiększeniem od kamery dopiero wtedy, gdy również siódmy wiersz mieści się
-w obrysie. Powyżej siedmiu wierszy można ją przewijać, do 24 pozycji.
+dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Ikona ma kolor
+stanu, a liczba kolor tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
+tego stanu; przy trwającej pracy przesuwa się po niej powolny refleks światła,
+jak w etykietach na żywo w aplikacji. Najechanie kursorem lub kliknięcie rozwija
+obrys bez odbicia poza docelowy rozmiar okna, a jego dolne rogi zaokrąglają się
+mocniej. Wiersze wysuwają się spod nagłówka z rozmyciem, jeden po drugim, gdy
+obrys do nich dorasta; od piątego wiersza kolejne dołączają razem z nim, a wiersz
+dodany poniżej widocznej listy czeka, aż obrys zrobi mu miejsce. Powyżej siedmiu
+wierszy listę można przewijać, do 24 pozycji.
 Lista zachowuje szerokość i położenie rozwiniętej nakładki, więc ruch krawędzi
 nie skraca tytułów. Po odsunięciu kursora lista zaczyna wygasać, a obrys rusza
 z krótkim opóźnieniem i łagodnym startem, dzięki czemu tekst zdąży zniknąć przed
 dotarciem krawędzi. Ponowne najechanie w trakcie zwijania odwraca ruch od bieżącego
 kształtu. W rozwiniętej liście nowe i usuwane wiersze zmieniają przezroczystość,
-a pozostałe przesuwają się na nowe miejsca. Ikona i etykiety płynnie reagują na
-zmianę stanu aktywności, a w liczniku animują się tylko zmienione cyfry. Systemowe ograniczenie ruchu
-wyłącza animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno i otwiera
+a pozostałe przesuwają się na nowe miejsca. Przy zmianie stanu ikona wyłania się
+z rozmycia, na chwilę przekracza pełny rozmiar, a od niej rozchodzi się pierścień
+w kolorze nowego stanu. Stara etykieta stanu odpływa w górę z rozmyciem, a nowa
+wchodzi od dołu. W liczniku animują się tylko zmienione cyfry: stara odchodzi
+z rozmyciem w kierunku zmiany, nowa wskakuje z lekkim sprężynowaniem, kolejno
+od lewej. Pojawiające się wycięcie wyostrza skrzydła z rozmycia. Systemowe
+ograniczenie ruchu wyłącza animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno i otwiera
 odpowiedni wątek lub rozmowę bota. Nakładka stopniowo pojawia się przy pierwszej
 pozycji i wygasa po wyczerpaniu pozycji lub wyłączeniu ustawienia. Zamknięcie
 głównego okna od razu usuwa nakładkę.
