@@ -1,5 +1,8 @@
 # Połączone komputery
 
+Aktualizacja (2026-11-27): start gatewaya i włączenie dostępu sieciowego nie zrywają łączy
+nawiązanych przed otwarciem listenera, więc partner nie znika na sekundę po każdym starcie.
+
 Aktualizacja (2026-11-26): web i desktop mogą pobrać wykrytą kopię skilla z
 połączonego komputera ze wspólną konfiguracją i dodać ją do biblioteki.
 
@@ -1035,7 +1038,9 @@ Liveness korzysta z HTTP/2 PING co 15 s i limitu pong 10 s oraz heartbeat aplika
 co 5 s (cztery pominięte, z tolerancją zatrzymania lokalnego event loop). Wybudzenie
 i zmiana interfejsów/adresów niszczą starą sesję HTTP/2; nowe zestawienie ponownie
 sprawdza zapisany pin TLS 1.3. Nowe trasy idą starym łączem przed jego zamknięciem
-(okno 100 ms), również dla partnera bez listenera.
+(okno 100 ms), również dla partnera bez listenera. Otwarcie listenera (start gatewaya,
+włączenie dostępu sieciowego) nie jest zmianą sieci: nikt nie mógł użyć wcześniejszego adresu,
+więc łącza nawiązane przed nim zostają, a partnerzy dostają trasy samą ramką `routes`.
 
 `ListBotsResponse.unavailable_computers` wskazuje utracone domy, a
 `refreshing_computers` — powolne odświeżenia. Connectors pokazuje notkę przy lokalnych

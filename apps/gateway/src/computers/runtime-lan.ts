@@ -21,8 +21,12 @@ export function computersAdvertise(hostContext: LinkedComputers) {
 
   // A new network or listener: announce on the local network at once, not at the next window.
   const key = `${port ?? ""}|${interfaces.map((i) => `${i.address}:${network.allowsLanAddress(i.address)}`).join()}`;
-  const knownNetwork = Boolean(hostContext[computersState].network);
-  const changedInterfaces = Boolean(hostContext[computersState].network) && key !== hostContext[computersState].network;
+  // The listener opening (start, or network access turned on) is no network change: nobody could reach an
+  // earlier address of this computer, and the links it dialled meanwhile keep working.
+  const opened = network.listening && !hostContext[computersState].listening;
+  hostContext[computersState].listening = network.listening;
+  const knownNetwork = Boolean(hostContext[computersState].network) && !opened;
+  const changedInterfaces = knownNetwork && key !== hostContext[computersState].network;
 
   if (key !== hostContext[computersState].network) {
     hostContext[computersState].network = key;

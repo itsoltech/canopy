@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import * as dns from "dns-packet";
 import { dockerAvailable } from "@canopy/db/testing";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
+import { computersState } from "../../apps/gateway/src/computers/runtime-context.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { ROUTE_ORDER } from "../../apps/gateway/src/computers/routes.ts";
@@ -65,7 +66,7 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
   const online = () =>
     eventually(async () => (await status(a)) === "connected" && (await status(b)) === "connected", 15_000);
 
-  async function restartA(meanwhile = async () => {}) {
+  async function restartA(meanwhile = async () => {}, beforeListening?: () => Promise<void>) {
     const port = la.options.network.status().port;
     await la.close();
     await meanwhile();
@@ -75,6 +76,7 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
       port,
       heartbeatMs: HEARTBEAT_MS,
       discovery: discovery("a", [SUBNET]),
+      ...(beforeListening && { beforeListening }),
     });
     a.core.computers = la;
     a.core.network = la.options.network;
@@ -153,6 +155,16 @@ describe.skipIf(!dockerAvailable)("routes and local network discovery between tw
     } finally {
       await a.api.updateNetworkAccess({ action: "set_enabled", enabled: true });
     }
+  }, 30_000);
+
+  test("a restart keeps the links it dialled before its listener opened", async () => {
+    const nodeB = lb.hello().nodeId;
+    // Like a gateway, the new runtime dials its partners before network access listens.
+    await restartA(undefined, () => eventually(async () => (await status(a)) === "connected", 15_000));
+    // Opening the listener only announces routes: a rotation would have marked the link retiring by now.
+    const links = [...(la[computersState].active.get(nodeB) ?? [])];
+    expect(links.filter((c) => c.ready).length).toBeGreaterThan(0);
+    expect(links.filter((c) => c.retiring)).toEqual([]);
   }, 30_000);
 
   test("announcements carry only rotating opaque names, the link port and a LAN address", async () => {

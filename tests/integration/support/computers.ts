@@ -14,11 +14,13 @@ export type TestComputerOptions = Omit<Options, "network"> & {
   port?: number;
   detect?: () => DetectedAddress[];
   tailscale?: Tailscale;
+  /** Runs after the links started and before network access listens, as on a gateway start. */
+  beforeListening?: () => Promise<void>;
 };
 
 /** Linked computers on their own network access listener, switched on, as a computer with
  * "Let phones and other computers connect" on. Closing them closes the listener too. */
-export function linkedComputers({ host, port, detect, tailscale, ...options }: TestComputerOptions) {
+export function linkedComputers({ host, port, detect, tailscale, beforeListening, ...options }: TestComputerOptions) {
   const network = new NetworkAccess({
     role: "desktop",
     store: options.store,
@@ -40,6 +42,7 @@ export function linkedComputers({ host, port, detect, tailscale, ...options }: T
       [options.store.owner],
     );
     await start();
+    await beforeListening?.();
     await network.start();
   };
 
