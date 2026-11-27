@@ -62,9 +62,12 @@
     {#key preview}
       {@const attempt = preview}
       {#if loaded !== attempt}<span role="status" class="p-3">Loading image…</span>{/if}
+      <!-- Hidden until loaded, the image never gets Chromium's visible-image boost. At low priority, Desktop's HTTP/1.1
+           BFF lets Chromium hold it behind the open event streams, up to its 15 s queuing limit. -->
       {#snippet loadedImage()}<img
           src={attempt.src}
           {alt}
+          fetchpriority="high"
           onload={(event) => {
             if (attempt !== preview) return;
             loaded = attempt;
