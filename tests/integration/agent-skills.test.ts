@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { clone, create, toJson } from "@bufbuild/protobuf";
@@ -9,6 +9,7 @@ import { SqlClient } from "effect/sql";
 import { libraryItemState, workerSyncState } from "@canopy/domain/environment-library";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
+import { previewWorkerSkill } from "../../apps/gateway/src/agent-environment/local-skill-preview.ts";
 import { AgentEnvironment } from "../../apps/gateway/src/agent-environment/service.ts";
 import { eventually, failure, startTestGateway } from "./support/gateway.ts";
 import { librarySkill, skillFiles, skillMachine, writeUserSkill, zipSkill } from "./support/agent-skills.ts";
@@ -148,6 +149,37 @@ test("previews the selected local copy and saves the reviewed bytes to the libra
     Buffer.from(codex[0]!.content),
   );
   expect(readFileSync(localFile)).toEqual(updated);
+});
+
+test("previews a local skill when the gateway accepts the same report during the read", async () => {
+  const name = "refreshed-local-import";
+  const contents = skillFiles(name);
+  const { requests } = await reportLocalSkill(name, [{ root: join(linux.deviceHomes.claude, "skills"), contents }]);
+  const request = create(ui.PreviewWorkerSkillRequestSchema, requests[0]!);
+  const environment = gateway.core.environment;
+  const connection = environment.options.link.connections.get(request.workerId)!;
+  const read = environment.snapshot.bind(environment);
+
+  const snapshot = spyOn(environment, "snapshot").mockImplementationOnce(async () => {
+    const state = await read();
+    const report = state.workers.find((worker) => worker.workerId === request.workerId)!.report!;
+    const accepted = environment.skillReports.get(connection);
+    expect(report.skills.find((copy) => copy.targetId === request.targetId)?.archiveToken).toBe(request.archiveToken);
+
+    await environment.report(connection, report);
+    expect(environment.skillReports.get(connection)).toBeDefined();
+    expect(environment.skillReports.get(connection)).not.toBe(accepted);
+
+    return state;
+  });
+
+  try {
+    const preview = await previewWorkerSkill(environment, request);
+    expect(preview.artifact?.name).toBe(name);
+    expect(preview.artifact?.files.find((file) => file.path === "SKILL.md")?.content).toEqual(contents[0]!.content);
+  } finally {
+    snapshot.mockRestore();
+  }
 });
 
 test("rejects local skill preview with stale on-disk contents even before the report refreshes", async () => {
