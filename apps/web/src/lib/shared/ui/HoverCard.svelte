@@ -119,7 +119,7 @@
 </script>
 
 <!-- A caller's class replaces the default width (no conflicting width utilities). -->
-<Popover bind:open {label} {placement} {maxHeight} focusOnOpen={false} class={className ?? "w-72"}>
+<Popover bind:open {label} {placement} {maxHeight} focusOnOpen={false} morph={false} class={className ?? "w-72"}>
   {#snippet trigger(props)}
     {@render renderTrigger({
       ...(touch === "press"

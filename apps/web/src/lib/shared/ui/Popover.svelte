@@ -29,9 +29,11 @@
   import { tick, untrack, type Snippet } from "svelte";
   import { createAttachmentKey } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
-  import { autoPosition, focusables, type Placement } from "./floating.ts";
+  import { prefersReducedMotion } from "svelte/motion";
+  import { autoPosition, focusables, positionNow, type Placement } from "./floating.ts";
   import { exitDuration } from "./motion.ts";
   import OverlayScope from "./OverlayScope.svelte";
+  import { popoverMorph } from "./popover-morph.ts";
   import SheetHandle from "./SheetHandle.svelte";
 
   /**
@@ -39,7 +41,8 @@
    * `floating.ts` (flips and shifts to stay on screen). Escape, a click outside and focus leaving it
    * close it. On open, focus goes to the first `[data-autofocus]` inside, else the first focusable
    * element, else the panel; on close it returns to the trigger. With `sheet` it is a bottom sheet on
-   * phones (with a drag handle). It grows from its trigger and fades out (motion.css `t-dropdown`); content
+   * phones (with a drag handle). The trigger morphs into the panel and the panel back into it (popover-morph.ts;
+   * `morph={false}`, sheets and reduced motion keep the plain grow and fade of motion.css `t-dropdown`); content
    * renders while open and during that exit, inert, and `onclose` runs once it is gone. The panel is an overlay
    * (docs/ui-scale.md): its text steps are compact and kit controls inside take their compact size. The panel itself
    * mounts on the first opening (lists keep a closed popover per row).
@@ -63,6 +66,7 @@
     maxHeight,
     scrollable = true,
     focusOnOpen = true,
+    morph = true,
     initialFocus,
     triggerKeydown,
     panelKeydown,
@@ -89,6 +93,8 @@
     /** Allow the anchored panel to scroll. Otherwise its content should fit the available height. */
     scrollable?: boolean;
     focusOnOpen?: boolean;
+    /** Morph the trigger into the panel (popover-morph.ts); false for surfaces opened by hover. */
+    morph?: boolean;
     /** Custom first focus (menus focus their first item); return false to fall back to the default. */
     initialFocus?: ((panel: HTMLElement) => boolean | void) | undefined;
     /** Extra key handling on the trigger (menus open on ArrowDown). */
@@ -110,13 +116,36 @@
   const mounted = $derived.by(() => (opened ||= open));
   let anchor = $state<HTMLElement>();
   const narrow = $derived(sheet && narrowScreen.current);
+  const morphing = $derived(morph && !narrow && !prefersReducedMotion.current);
+  const positioning = $derived({ placement, offset, followMotion, measureNaturalHeight: !scrollable });
+  const morpher = popoverMorph();
+
+  /** The trigger the panel morphs out of and back into. */
+  const morphAnchor = () => untrack(() => anchorElement ?? anchor);
   let focusInside = false;
 
   /** The exit transition runs: content stays (inert) until it ends. */
   let closing = $state(false);
   let closed: ReturnType<typeof setTimeout> | undefined;
 
-  $effect(() => () => clearTimeout(closed));
+  $effect(() => () => {
+    clearTimeout(closed);
+    morpher.cancel();
+  });
+
+  /**
+   * Morph a panel that was just shown, after the flush that mounts its content and before its first frame.
+   * floating.ts measures a panel only once it is shown, so place it here first: the first opening
+   * would otherwise morph (and draw) from where the panel sat before its position landed.
+   */
+  function morphOpen(shown: HTMLElement) {
+    if (!open) return;
+    const target = morphAnchor();
+    const options = untrack(() => positioning);
+
+    if (target) positionNow(target, shown, options);
+    morpher.open(shown, target);
+  }
 
   const anchorKey = createAttachmentKey();
 
@@ -151,7 +180,16 @@
         }
 
         const exit = exitDuration(panel);
+        const hidden = panel;
         closing = true;
+
+        // Content unmounted with `open` and comes back for the exit with `closing`: measure it after that flush.
+        if (untrack(() => morphing)) {
+          void tick().then(() => {
+            if (!open) morpher.close(hidden, morphAnchor(), exit);
+          });
+        }
+
         clearTimeout(closed);
         closed = setTimeout(() => {
           closing = false;
@@ -168,7 +206,15 @@
       untrack(() => onclose)?.();
     }
 
-    if (!panel.matches(":popover-open")) panel.showPopover();
+    if (!panel.matches(":popover-open")) {
+      // A finished close holds the panel hidden until the next morph replaces it.
+      morpher.cancel();
+      panel.showPopover();
+      const shown = panel;
+
+      if (untrack(() => morphing)) void tick().then(() => morphOpen(shown));
+    }
+
     const target = panel;
     untrack(() => {
       if (!focusOnOpen) return;
@@ -186,7 +232,7 @@
 
     if (!open || !panel || narrow || !target) return;
 
-    return autoPosition(target, panel, { placement, offset, followMotion, measureNaturalHeight: !scrollable });
+    return autoPosition(target, panel, positioning);
   });
 
   // A sheet keeps its backdrop through the click so the tap cannot activate a control underneath.
@@ -297,6 +343,7 @@
     aria-label={role === "none" ? undefined : label}
     tabindex="-1"
     data-sheet={narrow || undefined}
+    data-morph={morphing || undefined}
     data-menu-panel={role === "menu" || undefined}
     inert={closing || undefined}
     style:max-height={!narrow ? maxHeight : undefined}
