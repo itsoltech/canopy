@@ -38,11 +38,23 @@
   const summary = $derived(taskListSummary(tasks));
   const headline = $derived(summary.current?.text ?? "All tasks done");
 
-  // Opening a long list shows where the work is, not its top.
+  // Opening a long list shows where the work is, not its top. Only the list's own scroller moves:
+  // `scrollIntoView` would also scroll the tray's clipped, still-collapsed wrapper, which then
+  // springs back as the tray grows and drags the rows down at the end of the reveal.
   $effect(() => {
     if (!expanded || !list) return;
 
-    list.querySelector("[data-current]")?.scrollIntoView({ block: "nearest" });
+    const scroller = list.parentElement;
+    const current = list.querySelector("[data-current]");
+
+    if (!scroller || !current) return;
+
+    const row = current.getBoundingClientRect();
+    const top = row.top - scroller.getBoundingClientRect().top - scroller.clientTop;
+    const bottom = top + row.height;
+
+    if (top < 0) scroller.scrollTop += top;
+    else if (bottom > scroller.clientHeight) scroller.scrollTop += bottom - scroller.clientHeight;
   });
 </script>
 
