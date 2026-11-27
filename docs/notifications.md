@@ -240,7 +240,9 @@ W webie i na desktopie **Settings → Notifications** zapisuje wybór na urządz
 (`localStorage`). Włączone moduły mają osobne pola **Thread notifications** i **Bot notifications**
 z wyborem Off, Notifications lub Notifications with sound. Strona zawiera też
 **Claude usage limit resets** (domyślnie Off) oraz **In-app notifications**.
-Na macOS i Windows można tu włączyć **Activity notch**.
+Na macOS i Windows można tu włączyć **Activity notch**. Włączona nakładka ma wiersz
+**Position** z położeniami Notch, Edge i Floating, zapisanymi dla komputera
+([szczegóły](desktop.md#activity-notch)).
 **Restore device defaults** przywraca domyślne ustawienia alertów na tym urządzeniu.
 Ustawienie **Notify agent about pull requests** w Threads → Conversation i w ustawieniach
 projektu wysyła do agenta powiązanego wątku informacje o konfliktach i wynikach sprawdzeń.

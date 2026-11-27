@@ -68,6 +68,10 @@ contextBridge.exposeInMainWorld("canopyActivityNotch", {
   dismissNotice(id: number) {
     if (Number.isSafeInteger(id)) ipcRenderer.send("canopy:activity-notch-dismiss", id);
   },
+  /** Main reads the cursor itself; the page only reports the phase of a drag on the header. */
+  drag(phase: "start" | "move" | "end") {
+    if (phase === "start" || phase === "move" || phase === "end") ipcRenderer.send("canopy:activity-notch-drag", phase);
+  },
   open(id: number) {
     if (Number.isSafeInteger(id)) ipcRenderer.send("canopy:activity-notch-open", id);
   },

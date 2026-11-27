@@ -44,6 +44,7 @@ import { registerMigrationIpc } from "./migration-ipc.ts";
 import { DesktopUsagePing } from "./usage-ping.ts";
 import { NotificationBadge } from "./notification-badge.ts";
 import { ActivityNotch } from "./activity-notch.ts";
+import { activityNotchPlacementFile } from "./activity-notch-placement.ts";
 
 const identity = desktopIdentity();
 
@@ -83,7 +84,7 @@ const configurationLock = new ConfigurationLock();
 const quitSettings = new QuitSettings(app.getPath("userData"));
 const usagePing = new DesktopUsagePing(app.getPath("userData"));
 const notificationBadge = new NotificationBadge();
-const activityNotch = new ActivityNotch(openRoute);
+const activityNotch = new ActivityNotch(openRoute, activityNotchPlacementFile(app.getPath("userData")));
 const quitLog = (decision: string) => logs.write("desktop", `quit-guard ${decision}`);
 const quitKey = quitKeyEvent(quitLog);
 

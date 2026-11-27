@@ -9,6 +9,7 @@ import { activityNotchLogoSize, type ActivityNotchItem } from "@canopy/ui/deskto
 import { activityNotchSnapshot } from "../../web/src/lib/features/desktop/activity-notch.ts";
 import type { ActivityNotchLayout } from "../src/activity-notch-geometry.ts";
 import { ActivityNotch, type ActivityNotchRow } from "../src/activity-notch.ts";
+import { activityNotchPlacementMemory } from "../src/activity-notch-placement.ts";
 import { loadMacActivityNotchDisplay } from "../src/activity-notch-window.ts";
 import { isTrustedDesktopEvent } from "../src/desktop-window.ts";
 import { initialStatus, isString } from "../src/runtime/config.ts";
@@ -64,7 +65,7 @@ function receiveLayout(overlay: BrowserWindow) {
 
   return new Promise<{ layout: ActivityNotchLayout }>((resolve) => {
     const receive = (event: IpcMainEvent, layout: ActivityNotchLayout) => {
-      if (event.sender !== overlay.webContents || layout.height === previousHeight) return;
+      if (event.sender !== overlay.webContents || layout.shape.height === previousHeight) return;
       ipcMain.off(channel, receive);
       resolve({ layout });
     };
@@ -76,7 +77,7 @@ function receiveLayout(overlay: BrowserWindow) {
 function waitForNativeSize(overlay: BrowserWindow, layout: ActivityNotchLayout) {
   return new Promise<void>((resolve) => {
     const inspect = () => {
-      if (overlay.getBounds().height !== layout.height) return;
+      if (overlay.getBounds().height !== layout.shape.height) return;
       overlay.off("resize", inspect);
       resolve();
     };
@@ -491,7 +492,8 @@ async function smoke() {
     });
 
     const opened = Promise.withResolvers<string>();
-    const activity = new ActivityNotch(opened.resolve);
+    // The geometry checks below follow the notch at the top of the main display, the default on a Mac.
+    const activity = new ActivityNotch(opened.resolve, activityNotchPlacementMemory({ mode: "notch" }));
     const status = { ...initialStatus(), phase: "running", mode: "remote", webUrl: origin } as const;
     activity.statusChanged(status);
     activity.register((event) => {

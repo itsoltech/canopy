@@ -15,7 +15,6 @@ export const activityNotchMotionStyles = `
   }
   .state-layer.active { opacity: 1; }
   .wing {
-    position: relative;
     display: grid;
     place-items: center;
     color: var(--muted);
@@ -53,7 +52,6 @@ export const activityNotchMotionStyles = `
   }
   @keyframes spin { to { rotate: 1turn; } }
   .count {
-    grid-column: 3;
     color: var(--ink);
     font-size: 0.75rem;
     font-weight: 600;
@@ -104,13 +102,9 @@ export const activityNotchMotionStyles = `
   }
   /* The list keeps its open width and place, so the moving outline clips it instead of reflowing its titles. */
   .panel {
-    position: relative;
-    width: calc(var(--open-width) - 2 * var(--ear));
-    margin-left: calc(var(--open-offset) - var(--notch-offset));
     opacity: 0;
     filter: blur(var(--panel-blur));
     scale: var(--panel-scale);
-    transform-origin: calc(var(--notch-center, 50vw) - var(--open-offset) - var(--ear)) 0;
     visibility: hidden;
     transition:
       opacity var(--panel-exit-dur) var(--ease-smooth-out),
@@ -125,11 +119,13 @@ export const activityNotchMotionStyles = `
     visibility: visible;
     transition: visibility 0s;
   }
-  /* Each row comes down out of the header with blur, one after another, as the outline reaches it. */
+  /* Each row comes out of the header with blur, one after another, as the outline reaches it. */
+  .notch { --row-from: -1; }
+  .notch[data-header="end"] { --row-from: 1; }
   .row {
     opacity: 0;
     filter: blur(var(--row-enter-blur));
-    translate: 0 calc(-1 * var(--row-enter-distance));
+    translate: 0 calc(var(--row-from) * var(--row-enter-distance));
     transition:
       opacity 0s var(--panel-exit-dur),
       filter 0s var(--panel-exit-dur),
@@ -148,6 +144,10 @@ export const activityNotchMotionStyles = `
       translate var(--row-enter-dur) var(--ease-smooth-out) var(--row-delay),
       background-color var(--press-dur) var(--ease-smooth-out),
       scale var(--press-dur) var(--ease-smooth-out);
+  }
+  /* A list that opens upward reaches its last row first. */
+  [data-header="end"] .panel[data-visible] .row {
+    --row-delay: calc(var(--panel-enter-delay) + min(var(--j, 0), ${activityNotchStaggerLimit}) * var(--stagger));
   }
   .row-status {
     grid-column: status;

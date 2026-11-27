@@ -5,6 +5,7 @@ import {
   isDesktopActivityRoute,
   maxActivityNotchItems,
   type ActivityNotchItem,
+  type ActivityNotchPlacement,
   type ActivityNotchProjectMark,
   type DesktopStatus,
 } from "@canopy/ui/desktop";
@@ -12,7 +13,10 @@ import { staticBotMascot } from "@canopy/ui/mascot";
 import { providerKeys } from "@canopy/ui/providers";
 import { rowMeta, sameMeta, type ActivityNotchMeta } from "./activity-notch-meta.ts";
 import { activityNotchVisibleRows, type ActivityNotchLayout } from "./activity-notch-geometry.ts";
+import { ActivityNotchDrag } from "./activity-notch-drag.ts";
+import { decodeActivityNotchPlacement, type ActivityNotchPlacementStore } from "./activity-notch-placement.ts";
 import {
+  activityNotchDisplays,
   createActivityNotchWindow,
   positionActivityNotchWindow,
   setActivityNotchInteractive,
@@ -119,11 +123,19 @@ export class ActivityNotch {
   #notice: number | undefined;
   #loaded = false;
   #layout: ActivityNotchLayout | undefined;
+  #layoutKey: string | undefined;
   #rowsRevision = 0;
   #reservedRows = 0;
   #invalidated = false;
+  #placement: ActivityNotchPlacement;
+  readonly #drag = new ActivityNotchDrag();
 
-  constructor(private readonly openRoute: (path: string) => void) {}
+  constructor(
+    private readonly openRoute: (path: string) => void,
+    private readonly placements: ActivityNotchPlacementStore,
+  ) {
+    this.#placement = placements.read();
+  }
 
   register(authorize: (event: IpcMainInvokeEvent) => void) {
     if (!activityNotchSupported) return;
@@ -184,6 +196,29 @@ export class ActivityNotch {
         this.#position();
         this.openRoute(entry.path);
       }
+    });
+    ipcMain.handle("canopy:activity-notch-placement", (event) => {
+      authorize(event);
+
+      return this.#placement;
+    });
+    ipcMain.handle("canopy:activity-notch-displays", (event) => {
+      authorize(event);
+
+      return activityNotchDisplays();
+    });
+    ipcMain.handle("canopy:set-activity-notch-placement", (event, raw: ActivityNotchPlacement) => {
+      authorize(event);
+      this.#place(decodeActivityNotchPlacement(raw));
+
+      return this.#placement;
+    });
+    ipcMain.on("canopy:activity-notch-drag", (event, phase: "start" | "move" | "end") => {
+      if (!this.#fromNotch(event) || !this.#entries.length) return;
+
+      if (phase === "start") this.#drag.start(this.#placement);
+      else if (phase === "move") this.#dragTo(this.#drag.move(this.#placement));
+      else if (phase === "end" && this.#drag.end()) this.#place(this.#placement);
     });
     screen.on("display-added", this.#displayChanged);
     screen.on("display-removed", this.#displayChanged);
@@ -340,7 +375,32 @@ export class ActivityNotch {
     sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows, revision, notice));
   }
 
-  #displayChanged = () => this.#position({ displayChanged: true });
+  #displayChanged = () => {
+    sendWindowMessage(this.#source, (contents) =>
+      contents.send("canopy:activity-notch-displays", activityNotchDisplays()),
+    );
+    this.#position({ displayChanged: true });
+  };
+
+  /** Settings sends the whole place, display included; a drop records the display it landed on. */
+  #place(placement: ActivityNotchPlacement) {
+    this.#placement = placement;
+
+    // An unwritable profile only forgets the place at the next launch.
+    try {
+      this.placements.write(placement);
+    } catch {}
+
+    // Settings in the app window follow a drop or a change made in another window.
+    sendWindowMessage(this.#source, (contents) => contents.send("canopy:activity-notch-placement", placement));
+    this.#position({ moving: true });
+  }
+
+  #dragTo(next: ActivityNotchPlacement | undefined) {
+    if (!next) return;
+    this.#placement = next;
+    this.#position({ moving: true });
+  }
 
   get #expandedRows() {
     if (this.#notice !== undefined) return 1;
@@ -348,7 +408,7 @@ export class ActivityNotch {
     return this.#expanded ? Math.min(this.#entries.length, activityNotchVisibleRows) : 0;
   }
 
-  #position({ show = false, displayChanged = false } = {}) {
+  #position({ show = false, displayChanged = false, moving = false } = {}) {
     const target = this.#target;
 
     if (!this.#entries.length || !this.#loaded || !target || target.isDestroyed()) return;
@@ -358,31 +418,32 @@ export class ActivityNotch {
     // Grow the native window before the animation. Keep the old space until the current animation finishes.
     this.#reservedRows = Math.max(this.#reservedRows, rows);
 
-    let size = positionActivityNotchWindow(
-      target,
-      rows,
-      this.#reservedRows,
-      displayChanged ? undefined : previous?.headerHeight,
-    );
+    const place = (previousHeight: number | undefined) =>
+      positionActivityNotchWindow(target, this.#placement, {
+        expanded: rows,
+        reserved: this.#reservedRows,
+        previousHeight,
+        // A collapsed tab follows the pointer in a window of its own size, so it keeps its place inside it.
+        dragging: this.#drag.active && !rows,
+      });
+
+    let size = place(displayChanged || moving ? undefined : previous?.headerHeight);
 
     if (show) {
       target.showInactive();
 
-      if (process.platform === "win32") {
-        size = positionActivityNotchWindow(target, rows, this.#reservedRows, size.headerHeight);
-      }
+      if (process.platform === "win32") size = place(size.headerHeight);
     }
 
-    if (
-      this.#reservedRows === rows &&
-      previous?.width === size.width &&
-      previous.height === size.height &&
-      previous.headerHeight === size.headerHeight &&
-      previous.center === size.center
-    )
-      return;
+    // Moves apply at once: the window moves with them, so a transition would show the outline out of place.
+    const next = { ...size, moving: moving || this.#drag.active };
 
-    const layout = { ...size, revision: (previous?.revision ?? 0) + 1 };
+    const key = JSON.stringify(next);
+
+    if (this.#reservedRows === rows && key === this.#layoutKey) return;
+    this.#layoutKey = key;
+
+    const layout = { ...next, revision: (previous?.revision ?? 0) + 1 };
     this.#layout = layout;
     sendWindowMessage(target, (contents) => contents.send("canopy:activity-notch-layout", layout));
   }
@@ -392,15 +453,17 @@ export class ActivityNotch {
     this.#target = undefined;
     this.#loaded = false;
     this.#layout = undefined;
+    this.#layoutKey = undefined;
     this.#reservedRows = 0;
     this.#expanded = false;
     this.#notice = undefined;
+    this.#drag.end();
 
     if (target && !target.isDestroyed()) target.destroy();
   }
 
   #createWindow() {
-    const { target, load } = createActivityNotchWindow();
+    const { target, load } = createActivityNotchWindow(this.#placement);
     this.#target = target;
     target.on("closed", () => {
       if (this.#target === target) this.#destroyWindow();
