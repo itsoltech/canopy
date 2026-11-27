@@ -15,9 +15,10 @@ przed zwijaniem obrysu. Zmiany liczby, stanów aktywności i kolejności wierszy
 przechodzą przez krótkie rozmycie.
 Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
 Ikony stanów i kolory etykiet odpowiadają liście wątków.
-Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów,
-a pod tytułem dostawcę agenta, workera i gałąź. Wiersze mają ten sam odstęp
-od boków i dołu wycięcia. Wiersze botów pokazują ich nazwy i maskotki.
+Wiersze rozwiniętej listy wyglądają jak wiersze wątków w pasku bocznym: projekt
+ze znakiem i etykietą stanu, tytuł, a pod nim worker, gałąź i znak dostawcy.
+Wiersze mają ten sam odstęp od boków i dołu wycięcia. Wiersze botów pokazują
+ich nazwy i maskotki.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
@@ -476,7 +477,7 @@ jak w etykietach na żywo w aplikacji. Najechanie kursorem lub kliknięcie rozwi
 obrys bez odbicia poza docelowy rozmiar okna, a jego dolne rogi zaokrąglają się
 mocniej. Wiersze wysuwają się spod nagłówka z rozmyciem, jeden po drugim, gdy
 obrys do nich dorasta; od piątego wiersza kolejne dołączają razem z nim, a wiersz
-dodany poniżej widocznej listy czeka, aż obrys zrobi mu miejsce. Powyżej siedmiu
+dodany poniżej widocznej listy czeka, aż obrys zrobi mu miejsce. Powyżej pięciu
 wierszy listę można przewijać, do 24 pozycji.
 Lista zachowuje szerokość i położenie rozwiniętej nakładki, więc ruch krawędzi
 nie skraca tytułów. Po odsunięciu kursora lista zaczyna wygasać, a obrys rusza
@@ -496,21 +497,25 @@ głównego okna od razu usuwa nakładkę.
 
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
-Rozwinięta lista pokazuje bieżący tytuł wątku z listy Threads. Wątek bez tytułu
-ma etykietę **Untitled thread**. Obok tytułu pojawia się logo projektu lub
-inicjały w kolorach z listy wątków. Druga linia wiersza wątku łączy kropkami
-dostawcę agenta, nazwę workera (dla wątku z połączonego komputera, którego
-workera nie ma na liście, nazwę komputera) i gałąź worktree lub checkoutu;
-pomija brakujące części, a bez żadnej wiersz ma jedną linię. Lista nie
-rezerwuje miejsca na pasek przewijania, więc wiersze mają ten sam odstęp od
-boków i dołu. Wiersz bota pokazuje jego bieżącą nazwę
-i statyczną maskotkę odpowiadającą małemu awatarowi w rozmowach botów.
-Jeśli brakuje nazwy, wiersz ma etykietę **Bot**. Długie tytuły, nazwy i opisy
-miejsca pracy mieszczą się każde w jednej linii, a pełną wersję zachowują
+Wiersz wątku ma układ wiersza z paska bocznego. Pierwsza linia to logo projektu
+lub inicjały w kolorach z listy wątków, nazwa projektu i etykieta stanu; wątek bez
+znaku projektu ma przerywany kwadrat jak w pasku bocznym. Druga linia to bieżący
+tytuł wątku; wątek bez tytułu ma etykietę **Untitled thread**. Trzecia linia
+pokazuje workera i katalog, gałąź worktree lub checkoutu oraz znak dostawcy
+agenta, z tymi samymi regułami co pasek boczny: nazwa workera znika, gdy jedynym
+workerem jest wbudowany worker aplikacji desktopowej, a długa gałąź traci środek
+i zachowuje końcówkę. Wątek z połączonego komputera, którego workera nie ma na
+liście, pokazuje nazwę komputera. Linia bez żadnej z tych informacji znika,
+a pozostałe linie zostają wyśrodkowane w pionie. Lista nie rezerwuje miejsca na
+pasek przewijania, więc wiersze mają ten sam odstęp od boków i dołu. Wiersz bota pokazuje w pierwszej linii
+statyczną maskotkę odpowiadającą małemu awatarowi w rozmowach botów i słowo
+**Bot**, a w drugiej jego bieżącą nazwę.
+Jeśli brakuje nazwy, wiersz ma etykietę **Bot**. Długie tytuły, nazwy projektów,
+workerów i gałęzi mieszczą się każde w jednej linii, a pełną wersję zachowują
 podpowiedź i nazwa dostępna przycisku. Okno dostaje identyfikator wiersza,
-etykietę, opis miejsca pracy wątku, stan i obraz maskotki lub znak projektu,
-jeśli wiersz go ma. Logo trafia do nakładki jako miniatura
-36 × 36 pikseli. Pełne nazwy projektów i treść rozmów pozostają poza nakładką. Trasy
+etykietę, stan, obraz maskotki lub znak projektu, jeśli wiersz go ma, a dla
+wątku nazwę projektu, workera, katalog, gałąź i dostawcę. Logo trafia do nakładki jako miniatura
+36 × 36 pikseli. Treść rozmów pozostaje poza nakładką. Trasy
 rozmów zostają w procesie głównym. Przy utracie połączenia lub zmianie gatewaya
 Canopy czyści dostępne pozycje. Powiadomienia systemowe i ich preferencje
 działają niezależnie.

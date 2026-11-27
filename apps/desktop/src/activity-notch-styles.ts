@@ -27,7 +27,6 @@ export const activityNotchStyles = `
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
-    --row-mark-size: 24px;
     --bottom-inset: ${activityNotchBottomInset}px;
     --type-compact: 0.8125rem;
     --type-meta: 0.71875rem;
@@ -183,57 +182,6 @@ export const activityNotchStyles = `
     pointer-events: none;
   }
   .leaving-rows > li { position: absolute; background: #000; }
-  .row {
-    display: grid;
-    grid-template-columns: [mark] var(--row-mark-size) [label] minmax(0, 1fr) [status] auto;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    height: var(--row-height);
-    padding: 0 8px;
-    border-radius: var(--radius-md);
-    text-align: start;
-    font-variant-numeric: tabular-nums;
-  }
-  @media (hover: hover) {
-    .row:hover { background-color: color-mix(in srgb, var(--ink) 8%, transparent); }
-  }
-  .row:active {
-    background-color: color-mix(in srgb, var(--ink) 12%, transparent);
-    scale: ${motion.scale.tiny};
-  }
-  .row-mark:not([hidden]) {
-    grid-column: mark;
-    display: grid;
-    place-items: center;
-    width: var(--row-mark-size);
-    height: var(--row-mark-size);
-    overflow: hidden;
-    border-radius: 0.375rem;
-    font: 700 0.625rem / 1 ui-monospace, monospace;
-    letter-spacing: -0.025em;
-  }
-  .row-mark canvas, .row-mark img {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  .row-text {
-    grid-column: label;
-    display: grid;
-    min-width: 0;
-  }
-  .truncate {
-    color: color-mix(in srgb, var(--ink) 92%, transparent);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .row-detail {
-    color: var(--muted);
-    font-size: var(--type-meta);
-    line-height: 1rem;
-  }
   [data-state="working"] { --indicator: ${workingColors.dark.text}; }
   [data-state="approval"], [data-state="answer"] { --indicator: ${palette.amber[400]}; }
   [data-state="completed"] { --indicator: ${palette.emerald[400]}; }
@@ -252,6 +200,5 @@ export const activityNotchStyles = `
     [data-animate][data-shrinking] .notch-body {
       transition: none;
     }
-    .row:active { scale: 1; }
   }
 `;

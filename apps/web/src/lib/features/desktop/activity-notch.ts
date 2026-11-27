@@ -3,8 +3,9 @@ import type { bots, ui } from "@canopy/contracts";
 import { botParticipant } from "@canopy/domain/bot-chat";
 import { sharesThreads } from "@canopy/domain/computer-presence";
 import { REMOTE_BOTS } from "@canopy/domain/computers";
-import { headLabel } from "@canopy/domain/git-heads";
-import { HARNESS_NAMES, harnessOf } from "@canopy/domain/harnesses";
+import { threadRowPlace } from "@canopy/domain/git-heads";
+import { Provider } from "@canopy/contracts";
+import { providerKeys } from "@canopy/ui/providers";
 import { activityOf, unseenResult, workState } from "@canopy/domain/thread-activity";
 import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import {
@@ -20,7 +21,9 @@ type Activity = {
   expiresAt?: number;
 };
 
-type Identity = Pick<ActivityNotchItem, "title" | "detail" | "botAppearance"> & { projectId?: string | undefined };
+type Placement = Pick<ActivityNotchItem, "project" | "worker" | "place" | "branch" | "branchLabel" | "provider">;
+
+type Identity = Pick<ActivityNotchItem, "title" | "botAppearance"> & Placement & { projectId?: string | undefined };
 
 const priority: Record<ActivityNotchItem["state"], number> = {
   approval: 0,
@@ -48,13 +51,18 @@ function threadActivity(thread: ui.Thread): Activity | undefined {
   return undefined;
 }
 
-/** Where the thread runs: its agent, worker and branch, as in the thread's hover card. */
-function threadDetail(thread: ui.Thread, place: string | undefined): string | undefined {
-  const harness = harnessOf(thread.provider);
-  const head = thread.worktree ?? thread.checkoutHead;
-  const branch = head && (head.branch || head.detachedCommit) ? headLabel(head) : undefined;
+/** The sidebar row's facts: project, worker, directory, branch and provider (SidebarThread). */
+function threadPlacement(thread: ui.Thread, project: ui.Project | undefined, worker: string | undefined): Placement {
+  const { place, branch, branchLabel } = threadRowPlace(thread, project);
+  const provider = providerKeys.find((key) => Provider[key] === thread.provider);
 
-  return [harness && HARNESS_NAMES[harness], place, branch].filter(Boolean).join(" · ") || undefined;
+  return {
+    ...(project?.name && { project: project.name }),
+    ...(worker && { worker }),
+    ...(place && { place }),
+    ...(branch && { branch, branchLabel }),
+    ...(provider && { provider }),
+  };
 }
 
 function botActivity(bot: bots.Bot, executing: boolean, now: number): Activity | undefined {
@@ -86,7 +94,8 @@ export function activityNotchSnapshot({
   staleBotHomes,
   botExecuting,
   markForProject,
-  placeOf,
+  projectOf,
+  workerOf,
   now,
 }: {
   threads: ReadonlyMap<string, ui.Thread> | undefined;
@@ -95,8 +104,9 @@ export function activityNotchSnapshot({
   staleBotHomes: ReadonlySet<string>;
   botExecuting: (id: string) => boolean;
   markForProject: (id: string) => ActivityNotchProjectMark | undefined;
-  /** The worker's name, or the linked computer's when its workers are not listed here. */
-  placeOf: (thread: ui.Thread) => string | undefined;
+  projectOf: (id: string) => ui.Project | undefined;
+  /** The worker the row names, or undefined when the sidebar row would not name one. */
+  workerOf: (thread: ui.Thread) => string | undefined;
   now: number;
 }) {
   const activities: (Activity & Identity & { path: string })[] = [];
@@ -127,7 +137,7 @@ export function activityNotchSnapshot({
         continue;
       add(`/threads/${thread.id}`, threadActivity(thread), {
         title: thread.title,
-        detail: threadDetail(thread, placeOf(thread)),
+        ...threadPlacement(thread, projectOf(thread.projectId), workerOf(thread)),
         projectId: thread.projectId,
       });
     }
@@ -148,14 +158,18 @@ export function activityNotchSnapshot({
 
   const items: ActivityNotchItem[] = activities
     .slice(0, maxActivityNotchItems)
-    .map(({ path, state, title, detail, projectId, botAppearance }) => {
+    .map(({ path, state, title, projectId, botAppearance, project, worker, place, branch, branchLabel, provider }) => {
       const projectMark = projectId ? markForProject(projectId) : undefined;
 
       return {
         path,
         state,
         ...(title && { title }),
-        ...(detail && { detail }),
+        ...(project && { project }),
+        ...(worker && { worker }),
+        ...(place && { place }),
+        ...(branch && { branch, branchLabel }),
+        ...(provider && { provider }),
         ...(projectMark && { projectMark }),
         ...(botAppearance && { botAppearance }),
       };

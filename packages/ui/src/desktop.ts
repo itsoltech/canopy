@@ -1,4 +1,5 @@
 /** Optional, capability-limited Electron bridge. No filesystem, secrets or generic IPC. */
+import type { ProviderKey } from "./providers.ts";
 import type { ThemeAccent, ThemeName } from "./themes.ts";
 import type { DesktopHtmlStart, DesktopHtmlCommand, DesktopHtmlEvent } from "./desktop-html.ts";
 
@@ -29,8 +30,15 @@ export interface ActivityNotchItem {
   path: string;
   state: "working" | "approval" | "answer" | "completed" | "failed";
   title?: string | undefined;
-  /** One short line under the title: agent, worker and branch, joined with " · ". */
-  detail?: string | undefined;
+  /** A thread's project, shown above its title like a sidebar row. */
+  project?: string | undefined;
+  /** Where a thread runs, as in its sidebar row: worker (or linked computer), directory and branch. */
+  worker?: string | undefined;
+  place?: string | undefined;
+  branch?: string | undefined;
+  /** The branch's full name for the tooltip and accessible name ("Branch main", "Detached at 3f2a9c1"). */
+  branchLabel?: string | undefined;
+  provider?: ProviderKey | undefined;
   projectMark?: ActivityNotchProjectMark | undefined;
   botAppearance?: { shape?: string | undefined; color?: string | undefined } | undefined;
 }

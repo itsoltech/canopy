@@ -28,3 +28,23 @@ export const providerSummary = (provider: ui.Worker["providers"][number]): strin
 
 /** The worker has not applied its latest configuration yet. */
 export const configPending = (worker: ui.Worker): boolean => worker.appliedVersion < worker.configVersion;
+
+/**
+ * A thread row names its worker unless the only one is the bundled desktop worker of this computer
+ * and no linked computer shares threads: then every row would repeat it.
+ */
+export function showsWorker(
+  thread: Pick<ui.Thread, "nodeId">,
+  worker: ui.Worker | undefined,
+  workers: readonly ui.Worker[],
+  linkedComputers: number,
+): boolean {
+  return !(
+    worker?.desktopBundled &&
+    !worker.revokedAt &&
+    !worker.nodeId &&
+    !thread.nodeId &&
+    linkedComputers === 0 &&
+    workers.filter((candidate) => !candidate.revokedAt).length === 1
+  );
+}

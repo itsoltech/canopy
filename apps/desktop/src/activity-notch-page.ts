@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { motion } from "@canopy/ui";
-import { activityNotchLogoSize } from "@canopy/ui/desktop";
 import { icons, iconStyle } from "@canopy/ui/icons";
 import { threadSpinner } from "@canopy/ui/thread-row";
 import { activityNotchMotionScript } from "./activity-notch-motion-script.ts";
 import { activityNotchMotionStyles } from "./activity-notch-motion-styles.ts";
+import { activityNotchRowScript } from "./activity-notch-row-script.ts";
+import { activityNotchRowStyles } from "./activity-notch-row-styles.ts";
 import { activityNotchPanelDelay, activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
 
@@ -55,9 +56,6 @@ const script = `
   const leavingRows = document.querySelector(".leaving-rows");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const statuses = ${JSON.stringify(statuses)};
-  const logoSize = ${activityNotchLogoSize};
-  const logoBytes = logoSize * logoSize * 4;
-  const encodedLogoLength = Math.ceil(logoBytes / 3) * 4;
   const numbers = new Intl.NumberFormat("en");
   const rowViews = new Map();
 ${activityNotchMotionScript}
@@ -106,86 +104,7 @@ ${activityNotchMotionScript}
     });
   }
 
-  function createRow(id) {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    const badge = document.createElement("span");
-    const text = document.createElement("span");
-    const label = document.createElement("span");
-    const detail = document.createElement("span");
-    const status = document.createElement("span");
-    button.type = "button";
-    button.className = "row";
-    badge.className = "row-mark";
-    badge.hidden = true;
-    badge.setAttribute("aria-hidden", "true");
-    text.className = "row-text";
-    label.className = "truncate";
-    label.dir = "auto";
-    detail.className = "row-detail truncate";
-    detail.dir = "auto";
-    detail.hidden = true;
-    text.append(label, detail);
-    status.className = "row-status";
-    status.setAttribute("aria-hidden", "true");
-    for (const [state, { label }] of Object.entries(statuses)) {
-      const layer = document.createElement("span");
-      layer.className = "status state-layer";
-      layer.dataset.state = state;
-      layer.textContent = label;
-      status.append(layer);
-    }
-    button.append(badge, text, status);
-    item.append(button);
-    button.addEventListener("click", () => bridge.open(id));
-    return { item, button, badge, label, detail, status };
-  }
-
-  function projectLogo(pixels) {
-    if (pixels?.length !== encodedLogoLength) return;
-
-    let decoded;
-    try {
-      decoded = atob(pixels);
-    } catch {
-      return;
-    }
-    if (decoded.length !== logoBytes) return;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = logoSize;
-    canvas.height = logoSize;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    const rgba = Uint8ClampedArray.from(decoded, (byte) => byte.charCodeAt(0));
-    context.putImageData(new ImageData(rgba, logoSize, logoSize), 0, 0);
-    return canvas;
-  }
-
-  function updateRowMark(view, mark, mascot) {
-    const previous = view.projectMark;
-    if (
-      view.botMascot === mascot &&
-      previous?.initials === mark?.initials &&
-      previous?.foreground === mark?.foreground &&
-      previous?.background === mark?.background &&
-      previous?.pixels === mark?.pixels
-    ) return;
-
-    const image = mascot ? document.createElement("img") : projectLogo(mark?.pixels);
-    if (mascot) {
-      image.alt = "";
-      image.src = mascot;
-    }
-    view.badge.replaceChildren(image ?? mark?.initials ?? "");
-    view.badge.style.color = mark?.foreground ?? "";
-    view.badge.style.backgroundColor = image ? "" : mark?.background ?? "";
-    view.badge.hidden = !mark && !mascot;
-    view.projectMark = mark;
-    view.botMascot = mascot;
-  }
-
+${activityNotchRowScript}
   function animateRow(item, frames, duration, delay = 0) {
     const animation = item.animate(frames, {
       duration, delay, fill: "backwards", easing: "cubic-bezier(${motion.smoothOut.join(", ")})",
@@ -257,7 +176,7 @@ ${activityNotchMotionScript}
     }
 
     let nextItem = list.firstElementChild;
-    for (const [index, { id, label, detail, state, projectMark, botMascot }] of rows.entries()) {
+    for (const [index, { id, label, meta, state, projectMark, botMascot }] of rows.entries()) {
       const existing = rowViews.get(id);
       const view = existing ?? createRow(id);
       rowViews.set(id, view);
@@ -265,18 +184,11 @@ ${activityNotchMotionScript}
       if (view.item.style.getPropertyValue("--i") !== String(index)) view.item.style.setProperty("--i", String(index));
       const status = statuses[state].label;
       updateRowMark(view, projectMark, botMascot);
-      if (view.label.textContent !== label) {
-        view.label.textContent = label;
-        view.label.title = label;
-      }
-      if (view.detail.textContent !== (detail ?? "")) {
-        view.detail.textContent = detail ?? "";
-        view.detail.title = detail ?? "";
-        view.detail.hidden = !detail;
-      }
+      setText(view.label, label, label);
+      updateRowMeta(view, meta, Boolean(botMascot));
       showState(view.status.children, state, existing && "text");
-      const project = projectMark ? ", project " + projectMark.initials : "";
-      const accessibleLabel = "Open " + label + project + (detail ? ", " + detail : "") + ", " + status;
+      const project = meta?.project || projectMark?.initials ? ", project " + (meta?.project || projectMark.initials) : "";
+      const accessibleLabel = "Open " + label + project + placeDescription(meta) + ", " + status;
       if (view.button.getAttribute("aria-label") !== accessibleLabel) {
         view.button.setAttribute("aria-label", accessibleLabel);
       }
@@ -350,7 +262,7 @@ export function activityNotchPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
-  <style nonce="${nonce}">${activityNotchStyles}${activityNotchMotionStyles}</style>
+  <style nonce="${nonce}">${activityNotchStyles}${activityNotchRowStyles}${activityNotchMotionStyles}</style>
 </head>
 <body>
   <main class="notch" data-open="false">

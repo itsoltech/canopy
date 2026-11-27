@@ -1,6 +1,7 @@
 import type { ActivityNotchItem } from "@canopy/ui/desktop";
 import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
+import { showsWorker } from "#lib/features/overview/workers.ts";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { ActivityNotchProjectMarks } from "./activity-notch-project-marks.ts";
@@ -68,7 +69,14 @@ export function watchActivityNotch(
         ),
         botExecuting: (id) => botList.executing(id),
         markForProject: (id) => projectMarks.mark(overview.project(id), visibleImages),
-        placeOf: (thread) => overview.worker(thread.workerId)?.name || overview.machine(thread.nodeId),
+        projectOf: (id) => overview.project(id),
+        workerOf: (thread) => {
+          const worker = overview.worker(thread.workerId);
+
+          if (!showsWorker(thread, worker, overview.workers, overview.computers.size)) return undefined;
+
+          return worker?.name || overview.machine(thread.nodeId) || "Unknown worker";
+        },
         now,
       });
 
