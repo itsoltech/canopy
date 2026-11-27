@@ -11,12 +11,13 @@ import { revealThreadDirectory, updateThread } from "./api.ts";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { requestTitleRegeneration } from "./title-actions.ts";
 import type { ThreadActionId } from "./thread-actions.ts";
+import { ThreadBulkActions } from "./thread-bulk-actions.svelte.ts";
 
 const KEY = Symbol("thread-actions");
 export const provideThreadActions = (actions: ThreadActions) => setContext(KEY, actions);
 export const useThreadActions = () => getContext<ThreadActions>(KEY);
 
-function focusOrigin(): HTMLElement | undefined {
+export function focusOrigin(): HTMLElement | undefined {
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
   // A submenu closes with its parent. Restore focus to the trigger outside both.
   const menu = focused?.closest('[role="menu"]:not([role="menu"] *)');
@@ -40,9 +41,16 @@ export class ThreadActions {
   }>();
   /** The thread "Move to…" is open for (MoveDialog). */
   moving = $state.raw<ui.Thread>();
-  snoozing = $state.raw<{ thread: ui.Thread; custom: boolean }>();
+  /** `group`: the sidebar's selected threads, snoozed together until a chosen time (`done` runs after). */
+  snoozing = $state.raw<{
+    thread: ui.Thread;
+    custom: boolean;
+    group?: { threads: ui.Thread[]; done?: () => void };
+  }>();
   saving = $state(false);
   returnFocus: HTMLElement | undefined;
+  /** The same actions for several threads at once (the sidebar's selection). */
+  readonly bulk = new ThreadBulkActions(this);
   constructor(
     readonly overview: OverviewState,
     readonly settings: SettingsState,
@@ -226,7 +234,7 @@ export class ThreadActions {
     }
   }
 
-  private post(id: string, action: string) {
+  post(id: string, action: string) {
     return requestJson("POST", `/api/threads/${encodeURIComponent(id)}/lifecycle`, { action });
   }
   private async archive(thread: ui.Thread) {
@@ -249,10 +257,10 @@ export class ThreadActions {
     this.returnFocus = focusOrigin();
     this.dialog = { kind, thread };
   }
-  private publish(thread: ui.Thread) {
+  publish(thread: ui.Thread) {
     this.overview.apply(create(ui.OverviewUpdateSchema, { change: { case: "thread", value: thread } }));
   }
-  private async lifecycle(id: string, action: string) {
+  async lifecycle(id: string, action: string) {
     const result = decode(ui.GetThreadResponseSchema, await this.post(id, action));
 
     if (result.thread) this.publish(result.thread);
@@ -264,7 +272,7 @@ export class ThreadActions {
 
     if (reopenId) await goto(`/threads/${reopenId}`);
   }
-  private error(cause: unknown) {
+  error(cause: unknown) {
     toast(cause instanceof Error ? cause.message : "Could not change the thread", { tone: "error" });
   }
 }

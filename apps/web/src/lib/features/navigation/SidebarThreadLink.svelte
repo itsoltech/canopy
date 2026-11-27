@@ -18,6 +18,8 @@
   import { focusAfterArchive } from "./sidebar-focus.ts";
   import SidebarMoveMenu from "./SidebarMoveMenu.svelte";
   import { useSidebarOrder } from "./sidebar-order.svelte.ts";
+  import { selectGesture, useSidebarSelection } from "./sidebar-selection.svelte.ts";
+  import ThreadBulkMenuItems from "#lib/features/threads/components/ThreadBulkMenuItems.svelte";
 
   /**
    * The link of a thread row in the sidebar (main and side threads): opens the thread, previews it on hover,
@@ -25,7 +27,9 @@
    * amber tint when it needs you, violet for a draft outside the open thread, `data-result` while a
    * finished turn waits to be seen. Working alone keeps normal text contrast and uses the activity
    * mark and status instead of a background.
-   * The open thread keeps its selected background on hover. Layout and padding come from `class`.
+   * The open thread keeps its selected background on hover. ⌘/Ctrl or Shift with a click (or Enter) selects
+   * several rows (SidebarSelection); the menu of a selected row then acts on all of them.
+   * Layout and padding come from `class`.
    */
   let {
     thread,
@@ -57,6 +61,14 @@
   const overview = useOverview();
   const ordering = useSidebarOrder();
   const actions = useThreadActions();
+  const selection = useSidebarSelection();
+  const selected = $derived(selection?.has(thread.id) ?? false);
+
+  // The threads the open menu acts on when it opened on a row of a larger selection.
+  let group = $state.raw<ui.Thread[]>();
+
+  $effect(() => selection?.register(thread.id, () => thread));
+
   const away = $derived(thread.nodeId ? awayReason(overview.computer(thread.nodeId)) : undefined);
   let open = $state(false);
   let archiving = $state(false);
@@ -76,6 +88,33 @@
     });
   });
 
+  // A menu opened on a row of a larger selection acts on the whole selection; on any other row it
+  // clears the selection, as a plain click would.
+  function openMenu() {
+    if (!open) {
+      if (selected && selection && selection.size > 1) group = selection.threads();
+      else {
+        group = undefined;
+        selection?.clear();
+      }
+    }
+
+    open = true;
+  }
+
+  function choose(event: MouseEvent) {
+    const gesture = selection && selectGesture(event);
+
+    if (!gesture) {
+      if (event.button === 0) selection?.clear();
+
+      return;
+    }
+
+    event.preventDefault();
+    selection?.choose(thread.id, gesture, rowBox?.closest("nav") ?? document, event.metaKey || event.ctrlKey);
+  }
+
   function context(event: MouseEvent | KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
@@ -85,7 +124,7 @@
       point = { x: event.clientX - box.left, y: event.clientY - box.top };
       via = "point";
     } else via = "row";
-    open = true;
+    openMenu();
   }
 
   async function archive(event: MouseEvent) {
@@ -104,7 +143,7 @@
 </script>
 
 <DropdownMenu
-  bind:open
+  bind:open={() => open, (value) => (value ? openMenu() : (open = false))}
   label="Actions for {thread.title}"
   sheet
   placement={via === "button" ? "bottom-end" : "bottom-start"}
@@ -138,29 +177,40 @@
             }}
             {@attach longPress(() => {
               via = "row";
-              open = true;
+              openMenu();
             })}
+            onclick={choose}
+            onmousedown={(event) => {
+              // Shift+click selects rows, not the text between them.
+              if (event.shiftKey && selection) event.preventDefault();
+            }}
+            data-thread-select={thread.id}
             href="/threads/{thread.id}"
             aria-current={current ? "page" : undefined}
             data-snoozed={snoozed || undefined}
             data-result={snoozed ? undefined : unseenResult(thread)}
             data-unread={(!snoozed && thread.markedUnread) || undefined}
-            data-draft={(!snoozed && !current && !away && !needsAttention && draft.current) || undefined}
+            data-draft={(!selected && !snoozed && !current && !away && !needsAttention && draft.current) || undefined}
+            data-selected={selected || undefined}
             class={[
               "sidebar-row group focus-ring [-webkit-touch-callout:none] desktop:cursor-default",
-              !snoozed &&
+              !selected &&
+                !snoozed &&
                 !away &&
                 needsAttention &&
                 "bg-amber-500/6 inset-ring inset-ring-amber-500/20 dark:bg-amber-400/6 dark:inset-ring-amber-400/15",
-              "aria-[current=page]:bg-zinc-950/6 dark:aria-[current=page]:bg-white/8",
+              selected
+                ? "bg-brand-500/10 inset-ring inset-ring-brand-500/25 hover:bg-brand-500/14 dark:bg-brand-400/12 dark:inset-ring-brand-400/25 dark:hover:bg-brand-400/16"
+                : "aria-[current=page]:bg-zinc-950/6 dark:aria-[current=page]:bg-white/8",
               "data-draft:bg-violet-500/6 data-draft:inset-ring data-draft:inset-ring-violet-500/20 dark:data-draft:bg-violet-400/6 dark:data-draft:inset-ring-violet-400/15",
-              !current && "hover:bg-zinc-950/4 dark:hover:bg-white/4",
+              !current && !selected && "hover:bg-zinc-950/4 dark:hover:bg-white/4",
               className,
               thread.status === "archived" && !compact && "opacity-60",
               away && "opacity-60 saturate-0",
             ]}
           >
             {@render children()}
+            {#if selected}<span class="sr-only">Selected</span>{/if}
             {#if compact && draft.current}<span class="sr-only">Draft</span>{/if}
             {#if away}<span class="sr-only">Read-only. {away}</span>{/if}
             {#if !snoozed && thread.markedUnread}<span class="sr-only">Unread</span><span
@@ -188,7 +238,9 @@
           aria-controls={menu["aria-controls"]}
           onclick={() => {
             via = "button";
-            open = !open;
+
+            if (open) open = false;
+            else openMenu();
           }}
           onkeydown={(event) => {
             via = "button";
@@ -214,6 +266,10 @@
       {/if}
     </div>
   {/snippet}
-  <ThreadMenuItems {thread} />
-  {#if quickArchive}<SidebarMoveMenu {thread} />{/if}
+  {#if group}
+    <ThreadBulkMenuItems threads={group} done={() => selection?.clear()} />
+  {:else}
+    <ThreadMenuItems {thread} />
+    {#if quickArchive}<SidebarMoveMenu {thread} />{/if}
+  {/if}
 </DropdownMenu>

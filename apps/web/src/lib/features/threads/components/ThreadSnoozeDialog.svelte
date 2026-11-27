@@ -11,9 +11,13 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import { localValue, parseDateTime } from "#lib/shared/ui/date-time.ts";
   import { restoreSnoozeFocus, useThreadActions } from "../thread-actions.svelte.ts";
+  import { threadCount } from "../thread-bulk-actions.svelte.ts";
 
   const actions = useThreadActions();
   const thread = $derived(actions.snoozing?.thread);
+
+  // Several selected threads: one deadline for all of them (ThreadBulkActions.openSnooze).
+  const group = $derived(actions.snoozing?.group);
   let custom = $state(false);
   let dateTime = $state("");
   let saving = $state(false);
@@ -23,7 +27,7 @@
   const min = $derived(custom ? localValue(new Date(clock.now + 60_000)) : undefined);
 
   const description = $derived(
-    thread?.snoozed
+    !group && thread?.snoozed
       ? thread.snoozedUntil
         ? `Wakes ${formatDateTime(thread.snoozedUntil)}.`
         : "Snoozed until you wake it."
@@ -36,7 +40,7 @@
 
       if (actions.snoozing?.custom) chooseDate(true);
       else custom = false;
-      dateTime = thread.snoozedUntil ? localValue(timestampDate(thread.snoozedUntil)) : "";
+      dateTime = !group && thread.snoozedUntil ? localValue(timestampDate(thread.snoozedUntil)) : "";
       failure = undefined;
     } else if (origin) {
       const source = origin;
@@ -51,8 +55,10 @@
     failure = undefined;
 
     try {
-      await actions.setSnooze(thread.id, true, until);
+      if (group) await actions.bulk.snoozeEach(group.threads, until);
+      else await actions.setSnooze(thread.id, true, until);
       actions.snoozing = undefined;
+      group?.done?.();
     } catch {
       failure = "Could not snooze the thread. Try again.";
     } finally {
@@ -77,7 +83,7 @@
 </script>
 
 <Dialog
-  title={thread?.snoozed ? "Change snooze" : "Snooze thread"}
+  title={group ? `Snooze ${threadCount(group.threads.length)}` : thread?.snoozed ? "Change snooze" : "Snooze thread"}
   {description}
   dismissible={!saving}
   bind:open={

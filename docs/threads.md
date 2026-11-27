@@ -326,7 +326,8 @@ i oczekujące interakcje. [Powiadomienia](notifications.md#kiedy-powiadamiamy)
 
 ## Filtr, menu i archiwum
 
-Tło zaznaczenia w sidebarze wskazuje wyłącznie otwarty wątek, także podczas pracy i najechania.
+Szare tło zaznaczenia w sidebarze wskazuje wyłącznie otwarty wątek, także podczas pracy i najechania.
+Zaznaczenie kilku wątków do wspólnej akcji ma osobny odcień marki (niżej, przy menu).
 Pracę oznaczają pierścień i etykieta „Working” z czasem; sam stan pracy nie dodaje tła ani
 nie przygasza tekstu. Hover niezaznaczonego wiersza jest słabszy od zaznaczenia, a fokus
 klawiatury ma osobny obrys. Te same reguły obowiązują dla wątków głównych i bocznych.
@@ -386,6 +387,23 @@ na wierszu i przycisk „…” po najechaniu lub ustawieniu fokusu. Dotknięcie
 Strzałki obsługują menu, Escape zamyka je i oddaje fokus. Telefon używa dolnego arkusza.
 Akcje: nowa karta, nowy wątek w projekcie, przypięcie, rename, generowanie tytułu, stan przeczytania,
 filtr projektu, kopiowanie, ustawienia, archiwizacja i usunięcie. Odpowiednie akcje bieżącego wątku są w Cmd+K.
+
+Status (2026-11-27): w web i desktop sidebar pozwala zaznaczyć kilka wątków. Cmd+klik na macOS
+(Ctrl+klik w Windows i Linux) przełącza wiersz, Shift+klik zaznacza zakres w kolejności widocznej
+w sidebarze, Cmd/Ctrl+Shift+klik dodaje zakres. To samo działa z Enter na wierszu z fokusem.
+Pierwsze takie kliknięcie traktuje otwarty wątek jako zaznaczony, więc klik w pierwszy wątek
+i Shift+klik w ostatni zaznacza wszystkie pomiędzy. Zaznaczenie obejmuje wątki główne, boczne,
+uśpione i archiwalne. Zaznaczony wiersz ma odcień i obrys marki (pierwszeństwo przed bursztynowym
+i fioletowym wyróżnieniem), a czytnik ekranu słyszy „Selected”. Zwykły klik w wiersz lub Escape
+czyści zaznaczenie. Na ekranach dotykowych zaznaczania nie ma.
+
+Menu otwarte na zaznaczonym wierszu (prawy przycisk, „…”, klawisz Menu) działa na całą grupę
+i pokazuje jej liczność. Akcje: przypięcie lub odpięcie, stan przeczytania, uśpienie z presetami lub do wybranej daty i godziny (jeden dialog dla całej grupy),
+wybudzenie uśpionych, archiwizacja aktywnych, przywrócenie archiwalnych i usunięcie. Etykiety
+podają, ilu wątków dotyczą. Wątki niedostępnego komputera są pomijane. Archiwizacja i usunięcie
+respektują potwierdzenia z ustawień; wątek boczny zaznaczony razem z rodzicem idzie z nim.
+Toast „N threads archived” lub „N threads deleted” ma jedno „Undo” dla całej grupy. Menu
+otwarte na niezaznaczonym wierszu czyści zaznaczenie i pokazuje zwykłe akcje tego wątku.
 
 Na web/desktop najechanie na główny wiersz lub fokus wewnątrz niego zamienia znak dostawcy
 w prawym dolnym rogu na przycisk „Archive”. Slot zachowuje rozmiar i pozycję, więc podpis
