@@ -8,6 +8,7 @@ import { coreState } from "../core/core-context.ts";
 import { coreAddProject } from "../core/core-add-project.ts";
 import { coreWorkspaceCloneSource } from "../core/workspace-clone-source.ts";
 import { coreCloneProject } from "../core/core-clone.ts";
+import { watchThreadHeads } from "../core/overview-thread-heads.ts";
 import { guard, toConnectError, unwrap } from "./ui-errors.ts";
 import type { UiHandlers } from "./ui-service.ts";
 
@@ -17,6 +18,7 @@ export function projectsHandlers(
   UiHandlers,
   | "getOverview"
   | "watchOverview"
+  | "watchThreadHeads"
   | "listDirectory"
   | "createProject"
   | "renameProject"
@@ -40,6 +42,8 @@ export function projectsHandlers(
 
     watchOverview: (request, context) =>
       core.watchOverview(context.signal, request.includeSnapshot, request.threadHeadIds, request.watchMemoryHabits),
+
+    watchThreadHeads: (request, context) => watchThreadHeads(core, request.threadIds, context.signal),
 
     listDirectory: (request) => guard(() => core.listDirectory(request.workerId, request.path)),
 

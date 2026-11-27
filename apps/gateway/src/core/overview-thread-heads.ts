@@ -39,6 +39,46 @@ export async function overviewThreadHeads(core: GatewayCore, ids: readonly strin
   });
 }
 
+const headsSignature = (heads: ui.ThreadHeads) =>
+  heads.heads.map((head) => `${head.threadId}:${head.epoch}:${head.appliedSeq}`).join(",");
+
+/**
+ * WatchThreadHeads: the current heads at once, then the same 2 s bounded probe as WatchOverview. A client changes
+ * its set by opening a new one of these streams; its overview stream and snapshot stay untouched.
+ */
+export async function* watchThreadHeads(
+  core: GatewayCore,
+  ids: readonly string[],
+  signal: AbortSignal,
+): AsyncGenerator<ui.ThreadHeads> {
+  let previous: string | undefined;
+
+  while (!signal.aborted) {
+    const heads = await overviewThreadHeads(core, ids);
+
+    if (signal.aborted) return;
+    const signature = headsSignature(heads);
+
+    if (signature !== previous) {
+      previous = signature;
+      yield heads;
+    }
+
+    if (signal.aborted) return;
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", done);
+        resolve();
+      };
+
+      // An empty set has nothing to probe: it stays open until the client replaces it.
+      const timer = ids.length ? setTimeout(done, 2000) : undefined;
+      signal.addEventListener("abort", done, { once: true });
+    });
+  }
+}
+
 /** Exactly one bounded probe per overview stream; unchanged heads send no payload. */
 export function followOverviewHeads(
   core: GatewayCore,
@@ -54,7 +94,7 @@ export function followOverviewHeads(
   const poll = async () => {
     try {
       const heads = await overviewThreadHeads(core, ids);
-      const signature = heads.heads.map((head) => `${head.threadId}:${head.epoch}:${head.appliedSeq}`).join(",");
+      const signature = headsSignature(heads);
 
       if (closed || signal.aborted) return;
 

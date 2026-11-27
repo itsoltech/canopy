@@ -248,6 +248,9 @@ service GatewayService {
   rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse);
   // Na żywo: zmiany workerów (online, konfiguracja) i wątków (status, oczekujące interakcje).
   rpc WatchOverview(WatchOverviewRequest) returns (stream OverviewUpdate);
+  // Te same head'y co WatchOverview.thread_head_ids, bez snapshotu overview: zmiana zestawu
+  // otwiera tylko ten lekki strumień, a WatchOverview trwa dalej.
+  rpc WatchThreadHeads(WatchThreadHeadsRequest) returns (stream ThreadHeads);
 
   // Przeglądanie katalogów na workerze (w dozwolonych katalogach) przy wyborze workspace'u.
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
@@ -1182,6 +1185,11 @@ message WatchOverviewRequest {
   repeated string thread_head_ids = 830;
   // Clients that can decode the Habits invalidation.
   bool watch_memory_habits = 834;
+}
+
+message WatchThreadHeadsRequest {
+  // At most 32 threads. The first message carries the current heads, later ones only changes.
+  repeated string thread_ids = 1;
 }
 
 message ThreadHeads {

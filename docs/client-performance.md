@@ -1,10 +1,11 @@
 # Pomiar wydajności klientów
 
-Status (2026-11-20): web/desktop doczytuje starszą pracę podczas czytania historii
+Status (2026-11-27): web/desktop doczytuje starszą pracę podczas czytania historii
 i ogranicza pamięć podręczną rozwiniętych treści osi czasu. Klienci ponownie
 wykorzystują znany rozmiar historii przy opuszczaniu wątku.
 Web/desktop ma współdzielony model odczytu w pamięci BFF,
 reaktywne projekcje panelu i list PR oraz dogrzewanie historii po stronie BFF.
+SSE overview karty pozostaje otwarty przy zmianie wątku i zestawu dogrzewania.
 Opis dotyczy implementacji; dostępność w kanałach według [release.md](release.md).
 
 Szkice kompozytora są lokalne: zapis dyskowy jest ograniczony do 100 wpisów/4 MiB
@@ -415,6 +416,17 @@ z datą utworzenia jako fallbackiem, niezależnie od wybranego `Created` lub `Cu
 Ręczne przeciągnięcie i pozycja przypięcia nie zmieniają tej kolejności;
 przypięte wątki dołączają osobno w ramach wspólnego limitu.
 BFF zapisuje ograniczony checkpoint bez starszych stron wczytanych przez renderer.
+
+Karta trzyma jeden SSE overview przez całą nawigację. Przełączenie wątku i zmiana zestawu
+dogrzewania wysyłają nowy wybór na otwarty strumień (`PUT api/overview/events/{id}`,
+[ui-api.md](ui-api.md)); BFF zmienia dzierżawę, dogrzewanie i head'y w miejscu. Head'y
+idą osobnym `WatchThreadHeads`, więc nowa suma zestawów otwiera tylko ten lekki strumień,
+a współdzielony `WatchOverview` nie restartuje się i nie wysyła ponownie snapshotu.
+Wcześniej każde przełączenie zamykało SSE: nowe połączenie odtwarzało snapshot i `feeds`,
+a restart `WatchOverview` dosyłał drugi snapshot (0,5–1 MB na desktopie). Samo `feeds`
+odświeżało listę botów i centrum aktualizacji, a na desktopie po HTTP/1.1 kolejne żądania
+opóźniały te o niskim priorytecie. Rzeczywista przerwa nadal zamyka SSE: ponowne połączenie
+otwiera się z bieżącym wyborem, dostaje snapshot z nową rewizją i wywołuje resync.
 
 Renderer web/desktop pobiera pełną treść dużego wpisu na żądanie. Zamontowany wiersz
 i akcje odpowiedzi współdzielą wynik dla konkretnego wątku i SHA-256. Po odmontowaniu

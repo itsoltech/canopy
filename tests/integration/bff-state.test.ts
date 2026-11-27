@@ -10,17 +10,25 @@ import { QueryCacheDisposed } from "@canopy/domain/shared-query";
 import { BffSession, type BffEvent } from "../../apps/web/src/lib/server/bff-state.ts";
 import { eventually, startTestGateway } from "./support/gateway.ts";
 
+/** Reads a renderer stream until the selected heads arrive; also reports the revisions of snapshots on the way. */
 async function selectedHeads(stream: AsyncGenerator<BffEvent>, ids: readonly string[]) {
+  const snapshots: number[] = [];
+
   for (;;) {
     const next = await stream.next();
 
     if (next.done) throw new Error("BFF subscription ended before the selected thread heads arrived");
     const event = next.value;
 
-    if (event.kind !== "overview" || event.update.change.case !== "threadHeads") continue;
+    if (event.kind !== "overview") continue;
+
+    if (event.update.change.case === "mobileSnapshot") snapshots.push(event.revision);
+
+    if (event.update.change.case !== "threadHeads") continue;
     const heads = event.update.change.value.heads;
 
-    if (heads.length === ids.length && ids.every((id) => heads.some((head) => head.threadId === id))) return heads;
+    if (heads.length === ids.length && ids.every((id) => heads.some((head) => head.threadId === id)))
+      return { heads, snapshots };
   }
 }
 
@@ -70,33 +78,32 @@ test("thread navigation uses GetThread during overview recovery and the shared s
 });
 
 test.skipIf(!dockerAvailable)(
-  "replacing a renderer lease replays cursors and warms the previous thread on the same overview stream",
+  "a renderer selection change keeps its stream and overview watch, while an upstream gap still resyncs",
   async () => {
     const gateway = await startTestGateway();
-    const requests: string[][] = [];
+    const overviewRequests: string[][] = [];
+    const headRequests: string[][] = [];
+    let drop = new AbortController();
 
     const session = new BffSession({
       ...gateway.api,
       watchOverview(request, options) {
-        requests.push([...(request.threadHeadIds ?? [])]);
+        overviewRequests.push([...request.threadHeadIds]);
+        const signal = AbortSignal.any([...(options?.signal ? [options.signal] : []), drop.signal]);
 
-        return gateway.api.watchOverview(request, options);
+        return gateway.api.watchOverview(request, { ...options, signal });
+      },
+      watchThreadHeads(request, options) {
+        headRequests.push([...request.threadIds]);
+
+        return gateway.api.watchThreadHeads(request, options);
       },
     });
 
-    let abort = new AbortController();
+    const abort = new AbortController();
+    const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(20_000)]);
     let stream: AsyncGenerator<BffEvent> | undefined;
-    const deadline = AbortSignal.timeout(15_000);
-
-    const navigate = async (ids: readonly string[], active: string) => {
-      abort.abort();
-      await stream?.return(undefined);
-      abort = new AbortController();
-      await session.overview.overview();
-      stream = session.subscribe(ids, active, AbortSignal.any([abort.signal, deadline]));
-
-      return selectedHeads(stream, ids);
-    };
+    let replacement: AsyncGenerator<BffEvent> | undefined;
 
     try {
       const projectId = (await gateway.api.createProject({ name: "Renderer navigation" })).project!.id;
@@ -108,35 +115,51 @@ test.skipIf(!dockerAvailable)(
       const thread = { projectId, workspaceId, provider: Provider.CODEX };
       const first = (await gateway.api.createThread({ ...thread, title: "First" })).thread!.id;
       const second = (await gateway.api.createThread({ ...thread, title: "Second" })).thread!.id;
-      const ids = [first, second];
-      const initial = await navigate(ids, first);
-      const settled = requests.length;
+      const both = [first, second].sort();
+      stream = session.subscribe(both, first, signal);
+      const opened = await stream.next();
+      const subscription = opened.value?.kind === "subscription" ? opened.value.id : "";
+      expect(subscription).toMatch(/^[0-9a-f-]{36}$/);
+      const { heads: initial, snapshots } = await selectedHeads(stream, both);
+      expect(snapshots).toEqual([0]);
       expect(session.warming.warmer.head(first)).toBeUndefined();
       expect(session.warming.warmer.head(second)).toEqual(initial.find((head) => head.threadId === second));
-      expect(session.warming.seed(first)).toBeUndefined();
 
-      const replay = await navigate(ids, second);
-      const cursor = replay.find((head) => head.threadId === first)!;
-      expect(cursor.appliedSeq).toBeGreaterThanOrEqual(initial.find((head) => head.threadId === first)!.appliedSeq);
-      expect(session.warming.warmer.head(first)).toEqual(cursor);
+      // Opening the other thread keeps the head union: only warming follows the new active thread.
+      expect(session.select(subscription, both, second)).toBe(true);
+      const cursor = initial.find((head) => head.threadId === first)!;
+      expect(session.warming.warmer.head(first)?.appliedSeq).toBeGreaterThanOrEqual(cursor.appliedSeq);
       expect(session.warming.warmer.head(second)).toBeUndefined();
 
-      // Wait for the previously active thread's background read to reach the shared cache.
+      // The previously active thread's background read reaches the shared cache.
       const warmed = await eventually(
         async () => session.warming.cache.peek(first)?.syncCursor,
         (value) => !!value && value.appliedSeq >= cursor.appliedSeq,
       );
 
       expect(warmed?.threadId).toBe(first);
-      expect(warmed?.appliedSeq ?? -1n).toBeGreaterThanOrEqual(cursor.appliedSeq);
-      expect(requests.slice(settled)).toEqual([]);
 
-      await navigate([second], second);
-      expect(requests.slice(settled)).toEqual([[second]]);
+      // A smaller warm set reopens only the head stream; the renderer stream gets the new heads in place.
+      expect(session.select(subscription, [second], second)).toBe(true);
+      expect((await selectedHeads(stream, [second])).snapshots).toEqual([]);
+      expect(overviewRequests).toEqual([[]]);
+      expect(headRequests).toEqual([both, [second]]);
       expect(session.overview.revision).toBe(0);
+
+      // A dropped gateway stream is a gap: the renderer stream ends and its replacement carries a new revision.
+      drop.abort();
+      drop = new AbortController();
+
+      while (!(await stream.next()).done);
+      expect(session.select(subscription, [first], first)).toBe(false);
+      replacement = session.subscribe([second], second, signal);
+      expect((await replacement.next()).value?.kind).toBe("subscription");
+      expect((await selectedHeads(replacement, [second])).snapshots).toEqual([1]);
+      expect(overviewRequests).toEqual([[], []]);
     } finally {
       abort.abort();
       await stream?.return(undefined);
+      await replacement?.return(undefined);
       session.close();
       await gateway.close();
     }
@@ -158,8 +181,8 @@ test.skipIf(!dockerAvailable)(
     const release = Promise.withResolvers<void>();
 
     try {
-      const initial = await stream.next();
-      expect(initial.value?.kind).toBe("overview");
+      expect((await stream.next()).value?.kind).toBe("subscription");
+      expect((await stream.next()).value?.kind).toBe("overview");
       const project = (await gateway.api.createProject({ name: "BFF target fence" })).project!;
 
       const workspace = (

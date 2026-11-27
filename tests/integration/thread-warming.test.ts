@@ -89,6 +89,21 @@ describe.skipIf(!dockerAvailable)("background thread sequence reads", () => {
 
     expect(seen.length).toBe(2);
     expect(seen[1]!).toBeGreaterThan(seen[0]!);
+
+    // The BFF's separate head stream applies the same owner scope and starts with the current heads.
+    const heads = new AbortController();
+
+    try {
+      for await (const update of gateway.api.watchThreadHeads(
+        { threadIds: [id, hidden] },
+        { signal: heads.signal, timeoutMs: 7000 },
+      )) {
+        expect(update.heads.map((head) => [head.threadId, head.appliedSeq])).toEqual([[id, seen[1]!]]);
+        break;
+      }
+    } finally {
+      heads.abort();
+    }
   }, 10_000);
 
   test("reopening and reconnecting resume only deltas from the cached sequence", async () => {
