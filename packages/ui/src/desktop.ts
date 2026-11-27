@@ -43,6 +43,36 @@ export interface ActivityNotchItem {
   botAppearance?: { shape?: string | undefined; color?: string | undefined } | undefined;
 }
 
+export const activityNotchEdges = ["top", "right", "bottom", "left"] as const;
+
+export type ActivityNotchEdge = (typeof activityNotchEdges)[number];
+
+/**
+ * Where the activity overlay sits on this computer. Offsets are fractions of the display's work area,
+ * so a place survives a new resolution or scale. `display` is the Electron display id it was dropped on.
+ */
+export type ActivityNotchPlacement =
+  | { mode: "notch" }
+  /** Docked to an edge; `offset` places the tab's center along it, from the left or top. */
+  | { mode: "edge"; edge: ActivityNotchEdge; offset: number; display?: number | undefined }
+  /** Anywhere in the work area; `x` and `y` place the pill between its leftmost and rightmost position. */
+  | { mode: "floating"; x: number; y: number; display?: number | undefined };
+
+/** A connected display an edge tab or a pill can sit on. */
+export interface ActivityNotchDisplay {
+  id: number;
+  /** The system's name for the display; empty when the system gives none. */
+  label: string;
+  width: number;
+  height: number;
+  main: boolean;
+}
+
+/** The notch fits the menu bar on a Mac. Windows has no camera to wrap, so its tab sits on the right edge. */
+export function defaultActivityNotchPlacement(platform: string): ActivityNotchPlacement {
+  return platform === "darwin" ? { mode: "notch" } : { mode: "edge", edge: "right", offset: 0.25 };
+}
+
 export interface DesktopAppearance {
   scheme: "system" | "light" | "dark";
   light: ThemeName;
@@ -254,6 +284,13 @@ export interface DesktopBridge {
   setNotificationBadge?: (count: number) => Promise<void>;
   /** Replaces the desktop activity list with statuses and internal routes only. */
   setActivityNotch?: (items: readonly ActivityNotchItem[]) => Promise<void>;
+  /** This computer's overlay placement. Dragging the overlay changes it too, and main reports each change. */
+  activityNotchPlacement?(): Promise<ActivityNotchPlacement>;
+  setActivityNotchPlacement?(placement: ActivityNotchPlacement): Promise<ActivityNotchPlacement>;
+  onActivityNotchPlacement?(listener: (placement: ActivityNotchPlacement) => void): () => void;
+  /** Connected displays; main reports each change, such as a display plugged in or a new resolution. */
+  activityNotchDisplays?(): Promise<ActivityNotchDisplay[]>;
+  onActivityNotchDisplays?(listener: (displays: ActivityNotchDisplay[]) => void): () => void;
   /** macOS notification authorization for this app bundle. */
   notificationPermission?: DesktopNotificationPermission;
   /** The path of a clicked notification, after main has focused this window. */

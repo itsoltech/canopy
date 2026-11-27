@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { activityNotchFrame, draggedPlacement } from "../src/activity-notch-frame.ts";
 import { activityNotchGeometry } from "../src/activity-notch-geometry.ts";
 
 test("macOS uses the simulated gap at the display edge and follows the visible menu band's height", () => {
@@ -57,5 +58,68 @@ test("Windows clamps a centered panel to a narrow work area", () => {
   expect(activityNotchGeometry({ bounds, workArea }, 9)).toEqual({
     bounds: { x: 60, y: 0, width: 420, height: 240 },
     headerHeight: 32,
+  });
+});
+
+const workArea = { x: 0, y: 0, width: 1280, height: 752 };
+
+test("an edge tab's window grows only down from a corner that the rows do not move", () => {
+  const right = { mode: "edge", edge: "right", offset: 0.25 } as const;
+
+  expect(activityNotchFrame(workArea, right, 0, 0)).toMatchObject({
+    window: { x: 800, y: 136, width: 480, height: 104 },
+    shape: { x: 1248, y: 144, width: 32, height: 88 },
+  });
+  expect(activityNotchFrame(workArea, right, 3, 3)).toMatchObject({
+    window: { x: 800, y: 136, width: 480, height: 272 },
+    shape: { x: 800, y: 144, width: 480, height: 256 },
+  });
+
+  // Near the bottom the panel rises above the tab, so the window starts high enough for every row.
+  const low = { ...right, offset: 0.95 };
+  expect(activityNotchFrame(workArea, low, 0, 0).window).toEqual({ x: 800, y: 336, width: 480, height: 416 });
+  expect(activityNotchFrame(workArea, low, 1, 1)).toMatchObject({
+    window: { x: 800, y: 336, width: 480, height: 416 },
+    shape: { x: 800, y: 632, width: 480, height: 112 },
+  });
+});
+
+test("a panel that opens upward keeps one window for any number of rows", () => {
+  const bottom = { mode: "edge", edge: "bottom", offset: 0.85 } as const;
+  const window = { x: 784, y: 352, width: 496, height: 400 };
+
+  expect(activityNotchFrame(workArea, bottom, 0, 0)).toMatchObject({
+    window,
+    header: "end",
+    shape: { x: 1044, y: 720, width: 88, height: 32 },
+  });
+  expect(activityNotchFrame(workArea, bottom, 2, 2)).toMatchObject({
+    window,
+    shape: { x: 792, y: 568, width: 480, height: 184 },
+  });
+});
+
+test("a dragged tab slides along its edge, snaps to the center and docks to an edge that is clearly closer", () => {
+  const right = { mode: "edge", edge: "right", offset: 0.25 } as const;
+  const tab = { x: 1248, y: 144, width: 32, height: 88 };
+
+  expect(draggedPlacement(workArea, right, tab, { x: 0, y: 300 }, 7)).toEqual({
+    mode: "edge",
+    edge: "right",
+    offset: 488 / 752,
+    display: 7,
+  });
+  expect(draggedPlacement(workArea, right, tab, { x: 0, y: 200 }, 7)).toMatchObject({ edge: "right", offset: 0.5 });
+  expect(draggedPlacement(workArea, right, tab, { x: -1240, y: 0 }, 7)).toMatchObject({ edge: "left", offset: 0.25 });
+  // In the corner the top edge is closer, but not by enough to take the tab.
+  expect(draggedPlacement(workArea, right, tab, { x: -2, y: -178 }, 7)).toMatchObject({ edge: "right" });
+
+  const pill = { x: 500, y: 300, width: 104, height: 32 };
+  const floating = { mode: "floating", x: 0.5, y: 0.5 } as const;
+  expect(draggedPlacement(workArea, floating, pill, { x: 80, y: -400 }, 7)).toEqual({
+    mode: "floating",
+    x: 0.5,
+    y: 0,
+    display: 7,
   });
 });

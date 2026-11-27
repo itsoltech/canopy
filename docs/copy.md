@@ -111,7 +111,8 @@ appear only as the literal name used by an external tool).
 | directory | a directory on disk | folder (exception: a "skill folder" picked in the file manager) |
 | worktree | a git worktree, managed by Canopy or created outside it | branch copy, checkout |
 | bot | a conversational partner on the gateway that remembers the conversation | assistant, agent |
-| Activity notch | the optional desktop status indicator for threads and bots at the top of the screen | |
+| Activity notch | the optional desktop status indicator for threads and bots: a notch at the top, a tab on a screen edge or a floating pill | |
+| display | a monitor connected to the computer, as in the Activity notch **Display** setting | monitor (in UI text) |
 | reaction | an emoji attached to a message by the other participant in a bot conversation | vote, rating |
 | Slack User | a connected Slack account that lets agents use Slack tools as the signed-in user | Slack (when distinguishing from Slack Bot) |
 | Slack Bot | a Slack app connection that receives and replies to messages as the app’s bot | Slack messages |

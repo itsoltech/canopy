@@ -59,7 +59,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "bell",
     group: "Preferences",
     keywords:
-      "notifications alerts thread bot chats messages habit suggestions in-app system sound silent desktop activity notch push phone claude usage limit resets",
+      "notifications alerts thread bot chats messages habit suggestions in-app system sound silent desktop activity notch overlay position edge floating push phone claude usage limit resets",
   },
   {
     href: "/settings/keybindings",

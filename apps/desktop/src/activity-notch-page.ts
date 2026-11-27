@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import { motion } from "@canopy/ui";
 import { icons, iconStyle } from "@canopy/ui/icons";
 import { activityNotchMotionScript } from "./activity-notch-motion-script.ts";
+import { activityNotchDragScript } from "./activity-notch-drag-script.ts";
 import { activityNotchMotionStyles } from "./activity-notch-motion-styles.ts";
+import { activityNotchOutlineStyles } from "./activity-notch-outline-styles.ts";
 import {
   activityNotchProgressGlyph,
   activityNotchProgressScript,
@@ -12,6 +14,8 @@ import { activityNotchRowScript } from "./activity-notch-row-script.ts";
 import { activityNotchRowStyles } from "./activity-notch-row-styles.ts";
 import { activityNotchPanelDelay, activityNotchStyles } from "./activity-notch-styles.ts";
 import type { ActivityNotchRow } from "./activity-notch.ts";
+
+const easing = (points: readonly number[]) => `cubic-bezier(${points.join(", ")})`;
 
 const statuses = {
   approval: { label: "Needs approval", one: "needs approval", many: "need approval" },
@@ -55,6 +59,7 @@ const script = `
   const glyphs = summary.querySelectorAll(".state-layer");
   const ring = summary.querySelector(".ping");
   const total = document.getElementById("activity-count");
+  const wings = Array.from(toggle.querySelectorAll(".wing"));
   const list = document.querySelector(".rows");
   const leavingRows = document.querySelector(".leaving-rows");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -67,13 +72,16 @@ ${activityNotchProgressScript}
   let collapseTimer;
   let openedByHover = false;
   let layoutRevision;
-  let layoutHeight;
-  let layoutHeader;
+  let layoutArea;
+  let layoutExpanded = false;
   let noticeId;
   let dismissedNotice;
   let noticeTimer;
   let lingering;
   let latestRows;
+  let press;
+  let pressFrame;
+  let dropped = false;
 
   function setExpanded(expanded) {
     clearTimeout(collapseTimer);
@@ -101,7 +109,7 @@ ${activityNotchProgressScript}
   }
 
   function syncPanel() {
-    panel.toggleAttribute("data-visible", layoutHeight > layoutHeader && notch.dataset.open === "true");
+    panel.toggleAttribute("data-visible", layoutExpanded && notch.dataset.open === "true");
   }
 
   /** Hides the row that popped out alone. The next open shows the whole list again. */
@@ -143,19 +151,52 @@ ${activityNotchProgressScript}
     return only === undefined ? rows : rows.filter((row) => row.id === only);
   }
 
-  function applyLayout({ center, width, height, headerHeight, revision }) {
+  function setLengths(entries) {
+    for (const [name, value] of entries) notch.style.setProperty(name, value + "px");
+  }
+
+  /** On a side edge the closed tab stacks its wings; they glide between the stack and the header with the outline. */
+  function setVertical(vertical, animate, shrinking) {
+    if (notch.hasAttribute("data-vertical") === vertical) return;
+    const before = wings.map((wing) => wing.getBoundingClientRect());
+    notch.toggleAttribute("data-vertical", vertical);
+    if (!animate || reducedMotion.matches) return;
+
+    for (const [index, wing] of wings.entries()) {
+      const from = before[index];
+      const to = wing.getBoundingClientRect();
+      const dx = from.x + from.width / 2 - to.x - to.width / 2;
+      const dy = from.y + from.height / 2 - to.y - to.height / 2;
+      wing.animate([{ translate: dx + "px " + dy + "px" }, { translate: "0 0" }], shrinking
+        ? { duration: ${motion.fast}, delay: ${motion.stagger}, easing: "${easing(motion.inOut)}", fill: "backwards" }
+        : { duration: ${motion.medium}, easing: "${easing(motion.smoothOut)}" });
+    }
+  }
+
+  function applyLayout({ revision, side, header, draggable, expanded, moving, headerHeight, shape, tab, list }) {
     layoutRevision = revision;
-    if (notch.hasAttribute("data-layout")) notch.dataset.animate = "";
-    notch.toggleAttribute("data-shrinking", height < (layoutHeight ?? height));
-    layoutHeight = height;
-    layoutHeader = headerHeight;
+    const animate = notch.hasAttribute("data-layout") && !moving;
+    const area = shape.width * shape.height;
+    const shrinking = area < (layoutArea ?? area);
+    // A move or a new place applies at once: the native window moved with it.
+    notch.toggleAttribute("data-animate", animate);
+    notch.toggleAttribute("data-shrinking", shrinking);
+    layoutArea = area;
+    layoutExpanded = expanded;
     // The list fades in once the outline has nearly its open size; the stylesheet holds that delay.
     syncPanel();
-    notch.style.setProperty("--notch-center", center + "px");
-    notch.style.setProperty("--notch-width", width + "px");
-    notch.style.setProperty("--notch-size", height + "px");
-    notch.style.setProperty("--notch-height", headerHeight + "px");
-    if (height > headerHeight) notch.style.setProperty("--open-width", width + "px");
+    notch.dataset.side = side;
+    notch.dataset.header = header;
+    notch.toggleAttribute("data-draggable", draggable);
+    setLengths([["--x", shape.x], ["--y", shape.y], ["--w", shape.width], ["--h", shape.height], ["--header", headerHeight]]);
+    // The list keeps the open place while the outline closes over it.
+    if (expanded || !notch.hasAttribute("data-layout")) {
+      setLengths([
+        ["--list-x", list.x], ["--list-y", list.y], ["--list-w", list.width], ["--list-h", list.height],
+        ["--origin-x", tab.x + tab.width / 2 - list.x], ["--origin-y", header === "end" ? list.height : 0],
+      ]);
+    }
+    setVertical((side === "left" || side === "right") && !expanded, animate, shrinking);
     notch.dataset.layout = "";
 
     const animations = [...notch.getAnimations(), ...surface.getAnimations()];
@@ -245,6 +286,8 @@ ${activityNotchRowScript}
       rowViews.set(id, view);
       // The reveal staggers rows by their place in the list.
       if (view.item.style.getPropertyValue("--i") !== String(index)) view.item.style.setProperty("--i", String(index));
+      const fromEnd = String(rows.length - 1 - index);
+      if (view.item.style.getPropertyValue("--j") !== fromEnd) view.item.style.setProperty("--j", fromEnd);
       const status = statuses[state].label;
       updateRowMark(view, projectMark, botMascot);
       // A new title or branch in a row already shown swaps like its status; a new row shows them at once.
@@ -283,7 +326,9 @@ ${activityNotchRowScript}
   });
   // The transparent sides of the window pass the pointer through to the apps below.
   surface.addEventListener("pointerenter", () => bridge.setInteractive(true));
-  surface.addEventListener("pointerleave", () => bridge.setInteractive(false));
+  surface.addEventListener("pointerleave", () => {
+    if (!press?.moving) bridge.setInteractive(false);
+  });
   surface.addEventListener("pointerenter", (event) => {
     if (event.pointerType !== "mouse" || toggle.disabled) return;
     clearTimeout(collapseTimer);
@@ -294,7 +339,7 @@ ${activityNotchRowScript}
     openedByHover = true;
   });
   surface.addEventListener("pointerleave", (event) => {
-    if (event.pointerType !== "mouse" || notch.dataset.open !== "true") return;
+    if (event.pointerType !== "mouse" || notch.dataset.open !== "true" || press?.moving) return;
     // Leaving a notice hides it, so the next open shows every row.
     collapseTimer = setTimeout(() => dismissNotice() || requestExpanded(false), ${motion.fast});
   });
@@ -302,6 +347,11 @@ ${activityNotchRowScript}
     if (event.target.closest("button")) event.preventDefault();
   });
   toggle.addEventListener("click", (event) => {
+    // A drop ends the press on the header; it is not a click.
+    if (dropped) {
+      dropped = false;
+      return;
+    }
     // The pointer had to hover the header to click it. Treat the first click as an open.
     if (event.detail > 0 && openedByHover) {
       openedByHover = false;
@@ -320,6 +370,7 @@ ${activityNotchRowScript}
     event.preventDefault();
     bridge.setExpanded(false);
   });
+${activityNotchDragScript}
   bridge.onCollapse(() => setExpanded(false));
   bridge.onLayout(applyLayout);
   bridge.onRows(renderRows);
@@ -335,14 +386,17 @@ export function activityNotchPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; base-uri 'none'; form-action 'none'">
   <title>Canopy activity</title>
-  <style nonce="${nonce}">${activityNotchStyles}${activityNotchRowStyles}${activityNotchMotionStyles}${activityNotchProgressStyles}</style>
+  <style nonce="${nonce}">${activityNotchStyles}${activityNotchRowStyles}${activityNotchMotionStyles}${activityNotchOutlineStyles}${activityNotchProgressStyles}</style>
 </head>
 <body>
   <main class="notch" data-open="false">
+    <span class="ear ear-start" aria-hidden="true"></span>
+    <span class="ear ear-end" aria-hidden="true"></span>
     <div class="notch-body">
       <button class="notch-toggle" type="button" aria-expanded="false" aria-controls="activity-panel" aria-describedby="activity-description" disabled>
         <span id="toggle-action" class="sr-only">Show activity</span>
-        <span id="activity-summary" class="wing" aria-hidden="true">${glyphs}</span>
+        <span class="grip" aria-hidden="true"></span>
+        <span id="activity-summary" class="wing summary" aria-hidden="true">${glyphs}</span>
         <span class="wing count" aria-hidden="true"><span id="activity-count"></span></span>
       </button>
       <p id="activity-description" class="sr-only" role="status">No activity</p>

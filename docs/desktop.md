@@ -9,12 +9,16 @@ Status (2026-11-26): popover aktualizacji w stopce paska bocznego oferuje sprawd
 instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok statusu aktualizacji.
 
 Status (2026-11-27): eksperymentalny **Activity notch** w Canopy Desktop na macOS
-i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
-odsłania wiersze kolejno, gdy obrys do nich dorasta, i rozpoczyna ich wygaszanie
-przed zwijaniem obrysu. Zmiany liczby, stanów aktywności, tytułów, gałęzi
+i Windows działa również przy aktywnym oknie Canopy. Ma trzy położenia: **Notch**
+u góry na środku, **Edge**, czyli zakładkę przy dowolnej krawędzi, i **Floating**,
+czyli pigułkę w dowolnym miejscu ekranu. Zakładkę i pigułkę przesuwa się
+przeciąganiem. Domyślnie Mac używa położenia Notch, a Windows zakładki przy
+prawej krawędzi. Nakładka odsłania wiersze kolejno, gdy obrys do nich dorasta,
+i rozpoczyna ich wygaszanie przed zwijaniem obrysu. Zmiany liczby, stanów aktywności, tytułów, gałęzi
 i kolejności wierszy przechodzą przez krótkie rozmycie. Po zakończeniu pracy
 pierścień ikony zamienia się w zielony znacznik ukończenia.
-Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
+Rozwijanie i zwijanie nie przesuwa obrysu, bo natywne okno rośnie tylko w dół
+od stałego narożnika.
 Ikony próśb i błędów oraz kolory etykiet odpowiadają liście wątków.
 Wiersze rozwiniętej listy wyglądają jak wiersze wątków w pasku bocznym: projekt
 ze znakiem i etykietą stanu, tytuł, a pod nim worker, gałąź i znak dostawcy.
@@ -469,8 +473,61 @@ ustawia nativeTheme; System reaguje na preferencję systemu.
 **Settings → Notifications → Activity notch** to domyślnie wyłączona
 preferencja bieżącego profilu Desktop, w trybie lokalnym i zdalnym. Nakładka
 i przełącznik są dostępne wyłącznie w aplikacji desktopowej na macOS i Windows.
-Dopóki są pozycje do pokazania, czarne wycięcie jest widoczne u góry głównego
-ekranu również wtedy, gdy Canopy ma fokus. W zwiniętym stanie ikona i liczba
+Dopóki są pozycje do pokazania, czarny obrys jest widoczny również wtedy, gdy
+Canopy ma fokus.
+
+Przy włączonej nakładce wiersz **Position** wybiera jej położenie:
+
+- **Notch**: wycięcie u góry na środku głównego ekranu, na Macu wokół kamery.
+  Tego położenia nie da się przeciągnąć.
+- **Edge**: zakładka 88 × 32 px przy górnej lub dolnej krawędzi albo 32 × 88 px
+  przy bocznej. Wiersz **Edge** pokazuje miniaturę ekranu z trzema punktami na
+  każdej krawędzi i podpis z bieżącym miejscem, na przykład „Right edge, 25% from
+  the top”. Punkty to grupa radiowa obsługiwana strzałkami. Dowolne miejsce
+  ustawia się przeciąganiem nagłówka nakładki wzdłuż krawędzi. Zakładka przechodzi
+  na inną krawędź, gdy ta jest bliżej o więcej niż 12 px. W odległości 12 px od
+  środka krawędzi zatrzymuje się na środku.
+- **Floating**: pigułka z uchwytem, cieniem i cienką obwódką, przeciągana
+  w dowolne miejsce obszaru roboczego. Środek ekranu w poziomie przyciąga ją
+  tak samo jak środek krawędzi.
+
+Położenie jest ustawieniem komputera, a nie profilu: proces główny zapisuje je
+w `activity-notch.json` w katalogu danych aplikacji i powiadamia o zmianie okno
+Canopy, także po upuszczeniu nakładki. Miejsce przy krawędzi i pozycja pigułki są
+ułamkami obszaru roboczego, więc przetrwają zmianę rozdzielczości i skalowania.
+Zapis pamięta też ekran, na który upuszczono nakładkę. Po jego odłączeniu nakładka
+wraca na główny ekran. Plik z nieznanym kształtem albo wartością spoza zakresu
+daje położenie domyślne: Notch na Macu, a na Windows zakładkę przy prawej krawędzi
+na 25% wysokości.
+
+Przy położeniu Edge lub Floating i więcej niż jednym podłączonym ekranie wiersz
+**Display** wybiera ekran nakładki. Lista zaczyna się od **Main display**, które
+podąża za ekranem głównym w ustawieniach systemu. Dalej są podłączone ekrany pod
+nazwą systemową albo jako „Display N”, z rozdzielczością i dopiskiem „main display”
+przy głównym. Zapisany ekran, którego teraz nie ma, pojawia się jako
+**Disconnected display**, a nakładka do jego powrotu korzysta z głównego. Proces
+główny wysyła listę ekranów do okna Canopy przy każdym podłączeniu, odłączeniu
+i zmianie rozdzielczości. Settings wysyła zawsze pełne położenie razem z ekranem.
+Po powrocie z położenia Notch zakładka lub pigułka wraca na ostatnio wybrany ekran.
+Przeciągnięcie na inny ekran również go zmienia.
+Reset w wierszu Position i **Restore device defaults** przywracają położenie
+domyślne.
+
+Przeciąganie zaczyna się po przesunięciu wskaźnika o 4 px po wciśnięciu nagłówka.
+Krótsze naciśnięcie pozostaje kliknięciem. Strona nakładki zgłasza tylko początek,
+ruch (raz na klatkę) i koniec. Pozycję kursora proces główny czyta sam, więc
+strona nie może umieścić okna w dowolnym miejscu. Rozwinięta lista przesuwa się
+razem z nagłówkiem, a zwinięta zakładka jedzie w oknie swojego rozmiaru. Ruch
+i zmiana położenia działają bez przejścia, bo natywne okno przesuwa się razem
+z nimi.
+
+W położeniu Edge i Floating nagłówek leży po stronie, od której obrys rośnie: na
+górze, a przy dolnej krawędzi i przy pigułce otwieranej w górę na dole. Wtedy
+wiersze wychodzą z nagłówka do góry, a kolejność ich pojawiania się biegnie od
+ostatniego. Zakładka przy bocznej krawędzi ustawia ikonę nad liczbą. Przy
+rozwijaniu obie przesuwają się do nagłówka razem z obrysem, a przy zwijaniu wracają.
+Pigułka otwiera się w dół, gdy pod nią mieści się pięć wierszy, a w przeciwnym
+razie w górę. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
@@ -548,16 +605,25 @@ Na macOS nieaktywujący panel Electron sięga do górnej krawędzi ekranu. AppKi
 podaje wymiary fizycznego wycięcia, dzięki czemu jego środek pozostaje pusty.
 Na ekranach bez wycięcia Canopy rysuje je programowo. Jeśli moduł AppKit
 jest niedostępny, nakładka przylega do górnej krawędzi obszaru roboczego.
-Na Windows okno przylega do górnej krawędzi obszaru roboczego, również przy
-pasku zadań umieszczonym u góry. Canopy dopasowuje nagłówek do wysokości
-zwiniętego okna, jaką dopuścił system.
-Natywne okno ma stałą szerokość i lewą krawędź rozwiniętej nakładki, a zmienia
-tylko wysokość. Przesunięcie okna w poziomie na chwilę pokazywałoby wycięcie
-poza środkiem, zanim renderer przeliczy jego położenie. Przezroczyste boki okna
+W położeniu Notch na Windows okno przylega do górnej krawędzi obszaru roboczego,
+również przy pasku zadań umieszczonym u góry. Canopy dopasowuje nagłówek do
+wysokości zwiniętego okna, jaką dopuścił system. Położenia Edge i Floating
+korzystają z obszaru roboczego ekranu, więc omijają pasek zadań.
+Natywne okno ma szerokość rozwiniętej nakładki i rośnie tylko w dół od narożnika,
+który nie zależy od liczby wierszy. Przesunięcie początku okna na chwilę
+pokazywałoby obrys nie na miejscu, zanim renderer przeliczy jego położenie.
+Panel otwierany w górę, czyli przy dolnej krawędzi albo z pigułki u dołu ekranu,
+ma więc od razu okno na pięć wierszy. Zakładka przy bocznej krawędzi blisko dołu
+ekranu dostaje okno sięgające tak wysoko, jak panel może się podnieść. Przezroczyste boki okna
 przepuszczają wskaźnik do aplikacji pod spodem; okno przejmuje go tylko nad
 obrysem wycięcia. Aktualizacja i rozwinięcie nakładki
 zachowują fokus aktywnej aplikacji.
-Test integracyjny Electron sprawdza widoczność przy aktywnym oknie Canopy,
+Testy geometrii sprawdzają, że okno zakładki i pigułki nie przesuwa początku przy
+zmianie liczby wierszy oraz że przeciąganie przyciąga do środka i zmienia
+krawędź dopiero przy wyraźnie bliższej. Test położenia sprawdza odrzucanie
+nieznanych pól i wartości spoza zakresu od renderera oraz powrót do położenia
+domyślnego przy uszkodzonym pliku. Test integracyjny Electron, w położeniu Notch,
+sprawdza widoczność przy aktywnym oknie Canopy,
 zwijanie po animacji, wygaszanie i powrót aktywności podczas wygaszania, IPC,
 przejście po kliknięciu w rendererze i sprzątanie po zmianie połączenia lub
 zamknięciu okna. Zimny start pobranego Electron do pierwszego załadowanego
@@ -574,6 +640,10 @@ platformach:
 - Na obu platformach sprawdzić brak przejęcia fokusu przy zmianie stanu
   i rozwinięciu listy, przejście do rozmowy po kliknięciu wiersza oraz
   zmianę głównego ekranu i odłączenie monitora.
+- Na obu platformach sprawdzić przeciąganie zakładki i pigułki, także między
+  ekranami o różnym skalowaniu, przechwytywanie wskaźnika poza oknem, brak
+  kliknięcia po upuszczeniu oraz zużycie procesora przy wysokim oknie panelu
+  otwieranego w górę.
 
 ### Pozycja i rozmiar okna
 

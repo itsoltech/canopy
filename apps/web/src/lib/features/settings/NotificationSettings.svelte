@@ -8,6 +8,7 @@
   import { useSettings } from "./settings-state.svelte.ts";
   import PreferenceRow from "./PreferenceRow.svelte";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
+  import ActivityNotchPlacementRows from "./ActivityNotchPlacementRows.svelte";
   import { devicePreferences as device, notificationDeviceKeys } from "./device-preferences.svelte.ts";
   import { enableNotificationSound } from "#lib/features/notifications/notification-sound.ts";
 
@@ -20,6 +21,7 @@
   let desktop = $state(false);
   let macOS = $state(false);
   let activityNotch = $state(false);
+  let placementRows = $state<ActivityNotchPlacementRows>();
   let pending = $state<{ key: Key; value: string }>();
   let attempted = $state<Key>();
   let permissionRead = 0;
@@ -170,6 +172,7 @@
       disabled={Boolean(pending)}
       onclick={() => {
         attempted = undefined;
+        void placementRows?.resetDefaults();
         device.reset(notificationDeviceKeys);
       }}>Restore device defaults</Button
     >
@@ -224,11 +227,12 @@
     <DeviceChoiceRow
       preference="activityNotch"
       title="Activity notch"
-      description="Show activity at the top of your screen. Expand to see project logos or initials."
+      description="Show activity over your other apps. Expand it to see project logos or initials."
       options={[
         { value: "on", label: "On" },
         { value: "off", label: "Off" },
       ]}
     />
+    {#if device.values.activityNotch === "on"}<ActivityNotchPlacementRows bind:this={placementRows} />{/if}
   {/if}
 </SettingsGroup>

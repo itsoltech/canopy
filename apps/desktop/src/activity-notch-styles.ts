@@ -5,9 +5,9 @@ import { themeVariables } from "@canopy/ui/themes";
 import {
   activityNotchBottomInset,
   activityNotchEarWidth,
+  activityNotchGripWidth,
   activityNotchRowHeight,
   activityNotchSimulatedHeight,
-  activityNotchVisibleRows,
   activityNotchWingWidth,
 } from "./activity-notch-geometry.ts";
 
@@ -18,16 +18,13 @@ const ease = (points: readonly number[]) => `cubic-bezier(${points.join(", ")})`
 export const activityNotchPanelDelay = motion.micro * 2;
 
 export const activityNotchStyles = `
-  @property --notch-width {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-  }
   :root {
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
     --bottom-inset: ${activityNotchBottomInset}px;
+    --header: ${activityNotchSimulatedHeight}px;
+    --grip: ${activityNotchGripWidth}px;
     --type-compact: 0.8125rem;
     --type-meta: 0.71875rem;
     --radius-md: ${radius.md}px;
@@ -92,78 +89,8 @@ export const activityNotchStyles = `
     outline: 2px solid ${palette.sky[400]};
     outline-offset: -3px;
   }
-  .notch {
-    position: relative;
-    opacity: 0;
-    --notch-height: ${activityNotchSimulatedHeight}px;
-    --open-width: 100vw;
-    /* Where the outline starts now and where it starts once open, from the left of the window. */
-    --notch-offset: clamp(0px, var(--notch-center, 50vw) - var(--notch-width) / 2, 100vw - var(--notch-width));
-    --open-offset: clamp(0px, var(--notch-center, 50vw) - var(--open-width) / 2, 100vw - var(--open-width));
-    width: max(0px, calc(var(--notch-width) - 2 * var(--ear)));
-    margin-left: calc(var(--ear) + var(--notch-offset));
-    transition: opacity var(--fade-duration) var(--ease-smooth-out);
-  }
-  .notch:not([data-layout]) { visibility: hidden; }
-  .notch[data-active] { opacity: 1; }
-  .notch[data-animate] {
-    transition:
-      --notch-width var(--morph-open-dur) var(--morph-ease),
-      opacity var(--fade-duration) var(--ease-smooth-out);
-  }
-  .notch[data-animate][data-shrinking] {
-    transition:
-      --notch-width var(--morph-close-dur) var(--morph-close-ease) var(--morph-close-delay),
-      opacity var(--fade-duration) var(--ease-smooth-out);
-  }
-  .notch::before, .notch::after {
-    position: absolute;
-    top: 0;
-    width: var(--ear);
-    height: var(--ear);
-    background: #000;
-    mask-image: radial-gradient(circle at var(--outer) 100%, transparent calc(var(--ear) - 0.5px), #000 var(--ear));
-    pointer-events: none;
-    content: "";
-  }
-  .notch::before {
-    right: 100%;
-    --outer: 0%;
-  }
-  .notch::after {
-    left: 100%;
-    --outer: 100%;
-  }
-  .notch-body {
-    height: var(--notch-size, var(--notch-height));
-    overflow: hidden;
-    border-radius: 0 0 var(--notch-radius) var(--notch-radius);
-    background: #000;
-    color-scheme: dark;
-  }
-  [data-open="true"] .notch-body { border-radius: 0 0 var(--notch-open-radius) var(--notch-open-radius); }
-  [data-animate] .notch-body {
-    transition:
-      height var(--morph-open-dur) var(--morph-ease),
-      border-radius var(--morph-open-dur) var(--morph-ease);
-  }
-  [data-animate][data-shrinking] .notch-body {
-    transition:
-      height var(--morph-close-dur) var(--morph-close-ease) var(--morph-close-delay),
-      border-radius var(--morph-close-dur) var(--morph-close-ease) var(--morph-close-delay);
-  }
-  .notch-toggle {
-    display: grid;
-    grid-template-columns: var(--wing) minmax(0, 1fr) var(--wing);
-    align-items: center;
-    width: 100%;
-    height: var(--notch-height);
-    padding: 0;
-    border-radius: inherit;
-  }
-  [data-open="true"] .notch-toggle { border-radius: 0; }
   .rows {
-    max-height: max(0px, min(${activityNotchVisibleRows * activityNotchRowHeight}px, calc(100dvh - var(--notch-height) - var(--bottom-inset))));
+    max-height: max(0px, calc(var(--list-h) - var(--bottom-inset)));
     margin: 0 var(--bottom-inset) var(--bottom-inset);
     padding: 0;
     overflow: auto;
@@ -173,6 +100,7 @@ export const activityNotchStyles = `
     scrollbar-width: thin;
     list-style: none;
   }
+  [data-header="end"] .rows { margin: var(--bottom-inset) var(--bottom-inset) 0; }
   .leaving-rows {
     position: absolute;
     inset: 0;
@@ -194,11 +122,5 @@ export const activityNotchStyles = `
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .notch, .notch[data-animate], .notch[data-animate][data-shrinking], [data-animate] .notch-body,
-    [data-animate][data-shrinking] .notch-body {
-      transition: none;
-    }
   }
 `;

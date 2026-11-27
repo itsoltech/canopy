@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { appIdentity, type AppChannel } from "@canopy/domain/release/identity";
 import type {
+  ActivityNotchDisplay,
+  ActivityNotchPlacement,
   DesktopBridge,
   DesktopFileDownload,
   DesktopHtmlEvent,
@@ -77,6 +79,13 @@ const bridge: DesktopBridge = {
   setNotificationBadge: (count) => ipcRenderer.invoke("canopy:notification-badge", count),
   ...((process.platform === "darwin" || process.platform === "win32") && {
     setActivityNotch: (items) => ipcRenderer.invoke("canopy:activity-notch", items),
+    activityNotchPlacement: () => ipcRenderer.invoke("canopy:activity-notch-placement"),
+    setActivityNotchPlacement: (placement) => ipcRenderer.invoke("canopy:set-activity-notch-placement", placement),
+    onActivityNotchPlacement: (listener) =>
+      subscribe<ActivityNotchPlacement>("canopy:activity-notch-placement", listener),
+    activityNotchDisplays: () => ipcRenderer.invoke("canopy:activity-notch-displays"),
+    onActivityNotchDisplays: (listener) =>
+      subscribe<ActivityNotchDisplay[]>("canopy:activity-notch-displays", listener),
   }),
   ...(process.platform === "darwin" && {
     notificationPermission: {
