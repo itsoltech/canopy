@@ -226,7 +226,10 @@
 
 <div
   data-mascot-chat
-  class={["relative flex h-full min-h-0 flex-col [--feed-column-width:var(--bot-chat-width)]", className]}
+  class={[
+    "relative flex h-full min-h-0 flex-col bg-canvas [--feed-backdrop:var(--color-canvas)] [--feed-column-width:var(--bot-chat-width)]",
+    className,
+  ]}
   {@attach intake.zone}
 >
   <div class="relative flex min-h-0 flex-1 flex-col">
