@@ -664,7 +664,7 @@
   <div
     aria-hidden="true"
     class={[
-      "pointer-events-none absolute top-0 right-(--feed-gutter) left-0 z-10 h-6 bg-linear-to-b from-surface to-transparent transition-opacity duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none",
+      "pointer-events-none absolute top-0 right-(--feed-gutter) left-0 z-10 h-6 bg-linear-to-b from-(--feed-fade) to-transparent transition-opacity duration-(--duration-fast) ease-smooth-out motion-reduce:transition-none",
       scrollTop < 1 && "opacity-0",
     ]}
   ></div>
@@ -702,12 +702,18 @@
 </div>
 
 <style>
+  /* The fades blend rows into the background the feed sits on: the thread surface unless the host sets
+     `--feed-backdrop` (a bot chat sits on the canvas). */
+  .feed-shell {
+    --feed-fade: var(--feed-backdrop, var(--color-surface));
+  }
+
   .feed-shell::before,
   .footer-backdrop {
     position: absolute;
     bottom: 0;
     height: calc(var(--feed-edge) + var(--feed-end-gap));
-    background: linear-gradient(to top, var(--color-surface) var(--feed-edge), transparent);
+    background: linear-gradient(to top, var(--feed-fade) var(--feed-edge), transparent);
     pointer-events: none;
   }
 
