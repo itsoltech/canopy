@@ -117,8 +117,31 @@ function pendingDeliveries(sql: SqlClient.SqlClient, owner: string, worker: Proj
       last_delivery_revision=l.revision FROM due WHERE l.id=due.id RETURNING l.*,due.cwd`;
 }
 
+/** Leases to revoke for an older connection or to deliver, read without locks (same conditions as below). */
+function deliveryWork(sql: SqlClient.SqlClient, owner: string, { workerId, epoch }: ProjectSecretWorker) {
+  return sql<{ due: boolean }>`SELECT EXISTS(SELECT 1 FROM project_secret_leases l
+    WHERE l.owner_user_id=${owner}::uuid AND l.worker_id=${workerId}::uuid
+      AND ((l.worker_epoch<>${epoch} AND l.status='saved') OR (l.applied_revision<l.revision
+        AND (l.last_delivery_epoch IS DISTINCT FROM ${epoch} OR l.last_delivery_revision IS DISTINCT FROM l.revision
+          OR l.last_delivery_at <= clock_timestamp()-interval '1 second')))) AS due`.pipe(
+    Effect.map((rows) => rows[0]?.due === true),
+  );
+}
+
 /** Queue metadata only. The stream checks the lease again as it takes each grant out of its queue. */
 function deliverLeases(
+  sql: SqlClient.SqlClient,
+  owner: string,
+  worker: ProjectSecretWorker,
+  send: (delivery: ThreadSecretDelivery) => boolean,
+) {
+  // Polled every second for every connected worker: with nothing due, take no row locks, which write WAL.
+  return Effect.flatMap(deliveryWork(sql, owner, worker), (due) =>
+    due ? deliverDue(sql, owner, worker, send) : Effect.void,
+  );
+}
+
+function deliverDue(
   sql: SqlClient.SqlClient,
   owner: string,
   worker: ProjectSecretWorker,
