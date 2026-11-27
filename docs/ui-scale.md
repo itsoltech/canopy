@@ -136,6 +136,8 @@ animacje Web Animations, więc ich koniec albo anulowanie przywraca panel. Panel
 najechaniem (popovery stopki sidebara, submenu), hover cardy (`morph={false}`), dolne arkusze
 i tryb ograniczonego ruchu zostają przy zanikaniu i skali z `t-dropdown` (`motion.css`), także
 przy zamknięciu.
+Ten sam morph prowadzi kartę Thread details z pigułki i z powrotem (`ThreadSummary.svelte`),
+gdy otwiera ją albo zamyka naciśnięcie; opis w `workspace.md`.
 
 ## Zaznaczanie tekstu
 

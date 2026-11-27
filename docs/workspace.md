@@ -1,8 +1,9 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
-Status (2026-11-26): w web i desktop docelowe szerokości paneli wyznaczają
-zadokowanie podsumowania od początku przejścia, bez synchronicznego pomiaru
-przesuwających się kolumn.
+Status (2026-11-27): rozwijanie i zwijanie Thread details naciśnięciem
+to morph pigułki w kartę, jak w zakotwiczonych popoverach. W web i desktop
+docelowe szerokości paneli wyznaczają zadokowanie podsumowania od początku
+przejścia, bez synchronicznego pomiaru przesuwających się kolumn.
 Zadokowane Thread details zachowuje położenie podczas zwijania i rozwijania,
 a zamiana karty z pigułką odbywa się kolejno w tym samym rogu.
 
@@ -623,9 +624,15 @@ zapisywane w stanie workspace'u ani transkrypcie. Szczegóły backendów i grant
   Animacje otwierania, zamykania i zmiany szerokości działają tylko w obrębie
   tego samego wątku. Zmiana wątku odtwarza kolumnę, przezroczystość panelu
   i arkusz na wąskim ekranie natychmiast, także w trakcie trwającego przejścia.
-- Podsumowanie: karta rośnie z rogu pigułki (`t-summary`: przezroczystość i skala
-  od `--scale-large`, `--duration-fast`) i wraca szybciej (`--duration-quick`);
-  pigułka przenika w przeciwną stronę. Obie warstwy zostają zamontowane.
+- Podsumowanie: rozwinięte albo zwinięte naciśnięciem (pigułka, przycisk zwijania,
+  Escape, kliknięcie obok) zachowuje się jak zakotwiczony popover: pigułka morfuje
+  w kartę i karta z powrotem w pigułkę (`popover-morph.ts`, opis w `ui-scale.md`),
+  zarówno w zadokowanej karcie, jak i w popoverze pod pigułką. Karta pozostaje wtedy
+  nieskalowana (`t-summary[data-morph]`) i chowa się dopiero po wyjściu
+  (`--duration-quick`). Zmiany bez naciśnięcia (szerokość obszaru, inny wątek)
+  zostają przy wzroście z rogu pigułki (`t-summary`: przezroczystość i skala,
+  `--duration-fast`, powrót `--duration-quick`); pigułka przenika w przeciwną stronę.
+  Obie warstwy zostają zamontowane.
 - Zmiana treści (plik, zakładka) to wyłącznie przenikanie, bez dodatkowego `rise`.
 - `prefers-reduced-motion` czyni wszystkie te zmiany natychmiastowymi.
 

@@ -60,7 +60,8 @@
     scale: none;
   }
 }
-.t-dropdown[data-morph]::before {
+.t-dropdown[data-morph]::before,
+.t-summary[data-morph]::before {
   content: "";
   position: fixed;
   z-index: -1;
@@ -427,6 +428,23 @@
   pointer-events: none;
   transition-duration: var(--duration-quick), var(--duration-quick), 0s;
   transition-delay: 0s, 0s, var(--duration-quick);
+}
+/* Opened or closed by a press, the pill morphs into the card and back (ThreadSummary, popover-morph.ts): the card
+ * stays opaque and unscaled, the script moves its surface (`::before`, below) and fades its content, and the card
+ * only hides once the exit (--duration-quick) has run. */
+.t-summary[data-morph] {
+  scale: none;
+  transition-property: visibility;
+}
+.t-summary[data-morph]:not([data-hidden]) {
+  transition-duration: 0s;
+  transition-delay: 0s;
+}
+.t-summary[data-morph][data-hidden] {
+  opacity: 1;
+  scale: none;
+  transition-duration: 0s;
+  transition-delay: var(--duration-quick);
 }
 .t-summary-pill {
   transition: opacity var(--duration-micro) var(--ease-smooth-out) var(--duration-quick);
