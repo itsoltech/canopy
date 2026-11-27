@@ -85,7 +85,7 @@
           data-active={topic === active || undefined}
           onclick={() => select(topic)}
           onkeydown={(event) => keydown(event, index)}
-          class={[segmentedItem, "min-h-(--settings-target)"]}>{topic.label}</button
+          class={[segmentedItem, "min-h-(--settings-tab-height)"]}>{topic.label}</button
         >
       {/each}
     </div>

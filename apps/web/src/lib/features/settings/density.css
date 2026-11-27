@@ -13,6 +13,7 @@
   --settings-control-height: 2.75rem;
   --settings-control-font: var(--type-touch);
   --settings-target: 2.75rem;
+  --settings-tab-height: var(--settings-target);
   --settings-content-width: 64rem;
   --settings-nav-width: 13.5rem;
   font-size: var(--settings-body);
@@ -41,6 +42,7 @@
     --settings-control-height: 2rem;
     --settings-control-font: var(--type-compact);
     --settings-target: 2rem;
+    --settings-tab-height: 1.75rem;
   }
 }
 
