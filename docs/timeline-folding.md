@@ -15,6 +15,9 @@ po zakończeniu swojej tury, tak samo jak galerie zdjęć i nagrania.
 Aktualizacja (2026-11-26): na iOS ręczne przełączenie utrzymuje pozycję nagłówka
 w transakcji, która zatwierdza zmianę rozmiaru foldu.
 
+Aktualizacja (2026-11-27): w web/desktop zwijana grupa narzędzi nie przesuwa swoich
+wierszy w dół: nagłówek ma jeden odstęp w obu stanach.
+
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
 przy przyjęciu wiadomości, przed wysłaniem `StartTurn`. Echo `user_message` od
 dostawcy zastępuje placeholder w tym samym miejscu, tuż po początku tury, nawet
@@ -130,7 +133,12 @@ nagłówek oraz szczegóły; kod i wynik mają wspólny wewnętrzny inset 8 px (
 Grupa kontynuuje tę samą powierzchnię przez osobne wirtualne wiersze, z dolnymi
 rogami tylko na ostatnim dziecku. Narzędzia wewnątrz grupy mają wcięcie zamiast
 kolejnych ramek i teł. Metadane fragmentu grupy są prymitywne, więc nie naruszają
-ponownego użycia niezmienionych wierszy podczas streamingu.
+ponownego użycia niezmienionych wierszy podczas streamingu. W web nagłówek grupy ma ten
+sam odstęp dolny otwarty i zamknięty (jak zamknięty: na końcu foldu lub wewnątrz niego),
+a pierwsze dziecko (`lead`) jest podciągnięte w ten odstęp. Przełączenie nie zmienia więc
+wysokości nagłówka: zwijane dzieci nie przeskakują w dół i nie odrywają się od niego.
+Znikający wiersz feedu przycina przy zwijaniu tylko dolną krawędź, aby podciągnięta część
+pozostała widoczna do końca przejścia.
 
 Rozumowanie ma ikonę żarówki, stałe miejsce na „Thinking” / „Thought” oraz kursywę
 w jednoliniowym podglądzie. Ma własną, słabszą powierzchnię i ciągłą krawędź, także
