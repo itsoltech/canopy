@@ -1,6 +1,4 @@
-import { Effect, Schema } from "effect";
 import type { ActivityNotchItem } from "@canopy/ui/desktop";
-import { providerKeys } from "@canopy/ui/providers";
 
 /** A thread row's sidebar facts around its title: project above it, worker, directory, branch and provider below. */
 export type ActivityNotchMeta = Pick<
@@ -8,20 +6,9 @@ export type ActivityNotchMeta = Pick<
   "project" | "worker" | "place" | "branch" | "branchLabel" | "provider"
 >;
 
-// Each fact falls back to nothing when it is too long or malformed; the row keeps its title.
-const text = Schema.String.check(Schema.isMaxLength(200)).pipe(Schema.catchDecoding(() => Effect.succeedNone));
-
-export const activityNotchMetaFields = {
-  project: Schema.optionalKey(text),
-  worker: Schema.optionalKey(text),
-  place: Schema.optionalKey(text),
-  branch: Schema.optionalKey(text),
-  branchLabel: Schema.optionalKey(text),
-  provider: Schema.optionalKey(Schema.Literals(providerKeys).pipe(Schema.catchDecoding(() => Effect.succeedNone))),
-};
-
 const metaKeys = ["project", "worker", "place", "branch", "branchLabel", "provider"] as const;
 
+/** Copies only the known facts, so main and the notch preload both drop anything else a row carries. */
 export function rowMeta(item: ActivityNotchMeta): ActivityNotchMeta | undefined {
   const meta: ActivityNotchMeta = {};
 

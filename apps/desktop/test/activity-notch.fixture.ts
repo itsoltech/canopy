@@ -286,7 +286,8 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
 
 async function checkPreloadRedaction(overlay: BrowserWindow) {
   enter("checking the overlay preload redaction");
-  const row = { id: 170, label: working.title, state: "answer" } as const;
+  const meta = { project: "Notch", worker: "Studio", place: "web", branch: "fix/notch", provider: "CODEX" } as const;
+  const row = { id: 170, label: working.title, meta, state: "answer" } as const;
 
   const projected = overlay.webContents.executeJavaScript(`new Promise((resolve) => {
     window.canopyActivityNotch.onRows((rows) => {
@@ -297,7 +298,15 @@ async function checkPreloadRedaction(overlay: BrowserWindow) {
   // Inject synthetic extra fields after main's projection to exercise the preload independently.
   overlay.webContents.send(
     "canopy:activity-notch-rows",
-    [{ ...row, path: route, transcript: "Synthetic private content", projectMark: unredactedMark }],
+    [
+      {
+        ...row,
+        path: route,
+        transcript: "Synthetic private content",
+        meta: { ...meta, remoteUrl: "https://fixture.invalid/repo" },
+        projectMark: unredactedMark,
+      },
+    ],
     1,
   );
   assert.deepEqual(await projected, [{ ...row, projectMark: logoMark }]);
