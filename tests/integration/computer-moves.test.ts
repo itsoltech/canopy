@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, computerLink as link, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
@@ -112,22 +112,16 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       20000,
     );
 
-  const homes = async (threadId: string) => ({
-    a: (
+  const home = async (gw: TestGateway, threadId: string) =>
+    (
       await sql<{ n: number }>(
-        a,
+        gw,
         "SELECT count(*)::int AS n FROM threads WHERE id=$1::uuid AND deleted_at IS NULL AND moved_to IS NULL",
         [threadId],
       )
-    )[0]!.n,
-    c: (
-      await sql<{ n: number }>(
-        c,
-        "SELECT count(*)::int AS n FROM threads WHERE id=$1::uuid AND deleted_at IS NULL AND moved_to IS NULL",
-        [threadId],
-      )
-    )[0]!.n,
-  });
+    )[0]!.n;
+
+  const homes = async (threadId: string) => ({ a: await home(a, threadId), c: await home(c, threadId) });
 
   beforeAll(async () => {
     a = await startTestGateway({ role: "desktop", botModel: async (i) => ({ text: `A: ${input(i)}`, calls: [] }) });
@@ -206,6 +200,15 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
 
     bThread = await thread(b, bProject, bWorkspace, "Caller on B", "hello from B");
   }, 120000);
+
+  // A failed test must not leave a crash hook or a stopped link runtime to the tests after it.
+  afterEach(async () => {
+    hooks.clear();
+
+    for (const gw of closing.keys()) await restart(gw);
+    expect(await linked()).toBe(true);
+  }, 30000);
+
   afterAll(async () => {
     for (const gw of [a, b, c]) await gw?.core.bots.stop();
     await Promise.allSettled([la?.close(), lb?.close(), lc?.close()]);
@@ -713,6 +716,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     hooks.delete(a);
     expect(await homes(t1)).toEqual({ a: 0, c: 0 });
     await restart(a);
+    expect(await linked()).toBe(true);
     expect(await finalState(id1)).toBe("done");
     expect(
       await eventually(

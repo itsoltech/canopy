@@ -208,6 +208,9 @@ export class LinkedComputersState {
 
   network = "";
 
+  /** Whether the listener was bound at the last advertisement. */
+  listening = false;
+
   tested = new Map<string, number>();
 
   testBudget = { start: 0, count: 0 };

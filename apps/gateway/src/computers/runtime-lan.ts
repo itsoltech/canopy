@@ -2,7 +2,7 @@ import { LAN_ROUTES } from "@canopy/domain/computers";
 
 import { LanDiscovery } from "./lan.ts";
 
-import { computersReconnect, computersTick } from "./runtime-connection.ts";
+import { computersReconnect, computersRedial, computersTick } from "./runtime-connection.ts";
 import { computersState, WILDCARD } from "./runtime-context.ts";
 import { computersEmit } from "./runtime-mirrors.ts";
 import type { LinkedComputers } from "./runtime.ts";
@@ -21,8 +21,16 @@ export function computersAdvertise(hostContext: LinkedComputers) {
 
   // A new network or listener: announce on the local network at once, not at the next window.
   const key = `${port ?? ""}|${interfaces.map((i) => `${i.address}:${network.allowsLanAddress(i.address)}`).join()}`;
-  const knownNetwork = Boolean(hostContext[computersState].network);
-  const changedInterfaces = Boolean(hostContext[computersState].network) && key !== hostContext[computersState].network;
+  // The listener opening (start, or network access turned on) is no network change: nobody could reach an
+  // earlier address of this computer, and the links it dialled meanwhile keep working.
+  const opened = network.listening && !hostContext[computersState].listening;
+  hostContext[computersState].listening = network.listening;
+
+  // Dial unlinked partners at once: their retries and read circuits backed off while this computer was unreachable.
+  if (opened) computersRedial(hostContext);
+
+  const knownNetwork = Boolean(hostContext[computersState].network) && !opened;
+  const changedInterfaces = knownNetwork && key !== hostContext[computersState].network;
 
   if (key !== hostContext[computersState].network) {
     hostContext[computersState].network = key;
