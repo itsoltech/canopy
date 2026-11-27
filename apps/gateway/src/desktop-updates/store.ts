@@ -64,6 +64,7 @@ export class DesktopUpdateStore {
         )
         RETURNING command`;
 
+            // A live session at this point has proved the binding. A later disconnect can lose the acknowledgement.
             if (!sessionCurrent())
               return yield* Effect.fail(new ConnectError("Desktop session not confirmed", Code.FailedPrecondition));
 

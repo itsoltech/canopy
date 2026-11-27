@@ -123,6 +123,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     let notifications = 0;
     let checks = 0;
     let feedChecks = 0;
+    let legacyReports = false;
     let result: "signed" | "unsigned" | "older" | "current" = "signed";
     let releaseDownload: (() => void) | undefined;
     let control: RemoteDesktopControl;
@@ -166,7 +167,8 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       },
       report: async (value: ui.DesktopUpdateState) => {
         reports.push(value);
-        await control.report(toJsonString(ui.DesktopUpdateStateSchema, value));
+        const wire = legacyReports ? { ...value, updaterPhase: "", updaterVersion: "" } : value;
+        await control.report(toJsonString(ui.DesktopUpdateStateSchema, wire));
       },
     };
 
@@ -205,6 +207,9 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
       downloaded: () => releaseDownload?.(),
       stage: (version: string) => {
         status = { ...status, phase: "downloaded", updateVersion: version };
+      },
+      useLegacyReports: () => {
+        legacyReports = true;
       },
       publish: () => coordinator.publish(),
       stop: () => {
@@ -473,10 +478,14 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     await app.publish();
     await until(async () => (await state(app.workerId))?.availableVersion === "1.3.0-beta.1");
     expect(await state(app.workerId)).toMatchObject({ phase: "idle", requestId: "", targetVersion: "" });
+    app.useLegacyReports();
+    app.stage("1.4.0-beta.1");
+    await app.publish();
+    await until(async () => (await state(app.workerId))?.availableVersion === "1.4.0-beta.1");
     expect(app.counts().checks).toBe(1);
   }, 15_000);
 
-  test("ending the replacement session during bind preserves the previous update request", async () => {
+  test("ending the replacement session before bind commits preserves the previous update request", async () => {
     const app = await fixture();
     app.result("older");
     await manage(app.workerId);

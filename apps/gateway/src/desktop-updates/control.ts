@@ -75,6 +75,9 @@ function foundRelease(hello: ui.DesktopHello, state: ui.DesktopUpdateState): Fou
 
 /** A previously paired device can return with an old request in its local journal. */
 function withoutPreviousRequest(state: ui.DesktopUpdateState): ui.DesktopUpdateState {
+  // Older desktops reported the live release only in availableVersion.
+  const availableVersion = state.updaterPhase ? state.updaterVersion : state.availableVersion;
+
   return {
     ...state,
     requestId: "",
@@ -83,7 +86,7 @@ function withoutPreviousRequest(state: ui.DesktopUpdateState): ui.DesktopUpdateS
     reason: "",
     progress: 0,
     targetVersion: "",
-    availableVersion: state.updaterVersion || (state.updaterCurrent ? state.version : ""),
+    availableVersion: state.updaterCurrent ? state.version : availableVersion,
   };
 }
 
