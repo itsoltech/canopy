@@ -174,6 +174,7 @@ function botItem(name: string, color: string) {
     staleBotHomes: new Set(),
     botExecuting: () => false,
     markForProject: () => undefined,
+    placeOf: () => undefined,
     now: 0,
   });
 

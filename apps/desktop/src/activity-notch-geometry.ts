@@ -5,7 +5,10 @@ export const activityNotchSimulatedHeight = 32;
 export const activityNotchWingWidth = 40;
 export const activityNotchEarWidth = 8;
 export const activityNotchExpandedWidth = 480;
-export const activityNotchRowHeight = 32;
+
+/** Two lines: the title and the agent, worker and branch under it. */
+export const activityNotchRowHeight = 44;
+
 export const activityNotchBottomInset = 8;
 export const activityNotchVisibleRows = 7;
 

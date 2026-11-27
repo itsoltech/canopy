@@ -34,6 +34,7 @@ const projectMark = Schema.Struct({
 });
 
 const title = Schema.String.check(Schema.isMaxLength(200));
+const detail = Schema.String.check(Schema.isMaxLength(300));
 const appearanceValue = Schema.String.check(Schema.isMaxLength(32));
 
 const botAppearance = Schema.Struct({
@@ -47,6 +48,7 @@ const decodeItems = Schema.decodeUnknownSync(
       path: Schema.String,
       state: Schema.Literals(["working", "approval", "answer", "completed", "failed"]),
       title: Schema.optionalKey(title.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
+      detail: Schema.optionalKey(detail.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
       projectMark: Schema.optionalKey(projectMark.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
       botAppearance: Schema.optionalKey(botAppearance.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
     }),
@@ -58,6 +60,7 @@ export const activityNotchSupported = process.platform === "darwin" || process.p
 export interface ActivityNotchRow {
   id: number;
   label: string;
+  detail?: string | undefined;
   state: ActivityNotchItem["state"];
   projectMark?: ActivityNotchProjectMark | undefined;
   botMascot?: string | undefined;
@@ -221,7 +224,7 @@ export class ActivityNotch {
 
     const previous = new Map(this.#entries.map((entry) => [entry.path, entry]));
 
-    const entries = Array.from(byPath.values(), ({ path, state, title, projectMark, botAppearance }): Entry => {
+    const entries = Array.from(byPath.values(), ({ path, state, title, detail, projectMark, botAppearance }): Entry => {
       const before = previous.get(path);
       const isBot = path.startsWith("/bots/");
 
@@ -229,6 +232,7 @@ export class ActivityNotch {
         path,
         state,
         label: title?.trim() || (isBot ? "Bot" : "Untitled thread"),
+        ...(!isBot && detail?.trim() && { detail: detail.trim() }),
         id: before?.id ?? ++this.#nextId,
         ...(isBot ? { botMascot: botMascotUrl(path.slice("/bots/".length), botAppearance) } : { projectMark }),
       };
@@ -242,6 +246,7 @@ export class ActivityNotch {
         return (
           old?.id === entry.id &&
           old.label === entry.label &&
+          old.detail === entry.detail &&
           old.state === entry.state &&
           old.botMascot === entry.botMascot &&
           sameProjectMark(old.projectMark, entry.projectMark)
@@ -269,9 +274,10 @@ export class ActivityNotch {
   #sendRows() {
     if (!this.#loaded) return;
 
-    const rows: ActivityNotchRow[] = this.#entries.map(({ id, label, state, projectMark, botMascot }) => ({
+    const rows: ActivityNotchRow[] = this.#entries.map(({ id, label, detail, state, projectMark, botMascot }) => ({
       id,
       label,
+      ...(detail && { detail }),
       state,
       ...(projectMark && { projectMark }),
       ...(botMascot && { botMascot }),

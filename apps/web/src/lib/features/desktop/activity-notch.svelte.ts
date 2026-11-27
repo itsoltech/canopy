@@ -68,6 +68,7 @@ export function watchActivityNotch(
         ),
         botExecuting: (id) => botList.executing(id),
         markForProject: (id) => projectMarks.mark(overview.project(id), visibleImages),
+        placeOf: (thread) => overview.worker(thread.workerId)?.name || overview.machine(thread.nodeId),
         now,
       });
 

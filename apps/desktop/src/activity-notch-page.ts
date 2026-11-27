@@ -110,15 +110,22 @@ ${activityNotchMotionScript}
     const item = document.createElement("li");
     const button = document.createElement("button");
     const badge = document.createElement("span");
+    const text = document.createElement("span");
     const label = document.createElement("span");
+    const detail = document.createElement("span");
     const status = document.createElement("span");
     button.type = "button";
     button.className = "row";
     badge.className = "row-mark";
     badge.hidden = true;
     badge.setAttribute("aria-hidden", "true");
+    text.className = "row-text";
     label.className = "truncate";
     label.dir = "auto";
+    detail.className = "row-detail truncate";
+    detail.dir = "auto";
+    detail.hidden = true;
+    text.append(label, detail);
     status.className = "row-status";
     status.setAttribute("aria-hidden", "true");
     for (const [state, { label }] of Object.entries(statuses)) {
@@ -128,10 +135,10 @@ ${activityNotchMotionScript}
       layer.textContent = label;
       status.append(layer);
     }
-    button.append(badge, label, status);
+    button.append(badge, text, status);
     item.append(button);
     button.addEventListener("click", () => bridge.open(id));
-    return { item, button, badge, label, status };
+    return { item, button, badge, label, detail, status };
   }
 
   function projectLogo(pixels) {
@@ -250,7 +257,7 @@ ${activityNotchMotionScript}
     }
 
     let nextItem = list.firstElementChild;
-    for (const [index, { id, label, state, projectMark, botMascot }] of rows.entries()) {
+    for (const [index, { id, label, detail, state, projectMark, botMascot }] of rows.entries()) {
       const existing = rowViews.get(id);
       const view = existing ?? createRow(id);
       rowViews.set(id, view);
@@ -262,9 +269,14 @@ ${activityNotchMotionScript}
         view.label.textContent = label;
         view.label.title = label;
       }
+      if (view.detail.textContent !== (detail ?? "")) {
+        view.detail.textContent = detail ?? "";
+        view.detail.title = detail ?? "";
+        view.detail.hidden = !detail;
+      }
       showState(view.status.children, state, existing && "text");
       const project = projectMark ? ", project " + projectMark.initials : "";
-      const accessibleLabel = "Open " + label + project + ", " + status;
+      const accessibleLabel = "Open " + label + project + (detail ? ", " + detail : "") + ", " + status;
       if (view.button.getAttribute("aria-label") !== accessibleLabel) {
         view.button.setAttribute("aria-label", accessibleLabel);
       }

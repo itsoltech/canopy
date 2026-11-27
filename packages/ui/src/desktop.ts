@@ -29,6 +29,8 @@ export interface ActivityNotchItem {
   path: string;
   state: "working" | "approval" | "answer" | "completed" | "failed";
   title?: string | undefined;
+  /** One short line under the title: agent, worker and branch, joined with " · ". */
+  detail?: string | undefined;
   projectMark?: ActivityNotchProjectMark | undefined;
   botAppearance?: { shape?: string | undefined; color?: string | undefined } | undefined;
 }

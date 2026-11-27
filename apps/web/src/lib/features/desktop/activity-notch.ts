@@ -3,6 +3,8 @@ import type { bots, ui } from "@canopy/contracts";
 import { botParticipant } from "@canopy/domain/bot-chat";
 import { sharesThreads } from "@canopy/domain/computer-presence";
 import { REMOTE_BOTS } from "@canopy/domain/computers";
+import { headLabel } from "@canopy/domain/git-heads";
+import { HARNESS_NAMES, harnessOf } from "@canopy/domain/harnesses";
 import { activityOf, unseenResult, workState } from "@canopy/domain/thread-activity";
 import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import {
@@ -18,7 +20,7 @@ type Activity = {
   expiresAt?: number;
 };
 
-type Identity = Pick<ActivityNotchItem, "title" | "botAppearance"> & { projectId?: string | undefined };
+type Identity = Pick<ActivityNotchItem, "title" | "detail" | "botAppearance"> & { projectId?: string | undefined };
 
 const priority: Record<ActivityNotchItem["state"], number> = {
   approval: 0,
@@ -44,6 +46,15 @@ function threadActivity(thread: ui.Thread): Activity | undefined {
   if (result === "failed" || result === "completed") return { state: result, at };
 
   return undefined;
+}
+
+/** Where the thread runs: its agent, worker and branch, as in the thread's hover card. */
+function threadDetail(thread: ui.Thread, place: string | undefined): string | undefined {
+  const harness = harnessOf(thread.provider);
+  const head = thread.worktree ?? thread.checkoutHead;
+  const branch = head && (head.branch || head.detachedCommit) ? headLabel(head) : undefined;
+
+  return [harness && HARNESS_NAMES[harness], place, branch].filter(Boolean).join(" · ") || undefined;
 }
 
 function botActivity(bot: bots.Bot, executing: boolean, now: number): Activity | undefined {
@@ -75,6 +86,7 @@ export function activityNotchSnapshot({
   staleBotHomes,
   botExecuting,
   markForProject,
+  placeOf,
   now,
 }: {
   threads: ReadonlyMap<string, ui.Thread> | undefined;
@@ -83,6 +95,8 @@ export function activityNotchSnapshot({
   staleBotHomes: ReadonlySet<string>;
   botExecuting: (id: string) => boolean;
   markForProject: (id: string) => ActivityNotchProjectMark | undefined;
+  /** The worker's name, or the linked computer's when its workers are not listed here. */
+  placeOf: (thread: ui.Thread) => string | undefined;
   now: number;
 }) {
   const activities: (Activity & Identity & { path: string })[] = [];
@@ -111,7 +125,11 @@ export function activityNotchSnapshot({
         isThreadSnoozed(thread, (id) => threads.get(id))
       )
         continue;
-      add(`/threads/${thread.id}`, threadActivity(thread), { title: thread.title, projectId: thread.projectId });
+      add(`/threads/${thread.id}`, threadActivity(thread), {
+        title: thread.title,
+        detail: threadDetail(thread, placeOf(thread)),
+        projectId: thread.projectId,
+      });
     }
 
   for (const bot of bots) {
@@ -130,13 +148,14 @@ export function activityNotchSnapshot({
 
   const items: ActivityNotchItem[] = activities
     .slice(0, maxActivityNotchItems)
-    .map(({ path, state, title, projectId, botAppearance }) => {
+    .map(({ path, state, title, detail, projectId, botAppearance }) => {
       const projectMark = projectId ? markForProject(projectId) : undefined;
 
       return {
         path,
         state,
         ...(title && { title }),
+        ...(detail && { detail }),
         ...(projectMark && { projectMark }),
         ...(botAppearance && { botAppearance }),
       };

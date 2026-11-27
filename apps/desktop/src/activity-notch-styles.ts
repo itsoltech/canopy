@@ -27,7 +27,7 @@ export const activityNotchStyles = `
     --ear: ${activityNotchEarWidth}px;
     --wing: ${activityNotchWingWidth}px;
     --row-height: ${activityNotchRowHeight}px;
-    --row-mark-size: 20px;
+    --row-mark-size: 24px;
     --bottom-inset: ${activityNotchBottomInset}px;
     --type-compact: 0.8125rem;
     --type-meta: 0.71875rem;
@@ -169,8 +169,8 @@ export const activityNotchStyles = `
     padding: 0;
     overflow: auto;
     overscroll-behavior: contain;
+    /* No reserved gutter: the rows keep the same inset on the sides as at the bottom. */
     scrollbar-color: var(--border) transparent;
-    scrollbar-gutter: stable both-edges;
     scrollbar-width: thin;
     list-style: none;
   }
@@ -187,7 +187,7 @@ export const activityNotchStyles = `
     display: grid;
     grid-template-columns: [mark] var(--row-mark-size) [label] minmax(0, 1fr) [status] auto;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
     height: var(--row-height);
     padding: 0 8px;
@@ -209,8 +209,8 @@ export const activityNotchStyles = `
     width: var(--row-mark-size);
     height: var(--row-mark-size);
     overflow: hidden;
-    border-radius: 0.3125rem;
-    font: 700 0.5625rem / 1 ui-monospace, monospace;
+    border-radius: 0.375rem;
+    font: 700 0.625rem / 1 ui-monospace, monospace;
     letter-spacing: -0.025em;
   }
   .row-mark canvas, .row-mark img {
@@ -218,12 +218,21 @@ export const activityNotchStyles = `
     width: 100%;
     height: 100%;
   }
-  .truncate {
+  .row-text {
     grid-column: label;
+    display: grid;
+    min-width: 0;
+  }
+  .truncate {
     color: color-mix(in srgb, var(--ink) 92%, transparent);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .row-detail {
+    color: var(--muted);
+    font-size: var(--type-meta);
+    line-height: 1rem;
   }
   [data-state="working"] { --indicator: ${workingColors.dark.text}; }
   [data-state="approval"], [data-state="answer"] { --indicator: ${palette.amber[400]}; }
