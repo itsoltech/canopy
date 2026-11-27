@@ -30,6 +30,7 @@ export interface ActivityNotchItem {
   state: "working" | "approval" | "answer" | "completed" | "failed";
   title?: string | undefined;
   projectMark?: ActivityNotchProjectMark | undefined;
+  botAppearance?: { shape?: string | undefined; color?: string | undefined } | undefined;
 }
 
 export interface DesktopAppearance {

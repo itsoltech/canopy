@@ -15,6 +15,7 @@ przed zwijaniem obrysu. Animuje zmiany liczby, stanów aktywności i kolejności
 Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
 Ikony stanów i kolory etykiet odpowiadają liście wątków.
 Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów.
+Wiersze botów pokazują ich nazwy i maskotki.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
 [Obsługa i weryfikacja](#activity-notch)
 
@@ -486,12 +487,14 @@ głównego okna od razu usuwa nakładkę.
 Lista korzysta z bieżącego stanu wątków i botów. Pierwszeństwo mają prośby
 o zgodę i odpowiedź, następnie błędy, trwająca praca i nieodczytane wyniki.
 Rozwinięta lista pokazuje bieżący tytuł wątku z listy Threads. Wątek bez tytułu
-ma etykietę **Untitled thread**. Długi tytuł mieści się w jednym wierszu, a pełna
-wersja jest dostępna w podpowiedzi i nazwie dostępnej przycisku. Obok tytułu
-pojawia się logo projektu lub inicjały w kolorach z listy wątków. Boty zachowują
-numerowaną etykietę. Okno dostaje identyfikator wiersza, etykietę, stan i
-opcjonalny znak projektu. Logo trafia do nakładki jako miniatura 36 × 36
-pikseli. Pełne nazwy projektów i treść rozmów pozostają poza nakładką. Trasy
+ma etykietę **Untitled thread**. Obok tytułu pojawia się logo projektu lub
+inicjały w kolorach z listy wątków. Wiersz bota pokazuje jego bieżącą nazwę
+i statyczną maskotkę odpowiadającą małemu awatarowi w rozmowach botów.
+Jeśli brakuje nazwy, wiersz ma etykietę **Bot**. Długie tytuły i nazwy mieszczą
+się w jednym wierszu, a pełną wersję zachowują podpowiedź i nazwa dostępna
+przycisku. Okno dostaje identyfikator wiersza, etykietę, stan i obraz maskotki
+lub znak projektu, jeśli wiersz go ma. Logo trafia do nakładki jako miniatura
+36 × 36 pikseli. Pełne nazwy projektów i treść rozmów pozostają poza nakładką. Trasy
 rozmów zostają w procesie głównym. Przy utracie połączenia lub zmianie gatewaya
 Canopy czyści dostępne pozycje. Powiadomienia systemowe i ich preferencje
 działają niezależnie.

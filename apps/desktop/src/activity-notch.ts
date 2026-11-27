@@ -8,6 +8,7 @@ import {
   type ActivityNotchProjectMark,
   type DesktopStatus,
 } from "@canopy/ui/desktop";
+import { staticBotMascot } from "@canopy/ui/mascot";
 import { activityNotchVisibleRows, type ActivityNotchLayout } from "./activity-notch-geometry.ts";
 import {
   createActivityNotchWindow,
@@ -32,16 +33,22 @@ const projectMark = Schema.Struct({
   pixels: Schema.optionalKey(pixels.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
 });
 
-const threadTitle = Schema.String.check(Schema.isMaxLength(200));
-const numbers = new Intl.NumberFormat("en");
+const title = Schema.String.check(Schema.isMaxLength(200));
+const appearanceValue = Schema.String.check(Schema.isMaxLength(32));
+
+const botAppearance = Schema.Struct({
+  shape: Schema.optionalKey(appearanceValue),
+  color: Schema.optionalKey(appearanceValue),
+});
 
 const decodeItems = Schema.decodeUnknownSync(
   Schema.Array(
     Schema.Struct({
       path: Schema.String,
       state: Schema.Literals(["working", "approval", "answer", "completed", "failed"]),
-      title: Schema.optionalKey(threadTitle.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
+      title: Schema.optionalKey(title.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
       projectMark: Schema.optionalKey(projectMark.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
+      botAppearance: Schema.optionalKey(botAppearance.pipe(Schema.catchDecoding(() => Effect.succeedNone))),
     }),
   ).check(Schema.isMaxLength(maxActivityNotchItems)),
 );
@@ -53,6 +60,7 @@ export interface ActivityNotchRow {
   label: string;
   state: ActivityNotchItem["state"];
   projectMark?: ActivityNotchProjectMark | undefined;
+  botMascot?: string | undefined;
 }
 
 interface Entry extends ActivityNotchRow {
@@ -66,6 +74,13 @@ function sameProjectMark(left?: ActivityNotchProjectMark, right?: ActivityNotchP
     left?.background === right?.background &&
     left?.pixels === right?.pixels
   );
+}
+
+function botMascotUrl(id: string, appearance: ActivityNotchItem["botAppearance"]): string {
+  const { face, darkBackground } = staticBotMascot({ id, ...appearance });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="20" fill="${darkBackground}"/>${face}</svg>`;
+
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
 function applicationOrigin(url: string): string | undefined {
@@ -82,7 +97,6 @@ export class ActivityNotch {
   #status: DesktopStatus | undefined;
   #entries: Entry[] = [];
   #nextId = 0;
-  #botNumber = 0;
   #expanded = false;
   #loaded = false;
   #layout: ActivityNotchLayout | undefined;
@@ -182,7 +196,6 @@ export class ActivityNotch {
 
   clear() {
     this.#entries = [];
-    this.#botNumber = 0;
     this.#destroyWindow();
   }
 
@@ -197,7 +210,6 @@ export class ActivityNotch {
     if (!byPath.size) {
       if (this.#entries.length) {
         this.#entries = [];
-        this.#botNumber = 0;
         this.#expanded = false;
 
         if (this.#loaded) this.#sendRows();
@@ -209,20 +221,16 @@ export class ActivityNotch {
 
     const previous = new Map(this.#entries.map((entry) => [entry.path, entry]));
 
-    const entries = Array.from(byPath.values(), ({ path, state, title, projectMark }): Entry => {
+    const entries = Array.from(byPath.values(), ({ path, state, title, projectMark, botAppearance }): Entry => {
       const before = previous.get(path);
-      const isThread = path.startsWith("/threads/");
-
-      const label = isThread
-        ? title?.trim() || "Untitled thread"
-        : (before?.label ?? `Bot ${numbers.format(++this.#botNumber)}`);
+      const isBot = path.startsWith("/bots/");
 
       return {
         path,
         state,
-        label,
+        label: title?.trim() || (isBot ? "Bot" : "Untitled thread"),
         id: before?.id ?? ++this.#nextId,
-        ...(isThread && projectMark && { projectMark }),
+        ...(isBot ? { botMascot: botMascotUrl(path.slice("/bots/".length), botAppearance) } : { projectMark }),
       };
     });
 
@@ -235,6 +243,7 @@ export class ActivityNotch {
           old?.id === entry.id &&
           old.label === entry.label &&
           old.state === entry.state &&
+          old.botMascot === entry.botMascot &&
           sameProjectMark(old.projectMark, entry.projectMark)
         );
       })
@@ -260,11 +269,12 @@ export class ActivityNotch {
   #sendRows() {
     if (!this.#loaded) return;
 
-    const rows: ActivityNotchRow[] = this.#entries.map(({ id, label, state, projectMark }) => ({
+    const rows: ActivityNotchRow[] = this.#entries.map(({ id, label, state, projectMark, botMascot }) => ({
       id,
       label,
       state,
       ...(projectMark && { projectMark }),
+      ...(botMascot && { botMascot }),
     }));
 
     const revision = ++this.#rowsRevision;

@@ -6,6 +6,7 @@ import { hexLuminance, normalizeColor } from "./color.ts";
  */
 
 import { hashString } from "./hash.ts";
+import palette from "./palette.json";
 
 export interface MascotShape {
   body: string;
@@ -151,6 +152,8 @@ export interface MascotTone {
   background: string;
   body: string;
   name: string;
+  bodyColor: string;
+  backgroundColor: string;
 }
 
 const tones: readonly MascotTone[] = [
@@ -158,51 +161,71 @@ const tones: readonly MascotTone[] = [
     background: "bg-orange-500/15",
     body: "fill-orange-400",
     name: "text-orange-700 dark:text-orange-400",
+    bodyColor: palette.orange[400],
+    backgroundColor: palette.orange[500],
   },
   {
     background: "bg-amber-500/15",
     body: "fill-amber-300",
     name: "text-amber-700 dark:text-amber-300",
+    bodyColor: palette.amber[300],
+    backgroundColor: palette.amber[500],
   },
   {
     background: "bg-lime-500/15",
     body: "fill-lime-400",
     name: "text-lime-700 dark:text-lime-400",
+    bodyColor: palette.lime[400],
+    backgroundColor: palette.lime[500],
   },
   {
     background: "bg-emerald-500/15",
     body: "fill-emerald-400",
     name: "text-emerald-700 dark:text-emerald-400",
+    bodyColor: palette.emerald[400],
+    backgroundColor: palette.emerald[500],
   },
   {
     background: "bg-teal-500/15",
     body: "fill-teal-300",
     name: "text-teal-700 dark:text-teal-300",
+    bodyColor: palette.teal[300],
+    backgroundColor: palette.teal[500],
   },
   {
     background: "bg-sky-500/15",
     body: "fill-sky-400",
     name: "text-sky-700 dark:text-sky-400",
+    bodyColor: palette.sky[400],
+    backgroundColor: palette.sky[500],
   },
   {
     background: "bg-blue-500/15",
     body: "fill-blue-400",
     name: "text-blue-700 dark:text-blue-400",
+    bodyColor: palette.blue[400],
+    backgroundColor: palette.blue[500],
   },
   {
     background: "bg-violet-500/15",
     body: "fill-violet-400",
     name: "text-violet-700 dark:text-violet-400",
+    bodyColor: palette.violet[400],
+    backgroundColor: palette.violet[500],
   },
   {
     background: "bg-fuchsia-500/15",
     body: "fill-fuchsia-400",
     name: "text-fuchsia-700 dark:text-fuchsia-400",
+    bodyColor: palette.fuchsia[400],
+    backgroundColor: palette.fuchsia[500],
   },
   {
     background: "bg-rose-500/15",
     body: "fill-rose-400",
     name: "text-rose-700 dark:text-rose-400",
+    bodyColor: palette.rose[400],
+    backgroundColor: palette.rose[500],
   },
 ];
 
@@ -232,6 +255,41 @@ export function mascotFor(id: string, shape?: string): Mascot {
     eyes: eyes[(h >>> 9) % eyes.length]!,
     gaze: GAZES[(h >>> 12) % GAZES.length]!,
     smile: ((h >>> 15) & 1) === 1,
+  };
+}
+
+/** The static drawing used by small bot avatars. Only built-in paths and normalized colors enter the SVG. */
+export function staticBotMascot(bot: { id: string; shape?: string | undefined; color?: string | undefined }) {
+  const legacy = mascotFor(bot.id, bot.shape);
+  const configured = mascotShapes.find((shape) => shape.id === bot.shape);
+  const color = normalizeColor(bot.color ?? "");
+  const chosen = configured && color;
+  const body = chosen ? configured : legacy.shape;
+  const fill = color ?? legacy.tone.bodyColor;
+  const ink = eyeColor(color ?? defaultAppearance.color);
+
+  const eyes = [16, 24]
+    .map((x) => {
+      if (chosen) return `<ellipse cx="${x}" cy="${body.eyeY}" rx="2.1" ry="3.2"/>`;
+
+      if (legacy.eyes === "round")
+        return `<circle cx="${x}" cy="${body.eyeY}" r="3.2" fill="#ffffff"/><circle cx="${x + legacy.gaze * 0.9}" cy="${body.eyeY + 0.4}" r="1.6" fill="${palette.zinc[950]}"/>`;
+
+      if (legacy.eyes === "dots") return `<circle cx="${x}" cy="${body.eyeY}" r="1.9"/>`;
+
+      return `<path d="M${x - 2.4} ${body.eyeY + 0.8}q2.4 -3 4.8 0" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linecap="round"/>`;
+    })
+    .join("");
+
+  const smile =
+    !chosen && legacy.smile
+      ? `<path d="M17.5 ${body.eyeY + 4.5}q2.5 2.2 5 0" fill="none" stroke="${ink}" stroke-width="1.4" stroke-linecap="round"/>`
+      : "";
+
+  return {
+    face: `<path d="${body.body}" fill="${fill}"/><g fill="${ink}">${eyes}${smile}</g>`,
+    backgroundClass: chosen ? "bg-zinc-950/5 dark:bg-white/10" : legacy.tone.background,
+    darkBackground: chosen ? "#ffffff1a" : `${legacy.tone.backgroundColor}26`,
   };
 }
 

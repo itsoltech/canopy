@@ -11,8 +11,8 @@ let layoutListener: ((layout: ActivityNotchLayout) => void) | undefined;
 let collapseListener: (() => void) | undefined;
 
 ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNotchRow[], revision: number) => {
-  const sanitized = rows.map(({ id, label, state, projectMark }) => {
-    const row = { id, label, state };
+  const sanitized = rows.map(({ id, label, state, projectMark, botMascot }) => {
+    const row = { id, label, state, ...(botMascot && { botMascot }) };
 
     if (!projectMark) return row;
     const { initials, foreground, background, pixels } = projectMark;
