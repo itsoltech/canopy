@@ -1,7 +1,7 @@
 import { Provider, type ProviderUsageWindow, type ui } from "@canopy/contracts";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { activeUsageWindows, usageReset, usageWindowName } from "./provider-usage.ts";
-import { proxyCapacityGroups, supportedProxyAccounts, type CapacitySegment } from "./proxy-capacity.ts";
+import { proxyCapacityGroups, supportedProxyAccounts } from "./proxy-capacity.ts";
 import { usageTone, type SidebarUsageAccount, type UsageGlance, type UsageTone } from "./sidebar-usage.ts";
 
 /** One limit window of a provider row: the lowest reading of all its accounts, weighted for proxies. */
@@ -10,6 +10,21 @@ export interface SummaryWindow {
   readonly minutes: number;
   readonly percentLeft: number;
   readonly resetsAt: ProviderUsageWindow["resetsAt"];
+}
+
+/**
+ * One account's column in a row's bars: as wide as its plan units in the main window, in the same place in
+ * every bar. `percentLeft` is absent where the account does not report that window (no five-hour limit).
+ */
+export interface SummarySegment {
+  readonly units: number;
+  readonly percentLeft: number | undefined;
+}
+
+/** A shorter window of a row with one column per account, lined up with the main bar. */
+export interface SummaryMeter {
+  readonly window: SummaryWindow;
+  readonly segments: readonly SummarySegment[];
 }
 
 /** One provider in the usage summary (web and mobile SidebarUsage). */
@@ -21,10 +36,15 @@ export interface UsageSummaryRow {
   /** A shorter window with less left than `window`: the limit that binds first. */
   readonly binding: SummaryWindow | undefined;
   /**
-   * The accounts behind `window`, one bar each, largest plan first. Proxy accounts weigh their plan's units;
-   * a direct sign-in has no known plan and counts as 1, like an unknown proxy plan.
+   * One column per account in `window`, largest plan first. Proxy accounts weigh their plan's units; a direct
+   * sign-in has no known plan and counts as 1, like an unknown proxy plan.
    */
-  readonly segments: readonly CapacitySegment[];
+  readonly segments: readonly SummarySegment[];
+  /**
+   * Shorter general windows (e.g. 5-hour), shortest first, shown above `window`. Each has the same columns;
+   * an account without that window (plans without a five-hour limit) leaves its column empty.
+   */
+  readonly shorter: readonly SummaryMeter[];
   readonly tone: UsageTone;
   readonly word: "Low" | "Extra usage" | undefined;
 }
@@ -78,6 +98,33 @@ function add(
   });
 }
 
+/** Per-account readings by window length, keyed by the account object so equal ids from two proxies stay apart. */
+/** A proxy account or a direct instance account. */
+type ColumnAccount = ui.ProxyAccount | SidebarUsageAccount;
+
+class Columns {
+  private readonly list = new Map<ColumnAccount, { units: Map<number, number>; lefts: Map<number, number> }>();
+
+  record(account: ColumnAccount, minutes: number, units: number, left: number) {
+    const column = this.list.get(account) ?? { units: new Map(), lefts: new Map() };
+    this.list.set(account, column);
+
+    if (!column.units.has(minutes)) column.units.set(minutes, units);
+    column.lefts.set(minutes, Math.min(column.lefts.get(minutes) ?? 100, Math.max(0, left)));
+  }
+
+  /** Each account's column in `window`'s bar, ordered and sized by the `main` window for every bar. */
+  bar(main: SummaryWindow, window: SummaryWindow): SummarySegment[] {
+    const columns = [...this.list.values()]
+      .map((column) => ({ ...column, width: column.units.get(main.minutes) ?? [...column.units.values()][0] ?? 1 }))
+      .sort((a, b) => b.width - a.width);
+
+    return columns.length
+      ? columns.map((column) => ({ units: column.width, percentLeft: column.lefts.get(window.minutes) }))
+      : [{ units: 1, percentLeft: window.percentLeft }];
+  }
+}
+
 const proxyAccounts = (proxy: ui.Proxy) =>
   proxy.kind === "cliproxyapi" && proxy.usedBy.length && proxy.accounts?.state === "ok" ? proxy.accounts.accounts : [];
 
@@ -109,33 +156,27 @@ export function usageSummary(
 
     if (!own.length && !group) return [];
     const windows = new Map<number, SummaryWindow>();
-    const segments = new Map<number, CapacitySegment[]>();
+    const columns = new Columns();
 
-    const segment = (minutes: number, list: readonly CapacitySegment[]) =>
-      segments.set(minutes, [...(segments.get(minutes) ?? []), ...list]);
-
-    // Lowest first: a second proxy window of the same length would count its accounts twice.
+    // Lowest first, so an account in two proxy windows of the same length keeps that window's units.
     for (const window of group?.windows ?? []) {
       const minutes = minutesOf(window.key, window.windowMinutes);
 
-      if (minutes !== undefined && !segments.has(minutes)) segment(minutes, window.segments);
+      if (minutes !== undefined)
+        for (const segment of window.segments)
+          columns.record(segment.account, minutes, segment.units, segment.percentLeft);
       add(windows, window.key, window.windowMinutes, window.percentLeft, window.resetsAt);
     }
 
     for (const account of own) {
-      const lefts = new Map<number, number>();
-
       for (const window of activeUsageWindows(account.usage, now)) {
         if (!window.reached && window.usedPercent === undefined) continue;
         const left = window.reached ? 0 : 100 - window.usedPercent!;
         const minutes = minutesOf(window.key, window.windowMinutes);
         add(windows, window.key, window.windowMinutes, left, window.resetsAt);
 
-        if (minutes !== undefined && Number.isFinite(left))
-          lefts.set(minutes, Math.min(lefts.get(minutes) ?? 100, Math.max(0, left)));
+        if (minutes !== undefined && Number.isFinite(left)) columns.record(account, minutes, 1, left);
       }
-
-      for (const [minutes, left] of lefts) segment(minutes, [{ units: 1, percentLeft: left }]);
     }
 
     const sorted = [...windows.values()].sort((a, b) => b.minutes - a.minutes);
@@ -149,23 +190,25 @@ export function usageSummary(
     // A provider without a reading is a minor gap: Settings has the per-account detail.
     if (!main && !extra) return [];
 
-    const parts = main ? (segments.get(main.minutes) ?? []) : [];
-
     return [
       {
         provider,
         name,
         window: main,
         binding,
-        segments: main && !parts.length ? [{ units: 1, percentLeft: main.percentLeft }] : byUnits(parts),
+        segments: main ? columns.bar(main, main) : [],
+        shorter: main
+          ? sorted
+              .slice(1)
+              .reverse()
+              .map((window) => ({ window, segments: columns.bar(main, window) }))
+          : [],
         tone,
         word: extra ? "Extra usage" : left !== undefined && left <= 10 ? "Low" : undefined,
       },
     ];
   });
 }
-
-const byUnits = (segments: readonly CapacitySegment[]) => [...segments].sort((a, b) => b.units - a.units);
 
 const whole = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
@@ -176,8 +219,9 @@ export const percentLeftText = (window: SummaryWindow) => `${whole.format(window
 export const summaryWindowText = (window: SummaryWindow, now = Date.now()) =>
   [window.name, usageReset(window, true, now)].filter(Boolean).join(" · ");
 
-/** "5-hour: 12% left". */
-export const bindingText = (window: SummaryWindow) => `${window.name}: ${percentLeftText(window)}`;
+/** "5-hour: 12% left · Resets in 2 h", for a shorter window in the accessible name. */
+const shorterText = (window: SummaryWindow, now: number) =>
+  [`${window.name}: ${percentLeftText(window)}`, usageReset(window, true, now)].filter(Boolean).join(" · ");
 
 /** "3 accounts" beside the name when the bar is split; a single account needs no count. */
 export const accountsText = (row: UsageSummaryRow) =>
@@ -189,26 +233,25 @@ export function usageSummaryLabel(row: UsageSummaryRow, now = Date.now()) {
     row.window ? `${row.name}: ${percentLeftText(row.window)}` : row.name,
     accountsText(row),
     row.window ? summaryWindowText(row.window, now) : "",
-    row.binding ? bindingText(row.binding) : "",
+    ...row.shorter.map((meter) => shorterText(meter.window, now)),
     row.word ?? "",
   ];
 
   return parts.filter(Boolean).join(", ");
 }
 
-/** The sidebar indicator: one bar per row, filled to the most restrictive window. */
+/**
+ * The sidebar indicator: one bar per row, filled like the row's bar in the popover (its main window). The tone
+ * still follows a binding shorter window, as the row's "Low" word does.
+ */
 export const usageSummaryGlance = (rows: readonly UsageSummaryRow[], now = Date.now()): UsageGlance[] =>
-  rows.map((row) => {
-    const left = row.binding?.percentLeft ?? row.window?.percentLeft;
-
-    return {
-      provider: row.provider,
-      name: row.name,
-      percentLeft: left,
-      tone: row.tone,
-      label: usageSummaryLabel(row, now),
-    };
-  });
+  rows.map((row) => ({
+    provider: row.provider,
+    name: row.name,
+    percentLeft: row.window?.percentLeft,
+    tone: row.tone,
+    label: usageSummaryLabel(row, now),
+  }));
 
 /** One short line per proxy in use whose accounts are not readable yet; per-account detail stays in Settings. */
 export const usageSummaryNotes = (proxies: readonly ui.Proxy[]): UsageSummaryNote[] =>

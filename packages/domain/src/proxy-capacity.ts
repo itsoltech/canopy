@@ -87,6 +87,8 @@ export const unsupportedProxyAccountText = (count: number) =>
 export interface CapacitySegment {
   readonly units: number;
   readonly percentLeft: number;
+  /** The account itself, so its windows can be lined up across bars. */
+  readonly account: ui.ProxyAccount;
 }
 
 export interface CapacityWindow {
@@ -173,7 +175,7 @@ function capacityWindow(
 
     total += weight.units;
     remaining += (weight.units * left) / 100;
-    segments.push({ units: weight.units, percentLeft: left });
+    segments.push({ units: weight.units, percentLeft: left, account });
     reporting++;
 
     if (weight.unknown) unknown++;

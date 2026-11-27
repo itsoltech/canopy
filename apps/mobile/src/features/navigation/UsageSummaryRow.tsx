@@ -2,7 +2,6 @@ import { Text, View } from "react-native";
 import type { UsageTone } from "@canopy/domain/sidebar-usage";
 import {
   accountsText,
-  bindingText,
   percentLeftText,
   summaryWindowText,
   usageSummaryLabel,
@@ -12,21 +11,17 @@ import { ProviderIcon } from "../../ui/ProviderIcon";
 import { styles, useColors } from "../../ui/theme";
 import { useUsageTypography } from "../providers/usage-typography";
 import { usageColor } from "./usage-color";
-
-const toneOf = (left: number): UsageTone => (left <= 10 ? "danger" : left <= 30 ? "warning" : "neutral");
+import { UsageSummaryMeter } from "./UsageSummaryMeter";
 
 /**
- * One provider in the usage sheet (web: UsageSummaryRow): % left, one bar per account sized by plan units, the
- * window and its reset.
+ * One provider in the usage sheet (web: UsageSummaryRow): a bar per window with its reset and % left. Each shorter
+ * window some account reports (e.g. 5-hour) sits above the main bar, each account's column in the same place.
  */
 export function UsageSummaryRow({ row, now }: { row: Row; now: number }) {
   const c = useColors();
   const type = useUsageTypography();
   const tone = (value: UsageTone) => (value === "neutral" ? c.soft : usageColor(value, c));
-  const left = row.window?.percentLeft;
-  const tabular = { fontVariant: ["tabular-nums" as const] };
   const count = accountsText(row);
-  const fill = (value: number) => (value > 30 ? c.muted : usageColor(toneOf(value), c));
 
   return (
     <View accessible accessibilityLabel={usageSummaryLabel(row, now)} style={{ gap: 6, minWidth: 0 }}>
@@ -38,51 +33,30 @@ export function UsageSummaryRow({ row, now }: { row: Row; now: number }) {
           </Text>
           {count ? <Text style={[type.meta, { flexShrink: 0, color: c.muted }]}>{count}</Text> : null}
         </View>
-        <View style={[styles.row, { flexShrink: 0 }]}>
-          {row.word ? <Text style={[type.meta, { color: tone(row.tone) }]}>{row.word}</Text> : null}
-          {row.window && left !== undefined ? (
-            <Text style={[type.heading, tabular, { color: tone(toneOf(left)) }]}>{percentLeftText(row.window)}</Text>
-          ) : null}
+        {row.word ? <Text style={[type.meta, { flexShrink: 0, color: tone(row.tone) }]}>{row.word}</Text> : null}
+      </View>
+      {row.window ? (
+        <View style={{ gap: 8, minWidth: 0 }}>
+          {row.shorter.map((meter) => (
+            <UsageSummaryMeter
+              key={meter.window.minutes}
+              segments={meter.segments}
+              caption={summaryWindowText(meter.window, now)}
+              left={{ text: percentLeftText(meter.window), percent: meter.window.percentLeft }}
+            />
+          ))}
+          <UsageSummaryMeter
+            segments={row.segments}
+            caption={summaryWindowText(row.window, now)}
+            left={{ text: percentLeftText(row.window), percent: row.window.percentLeft }}
+          />
         </View>
-      </View>
-      <View style={{ flexDirection: "row", gap: 4, height: 4 }}>
-        {row.window ? (
-          row.segments.map((segment, index) => (
-            <View
-              key={index}
-              style={{
-                flexGrow: segment.units,
-                flexBasis: 0,
-                minWidth: 4,
-                borderRadius: 2,
-                overflow: "hidden",
-                backgroundColor: c.ring,
-              }}
-            >
-              <View
-                style={{
-                  height: 4,
-                  borderRadius: 2,
-                  width: `${segment.percentLeft}%`,
-                  backgroundColor: fill(segment.percentLeft),
-                }}
-              />
-            </View>
-          ))
-        ) : (
-          <View style={{ flex: 1, borderRadius: 2, backgroundColor: c.agent }} />
-        )}
-      </View>
-      <View style={[styles.row, { justifyContent: "space-between", flexWrap: "wrap", rowGap: 2, minHeight: 20 }]}>
-        <Text style={[type.meta, tabular, { flexShrink: 1, color: c.muted }]}>
-          {row.window ? summaryWindowText(row.window, now) : ""}
-        </Text>
-        {row.binding ? (
-          <Text style={[type.meta, tabular, { flexShrink: 0, color: tone(toneOf(row.binding.percentLeft)) }]}>
-            {bindingText(row.binding)}
-          </Text>
-        ) : null}
-      </View>
+      ) : (
+        <>
+          <View style={{ height: 4, borderRadius: 2, backgroundColor: c.agent }} />
+          <View style={{ minHeight: 20 }} />
+        </>
+      )}
     </View>
   );
 }
