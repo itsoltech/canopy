@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { PgClient } from "@effect/sql-pg";
 import { dockerAvailable, startPostgres, type TestPostgres } from "@canopy/db/testing";
+import { SQL } from "bun";
 import { Effect, ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
 import { inspectStorage } from "../src/maintenance/storage-inspection.ts";
@@ -15,6 +16,26 @@ interface OperatorEnvironment {
 }
 
 let environment: OperatorEnvironment;
+let observer: SQL;
+let database: string;
+
+/**
+ * A closed client sends Terminate without waiting for its backend to exit, so PostgreSQL may still list it.
+ * Reclaim correctly refuses such a session; wait until only `ownPid` (or nobody) remains in the database.
+ */
+async function untilOnlySession(ownPid = 0) {
+  const deadline = Date.now() + 10_000;
+
+  for (;;) {
+    const rows: { present: boolean }[] = await observer`SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+      WHERE datname=${database} AND pid<>${ownPid}) AS present`;
+
+    if (!rows[0]?.present) return;
+
+    if (Date.now() >= deadline) throw new Error("Other database sessions did not exit");
+    await Bun.sleep(10);
+  }
+}
 
 const sqlRun = <A>(effect: (sql: SqlClient.SqlClient) => Effect.Effect<A, unknown>) =>
   runtime.runPromise(SqlClient.SqlClient.use(effect));
@@ -42,9 +63,13 @@ describe.skipIf(!dockerAvailable)("gateway storage operator maintenance", () => 
 
     const endpoint = await runtime.runPromise(PgClient.PgClient.use((sql) => Effect.succeed(sql.config)));
 
+    if (!endpoint.database) throw new Error("Test PostgreSQL has no database name");
+    database = endpoint.database;
     environment = {
-      CANOPY_DATABASE_URL: `postgres://postgres:test@${endpoint.host}:${endpoint.port}/${endpoint.database}`,
+      CANOPY_DATABASE_URL: `postgres://postgres:test@${endpoint.host}:${endpoint.port}/${database}`,
     };
+    // Observe sessions from another database so the observer is never one of them.
+    observer = new SQL({ url: `postgres://postgres:test@${endpoint.host}:${endpoint.port}/postgres`, max: 1 });
     await sqlRun(
       (sql) => sql`CREATE TABLE public.thread_events (id integer PRIMARY KEY, payload text NOT NULL)
       WITH (autovacuum_enabled=false, toast.autovacuum_enabled=false)`,
@@ -59,6 +84,7 @@ describe.skipIf(!dockerAvailable)("gateway storage operator maintenance", () => 
   }, 60_000);
 
   afterAll(async () => {
+    await observer?.close();
     await runtime?.dispose();
     await pg?.stop();
   });
@@ -129,6 +155,9 @@ describe.skipIf(!dockerAvailable)("gateway storage operator maintenance", () => 
   });
 
   test("preflights all selections before the first rewrite", async () => {
+    const [own] = await sqlRun((sql) => sql<{ pid: number }>`SELECT pg_backend_pid() AS pid`);
+
+    await untilOnlySession(own?.pid);
     const before = await sqlRun((sql) => sql`SELECT pg_relation_filenode('public.thread_events') AS file`);
 
     await expect(sqlRun((sql) => reclaimStorage(sql, true, ["thread_events", "thread_items"]))).rejects.toThrow(
@@ -144,6 +173,7 @@ describe.skipIf(!dockerAvailable)("gateway storage operator maintenance", () => 
     const before = await sqlRun(inspectStorage);
 
     await runtime.dispose();
+    await untilOnlySession();
 
     try {
       const cli = await command("reclaim", "--offline", "--table", "thread_events", "--table", "thread_events");
