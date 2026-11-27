@@ -603,6 +603,11 @@ narzędzie w rzeczywistym modelu Codexa.
 
 ## Slack jako komunikator bota
 
+Manifest aplikacji bota zawiera zakres `files:write`, potrzebny do wysyłania plików
+w odpowiedziach. Aplikacja utworzona ze starszego manifestu wymaga dodania zakresu
+i ponownej instalacji w workspace; do tego czasu odpowiedź z plikami nie jest wysyłana,
+a właściciel dostaje powiadomienie.
+
 W web/desktop w **Settings → Connectors → Messaging** właściciel może utworzyć aplikację z manifestu
 dla bota i zainstalować ją w workspace. Przy wyłączonej rotacji zapisuje app-level
 token `xapp-…` z `connections:write` oraz Bot User OAuth Token `xoxb-…` z tej samej

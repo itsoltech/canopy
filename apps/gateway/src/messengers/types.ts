@@ -106,12 +106,21 @@ export interface SteerInput {
   text: string;
 }
 
+/** A stored attachment sent with a reply; the gateway reads its bytes just before sending. */
+export interface OutboundFile {
+  name: string;
+  mimeType: string;
+  data: Uint8Array;
+}
+
 export interface OutboundMessage {
   id: string;
   accountId: string;
   channelId: string;
   threadId: string;
+  /** May be empty when the reply consists of files. */
   text: string;
+  files?: readonly OutboundFile[];
 }
 
 export interface OutboundResult {

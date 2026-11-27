@@ -5,6 +5,7 @@ import { channelActivity, turnProvider } from "./store-activity.ts";
 import { recordPublishedReply, type PublishedSlackReply } from "./channel-context-events.ts";
 import { slackTimestamp } from "./slack-events.ts";
 import { privateMessengerNotice } from "./store-notify.ts";
+import { queuedReplyFiles } from "./store-outbound-files.ts";
 import { activeChannelTurn, currentChannelEpoch } from "./conversation-access.ts";
 import { SKIP_SLACK_REPLY } from "../bots/external-instructions.ts";
 import type { BotTurn } from "../bots/types.ts";
@@ -42,7 +43,11 @@ export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, statu
         `Could not finish the ${yield* turnProvider(sql, turn.id)} request`,
       );
 
-    if (status !== "completed" || !text.trim()) return;
+    if (status !== "completed") return;
+    // A skipped reply suppresses its queued files as well as its text.
+    const files = (yield* queuedReplyFiles(sql, turn.id)) && !(yield* skippedSlackReply(sql, turn.id));
+
+    if (!text.trim() && !files) return;
     const context = yield* conversationContext(sql, turn);
 
     if (!context) return;
@@ -61,7 +66,7 @@ export function finishChannelTurn(sql: SqlClient.SqlClient, turn: BotTurn, statu
       yield* sql`INSERT INTO messenger_outbound(id,account_id,conversation_id,turn_id,channel_id,thread_id,text)
         VALUES(${Bun.randomUUIDv7()}::uuid,${context.accountId}::uuid,${context.conversationId}::uuid,${turn.id}::uuid,
           ${context.channelId},${context.threadId},${text}) ON CONFLICT(turn_id) DO NOTHING`;
-    else yield* privateMessengerNotice(sql, turn.bot_id, `messenger-notify:${turn.id}`, text);
+    else if (text.trim()) yield* privateMessengerNotice(sql, turn.bot_id, `messenger-notify:${turn.id}`, text);
   });
 }
 

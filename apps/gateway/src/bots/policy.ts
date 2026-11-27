@@ -41,6 +41,7 @@ const EXTERNAL_WORK_TOOLS = new Set([
   "write_file",
   "delete_file",
   "download_file",
+  "send_attachment",
   "ask_user",
   SKIP_SLACK_REPLY,
 ]);

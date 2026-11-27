@@ -11,7 +11,7 @@ export type DiscordBody = typeof Schema.JsonObject.Type;
 
 interface RequestOptions {
   method?: "GET" | "POST";
-  body?: DiscordBody;
+  body?: DiscordBody | FormData;
   /** A write is never retried: an unknown outcome must stay distinguishable from a refusal. */
   write?: boolean;
 }
@@ -33,7 +33,7 @@ export async function discordRequest(
   options: RequestOptions = {},
 ): Promise<Schema.Json> {
   signal?.throwIfAborted();
-  const timeout = AbortSignal.timeout(20_000);
+  const timeout = AbortSignal.timeout(options.body instanceof FormData ? 120_000 : 20_000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   const write = options.write === true;
   let response: Response;
@@ -46,9 +46,12 @@ export async function discordRequest(
         headers: {
           Authorization: `Bot ${token}`,
           "User-Agent": "DiscordBot (canopy, 1)",
-          ...(options.body && { "Content-Type": "application/json" }),
+          // Multipart uploads let fetch set the boundary in their content type.
+          ...(options.body && !(options.body instanceof FormData) && { "Content-Type": "application/json" }),
         },
-        ...(options.body && { body: JSON.stringify(options.body) }),
+        ...(options.body && {
+          body: options.body instanceof FormData ? options.body : JSON.stringify(options.body),
+        }),
         redirect: "error",
         credentials: "omit",
         signal: requestSignal,

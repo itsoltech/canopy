@@ -17,7 +17,7 @@ export const outgoingFileTools = [
   ),
   define(
     "send_attachment",
-    "Send a file from this conversation workspace as a downloadable attachment in this Canopy conversation. Use its filename as path. The owner's attachment size/type limits apply. Optional caption is user-facing. This does not send files through connector accounts; those require their granted tools.",
+    "Send a file from this conversation workspace as a downloadable attachment. In a private Canopy conversation it appears there; optional caption is user-facing. In an external Slack, Telegram or Discord conversation it is sent with your final reply in that conversation, so describe it in the reply instead of a caption. Use its filename as path. The owner's attachment limits and the provider's file size limit apply. This does not send files through connector accounts; those require their granted tools.",
     object({ path: str, caption: str }, ["path"]),
     "Sending an attachment",
     sendBotAttachment,

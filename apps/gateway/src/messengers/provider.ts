@@ -51,6 +51,8 @@ export interface MessengerAdapter {
   readonly userId: RegExp;
   /** Shared channel background is implemented only where the provider exposes ordered channel history. */
   readonly channelContext: boolean;
+  /** Largest file the provider accepts from a bot. */
+  readonly maxFileBytes: number;
   validate(
     credentials: MessengerCredentials,
     signal?: AbortSignal,
@@ -66,6 +68,10 @@ export interface MessengerAdapter {
     transport?: MessengerTransport,
   ): Promise<MessengerSendResult>;
 }
+
+/** Files one reply may carry, across every provider. */
+export const MAX_REPLY_FILES = 10;
+export const MAX_REPLY_BYTES = 50 * 1024 ** 2;
 
 /** Reconnects a provider stream with jittered backoff until a configuration failure or abort. */
 export async function runWithReconnect(
@@ -128,4 +134,25 @@ export function splitMessage(text: string, limit: number): string[] {
   if (rest.length) parts.push(rest.join(""));
 
   return parts;
+}
+
+/** Runs a reply's visible writes in order and returns the last message ID a write reported. Once one write succeeded, a later
+ * failure leaves the reply partially delivered, so it is reported as an unknown outcome instead of a retry. */
+export async function sendInOrder(
+  writes: readonly (() => Promise<string>)[],
+  partial: () => MessengerError,
+): Promise<string> {
+  let messageId = "";
+
+  for (const [index, write] of writes.entries()) {
+    try {
+      messageId = (await write()) || messageId;
+    } catch (error) {
+      if (index > 0) throw partial();
+
+      throw error;
+    }
+  }
+
+  return messageId;
 }

@@ -219,4 +219,5 @@ export const expectedSchemaMigrations = [
   "222_agent_bus_update_tasks",
   "223_worker_heartbeat_changes",
   "224_messenger_providers",
+  "225_messenger_outbound_files",
 ];

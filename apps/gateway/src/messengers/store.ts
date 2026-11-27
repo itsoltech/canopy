@@ -7,6 +7,7 @@ import type { BotTurn } from "../bots/types.ts";
 import { readMessengerHistory, type HistorySelection } from "./store-history.ts";
 import { messengerDispatch } from "./store-dispatch.ts";
 import { messengerOutbound } from "./store-outbound.ts";
+import { messengerOutboundFiles } from "./store-outbound-files.ts";
 import { botSubscriptions } from "./store-bot-subscriptions.ts";
 
 export * from "./types.ts";
@@ -25,6 +26,7 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ingest: messengerIngest(sql, accounts),
     ...messengerDispatch(sql),
     ...messengerOutbound(sql, accounts),
+    ...messengerOutboundFiles(sql),
   };
 }
 

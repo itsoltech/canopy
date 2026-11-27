@@ -17,6 +17,22 @@ const Frame = Schema.fromJsonString(
 const Resume = Schema.Struct({ session_id: Schema.String, seq: Schema.NullOr(Schema.Number) });
 const Body = Schema.fromJsonString(Schema.Record(Schema.String, Schema.Json));
 
+/** A JSON message, or a multipart one recorded as its payload plus the uploaded file names. */
+async function messageBody(request: Request): Promise<Record<string, Schema.Json>> {
+  if (!request.headers.get("content-type")?.startsWith("multipart/form-data"))
+    return Schema.decodeSync(Body)(await request.text());
+  const form = await request.formData();
+  const payload = form.get("payload_json");
+
+  const files = [...form.keys()].flatMap((key) => {
+    const value = form.get(key);
+
+    return value instanceof File ? [`${key}=${value.name}`] : [];
+  });
+
+  return { ...Schema.decodeSync(Body)(payload instanceof File || payload === null ? "{}" : payload), files };
+}
+
 /** Local Discord REST and gateway boundary, including resumable sessions and recorded writes. */
 export function discordMessengerFixture(options: { closeOnIdentify?: number } = {}) {
   const sockets = new Set<ServerWebSocket>();
@@ -54,7 +70,7 @@ export function discordMessengerFixture(options: { closeOnIdentify?: number } = 
 
       if (messages && request.method === "POST") {
         const channel = messages[1]!;
-        sent.push({ channel, body: Schema.decodeSync(Body)(await request.text()) });
+        sent.push({ channel, body: await messageBody(request) });
 
         return Response.json({ id: String(++nextMessage), channel_id: channel });
       }

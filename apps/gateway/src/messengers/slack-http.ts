@@ -48,6 +48,8 @@ const ResponseSchema = Schema.Struct({
   bot_id: Schema.optional(Schema.String),
   channel: Schema.optional(Schema.String),
   ts: Schema.optional(Schema.String),
+  upload_url: Schema.optional(Schema.String),
+  file_id: Schema.optional(Schema.String),
   bot: Schema.optional(Schema.Struct({ app_id: Schema.optional(Schema.String) })),
   file: Schema.optional(
     Schema.Struct({
@@ -175,6 +177,8 @@ export async function slackRequest(
     | "conversations.list"
     | "conversations.members"
     | "files.info"
+    | "files.getUploadURLExternal"
+    | "files.completeUploadExternal"
     | "users.list",
   token: string,
   fields: URLSearchParams,
@@ -182,7 +186,7 @@ export async function slackRequest(
   transport: SlackTransport = {},
 ) {
   signal?.throwIfAborted();
-  const write = method === "chat.postMessage";
+  const write = method === "chat.postMessage" || method === "files.completeUploadExternal";
   const timeout = AbortSignal.timeout(20_000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
 

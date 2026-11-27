@@ -51,7 +51,7 @@ function failure(status: number, description: string, retryAfterMs: number, writ
 export async function telegramRequest(
   method: string,
   token: string,
-  body: TelegramBody,
+  body: TelegramBody | FormData,
   signal: AbortSignal | undefined,
   transport: MessengerTransport | undefined,
   options: RequestOptions = {},
@@ -67,8 +67,10 @@ export async function telegramRequest(
       new URL(`./bot${token}/${method}`, transport?.telegramApiBaseUrl ?? "https://api.telegram.org/"),
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        // Multipart uploads let fetch set the boundary in their content type.
+        ...(body instanceof FormData
+          ? { body }
+          : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
         redirect: "error",
         credentials: "omit",
         signal: requestSignal,

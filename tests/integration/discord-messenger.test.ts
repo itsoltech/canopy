@@ -185,3 +185,39 @@ describe("Discord messenger adapter", () => {
     expect(new Set(f.sent.map((sent) => sent.body["nonce"])).size).toBe(3);
   });
 });
+
+describe("Discord reply files", () => {
+  const file = (name: string, bytes: number) => ({ name, mimeType: "application/pdf", data: new Uint8Array(bytes) });
+
+  test("files join the last text part and overflow into further messages within the upload limit", async () => {
+    const f = fixture();
+    const big = 6 * 1024 ** 2;
+
+    await discordAdapter.send(
+      credentials,
+      {
+        id: "outbound-files",
+        accountId: "account",
+        channelId: discordChannel,
+        threadId: "600000000000000001",
+        text: "Here are the reports.",
+        files: [file("a.pdf", big), file("b.pdf", big), file("c.pdf", 10)],
+      },
+      AbortSignal.timeout(3000),
+      f.transport,
+    );
+
+    // A single message holds at most 10 MB, so the second large file starts a message without text.
+    expect(f.sent.map((sent) => sent.body["files"])).toEqual([
+      ["files[0]=a.pdf"],
+      ["files[0]=b.pdf", "files[1]=c.pdf"],
+    ]);
+    expect(f.sent[0]!.body).toMatchObject({
+      content: "Here are the reports.",
+      attachments: [{ id: 0, filename: "a.pdf" }],
+      message_reference: { message_id: "600000000000000001" },
+    });
+    expect(f.sent[1]!.body["content"]).toBeUndefined();
+    expect(f.sent[1]!.body["message_reference"]).toBeUndefined();
+  });
+});
