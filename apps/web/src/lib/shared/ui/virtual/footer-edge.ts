@@ -6,7 +6,7 @@
  *
  * A resize is measured in the ResizeObserver callback itself: layout is clean there, so a footer that
  * folds frame by frame moves its edge in the same frame without forcing another layout. `onheight` gets
- * the footer's own height from the same observer (`first` for the synchronous initial measurement).
+ * the footer's reserve height from the same observer (`first` for the synchronous initial measurement).
  */
 export function watchFooterEdge(
   footer: HTMLElement,
@@ -31,7 +31,7 @@ export function watchFooterEdge(
 
     if (edge !== last) onedge((last = edge));
 
-    return box.height;
+    return box.height - overlayHeight(footer);
   };
 
   const schedule = () => {
@@ -41,7 +41,8 @@ export function watchFooterEdge(
   const resize = new ResizeObserver(([entry]) => {
     cancelAnimationFrame(frame);
     const height = measure();
-    onheight?.(entry?.borderBoxSize[0]?.blockSize ?? height, false);
+    const size = entry?.borderBoxSize[0]?.blockSize;
+    onheight?.(size === undefined ? height : size - overlayHeight(footer), false);
   });
 
   // Drafts and panels can appear inside space the footer already reserves, without resizing it.
@@ -55,4 +56,23 @@ export function watchFooterEdge(
     resize.disconnect();
     mutations.disconnect();
   };
+}
+
+/**
+ * Footer content that opens over the rows (`data-feed-overlay`: the composer trays' disclosures) paints
+ * above the edge but leaves the end reserve alone, so opening or closing it never moves a row. The rest
+ * of the footer's height is what the reserve follows.
+ */
+export function reserveHeight(footer: HTMLElement): number {
+  return footer.getBoundingClientRect().height - overlayHeight(footer);
+}
+
+function overlayHeight(footer: HTMLElement): number {
+  let height = 0;
+
+  for (const element of footer.querySelectorAll<HTMLElement>("[data-feed-overlay]")) {
+    height += element.getBoundingClientRect().height;
+  }
+
+  return height;
 }

@@ -451,7 +451,7 @@
 .t-acc-panel[data-open] > * {
   opacity: 1;
 }
-/* Composer trays reveal upward. Their measured height drives the footer reserve during disclosure. */
+/* Composer trays reveal upward, over the thread: the feed's end reserve ignores them (`data-feed-overlay`). */
 .t-composer-chevron,
 .t-composer-disclosure,
 .t-composer-disclosure > * {

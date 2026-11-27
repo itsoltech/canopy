@@ -1,4 +1,5 @@
 import { flushSync } from "svelte";
+import { reserveHeight } from "./footer-edge.ts";
 
 /**
  * How the footer's natural size relates to its full size: `open` is full, `folded` is a compact
@@ -11,17 +12,20 @@ let lastFull = 0;
 
 export interface FooterReserveState {
   fold: FooterFold;
-  /** Room above the full footer for one more strip (a queued item, an attachment row). */
+  /** Space between the last row and the full footer. */
   margin: number;
   following: boolean;
   scroller: HTMLElement | undefined;
 }
 
 /**
- * The rows' end space under the overlay footer: its full height plus a margin. A compact footer, a
- * morph or growth within the margin leaves the scroll geometry alone, so rows never move with the
- * footer. Growth past the margin commits at once; a following reader stays at the end in the same
- * frame, any other reader keeps its scrollTop. Shrinking waits until the reader follows the end.
+ * The rows' end space under the overlay footer: its full height plus a margin. A compact footer or a
+ * morph leaves the scroll geometry alone, so rows never move with the fold. Growth commits at once: a
+ * following reader stays at the end in the same frame, any other reader keeps its scrollTop. Shrinking
+ * follows the footer just as soon for a reader at the end, so no gap stays above a composer that shrank;
+ * anyone else keeps it until back at the end.
+ * Heights come without the footer's overlays (footer-edge.ts `reserveHeight`): a tray disclosure opens
+ * over the rows and never changes the reserve.
  */
 export class FooterReserve {
   #full = 0;
@@ -63,7 +67,9 @@ export class FooterReserve {
     const need = Math.ceil(full + state.margin);
 
     if (need > this.#reserve + 0.5) return need;
-    this.#shrink = need < this.#reserve - Math.max(0.5, 2 * state.margin);
+    // A following reader's end comes back down with the footer, frame by frame like growth; for anyone
+    // else the extra space waits below the rows until they follow the end again.
+    this.#shrink = need < this.#reserve - 0.5;
 
     return this.#shrink && state.following ? need : undefined;
   }
@@ -100,7 +106,7 @@ export class FooterReserve {
   ): (() => void) | undefined {
     if (!shell) return undefined;
 
-    const frame = requestAnimationFrame(() => this.measure(shell.getBoundingClientRect().height, read(), write));
+    const frame = requestAnimationFrame(() => this.measure(reserveHeight(shell), read(), write));
 
     return () => cancelAnimationFrame(frame);
   }
