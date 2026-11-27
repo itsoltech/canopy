@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-27): boty odbierają pliki z wiadomości Telegrama i Discorda tak jak ze
+Slacka. Szczegóły w sekcji [Pliki od uczestników](#pliki-od-uczestników). Dostępność
+w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-27): w rozmowie Slack, Telegram lub Discord z dostarczaniem odpowiedzi
 `send_attachment` dołącza plik do odpowiedzi tury. Szczegóły w sekcji
 [Pliki w odpowiedziach](#pliki-w-odpowiedziach). Dostępność w kanałach określa
@@ -453,10 +457,29 @@ dostarczenie niepewne.
   Wiadomość ma najwyżej 10 plików i 10 MB; nadmiar trafia do kolejnych wiadomości
   bez tekstu.
 
-Wspólny kontekst kanału, pobieranie plików z wiadomości oraz narzędzia
+#### Pliki od uczestników
+
+Pliki z wiadomości Telegrama i Discorda trafiają do tury tym samym potokiem co pliki
+ze Slacka. Wiadomość z samym plikiem, bez tekstu, też jest przyjmowana. Referencje
+plików są zapisywane przy wiadomości (kolumna `slack_file_ids` obejmuje wszystkich
+dostawców) tylko wtedy, gdy mają kształt właściwy dla dostawcy konta. Przed pobraniem
+gateway sprawdza je ponownie, a także aktywną trasę, autora z listy, lease tury
+i ustawienie Files bota. Obowiązują limity załączników właściciela. Pliku, którego
+nie da się pobrać, model nie dostaje, a wejście tury zawiera informację o niedostępnych
+załącznikach.
+
+- Telegram: zdjęcie w największym rozmiarze, dokumenty, wideo, audio, animacje
+  i wiadomości głosowe. Gateway pobiera je przez `getFile` i serwer plików Bot API,
+  który udostępnia botom pliki do 20 MB. Nazwa dokumentu pochodzi z wiadomości.
+- Discord: załączniki wiadomości pobierane z podpisanego adresu CDN Discorda
+  (`cdn.discordapp.com`, `media.discordapp.net`) bez tokenu bota. Gateway nie pobiera
+  plików z innych hostów.
+
+Wspólny kontekst kanału oraz narzędzia
 `list_messenger_channels`, `list_messenger_channel_members` i `list_messenger_users`
-działają tylko dla Slacka. Właściciel podaje ID czatów i użytkowników Telegrama
-i Discorda w trasie. Narzędzie pomijania odpowiedzi zachowuje nazwę
+działają tylko dla Slacka. Pobieranie plików przez konektor Slack dotyczy
+tylko Slacka. Właściciel podaje ID czatów i użytkowników Telegrama i Discorda
+w trasie. Narzędzie pomijania odpowiedzi zachowuje nazwę
 `skip_slack_reply` dla wszystkich dostawców.
 
 ### Wspólny kontekst kanału Slack

@@ -7,8 +7,14 @@ import {
   type MessengerAdapter,
   type MessengerRunOptions,
 } from "./provider.ts";
-import { sendTelegramFile } from "./telegram-files.ts";
-import { TelegramBot, TelegramUpdates, telegramEvent, type TelegramIdentity } from "./telegram-events.ts";
+import { downloadTelegramFile, sendTelegramFile } from "./telegram-files.ts";
+import {
+  TelegramBot,
+  TelegramUpdates,
+  telegramEvent,
+  telegramFileReference,
+  type TelegramIdentity,
+} from "./telegram-events.ts";
 import { formatTelegramMessage } from "./telegram-format.ts";
 import { telegramError, telegramRequest, type TelegramBody } from "./telegram-http.ts";
 import type { MessengerCredentials, OutboundMessage } from "./types.ts";
@@ -113,6 +119,9 @@ export const telegramAdapter: MessengerAdapter = {
   userId: /^\d{1,20}$/,
   channelContext: false,
   maxFileBytes: 50 * 1024 ** 2,
+  fileReference: telegramFileReference,
+  download: (credentials, reference, maxBytes, signal, transport) =>
+    downloadTelegramFile(credentials, reference, maxBytes, signal, transport),
   async validate(credentials, signal, transport) {
     const bot = await telegramIdentity(credentials, signal, transport);
 

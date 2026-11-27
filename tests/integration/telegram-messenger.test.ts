@@ -3,6 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { MessengerError } from "../../apps/gateway/src/messengers/messenger-error.ts";
 import type { MessengerEvent, OutboundMessage } from "../../apps/gateway/src/messengers/types.ts";
 import { telegramAdapter } from "../../apps/gateway/src/messengers/telegram.ts";
+import { telegramEvent } from "../../apps/gateway/src/messengers/telegram-events.ts";
 import { telegramMessengerFixture, telegramToken } from "./support/telegram-messenger.ts";
 
 const credentials = { appToken: "", botToken: telegramToken };
@@ -230,5 +231,57 @@ describe("Telegram reply files", () => {
       );
 
     expect(refused).toMatchObject({ kind: "configuration" });
+  });
+});
+
+describe("Telegram inbound files", () => {
+  const bot = { id: 777, username: "canopy_fixture_bot" };
+  const base = { message_id: 10, from: { id: 42, is_bot: false }, chat: { id: -100200, type: "supergroup" }, date: 1 };
+
+  test("photos keep only their largest size, named files keep their name and captionless media is not dropped", () => {
+    const event = telegramEvent(
+      {
+        update_id: 5,
+        message: {
+          ...base,
+          photo: [{ file_id: "SMALLphoto000" }, { file_id: "LARGEphoto000" }],
+          document: { file_id: "DOCUMENTfile0", file_name: "Q4 plan.pdf" },
+          voice: { file_id: "VOICEnote0000" },
+        },
+      },
+      "account",
+      bot,
+    );
+
+    expect(event).toMatchObject({
+      text: "",
+      fileIds: ["LARGEphoto000", "DOCUMENTfile0/Q4%20plan.pdf", "VOICEnote0000"],
+    });
+  });
+
+  test("downloads stay within the size limit and keep the original file name", async () => {
+    const f = fixture();
+
+    const sent = f.emit({
+      chat: -100200,
+      from: 42,
+      text: "",
+      document: { name: "notes.txt", content: "twelve bytes" },
+    });
+
+    const reference = `DOC${sent.updateId}fixturefile/notes.txt`;
+    const signal = AbortSignal.timeout(2000);
+
+    expect(await telegramAdapter.download(credentials, reference, 1024, signal, f.transport)).toEqual({
+      name: "notes.txt",
+      data: new Uint8Array(Buffer.from("twelve bytes")),
+    });
+
+    const tooLarge = await telegramAdapter.download(credentials, reference, 5, signal, f.transport).then(
+      () => undefined,
+      (error: Error) => error,
+    );
+
+    expect(tooLarge).toMatchObject({ kind: "configuration", code: "file_too_large" });
   });
 });

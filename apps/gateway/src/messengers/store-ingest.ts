@@ -3,7 +3,9 @@ import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
 import { recordChannelEvent } from "./channel-context-events.ts";
-import { boundedSlackFileIds } from "./slack-events.ts";
+import { messengerAdapter } from "./adapters.ts";
+import type { MessengerProvider } from "./provider.ts";
+import { MAX_SLACK_MESSAGE_FILES } from "./slack-events.ts";
 import type { MessengerAccounts } from "./store-accounts.ts";
 import type {
   AccountLease,
@@ -40,6 +42,15 @@ function replyThread(sql: SqlClient.SqlClient, route: RouteRow, event: Messenger
   });
 }
 
+/** Provider file references (column slack_file_ids predates other providers). Adapters validate their shape
+ * when mapping events and again before downloading; here only their number and size are bounded. */
+function boundedFileIds(values: readonly string[]): string[] {
+  return [...new Set(values.filter((value) => value.length > 0 && value.length <= 2048))].slice(
+    0,
+    MAX_SLACK_MESSAGE_FILES,
+  );
+}
+
 function bufferEvent(
   sql: SqlClient.SqlClient,
   route: RouteRow,
@@ -69,7 +80,7 @@ function bufferEvent(
         AND message_id=${sourceKey}`)[0]
       : undefined;
 
-    const fileIds = boundedSlackFileIds(event.fileIds ?? []);
+    const fileIds = boundedFileIds(event.fileIds ?? []);
     let receivedAt = now;
 
     if (conversation && original) {
@@ -92,7 +103,7 @@ function bufferEvent(
         // Socket Mode may report the same message as both app_mention and message, with files on only one.
         // An original callback may complete a buffered message, but cannot overwrite an edit or reopen delivery.
         if (fileIds.length && original.state === "buffered" && !original.source_edited)
-          yield* sql`UPDATE bot_channel_messages SET slack_file_ids=${boundedSlackFileIds([...original.slack_file_ids, ...fileIds])}::text[]
+          yield* sql`UPDATE bot_channel_messages SET slack_file_ids=${boundedFileIds([...original.slack_file_ids, ...fileIds])}::text[]
             WHERE id=${original.id}::bigint`;
 
         return "duplicate_message" as const;
@@ -158,29 +169,37 @@ function bufferEvent(
 }
 
 export function messengerIngest(sql: SqlClient.SqlClient, accounts: MessengerAccounts) {
-  return (owner: string, event: MessengerEvent, lease: AccountLease, now: Date) =>
+  return (owner: string, source: MessengerEvent, lease: AccountLease, now: Date) =>
     sql.withTransaction(
       Effect.gen(function* () {
         if (
-          lease.accountId !== event.accountId ||
-          !event.id ||
-          event.id.length > 240 ||
-          !event.channelId ||
-          event.channelId.length > 80 ||
-          !event.messageId ||
-          event.messageId.length > 100 ||
-          event.threadId.length > 100 ||
-          (event.replyTo?.length ?? 0) > 100 ||
-          (!event.authorId && event.kind !== "delete") ||
-          event.authorId.length > 80 ||
-          event.timestamp.length > 100 ||
-          event.text.length > 100_000
+          lease.accountId !== source.accountId ||
+          !source.id ||
+          source.id.length > 240 ||
+          !source.channelId ||
+          source.channelId.length > 80 ||
+          !source.messageId ||
+          source.messageId.length > 100 ||
+          source.threadId.length > 100 ||
+          (source.replyTo?.length ?? 0) > 100 ||
+          (!source.authorId && source.kind !== "delete") ||
+          source.authorId.length > 80 ||
+          source.timestamp.length > 100 ||
+          source.text.length > 100_000
         )
           return yield* Effect.fail(new Invalid("Invalid messenger event"));
 
         if (!(yield* lockedOwnerModule(sql, owner, "bots")))
           return ["bots_disabled"] satisfies MessengerIngestOutcome[];
         yield* accounts.fenced(owner, lease, now);
+
+        const [account] = yield* sql<{ provider: MessengerProvider }>`SELECT provider FROM messenger_accounts
+          WHERE id=${source.accountId}::uuid`;
+
+        const reference = messengerAdapter(account!.provider).fileReference;
+        // Only references in the account provider's shape are stored; downloads check them again.
+        const fileIds = (source.fileIds ?? []).filter((id) => reference.test(id));
+        const event = { ...source, ...(source.fileIds && { fileIds }) };
 
         const accepted = yield* sql`INSERT INTO messenger_events(account_id,event_id,received_at)
       VALUES(${event.accountId}::uuid,${event.id},${now}) ON CONFLICT DO NOTHING RETURNING event_id`;

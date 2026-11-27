@@ -14,6 +14,8 @@ interface FixtureMessage {
   replyTo?: { id: number; from: number };
   mention?: boolean;
   edit?: number;
+  /** Sends the text as the caption of a document with this name and content. */
+  document?: { name: string; content: string };
 }
 
 /** Local Telegram Bot API boundary: long-polled updates, confirmed by offset, and recorded writes. */
@@ -25,6 +27,7 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
   let nextUpdate = 1;
   let nextMessage = 5000;
   let polls = 0;
+  const files = new Map<string, string>();
   let wake: (() => void) | undefined;
 
   const reply = (result: Schema.Json) => Response.json({ ok: true, result });
@@ -62,6 +65,16 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
     return reply({ message_id: ++nextMessage, chat: { id: Number(body["chat_id"]) }, date: 1 });
   }
 
+  /** Serves /file/bot<token>/documents/<file_id> as Telegram's file host does. */
+  function download(path: string) {
+    const [, , token, , fileId = ""] = path.split("/");
+    const content = files.get(fileId);
+
+    return token === `bot${telegramToken}` && content !== undefined
+      ? new Response(content)
+      : new Response(null, { status: 404 });
+  }
+
   /** Records a multipart upload by its fields, file name and size. */
   async function upload(request: Request, method: "sendPhoto" | "sendDocument") {
     const form = await request.formData();
@@ -84,6 +97,8 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
     fetch: async (request) => {
       const [, bot, method] = new URL(request.url).pathname.split("/");
 
+      if (bot === "file") return download(new URL(request.url).pathname);
+
       if (bot !== `bot${telegramToken}`) return Response.json({ ok: false, error_code: 401 }, { status: 401 });
 
       if (method === "sendPhoto" || method === "sendDocument") return sendMessage(await upload(request, method));
@@ -94,6 +109,15 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
       if (method === "getWebhookInfo") return reply({ url: options.webhook ?? "" });
 
       if (method === "getUpdates") return getUpdates(body);
+
+      if (method === "getFile") {
+        const fileId = String(body["file_id"]);
+        const content = files.get(fileId);
+
+        return content === undefined
+          ? Response.json({ ok: false, error_code: 400, description: "Bad Request: invalid file_id" }, { status: 400 })
+          : reply({ file_id: fileId, file_size: content.length, file_path: `documents/${fileId}` });
+      }
 
       if (method === "sendMessage") return sendMessage({ method, ...body });
 
@@ -121,13 +145,23 @@ export function telegramMessengerFixture(options: { webhook?: string } = {}) {
       const mention = message.mention ? "@canopy_fixture_bot " : "";
       const text = `${mention}${message.text}`;
 
+      const fileId = `DOC${updateId}fixturefile`;
+
+      if (message.document) files.set(fileId, message.document.content);
+      const entities = message.mention && [{ type: "mention", offset: 0, length: mention.length - 1 }];
+
       const payload = {
         message_id: messageId,
         from: { id: message.from, is_bot: false, first_name: "Fixture" },
         chat: { id: message.chat, type: message.chatType ?? (message.chat > 0 ? "private" : "supergroup") },
         date: 1_700_000_000 + updateId,
-        text,
-        ...(message.mention && { entities: [{ type: "mention", offset: 0, length: mention.length - 1 }] }),
+        ...(message.document
+          ? {
+              caption: text,
+              document: { file_id: fileId, file_name: message.document.name },
+              ...(entities && { caption_entities: entities }),
+            }
+          : { text, ...(entities && { entities }) }),
         ...(message.edit && { edit_date: 1_700_000_100 + updateId }),
         ...(message.replyTo && {
           reply_to_message: {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { setTimeout as delay } from "node:timers/promises";
 import { Schema } from "effect";
 import { discordAdapter } from "../../apps/gateway/src/messengers/discord.ts";
+import { DiscordChannels, discordEvent } from "../../apps/gateway/src/messengers/discord-events.ts";
 import type { MessengerEvent } from "../../apps/gateway/src/messengers/types.ts";
 import {
   discordBot,
@@ -219,5 +220,53 @@ describe("Discord reply files", () => {
     });
     expect(f.sent[1]!.body["content"]).toBeUndefined();
     expect(f.sent[1]!.body["message_reference"]).toBeUndefined();
+  });
+});
+
+describe("Discord inbound files", () => {
+  const cdn =
+    "https://cdn.discordapp.com/attachments/200000000000000001/900000000000000001/report%20v2.pdf?ex=1&is=2&hm=3";
+
+  test("attachments become file references, and a message with only files is kept", () => {
+    const event = discordEvent(
+      "MESSAGE_CREATE",
+      message("600000000000000009", {
+        content: "",
+        attachments: [{ url: cdn }, { url: "https://evil.example/attachments/1/2/x.pdf" }],
+      }),
+      "account",
+      discordBot,
+      new DiscordChannels(),
+    );
+
+    expect(event).toMatchObject({ text: "", fileIds: [cdn] });
+  });
+
+  test("downloads come only from Discord's CDN, without the bot token", async () => {
+    const requests: Request[] = [];
+
+    const transport = {
+      fetch: async (input: string | URL | Request, init?: RequestInit) => {
+        requests.push(new Request(input, init));
+
+        return new Response("pdf bytes");
+      },
+    };
+
+    const signal = AbortSignal.timeout(2000);
+    const file = await discordAdapter.download(credentials, cdn, 1024, signal, transport);
+
+    expect(file).toEqual({ name: "report v2.pdf", data: new Uint8Array(Buffer.from("pdf bytes")) });
+    expect(requests[0]!.headers.get("authorization")).toBeNull();
+
+    const foreign = await discordAdapter
+      .download(credentials, "https://evil.example/attachments/1/2/x.pdf", 1024, signal, transport)
+      .then(
+        () => undefined,
+        (error: Error) => error,
+      );
+
+    expect(foreign).toMatchObject({ kind: "configuration", code: "invalid_file_url" });
+    expect(requests).toHaveLength(1);
   });
 });

@@ -239,3 +239,71 @@ test.skipIf(!dockerAvailable)(
   },
   60_000,
 );
+
+test.skipIf(!dockerAvailable)(
+  "a document sent to the bot reaches the bot turn as an attachment",
+  async () => {
+    const telegram = telegramMessengerFixture();
+    const content = "Fixture content read from the Telegram document";
+    let clockOffset = 0;
+
+    const f = await harnessBots({
+      messengerTransport: telegram.transport,
+      botClock: () => new Date(Date.now() + clockOffset),
+    });
+
+    try {
+      const bot = await f.add(Provider.CODEX);
+
+      const account = (
+        await f.gw.api.saveMessengerAccount({ name: "Fixture Telegram", provider: "telegram", botToken: telegramToken })
+      ).account!;
+
+      await f.gw.api.saveBotMessengerRoute({
+        route: {
+          botId: bot.id,
+          accountId: account.id,
+          channelIds: ["-100200"],
+          userIds: ["42"],
+          mentions: true,
+          delivery: "reply",
+          instructions: "Summarize shared files.",
+        },
+      });
+      f.gw.core.messengers.start();
+
+      const sent = telegram.emit({
+        chat: -100200,
+        from: 42,
+        text: "summarize this",
+        mention: true,
+        document: { name: "report.txt", content },
+      });
+
+      await eventually(async () => telegram.acknowledged(sent.updateId), Boolean);
+      clockOffset += 4000;
+      await f.gw.core.messengers.tick();
+      await eventually(
+        async () => telegram.sent.length,
+        (n) => n === 1,
+      );
+
+      const prompt = f
+        .inputs()
+        .at(-1)
+        ?.parts.map((part) => part.text)
+        .join("\n");
+
+      expect(prompt).toContain("summarize this");
+      expect(prompt).toContain(content);
+      expect(prompt).not.toContain("attachments were unavailable");
+      expect(await f.query("SELECT slack_file_id, name FROM attachments WHERE bot_id=$1", [bot.id])).toEqual([
+        { slack_file_id: `DOC${sent.updateId}fixturefile/report.txt`, name: "report.txt" },
+      ]);
+    } finally {
+      await f.close();
+      await telegram.close();
+    }
+  },
+  60_000,
+);

@@ -38,6 +38,11 @@ export interface MessengerRunOptions {
   transport?: MessengerTransport;
 }
 
+export interface InboundFile {
+  name: string;
+  data: Uint8Array;
+}
+
 export interface MessengerSendResult {
   channelId: string;
   messageId: string;
@@ -53,6 +58,16 @@ export interface MessengerAdapter {
   readonly channelContext: boolean;
   /** Largest file the provider accepts from a bot. */
   readonly maxFileBytes: number;
+  /** Shape of a stored inbound file reference, checked again before every download. */
+  readonly fileReference: RegExp;
+  /** Downloads one file a participant attached, within maxBytes. Throws MessengerError. */
+  download(
+    credentials: MessengerCredentials,
+    reference: string,
+    maxBytes: number,
+    signal: AbortSignal,
+    transport?: MessengerTransport,
+  ): Promise<InboundFile>;
   validate(
     credentials: MessengerCredentials,
     signal?: AbortSignal,

@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { Option, Schema } from "effect";
-import { DiscordChannels, DiscordUser } from "./discord-events.ts";
+import { DiscordChannels, DiscordUser, discordFileReference } from "./discord-events.ts";
 import { discordGateway, type DiscordState } from "./discord-gateway.ts";
 import { discordError, discordRequest } from "./discord-http.ts";
-import { discordForm, discordMessages } from "./discord-files.ts";
+import { discordForm, discordMessages, downloadDiscordFile } from "./discord-files.ts";
 import { runWithReconnect, sendInOrder, type MessengerAdapter, type MessengerTransport } from "./provider.ts";
 import type { MessengerCredentials, OutboundMessage } from "./types.ts";
 
@@ -62,6 +62,8 @@ export const discordAdapter: MessengerAdapter = {
   userId: snowflake,
   channelContext: false,
   maxFileBytes,
+  fileReference: discordFileReference,
+  download: (_credentials, url, maxBytes, signal, transport) => downloadDiscordFile(url, maxBytes, signal, transport),
   async validate(credentials, signal, transport) {
     const id = await botUser(credentials, signal, transport);
     const timeout = AbortSignal.timeout(20_000);
