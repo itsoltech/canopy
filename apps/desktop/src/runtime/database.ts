@@ -70,6 +70,9 @@ export async function startDatabase(options: {
       // those writes. max_wal_size stays at its default, so crash recovery stays short.
       "-c",
       "checkpoint_timeout=15min",
+      // The 4 MB default spills ordinary sorts and hashes to temporary files.
+      "-c",
+      "work_mem=16MB",
     ],
     cwd: directory,
     env,

@@ -59,6 +59,10 @@ na rekord o ok. 2/3. Kosztem jest do ok. 4 GB plików WAL na dysku i dłuższe o
 po awarii. Własny PostgreSQL można skonfigurować tak samo (`ALTER SYSTEM SET …` i
 `SELECT pg_reload_conf()`, bez restartu). Istniejący kontener przyjmuje nowe parametry
 po `docker compose up -d --no-deps postgres`.
+`work_mem=16MB` (domyślnie 4 MB) to pamięć jednej operacji sortowania lub złączenia. Gdy wynik
+się nie mieści, PostgreSQL zapisuje go do pliku tymczasowego i od razu usuwa. Miejsca to nie zajmuje,
+ale zapisuje dysk. Limit dotyczy każdej takiej operacji w każdym połączeniu, więc przy kilkunastu
+połączeniach gatewaya zapas pamięci zostaje duży.
 Szczegóły cache i blokady zmiany major: [desktop.md](desktop.md#postgresql-pobierany-dla-trybu-lokalnego).
 
 ## Wybór kanału
