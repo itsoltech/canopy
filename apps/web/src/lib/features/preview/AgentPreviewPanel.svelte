@@ -3,16 +3,18 @@
   import { onMount, tick, untrack } from "svelte";
   import { create } from "@bufbuild/protobuf";
   import { AgentPreviewInputSchema, AgentTool, type AgentPreviewTarget, type ui } from "@canopy/contracts";
-  import Select from "#lib/shared/ui/Select.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
+  import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import { PreviewSession } from "./preview-session.svelte.ts";
   import { previewScope, previewScopeKey } from "./preview-client.ts";
   import { isPreviewReady } from "./preview-readiness.ts";
   import { openPreviewWindow, previewWindowPath } from "./preview-window.ts";
   import AgentPreviewCanvas from "./AgentPreviewCanvas.svelte";
+  import PreviewSourceMenu from "./PreviewSourceMenu.svelte";
+  import PreviewStatusBar, { type PreviewStatus } from "./PreviewStatusBar.svelte";
   import PreviewToolbar from "./PreviewToolbar.svelte";
   import PreviewUnavailable from "./PreviewUnavailable.svelte";
   import type { PreviewSelection } from "./automatic-preview.svelte.ts";
@@ -69,6 +71,19 @@
   const allowed = $derived(!unavailable && Boolean(item?.enabled && isPreviewReady(item.tool) && !item.blockedReason));
   const live = $derived(["ready", "frame"].includes(session.state));
   const failed = $derived(["error", "closed"].includes(session.state));
+  const interactive = $derived(live && Boolean(session.frame));
+  let focused = $state(false);
+
+  const status = $derived.by((): PreviewStatus => {
+    if (live && !session.frame) return { label: "Waiting", tone: "neutral" };
+
+    if (live) return { label: session.mode === "screenshots" ? "Screenshots" : "Live", tone: "emerald" };
+
+    if (failed) return { label: "Disconnected", tone: "rose" };
+
+    return { label: allowed ? "Connecting…" : "Not ready", tone: "neutral" };
+  });
+
   const scopeKey = $derived(previewScopeKey(threadId, worker?.id ?? "", tool, target));
 
   $effect(() => {
@@ -119,8 +134,8 @@
     return untrack(() => session.connect(threadId, previewScope(tool, target)));
   });
 
-  function chooseTool(value: string): void {
-    tool = Number(value);
+  function chooseTool(value: AgentTool): void {
+    tool = value;
     target = undefined;
   }
 
@@ -173,85 +188,62 @@
 <div
   bind:this={root}
   class={[
-    "density-chrome flex h-full min-h-0 min-w-0 flex-col bg-surface text-ink",
+    "density-chrome @container flex h-full min-h-0 min-w-0 flex-col bg-surface text-ink",
     expanded && "fixed inset-0 z-50 h-dvh w-screen",
   ]}
 >
-  <div class="flex min-h-11 shrink-0 items-center gap-2 border-b border-divider px-3">
-    <div class="min-w-0 flex-1">
-      <Select
-        inline="muted"
-        aria-label="Preview target"
-        value={String(tool)}
-        options={[
-          { value: String(AgentTool.BROWSER), label: "Browser", icon: "globe-alt" },
-          { value: String(AgentTool.DEVICE), label: "Device", icon: "square" },
-          { value: String(AgentTool.DESKTOP), label: "Desktop", icon: "computer-desktop" },
-        ]}
-        onchange={chooseTool}
+  <div class="flex min-h-10 shrink-0 flex-wrap items-center gap-x-1 gap-y-1.5 border-b border-divider px-2 py-1.5">
+    <PreviewSourceMenu {tool} onchange={chooseTool} />
+    {#if allowed}
+      <PreviewToolbar
+        {tool}
+        url={session.url}
+        targets={session.targets}
+        targetId={tool === AgentTool.BROWSER ? session.targetId : target?.id || session.targetId}
+        enabled={live}
+        oninput={(input) => session.input(input)}
+        onselect={chooseTarget}
+        bind:focusAddress
+        class="order-last flex-1 basis-full @md:order-none @md:basis-0"
+      />
+    {/if}
+    <div class="ml-auto flex shrink-0 items-center gap-0.5">
+      <IconButton
+        size="sm"
+        icon={fit === "fit" ? "arrows-pointing-out" : "arrows-pointing-in"}
+        label={fit === "fit" ? "Show actual size" : location === "window" ? "Fit to window" : "Fit to panel"}
+        disabled={!live}
+        onclick={() => (fit = fit === "fit" ? "actual" : "fit")}
+      />
+      {#if onmove}
+        <DropdownMenu label="Preview placement" placement="bottom-end">
+          {#snippet trigger(props)}
+            <IconButton size="sm" icon="ellipsis-horizontal" label="More preview actions" {...props} />
+          {/snippet}
+          <MenuItem
+            icon={location === "sidebar" ? "square-2-stack" : "view-columns"}
+            onselect={() => void move().catch(() => {})}
+            >{location === "sidebar" ? "Open in tab" : "Open in sidebar"}</MenuItem
+          >
+          {#if canOpenWindow}
+            <MenuItem icon="window" disabled={openingWindow} onselect={() => void openWindow()}
+              >Open in new window</MenuItem
+            >
+          {/if}
+        </DropdownMenu>
+      {/if}
+      <IconButton
+        size="sm"
+        icon={expanded ? "arrows-pointing-in" : "arrow-top-right-on-square"}
+        label={expanded ? (location === "window" ? "Restore preview" : "Exit fullscreen") : "Expand preview"}
+        onclick={() => void toggleExpanded().catch(() => {})}
       />
     </div>
-    {#if !unavailable}
-      <div class="flex shrink-0 items-center gap-1.5 text-xs text-muted" role="status">
-        <StatusDot tone={live && session.frame ? "emerald" : failed ? "rose" : "neutral"} />
-        {live && !session.frame
-          ? "Waiting"
-          : live
-            ? session.mode === "screenshots"
-              ? "Screenshots"
-              : "Live"
-            : failed
-              ? "Disconnected"
-              : allowed
-                ? "Connecting…"
-                : "Not ready"}
-      </div>
-    {/if}
-    <IconButton
-      size="sm"
-      icon={fit === "fit" ? "arrows-pointing-out" : "arrows-pointing-in"}
-      label={fit === "fit" ? "Show actual size" : location === "window" ? "Fit to window" : "Fit to panel"}
-      disabled={!live}
-      onclick={() => (fit = fit === "fit" ? "actual" : "fit")}
-    />
-    {#if onmove}
-      <IconButton
-        size="sm"
-        icon={location === "sidebar" ? "square-2-stack" : "view-columns"}
-        label={location === "sidebar" ? "Open in tab" : "Open in sidebar"}
-        onclick={() => void move().catch(() => {})}
-      />
-    {/if}
-    {#if onmove && canOpenWindow}
-      <IconButton
-        size="sm"
-        icon="window"
-        label="Open in new window"
-        disabled={openingWindow}
-        onclick={() => void openWindow()}
-      />
-    {/if}
-    <IconButton
-      size="sm"
-      icon={expanded ? "arrows-pointing-in" : "arrow-top-right-on-square"}
-      label={expanded ? (location === "window" ? "Restore preview" : "Exit fullscreen") : "Expand preview"}
-      onclick={() => void toggleExpanded().catch(() => {})}
-    />
   </div>
   {#if windowError}
     <p class="border-b border-divider px-3 py-2 text-xs text-rose-700 dark:text-rose-400" role="alert">{windowError}</p>
   {/if}
   {#if allowed}
-    <PreviewToolbar
-      {tool}
-      url={session.url}
-      targets={session.targets}
-      targetId={tool === AgentTool.BROWSER ? session.targetId : target?.id || session.targetId}
-      enabled={live}
-      oninput={(input) => session.input(input)}
-      onselect={chooseTarget}
-      bind:focusAddress
-    />
     {#if failed}
       <div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
         <p class="text-sm/5 font-medium">Preview unavailable</p>
@@ -265,33 +257,39 @@
           </div>{/if}
       </div>
     {:else}
-      <div class="flex min-h-0 flex-1 flex-col p-3">
-        <AgentPreviewCanvas
-          event={session.frame}
-          previewId={session.previewId}
-          enabled={live && Boolean(session.frame)}
-          emptyText={session.detail || "Waiting for the first live frame…"}
-          notice={session.frame ? session.notice : ""}
-          bind:fit
-          browser={tool === AgentTool.BROWSER}
-          onaddress={tool === AgentTool.BROWSER ? focusAddress : undefined}
-          oninput={(input) => session.input(input)}
-          onpaint={(frame) => session.painted(frame)}
-          onframeerror={(frame) => session.frameError(frame)}
-        />
-      </div>
+      <AgentPreviewCanvas
+        event={session.frame}
+        previewId={session.previewId}
+        enabled={interactive}
+        emptyText={session.detail || "Waiting for the first live frame…"}
+        notice={session.frame ? session.notice : ""}
+        bind:fit
+        bind:focused
+        browser={tool === AgentTool.BROWSER}
+        onaddress={tool === AgentTool.BROWSER ? focusAddress : undefined}
+        oninput={(input) => session.input(input)}
+        onpaint={(frame) => session.painted(frame)}
+        onframeerror={(frame) => session.frameError(frame)}
+      />
     {/if}
   {:else}
     <PreviewUnavailable {worker} {tool} {item} offline={unavailable} standalone={location === "window"} />
   {/if}
-  <div
-    class="flex h-8 shrink-0 items-center gap-2 border-t border-divider px-3 text-xs text-muted"
-    title={`${worker?.name || "Computer"} · ${session.title || target?.label || "This thread"}`}
-  >
-    <span class="min-w-0 flex-1 truncate"
-      >{worker?.name || "Computer"} · {session.title || target?.label || "This thread"}</span
-    >
-    {#if session.frame?.width}<span class="shrink-0 tabular-nums">{session.frame.width} × {session.frame.height}</span
-      >{/if}
-  </div>
+  <PreviewStatusBar
+    status={unavailable ? undefined : status}
+    context={`${worker?.name || "Computer"} · ${session.title || target?.label || "This thread"}`}
+    focused={focused && interactive}
+    {interactive}
+    viewport={allowed && !failed && tool === AgentTool.BROWSER && session.frame
+      ? {
+          width: session.frame.viewportWidth || session.frame.width,
+          height: session.frame.viewportHeight || session.frame.height,
+          enabled: interactive,
+        }
+      : undefined}
+    size={session.frame}
+    onresize={(width, height) => {
+      if (interactive) session.input(create(AgentPreviewInputSchema, { kind: "resize", width, height }));
+    }}
+  />
 </div>

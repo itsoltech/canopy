@@ -1,5 +1,10 @@
 # Narzędzia automatyzacji agentów
 
+Aktualizacja (2026-11-28). Interaktywny Preview w web/desktop ma jeden pasek
+narzędzi, obraz od krawędzi do krawędzi panelu i cienki pasek stanu z rozmiarem
+viewportu otwieranym jako popover z gotowymi rozmiarami.
+[Interaktywny Preview wątku](#interaktywny-preview-wątku)
+
 Aktualizacja (2026-11-26). Agent Browser udostępnia stan i obsługę dialogów
 JavaScript oraz otwieranie stron z HTTP Basic Auth przez prywatny sekret wątku.
 Dialog podczas nawigacji jest zgłaszany agentowi jeszcze przed zakończeniem
@@ -57,7 +62,8 @@ Po ponownym otwarciu wątku jego cel ustala bieżąca aktywność.
 Zwijanie i rozwijanie mini Preview używa tego samego przycisku ikonowego z chevronem,
 tooltipem i dostępną nazwą; nagłówek zachowuje układ w obu stanach.
 Interaktywny Preview dopasowuje cały obraz do szerokości i wysokości panelu.
-Pola wymiarów viewportu nie mają przycisków +/−; pasek zawija kontrolki w wąskim panelu.
+Pola wymiarów viewportu nie mają przycisków +/−; w wąskim panelu pasek adresu
+przechodzi do drugiego wiersza.
 Uchwyty viewportu leżą poza obrazem; przeciąganie pokazuje lokalną ramkę,
 a zmianę rozmiaru wysyła dopiero puszczenie wskaźnika.
 Gotowość Desktop wymaga uprawnienia Screen Recording tylko na macOS;
@@ -450,9 +456,22 @@ Dotyczy to mini Preview, panelu, osobnego okna i pełnoekranowego Preview na tel
 
 ## Interaktywny Preview wątku
 
-W web/desktop prawy panel łączy **Files** i **Preview**. Preview wybiera
-**Browser**, **Desktop** albo **Device** i pokazuje kompaktowy wybór celu;
-Browser ma adres oraz `Back`/`Forward`/`Reload page`. Użytkownik działa bezpośrednio
+W web/desktop prawy panel łączy **Files** i **Preview**. Preview ma jeden pasek
+narzędzi. Po lewej menu `Preview source` wybiera **Browser**, **Desktop** albo
+**Device**. Desktop i Device pokazują ikonę z nazwą; Browser pokazuje nazwę obok
+ikony od szerokości 42 rem, bo pasek adresu potrzebuje miejsca. Obok Browser ma `Back`/`Forward`/`Reload page`, adres i, przy kilku
+kartach, przycisk z liczbą kart otwierający ich listę. Desktop i Device mają
+wybór okna lub urządzenia dopasowany do długości nazwy, a Device także `Device home`.
+Po prawej stoją skala, menu `More preview actions` (`Open in tab`/`Open in sidebar`,
+`Open in new window`) i pełny ekran. Gdy panel ma mniej niż 28 rem, nawigacja
+z adresem przechodzi do drugiego wiersza, a źródło i akcje zostają w pierwszym.
+Obraz wypełnia cały obszar pod paskiem, bez dodatkowej ramki; sterowanie
+klawiaturą zaznacza krawędź obrazu. Pasek stanu na dole pokazuje stan
+połączenia (`Live`, `Screenshots`, `Waiting`, `Connecting…`, `Disconnected`,
+`Not ready`), komputer z tytułem strony lub celem, podpowiedź
+`Click the preview to control it` (od 28 rem) albo `Keyboard active · Esc to release`
+oraz rozmiar. Krótkie komunikaty narzędzia pojawiają się nad dolną krawędzią obrazu.
+Użytkownik działa bezpośrednio
 na obrazie myszą, klawiaturą i gestami. Kliknięcie przejmuje fokus klawiatury,
 tekst obsługuje IME i wklejanie, a Escape zwalnia sterowanie i przenosi fokus
 na obraz. Zmiana rozmiaru, dopasowanie i pełny ekran nie tworzą kolejnej sesji;
@@ -486,15 +505,16 @@ wysyła jedno `Resize`, jeśli rozmiar się zmienił. Escape, utrata fokusu okna
 anulowanie gestu lub utrata przechwycenia wskaźnika odrzucają podgląd bez wysyłania
 zmiany. Strzałki na uchwycie nadal zmieniają rozmiar od razu (16 px, z Shift 64 px).
 
-Pola `Viewport width` i `Viewport height` pozwalają wpisać wymiary bez przycisków
-+/−. Klawiaturowe strzałki nadal zmieniają wartość o jeden. `Apply` zachowuje
-jawną zmianę viewportu i dotychczasowy zakres 1–8192 px. Przy mniejszej szerokości
-komunikat o sterowaniu i kontrolki przechodzą do kolejnego wiersza zamiast znikać
-poza krawędzią panelu; oba pola i `Apply` pozostają dostępne.
+W Browser rozmiar viewportu w pasku stanu jest przyciskiem otwierającym popover
+`Viewport size`. Gotowe rozmiary (te same co w ustawieniach sesji) wysyłają zmianę
+od razu. Pola `Viewport width` i `Viewport height` pozwalają wpisać wymiary bez
+przycisków +/−; klawiaturowe strzałki nadal zmieniają wartość o jeden. `Apply`
+zachowuje jawną zmianę viewportu i dotychczasowy zakres 1–8192 px. Desktop i Device
+pokazują w tym miejscu rozmiar klatki bez edycji.
 
 | Widok | Obraz i wybór celu | Sterowanie i ograniczenia |
 |---|---|---|
-| Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; przekazuje listę kart i pozwala wybrać aktywną kartę w pasku Preview. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja oraz przełączanie kart przez CLI. Preview nie zmienia viewportu przy zmianie szerokości panelu; pola `Width` i `Height` oraz uchwyty krawędzi wysyłają jawne `Resize`, a ich wartości są niezależne od rozmiaru panelu. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
+| Browser | Natywny WebSocket `agent-browser` dla sesji Chrome wątku; przekazuje listę kart i pozwala wybrać aktywną kartę w pasku Preview. | Pointer, przyciski, kółko, klawisze i tekst przez natywny strumień; nawigacja oraz przełączanie kart przez CLI. Preview nie zmienia viewportu przy zmianie szerokości panelu; popover rozmiaru w pasku stanu oraz uchwyty krawędzi wysyłają jawne `Resize`, a ich wartości są niezależne od rozmiaru panelu. Zamknięcie Preview zwalnia jego WebSocket i utworzony przez niego stream, zachowując sesję agenta. |
 | Desktop | Współdzielona pętla zrzutów podąża za ostatnią rozpoznaną akcją włączonego kursora w zakresie wybranej aplikacji. W pozostałych przypadkach wybiera aktywne okno lub jedyne dostępne okno wskazanej aplikacji. Jawny wybór okna ma pierwszeństwo. | Kliknięcie i przeciągnięcie są atomowymi operacjami po puszczeniu przycisku; drag obsługuje tylko przycisk główny. Backend nie utrzymuje wciśniętej myszy ani klawisza. Klawisze używają `press`, tekst — świeżego refa aktywnego pola accessibility i `type`, bez schowka systemowego. |
 | Device | Współdzielona, anulowalna pętla zrzutów; domyślny cel podąża za urządzeniem sesji wątku albo jedynym dostępnym, zgodnym z platformą. Jawny wybór urządzenia pozostaje przypięty w granicach sesji; alias `apple` dopasowuje iOS i macOS. | Tap i swipe głównym wskaźnikiem po puszczeniu, kierunkowy scroll oraz `type`. Enter/Back/Home działają według możliwości backendu; edycję klawiaturą Android opisano niżej. Skróty z modyfikatorami zwracają jawny błąd. |
 
