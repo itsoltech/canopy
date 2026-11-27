@@ -217,12 +217,14 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
 
         return () => readFileSync(path, "utf8");
       },
-      pairAgain: async (version = status.version) => {
+      pairAgain: async (version = status.version, pairing?: typeof client) => {
         coordinator.stop();
         control.stop();
-        client = await pairDesktop(
-          toJsonString(ui.CreateMobilePairingResponseSchema, await gw.api.createDesktopPairing({})),
-        );
+        client =
+          pairing ??
+          (await pairDesktop(
+            toJsonString(ui.CreateMobilePairingResponseSchema, await gw.api.createDesktopPairing({})),
+          ));
         status = { ...status, version, phase: "idle", updateVersion: undefined };
         await connect();
       },
@@ -442,7 +444,7 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
 
   test("a new pairing takes over the same worker's disconnected update channel without revocation", async () => {
     const app = await fixture();
-    const oldDevice = app.client.deviceId;
+    const oldClient = app.client;
     app.result("older");
     await manage(app.workerId);
     await until(async () => (await state(app.workerId))?.phase === "failed");
@@ -461,8 +463,43 @@ describe.skipIf(!dockerAvailable)("gateway ↔ desktop app updates over pinned T
     expect(app.counts().checks).toBe(1);
 
     const { devices } = await gw.api.getMobileDevices({});
-    expect(app.client.deviceId).not.toBe(oldDevice);
-    expect(devices.filter((device) => !device.revokedAt).map((device) => device.id)).toContain(oldDevice);
+    expect(app.client.deviceId).not.toBe(oldClient.deviceId);
+    expect(devices.filter((device) => !device.revokedAt).map((device) => device.id)).toContain(oldClient.deviceId);
+
+    app.stop();
+    await until(async () => (await state(app.workerId))?.connected === false);
+    await app.pairAgain("1.2.0", oldClient);
+    app.stage("1.3.0-beta.1");
+    await app.publish();
+    await until(async () => (await state(app.workerId))?.availableVersion === "1.3.0-beta.1");
+    expect(await state(app.workerId)).toMatchObject({ phase: "idle", requestId: "", targetVersion: "" });
+    expect(app.counts().checks).toBe(1);
+  }, 15_000);
+
+  test("ending the replacement session during bind preserves the previous update request", async () => {
+    const app = await fixture();
+    app.result("older");
+    await manage(app.workerId);
+    await until(async () => (await state(app.workerId))?.phase === "failed");
+    const previous = (await state(app.workerId))!.requestId;
+    app.stop();
+    await until(async () => (await state(app.workerId))?.connected === false);
+
+    const candidate = await pairDesktop(
+      toJsonString(ui.CreateMobilePairingResponseSchema, await gw.api.createDesktopPairing({})),
+    );
+
+    const { deviceId } = app.client;
+    const store = new DesktopUpdateStore(gw.runtime, gw.userId);
+
+    expect(await failure(store.bind(app.workerId, candidate.deviceId, () => false, deviceId))).toContain(
+      "Desktop session not confirmed",
+    );
+    expect((await store.list()).find((row) => row.workerId === app.workerId)).toMatchObject({
+      deviceId,
+      command: { requestId: previous },
+      state: { requestId: previous, phase: "failed" },
+    });
   }, 15_000);
 
   test("unreadable local history keeps the app connected but disables remote replay", async () => {

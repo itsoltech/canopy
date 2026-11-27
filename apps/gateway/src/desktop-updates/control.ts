@@ -73,6 +73,20 @@ function foundRelease(hello: ui.DesktopHello, state: ui.DesktopUpdateState): Fou
   return version ? { channel: hello.channel, version } : undefined;
 }
 
+/** A previously paired device can return with an old request in its local journal. */
+function withoutPreviousRequest(state: ui.DesktopUpdateState): ui.DesktopUpdateState {
+  return {
+    ...state,
+    requestId: "",
+    revision: 0,
+    phase: "idle",
+    reason: "",
+    progress: 0,
+    targetVersion: "",
+    availableVersion: state.updaterVersion || (state.updaterCurrent ? state.version : ""),
+  };
+}
+
 /** A found release this app should hear about: same channel, newer than all it knows, not announced to it yet. */
 function releaseNews(release: FoundRelease, session: Session, state: ui.DesktopUpdateState) {
   return (
@@ -162,18 +176,16 @@ export class DesktopControl {
             const replace =
               previous && !(incumbent?.confirmed && !incumbent.channel.closed) ? previous.deviceId : undefined;
 
-            if (!(await this.store.bind(workerId, proof.deviceId, replace)))
-              throw new ConnectError("Owned desktop worker required", Code.PermissionDenied);
+            const current = () => this.sessions.get(proof.deviceId) === session && !session.channel.closed;
+            const command = await this.store.bind(workerId, proof.deviceId, current, replace);
 
-            if (this.sessions.get(proof.deviceId) !== session || session.channel.closed)
-              throw new ConnectError("Desktop session not confirmed", Code.FailedPrecondition);
+            if (!command) throw new ConnectError("Owned desktop worker required", Code.PermissionDenied);
             session.confirmed = true;
-            const row = (await this.store.list()).find((r) => r.workerId === workerId);
             session.channel.push(
               create(ui.DesktopControlEventSchema, {
                 sessionId: session.id,
                 confirmed: true,
-                ...(row?.command.requestId && { command: row.command }),
+                ...(command.requestId && { command }),
               }),
             );
           });
@@ -325,19 +337,21 @@ export class DesktopControl {
   }
   private async report(deviceId: string, report: ui.DesktopReport) {
     const session = this.sessions.get(deviceId);
-    const state = report.state;
+    let state = report.state;
 
     if (!session?.confirmed || session.id !== report.sessionId || !state || state.workerId !== session.hello.workerId)
       throw new ConnectError("Desktop session not confirmed", Code.FailedPrecondition);
 
     validDesktopState(state, session.hello);
     session.disabledReason = state.disabledReason;
-    const found = foundRelease(session.hello, state);
     const row = (await this.store.list()).find((r) => r.deviceId === deviceId);
+    const requestId = row?.command.requestId;
 
-    if (row?.command.requestId && !state.requestId) return found;
+    if (!row || (requestId && state.requestId !== requestId)) return foundRelease(session.hello, state);
 
-    if (!row || (state.requestId && state.requestId !== row.command.requestId)) return found;
+    if (!requestId && state.requestId) state = withoutPreviousRequest(state);
+
+    const found = foundRelease(session.hello, state);
 
     if (state.requestId && state.revision <= row.state.revision && state.requestId === row.state.requestId)
       return found;

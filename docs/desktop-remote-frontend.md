@@ -294,6 +294,8 @@ powiązanie, gdy poprzednie urządzenie straciło dostęp lub jego potwierdzony
 strumień aktualizacji się zakończył. Nowa sesja potwierdza poświadczenie tej samej
 rejestracji workera i dostaje własny stan i komendę. Dostęp sparowanych urządzeń
 nadal można odwołać indywidualnie. Odwołanie zamyka strumień urządzenia.
+Po powrocie wcześniejszego parowania gateway przyjmuje bieżący raport aktualizatora
+i pomija stan historycznego żądania, którego już nie przechowuje.
 `canopy.update.v1` i protokół WorkerLink pozostają bez zmian.
 
 Controller przekazuje komendę prywatnym stdio do main; `RemoteAppUpdate` wywołuje
