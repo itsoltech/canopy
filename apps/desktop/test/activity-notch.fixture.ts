@@ -100,7 +100,7 @@ function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: 
   const compact = Math.max(200, cutout ? Math.ceil(cutout.width) + 2 : 0) + 80;
   // The window keeps the open panel's left edge and width, so the notch never shifts sideways.
   const width = Math.min(area.width, Math.max(480, compact) + 16);
-  const height = headerHeight + (rows ? Math.min(rows, 7) * 32 + 8 : 0);
+  const height = headerHeight + (rows ? Math.min(rows, 5) * 72 + 8 : 0);
   const x = Math.min(area.x + area.width - width, Math.max(area.x, Math.round(center - width / 2)));
 
   assertDimension("top", native.y, mac ? bounds.y : workArea.y);
