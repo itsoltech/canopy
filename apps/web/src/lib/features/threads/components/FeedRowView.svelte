@@ -208,13 +208,7 @@
     <AnswerSlot row={row.row} />
   {:else if row.work}
     <!-- The rule continues the fold's chevron (size-4, centred at 8px); it runs through the row gap. -->
-    <div
-      class={[
-        "ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10",
-        !attached() && "-mb-1 pb-1",
-        lead(row),
-      ]}
-    >
+    <div class={["ml-2 border-l border-zinc-950/10 pl-4 dark:border-white/10", !attached() && "-mb-1 pb-1", lead(row)]}>
       {#if row.group}
         <div class={[activitySurface, "activity-group-row px-2 pb-1"]} data-end={row.group === "end" || undefined}>
           <TimelineRowView row={row.row} />
