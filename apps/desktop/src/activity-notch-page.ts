@@ -318,6 +318,9 @@ const script = `
   reducedMotion.addEventListener("change", () => {
     if (reducedMotion.matches) rowAnimations.forEach((animation) => animation.cancel());
   });
+  // The transparent sides of the window pass the pointer through to the apps below.
+  surface.addEventListener("pointerenter", () => bridge.setInteractive(true));
+  surface.addEventListener("pointerleave", () => bridge.setInteractive(false));
   surface.addEventListener("pointerenter", (event) => {
     if (event.pointerType !== "mouse" || toggle.disabled) return;
     clearTimeout(collapseTimer);

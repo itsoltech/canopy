@@ -51,11 +51,11 @@ function receiveLayout(overlay: BrowserWindow) {
   const previousHeight = overlay.getBounds().height;
   const channel = "activity-notch-fixture:received-layout";
 
-  return new Promise<{ layout: ActivityNotchLayout; nativeWidth: number }>((resolve) => {
+  return new Promise<{ layout: ActivityNotchLayout }>((resolve) => {
     const receive = (event: IpcMainEvent, layout: ActivityNotchLayout) => {
       if (event.sender !== overlay.webContents || layout.height === previousHeight) return;
       ipcMain.off(channel, receive);
-      resolve({ layout, nativeWidth: overlay.getBounds().width });
+      resolve({ layout });
     };
 
     ipcMain.on(channel, receive);
@@ -65,9 +65,7 @@ function receiveLayout(overlay: BrowserWindow) {
 function waitForNativeSize(overlay: BrowserWindow, layout: ActivityNotchLayout) {
   return new Promise<void>((resolve) => {
     const inspect = () => {
-      const { width, height } = overlay.getBounds();
-
-      if (width !== layout.width || height !== layout.height) return;
+      if (overlay.getBounds().height !== layout.height) return;
       overlay.off("resize", inspect);
       resolve();
     };
@@ -97,7 +95,8 @@ function assertNativeBounds(overlay: BrowserWindow, rows: number, headerHeight: 
   const center = bounds.x + (cutout?.center ?? bounds.width / 2);
   const native = overlay.getBounds();
   const compact = Math.max(200, cutout ? Math.ceil(cutout.width) + 2 : 0) + 80;
-  const width = Math.min(area.width, (rows ? Math.max(480, compact) : compact) + 16);
+  // The window keeps the open panel's left edge and width, so the notch never shifts sideways.
+  const width = Math.min(area.width, Math.max(480, compact) + 16);
   const height = headerHeight + (rows ? Math.min(rows, 7) * 32 + 8 : 0);
   const x = Math.min(area.x + area.width - width, Math.max(area.x, Math.round(center - width / 2)));
 
@@ -325,16 +324,8 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
   assertNativeBounds(overlay, 1, headerHeight);
 
   stage = "collapsing after the transition";
-
-  const reducedMotion: boolean = await overlay.webContents.executeJavaScript(
-    `matchMedia("(prefers-reduced-motion: reduce)").matches`,
-  );
-
-  const expandedWidth = overlay.getBounds().width;
   const collapsed = await toggleOverlay(overlay);
   assert.equal(collapsed.layout.headerHeight, headerHeight);
-
-  if (!reducedMotion) assert.equal(collapsed.nativeWidth, expandedWidth);
   assertNativeBounds(overlay, 0, headerHeight);
   assert.equal(source.isFocused(), true, "toggling the overlay preserves the source's focus");
 }

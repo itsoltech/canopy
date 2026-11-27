@@ -8,10 +8,11 @@ Status (2026-11-26): menu kontekstowe pola wiadomości korzysta z aktywnej palet
 Status (2026-11-26): popover aktualizacji w stopce paska bocznego oferuje sprawdzanie,
 instalację, ponawianie i restart. Odnośnik **Settings** otwiera pełny widok statusu aktualizacji.
 
-Status (2026-11-26): eksperymentalny **Activity notch** w Canopy Desktop na macOS
+Status (2026-11-27): eksperymentalny **Activity notch** w Canopy Desktop na macOS
 i Windows działa również przy aktywnym oknie Canopy. Przylega do górnej krawędzi,
 odsłania listę, gdy mieści się w rozwijanym obrysie, i rozpoczyna jej wygaszanie
 przed zwijaniem obrysu. Animuje zmiany liczby, stanów aktywności i kolejności wierszy.
+Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
 Ikony stanów i kolory etykiet odpowiadają liście wątków.
 Rozwinięta lista pokazuje tytuły wątków oraz logo lub inicjały ich projektów.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
@@ -501,7 +502,12 @@ Na ekranach bez wycięcia Canopy rysuje je programowo. Jeśli moduł AppKit
 jest niedostępny, nakładka przylega do górnej krawędzi obszaru roboczego.
 Na Windows okno przylega do górnej krawędzi obszaru roboczego, również przy
 pasku zadań umieszczonym u góry. Canopy dopasowuje nagłówek do wysokości
-zwiniętego okna, jaką dopuścił system. Aktualizacja i rozwinięcie nakładki
+zwiniętego okna, jaką dopuścił system.
+Natywne okno ma stałą szerokość i lewą krawędź rozwiniętej nakładki, a zmienia
+tylko wysokość. Przesunięcie okna w poziomie na chwilę pokazywałoby wycięcie
+poza środkiem, zanim renderer przeliczy jego położenie. Przezroczyste boki okna
+przepuszczają wskaźnik do aplikacji pod spodem; okno przejmuje go tylko nad
+obrysem wycięcia. Aktualizacja i rozwinięcie nakładki
 zachowują fokus aktywnej aplikacji.
 Test integracyjny Electron sprawdza widoczność przy aktywnym oknie Canopy,
 zwijanie po animacji, wygaszanie i powrót aktywności podczas wygaszania, IPC,
