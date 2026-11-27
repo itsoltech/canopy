@@ -25,6 +25,7 @@
   import SidebarOrderFeedback from "./SidebarOrderFeedback.svelte";
   import SidebarGroupHeading from "./SidebarGroupHeading.svelte";
   import SidebarThreadDisclosure from "./SidebarThreadDisclosure.svelte";
+  import { SidebarSelection, provideSidebarSelection } from "./sidebar-selection.svelte.ts";
 
   let {
     currentThreadId,
@@ -69,6 +70,24 @@
       cancelled = true;
     };
   });
+
+  const selection = new SidebarSelection(
+    () => current,
+    (id) => overview.threads.get(id),
+  );
+
+  provideSidebarSelection(selection);
+
+  // Escape clears the selection unless a menu or dialog takes it.
+  function clearSelection(event: KeyboardEvent) {
+    if (
+      event.key === "Escape" &&
+      selection.size &&
+      !event.defaultPrevented &&
+      !(event.target instanceof Element && event.target.closest('[role="menu"], [role="dialog"]'))
+    )
+      selection.clear();
+  }
 
   const openTree = $derived(current ? (isSide(current) ? current.parentThreadId : current.id) : undefined);
 
@@ -177,6 +196,8 @@
 
   const shown = $derived(keys.slice(0, filled ? inboxLength : Math.min(inboxLength, limit)));
 </script>
+
+<svelte:window onkeydown={clearSelection} />
 
 {#snippet renderRows(rowKeys: readonly string[], inbox: boolean)}
   {#each rowKeys as key, index (key)}

@@ -7,6 +7,7 @@
   import Input from "#lib/shared/ui/Input.svelte";
   import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
   import ThreadSnoozeDialog from "./ThreadSnoozeDialog.svelte";
+  import ThreadBulkDialog from "./ThreadBulkDialog.svelte";
   import type { ClassValue } from "svelte/elements";
   import { useGatewayCapabilities } from "#lib/features/desktop/gateway-capabilities.svelte.ts";
 
@@ -97,6 +98,7 @@
   {/if}
 </Dialog>
 <ThreadSnoozeDialog />
+<ThreadBulkDialog />
 {#if capabilities?.linkedComputers}<MoveDialog
     bind:open={
       () => Boolean(actions.moving),
