@@ -37,11 +37,21 @@ url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run"
 echo "Checking Push CI for $EXPECTED_SHA at $url"
 # A hotfix or back-merge can trigger both workflows at once. Only observe its existing run.
 while :; do
-  state=$(gh api "$api/runs/$run" | jq -r 'if .status == "completed" then .conclusion else .status end')
+  info=$(gh api "$api/runs/$run")
+  state=$(jq -r 'if .status == "completed" then .conclusion else .status end' <<< "$info")
   case "$state" in
     success) break ;;
     queued|in_progress|waiting|pending|requested) sleep 20 ;;
-    *) echo "::error::Push CI for $EXPECTED_SHA ended with '$state'. See $url"; exit 1 ;;
+    *)
+      # Push CI recovery retries a failed first attempt once. Give it five minutes to queue the retry.
+      retry=$(jq -r 'if .run_attempt == 1 and (.updated_at | type) == "string"
+        then (.updated_at | fromdateiso8601) + 300 > now else false end' <<< "$info")
+      if [[ "$retry" == true ]]; then
+        sleep 20
+        continue
+      fi
+      echo "::error::Push CI for $EXPECTED_SHA ended with '$state'. See $url"
+      exit 1 ;;
   esac
 done
 # A workflow with entirely skipped jobs can be green. Require the aggregate that checks

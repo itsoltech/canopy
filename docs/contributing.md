@@ -260,8 +260,12 @@ bun run check:tmp ./packages/domain/src/shared-query.test.ts --rerun-each=20
 ```
 
 Zmianę kolejności (`--randomize --seed=123`) stosuj do testów niezależnych od
-kolejności; seed zachowaj w opisie reprodukcji. Powtórzenia służą diagnozie, a CI
-nadal wymaga zaliczenia testów bez automatycznych retry maskujących porażkę.
+kolejności; seed zachowaj w opisie reprodukcji. Powtórzenia służą diagnozie. Testy
+nie mają retry w kodzie ani w runnerze, a CI PR-a wymaga zaliczenia bez ponowień.
+Tylko Push CI na chronionych gałęziach raz ponawia nieudane joby testowe, żeby flaky
+test nie blokował wydania. Porażka nie znika: test, który przeszedł po ponowieniu,
+trafia do issue **Flaky tests in Push CI** i wymaga poprawki jak każdy inny błąd
+([release.md](release.md)).
 
 `bun install` wykonuj tylko przy brakujących zależnościach albo zmianie manifestów
 lub lockfile. Instaluje też `commit-msg` przez simple-git-hooks. Hook akceptuje

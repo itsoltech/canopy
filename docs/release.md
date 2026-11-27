@@ -1,6 +1,8 @@
 # Wydania: wersje, CI, artefakty
 
 Status: opis zaimplementowanego workflow (2026-11-24). Push CI weryfikuje dokładny commit źródłowy.
+Aktualizacja (2026-11-27): Push CI recovery raz ponawia nieudane joby testowe na chronionych gałęziach
+i zgłasza testy, które przeszły po ponowieniu, w issue **Flaky tests in Push CI**.
 Aktualizacja (2026-11-26): Pages przebudowuje stronę OAuth także po zmianach logotypu i tokenów wyglądu.
 Aktualizacja (2026-11-25): natywne zadania CI mają 15 minut na testy i zapis cache Bun.
 Aktualizacja (2026-11-25): upload artefaktów używa identyfikatora draftu z REST API GitHuba.
@@ -350,6 +352,14 @@ Push CI uruchamia smoke artefaktów dla tego samego SHA.
 
 Końcowy job **Typecheck, tests, builds** wymaga powodzenia wszystkich wybranych części.
 W pełnym przebiegu pobiera też raporty shardów i sprawdza, czy każdy plik testowy wystąpił dokładnie raz.
+Workflow **Push CI recovery** (`.github/workflows/push-ci-recovery.yml`) raz ponawia nieudane
+joby pierwszej próby Push CI na `dev`, `next` lub `main`, jeśli wszystkie należą do testów:
+shardy `Tests`, `push-native`, `binary-smoke` albo `artifact-smoke`. Błąd statycznych checków,
+buildów, anulowany job albo druga nieudana próba zostają czerwone do decyzji maintainera.
+Gdy ponowienie przejdzie, workflow dopisuje komentarz do otwartego issue **Flaky tests in Push CI**
+(albo zakłada nowe): SHA, link do pierwszej próby, nieudane joby i nazwy testów z linii `(fail)` Buna.
+Każdy wpis to test do naprawy; zamknięcie issue po poprawkach sprawia, że kolejny flaky test otworzy nowe.
+
 PR zmieniający wyłącznie Markdown lub obrazy dokumentacji w `docs/` (PNG/JPEG/WebP/GIF/SVG)
 pomija testy i buildy; statyczne checki nadal działają.
 
@@ -791,7 +801,9 @@ całego aktywnego nightly. Ręczny dispatch omija oczekiwanie na cron, ale nie b
   Ponowienie zachowuje SHA, wyniki ukończonych zadań i rezerwację wersji.
   Kolejną awarię i błędy z inną przyczyną obsługuje maintainer.
 - Gdy Verified CI zatrzyma wydanie, sprawdź przebieg Push CI dla źródłowego SHA.
-  Po naprawieniu przejściowej awarii i udanym ponowieniu tego CI ponów Release.
+  Jeśli pierwsza próba zakończyła się mniej niż 5 minut wcześniej, Verified CI czeka na ponowienie
+  z Push CI recovery i ocenia jego wynik. Starszej porażki nie czeka.
+  Po naprawieniu przejściowej awarii i udanym ponowieniu tego CI ponów Release albo poczekaj na kolejny cykl.
 - Po błędzie buildów albo publikacji użyj **Re-run failed jobs**: zachowuje wyjścia `plan`/`release`
   i powtarza nieudane joby z zależnymi. Ponowienie całego workflow po utworzeniu tagu kończy się
   „no release”, bo tag już istnieje. Artefakty buildów Actions żyją 7 dni, a artefakt rewizji 90 dni.
