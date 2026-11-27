@@ -5,7 +5,8 @@ import { SqlClient } from "effect/sql";
 import { prepareAttachment, type PreparedAttachment } from "../attachments/prepare.ts";
 import { storedBotImage } from "../bots/attachments.ts";
 import type { BotTurn, ModelInput } from "../bots/types.ts";
-import { downloadSlackFile } from "../messengers/slack-files.ts";
+import { messengerAdapter } from "../messengers/adapters.ts";
+import { messengerLabel } from "../messengers/provider.ts";
 import { MAX_SLACK_MESSAGE_FILES } from "../messengers/slack-events.ts";
 import { MessengerStore } from "../messengers/store.ts";
 import { inboundSlackTurnFiles, type InboundSlackFile } from "../messengers/store-inbound-files.ts";
@@ -15,7 +16,9 @@ import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { bindBotSlackAttachment } from "./slack-attachment-store.ts";
 
-const fileUnavailable = "[Canopy] Some Slack attachments were unavailable.";
+/** Names the provider when the turn's files say which one it is. */
+const fileUnavailable = (files: readonly InboundSlackFile[]) =>
+  `[Canopy] Some ${files[0] ? `${messengerLabel(files[0].provider)} ` : ""}attachments were unavailable.`;
 
 function workerSupports(kind: AttachmentKind, capabilities: readonly string[]) {
   return capabilities.includes(kind === "image" ? "bot_images_v1" : "bot_files_v1");
@@ -89,17 +92,23 @@ async function loadSlackInput(
           credentials = source.credentials(entry.account_id);
         }
 
-        const { botToken } = await credentials;
+        const accountCredentials = await credentials;
+        const adapter = messengerAdapter(entry.provider);
 
-        if (downloadSignal.aborted || !(await source.files(entry.file_id)).length) continue;
+        if (
+          downloadSignal.aborted ||
+          !adapter.fileReference.test(entry.file_id) ||
+          !(await source.files(entry.file_id)).length
+        )
+          continue;
 
-        const file = await downloadSlackFile({
-          fileId: entry.file_id,
-          token: botToken,
+        const file = await adapter.download(
+          accountCredentials,
+          entry.file_id,
           maxBytes,
-          signal: downloadSignal,
-          ...(source.transport && { transport: source.transport }),
-        });
+          downloadSignal,
+          source.transport,
+        );
 
         const prepared = await prepareAttachment(file.name, file.data, limits);
         signal.throwIfAborted();
@@ -127,7 +136,7 @@ async function loadSlackInput(
   });
 }
 
-/** Import only the files attached to this turn's Slack input, before the durable command is created. */
+/** Import only the files attached to this turn's messenger input, before the durable command is created. */
 export async function withSlackBotInput(core: GatewayCore, input: ModelInput, workerId: string, turn: BotTurn) {
   if (!turn.conversation_id) return input.messages;
   const index = input.messages.findLastIndex((message) => message.role === "user");
@@ -155,7 +164,7 @@ export async function withSlackBotInput(core: GatewayCore, input: ModelInput, wo
     : [];
 
   const missing = attachments.length < Math.max(files.length, message.attachments?.length ?? 0);
-  const text = missing ? [fileUnavailable, message.text].filter(Boolean).join("\n\n") : message.text;
+  const text = missing ? [fileUnavailable(files), message.text].filter(Boolean).join("\n\n") : message.text;
 
   return input.messages.map((entry, i) => (i === index ? { ...message, text, attachments } : entry));
 }

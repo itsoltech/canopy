@@ -17,7 +17,12 @@ const Message = Schema.Struct({
   mentions: Schema.optional(Schema.Array(Schema.Struct({ id: Snowflake }))),
   message_reference: Schema.optional(Schema.Struct({ message_id: Schema.optional(Snowflake) })),
   referenced_message: Schema.optional(Schema.NullOr(Schema.Struct({ author: Schema.optional(Author) }))),
+  attachments: Schema.optional(Schema.Array(Schema.Struct({ url: Schema.String }))),
 });
+
+/** Signed attachment URLs on Discord's CDN. Downloads accept no other host. */
+export const discordFileReference =
+  /^https:\/\/(cdn\.discordapp\.com|media\.discordapp\.net)\/attachments\/\d{1,20}\/\d{1,20}\/[^\s#]{1,1900}$/;
 
 const Channel = Schema.Struct({
   id: Snowflake,
@@ -93,7 +98,9 @@ export function discordEvent(
   if (message.type !== undefined && message.type !== 0 && message.type !== 19)
     return { ignored: "system_message" } as const;
 
-  if (!message.content?.trim()) return { ignored: "unsupported_content" } as const;
+  const fileIds = (message.attachments ?? []).map((file) => file.url).filter((url) => discordFileReference.test(url));
+
+  if (!message.content?.trim() && !fileIds.length) return { ignored: "unsupported_content" } as const;
   const edited = type === "MESSAGE_UPDATE" ? message.edited_timestamp : undefined;
 
   if (type === "MESSAGE_UPDATE" && !edited) return { ignored: "not_an_edit" } as const;
@@ -103,10 +110,11 @@ export function discordEvent(
     ...base,
     id: edited ? `edit:${message.id}:${edited}` : `create:${message.id}`,
     authorId: message.author.id,
-    text: message.content,
+    text: message.content ?? "",
     timestamp: message.timestamp ?? "",
     ...(edited && { editedTimestamp: edited }),
     ...(repliedTo && { replyTo: repliedTo }),
+    ...(fileIds.length && { fileIds }),
     mention:
       !direct &&
       ((message.mentions ?? []).some((user) => user.id === botUserId) ||

@@ -1,5 +1,8 @@
-import type { DiscordBody } from "./discord-http.ts";
-import { splitMessage } from "./provider.ts";
+import { safeFileName } from "@canopy/domain";
+import { discordFileReference } from "./discord-events.ts";
+import { discordError, type DiscordBody } from "./discord-http.ts";
+import { splitMessage, type MessengerTransport } from "./provider.ts";
+import { readSlackBody as readLimitedBody } from "./slack-http.ts";
 import type { OutboundFile, OutboundMessage } from "./types.ts";
 
 /** Discord accepts at most ten files in one message. */
@@ -42,4 +45,38 @@ export function discordForm(fields: DiscordBody, files: readonly OutboundFile[])
     form.set(`files[${index}]`, new File([new Uint8Array(file.data)], file.name, { type: file.mimeType }));
 
   return form;
+}
+
+/** Downloads an attachment from its signed CDN URL; the bot token is not sent to the CDN. */
+export async function downloadDiscordFile(
+  url: string,
+  maxBytes: number,
+  signal: AbortSignal,
+  transport: MessengerTransport | undefined,
+) {
+  if (!discordFileReference.test(url)) throw discordError("configuration", "invalid_file_url");
+  let response: Response;
+
+  try {
+    response = await (transport?.fetch ?? fetch)(url, {
+      redirect: "error",
+      credentials: "omit",
+      signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
+    });
+  } catch {
+    throw discordError("retryable", "file_unavailable");
+  }
+
+  if (!response.ok || Number(response.headers.get("content-length")) > maxBytes) {
+    await response.body?.cancel().catch(() => {});
+
+    throw response.ok ? discordError("configuration", "file_too_large") : discordError("retryable", "file_unavailable");
+  }
+
+  const data = await readLimitedBody(response, maxBytes);
+
+  if (!data) throw discordError("configuration", "file_too_large");
+  const name = decodeURIComponent(new URL(url).pathname.split("/").at(-1) ?? "attachment");
+
+  return { name: safeFileName(name), data };
 }

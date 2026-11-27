@@ -14,6 +14,8 @@ const Entity = Schema.Struct({
   user: Schema.optional(Schema.Struct({ id: Schema.Number })),
 });
 
+const File = Schema.Struct({ file_id: Schema.String, file_name: Schema.optional(Schema.String) });
+
 const Message = Schema.Struct({
   message_id: Schema.Number,
   from: Schema.optional(User),
@@ -25,6 +27,12 @@ const Message = Schema.Struct({
   caption: Schema.optional(Schema.String),
   entities: Schema.optional(Schema.Array(Entity)),
   caption_entities: Schema.optional(Schema.Array(Entity)),
+  photo: Schema.optional(Schema.Array(File)),
+  document: Schema.optional(File),
+  video: Schema.optional(File),
+  audio: Schema.optional(File),
+  voice: Schema.optional(File),
+  animation: Schema.optional(File),
   reply_to_message: Schema.optional(
     Schema.Struct({ message_id: Schema.Number, from: Schema.optional(Schema.Struct({ id: Schema.Number })) }),
   ),
@@ -46,6 +54,24 @@ export interface TelegramIdentity {
 }
 
 const decodeUpdate = Schema.decodeUnknownOption(TelegramUpdate);
+
+/** A file_id, optionally followed by "/" and the encoded original file name. */
+export const telegramFileReference = /^[A-Za-z0-9_-]{10,255}(\/[^\s/]{1,600})?$/;
+
+/** References to the files of a message: the largest photo size and each attached media file. */
+function fileReferences(message: typeof Message.Type) {
+  const photo = message.photo?.at(-1);
+
+  const named = [message.document, message.video, message.audio, message.animation].filter(
+    (file) => file !== undefined,
+  );
+
+  return [
+    ...(photo ? [photo.file_id] : []),
+    ...named.map((file) => (file.file_name ? `${file.file_id}/${encodeURIComponent(file.file_name)}` : file.file_id)),
+    ...(message.voice ? [message.voice.file_id] : []),
+  ].filter((reference) => telegramFileReference.test(reference));
+}
 
 /** Telegram counts entity offsets in UTF-16 code units, which matches JavaScript string indexing. */
 function mentions(message: typeof Message.Type, text: string, bot: TelegramIdentity) {
@@ -76,7 +102,9 @@ export function telegramEvent(value: Schema.Json, accountId: string, bot: Telegr
   if (!message.from || message.from.is_bot || message.sender_chat) return { ignored: "bot_or_channel" } as const;
   const text = message.text ?? message.caption ?? "";
 
-  if (!text.trim()) return { ignored: "unsupported_content" } as const;
+  const fileIds = fileReferences(message);
+
+  if (!text.trim() && !fileIds.length) return { ignored: "unsupported_content" } as const;
   const direct = message.chat.type === "private";
   const reply = message.reply_to_message;
   const edit = update.edited_message !== undefined;
@@ -92,6 +120,7 @@ export function telegramEvent(value: Schema.Json, accountId: string, bot: Telegr
     timestamp: String(message.date),
     ...(edit && message.edit_date && { editedTimestamp: String(message.edit_date) }),
     ...(reply && { replyTo: String(reply.message_id) }),
+    ...(fileIds.length && { fileIds }),
     mention: !direct && (reply?.from?.id === bot.id || mentions(message, text, bot)),
     direct,
     kind: edit ? "edit" : "message",

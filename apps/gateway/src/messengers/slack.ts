@@ -11,6 +11,7 @@ import {
 } from "./slack-http.ts";
 import { slackSocket } from "./slack-socket.ts";
 import { runWithReconnect, sendInOrder, type MessengerAdapter } from "./provider.ts";
+import { downloadSlackFile } from "./slack-files.ts";
 import { shareSlackFiles, uploadSlackFiles } from "./slack-uploads.ts";
 import type { MessengerIngestOutcome } from "./types.ts";
 
@@ -182,6 +183,9 @@ export const slackAdapter: MessengerAdapter = {
   userId: /^[UW][A-Z0-9]{1,79}$/,
   channelContext: true,
   maxFileBytes: 50 * 1024 ** 2,
+  fileReference: /^F[A-Z0-9]{1,31}$/,
+  download: (credentials, fileId, maxBytes, signal, transport) =>
+    downloadSlackFile({ fileId, token: credentials.botToken, maxBytes, signal, ...(transport && { transport }) }),
   validate: validateSlackAccount,
   run: (options, signal) => new SlackMessenger(options).run(signal),
   send: async (credentials, message, signal, transport) => {
