@@ -11,19 +11,7 @@ export async function previewWorkerSkill(environment: AgentEnvironment, request:
   const { workerId, targetId, archiveToken, expectedRevision } = request;
   const connections = environment.options.link.connections;
   const connection = connections.get(workerId);
-  let accepted = connection && environment.skillReports.get(connection);
-  let snapshot = await environment.snapshot();
-
-  if (connection?.isOpen && connections.get(workerId) === connection) {
-    const current = environment.skillReports.get(connection);
-
-    // A fresh report can contain the same copy. Read it once before validating the request.
-    if (current !== accepted) {
-      accepted = current;
-      snapshot = await environment.snapshot();
-    }
-  }
-
+  const snapshot = await environment.snapshot();
   const worker = snapshot.workers.find((w) => w.workerId === workerId);
 
   if (!worker) throw new ConnectError("Computer not found. Choose another computer.", Code.NotFound);
@@ -35,10 +23,13 @@ export async function previewWorkerSkill(environment: AgentEnvironment, request:
     throw new ConnectError("Update the worker on this computer to import local skills.", Code.FailedPrecondition);
 
   const file = worker.report?.skills.find((s) => s.targetId === targetId);
+  // Read after the snapshot: a report stored since then still has to list the same copy, while a repeated one is harmless.
+  const accepted = environment.skillReports.get(connection);
 
   if (
     !accepted ||
-    accepted !== environment.skillReports.get(connection) ||
+    accepted.revision !== snapshot.revision ||
+    accepted.tokens.get(targetId) !== archiveToken ||
     connections.get(workerId) !== connection ||
     worker.compositionError ||
     !worker.skillsSupported ||

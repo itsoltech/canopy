@@ -42,11 +42,17 @@ function compatibleSkills(skills: ui.LibrarySkill[], capabilities: readonly stri
   });
 }
 
+/** Local copy tokens from the last report a live connection stored. */
+export interface AcceptedSkillReport {
+  readonly revision: bigint;
+  readonly tokens: ReadonlyMap<string, string>;
+}
+
 export class AgentEnvironment {
   readonly db: EnvironmentDatabase;
   readonly skills: EnvironmentSkills;
   /** Only an accepted report on this live connection can authorize reading or moving a local copy. */
-  readonly skillReports = new WeakMap<WorkerConnection, symbol>();
+  readonly skillReports = new WeakMap<WorkerConnection, AcceptedSkillReport>();
   readonly sources: EnvironmentSources;
   readonly marketplaces: EnvironmentMarketplaces;
   readonly plugins: EnvironmentPlugins;
@@ -331,7 +337,7 @@ export class AgentEnvironment {
     const { workerId, registrationEpoch } = connection;
 
     if (!registrationEpoch || !connection.isOpen || this.options.link.connections.get(workerId) !== connection) return;
-    this.skillReports.delete(connection);
+    const rejected = () => void this.skillReports.delete(connection);
 
     // Bound an authenticated but untrusted worker's report before persisting or exposing any block to the UI.
     if (
@@ -340,11 +346,11 @@ export class AgentEnvironment {
       !validSkillInventory(report.skills) ||
       report.plugins.length > 512
     )
-      return;
+      return rejected();
     const owner = this.options.userId;
     const json = JSON.stringify(toJson(AgentEnvironmentReportSchema, report));
 
-    if (Buffer.byteLength(json) > 128 * 1024 * 1024) return;
+    if (Buffer.byteLength(json) > 128 * 1024 * 1024) return rejected();
 
     const stored = await this.db.run(
       Effect.gen(function* () {
@@ -370,7 +376,11 @@ export class AgentEnvironment {
       }),
     );
 
-    if (stored && report.skills.some((s) => s.archiveToken)) this.skillReports.set(connection, Symbol());
+    const tokens = new Map(report.skills.filter((s) => s.archiveToken).map((s) => [s.targetId, s.archiveToken]));
+
+    // The previous acceptance stays valid while this report is stored, so a repeated identical report never interrupts a read.
+    if (stored && tokens.size) this.skillReports.set(connection, { revision: report.revision, tokens });
+    else this.skillReports.delete(connection);
     this.options.changed();
   }
 }
