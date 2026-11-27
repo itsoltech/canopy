@@ -174,8 +174,8 @@
   {#if error || goal.error}<p class="px-3 pb-2 text-sm/5 text-rose-700 sm:text-xs/5 dark:text-rose-400" role="alert">
       {error ?? goal.error}
     </p>{/if}
-  <!-- Grows open and shut (accordion, motion.css `t-acc-panel`); inert while closed. -->
-  <div id="{id}-details" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded}>
+  <!-- Grows open and shut (accordion, motion.css `t-acc-panel`) over the thread (`data-feed-overlay`); inert while closed. -->
+  <div id="{id}-details" class="t-acc-panel" data-open={expanded || undefined} inert={!expanded} data-feed-overlay>
     <div>
       <div
         class="grid max-h-[40dvh] scroll-stable gap-3 overflow-y-auto border-t border-zinc-950/5 px-3 pt-2.5 pb-3 dark:border-white/10"
