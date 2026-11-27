@@ -16,7 +16,7 @@
   import UsageProviderMark from "./UsageProviderMark.svelte";
   import SpeedIcon from "#lib/features/models/SpeedIcon.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { loadUsage } from "./api.ts";
+  import { loadUsage, subscribeUsageRefresh } from "./api.ts";
   import { usageActivities, type UsageData, type UsageView } from "./format.ts";
   import type { SelectOption } from "#lib/shared/ui/listbox.ts";
   import "#lib/features/settings/density.css";
@@ -29,7 +29,6 @@
   let computerId = $state("");
   let speed = $state("");
   let activity = $state("");
-  let revision = $state(0);
   let data = $state.raw<UsageData>();
   let computers = $state<UsageData["computers"]>([]);
   let speeds = $state<UsageData["speeds"]>([]);
@@ -38,6 +37,7 @@
   let selectedBot = $state.raw<SelectOption>();
   let loading = $state(false);
   let failed = $state(false);
+  let refreshUsage: (() => void) | undefined;
   const selectedView = $derived<UsageView>(view === "tokens" ? "tokens" : "cost");
   const botId = $derived(activity.startsWith("bot:") ? activity.slice(4) : "");
   const activityKind = $derived(botId ? "bot" : activity);
@@ -70,39 +70,49 @@
   $effect(() => {
     if (!open) return;
     const controller = new AbortController();
-    const selectedComputer = computerId;
-    const selectedSpeed = speed;
-    const selectedActivity = activityKind;
-    const selectedBotId = botId;
+
+    const filters = {
+      days,
+      provider,
+      computerId,
+      requestedServiceTier: speed ? speed.slice(5) : undefined,
+      activityKind,
+      botId,
+    };
+
     const scope = botScope;
-    void revision;
+    let pending = false;
+    let received = false;
+    let reportFailure = false;
     data = undefined;
     loading = true;
     failed = false;
-    void loadUsage(
-      {
-        days,
-        provider,
-        computerId: selectedComputer,
-        requestedServiceTier: selectedSpeed ? selectedSpeed.slice(5) : undefined,
-        activityKind: selectedActivity,
-        botId: selectedBotId,
-      },
-      controller.signal,
-    )
-      .then((result) => {
+
+    async function refresh(manual = false) {
+      reportFailure ||= manual;
+
+      if (pending) return;
+      pending = true;
+
+      if (manual && !received) loading = true;
+
+      try {
+        const result = await loadUsage(filters, controller.signal);
+
         if (controller.signal.aborted) return;
+        received = true;
         data = result;
+        failed = false;
         supportsActivityBreakdown = result.supportsActivityBreakdown;
 
-        if (!selectedComputer) computers = result.computers;
+        if (!filters.computerId) computers = result.computers;
 
-        if (!selectedSpeed) speeds = result.speeds;
+        if (filters.requestedServiceTier === undefined) speeds = result.speeds;
 
         if (!result.supportsActivityBreakdown) {
           availableBots = undefined;
           selectActivity("");
-        } else if (!selectedBotId && (!selectedActivity || selectedActivity === "bot")) {
+        } else if (!filters.botId && (!filters.activityKind || filters.activityKind === "bot")) {
           availableBots = {
             scope,
             options: result.bots
@@ -116,15 +126,25 @@
               })),
           };
         }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) failed = true;
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) loading = false;
-      });
+      } catch {
+        if (!controller.signal.aborted && (!received || reportFailure)) failed = true;
+      } finally {
+        pending = false;
+        reportFailure = false;
 
-    return () => controller.abort();
+        if (!controller.signal.aborted) loading = false;
+      }
+    }
+
+    refreshUsage = () => void refresh(true);
+
+    const unsubscribe = subscribeUsageRefresh(() => void refresh());
+
+    return () => {
+      unsubscribe();
+      controller.abort();
+      refreshUsage = undefined;
+    };
   });
 </script>
 
@@ -135,7 +155,7 @@
       data-window-drag
     >
       <h2 class="min-w-0 flex-1 text-lg/7 font-semibold">Usage</h2>
-      <IconButton icon="arrow-path" label="Refresh usage" disabled={loading} onclick={() => revision++} />
+      <IconButton icon="arrow-path" label="Refresh usage" disabled={loading} onclick={() => refreshUsage?.()} />
       <IconButton icon="x-mark" label="Close usage" data-autofocus onclick={() => (open = false)} />
     </header>
     <div class="min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain">
@@ -220,9 +240,10 @@
         {:else if failed}
           <Alert tone="error" title="Could not load usage">
             Check your connection.
-            {#snippet actions()}<Button size="sm" onclick={() => revision++}>Try again</Button>{/snippet}
+            {#snippet actions()}<Button size="sm" onclick={() => refreshUsage?.()}>Try again</Button>{/snippet}
           </Alert>
-        {:else if data}
+        {/if}
+        {#if data}
           {#if data.supportsActivityBreakdown && data.hasUnattributedUsage}
             <Alert tone="info">
               Canopy can’t identify the activity for some recorded usage.

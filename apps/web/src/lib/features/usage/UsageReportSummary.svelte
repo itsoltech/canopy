@@ -2,9 +2,11 @@
   import { getAbortSignal } from "svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
-  import { loadUsage } from "./api.ts";
+  import UsageNumber from "./UsageNumber.svelte";
+  import { loadUsage, subscribeUsageRefresh } from "./api.ts";
   import { count, effectiveCost, hasPartialCost, shortCount, totalTokens, type UsageData } from "./format.ts";
 
+  let { open }: { open: boolean } = $props();
   let revision = $state(0);
   let data = $state.raw<UsageData>();
   let failed = $state(false);
@@ -12,26 +14,36 @@
   const tokens = $derived(totals && totalTokens(totals));
 
   $effect(() => {
+    if (!open) return;
     void revision;
     const signal = getAbortSignal();
+    let pending = false;
     data = undefined;
     failed = false;
-    void loadUsage({ days: "30" }, signal)
-      .then((result) => {
-        if (!signal.aborted) data = result;
-      })
-      .catch(() => {
-        if (!signal.aborted) failed = true;
-      });
+
+    return subscribeUsageRefresh(() => {
+      if (pending) return;
+      pending = true;
+      void loadUsage({ days: "30" }, signal)
+        .then((result) => {
+          if (signal.aborted) return;
+          data = result;
+          failed = false;
+        })
+        .catch(() => {
+          if (!signal.aborted && !data) failed = true;
+        })
+        .finally(() => (pending = false));
+    });
   });
 </script>
 
-{#snippet metric(label: string, value?: string, title?: string)}
+{#snippet metric(label: string, amount: number | bigint | undefined, value: string | undefined, title?: string)}
   <div class="min-w-0">
     <dt class="text-sm/5 text-muted sm:text-xs/5">{label}</dt>
     <dd class="grid min-h-6 content-center leading-6 font-semibold wrap-anywhere tabular-nums select-text" {title}>
-      {#if value !== undefined}
-        {value}
+      {#if amount !== undefined && value !== undefined}
+        <UsageNumber {value} {amount} />
       {:else}
         <Skeleton class="h-3 w-12 max-w-full" />
       {/if}
@@ -58,10 +70,11 @@
       <dl class="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         {@render metric(
           "Total tokens",
+          tokens,
           tokens === undefined ? undefined : shortCount(tokens),
           tokens === undefined ? undefined : count(tokens),
         )}
-        {@render metric("Cost (USD)", totals && effectiveCost(totals))}
+        {@render metric("Cost (USD)", totals?.effectiveCost, totals && effectiveCost(totals))}
       </dl>
     {/if}
     {#if totals && hasPartialCost(totals)}

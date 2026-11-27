@@ -4,7 +4,7 @@ Aktualizacja (2026-11-25): raporty tokenów Antigravity z odpowiedzi ACP
 `session/prompt` zawierają szacunki według cenników API Google i Anthropic
 dla rozpoznanych modeli. [Adapter Antigravity](antigravity-adapter.md)
 
-Status (2026-11-25): zaimplementowane agregaty zużycia w gatewayu, raporty
+Status (2026-11-27): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki według stawek API modeli, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów,
@@ -14,6 +14,9 @@ oraz koszt w USD za ostatnie 30 dni kalendarzowych UTC. Z podsumowania można ot
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
 Podsumowanie informuje o raportach bez kosztu, a sekcja **Recording gateways** pokazuje pokrycie źródeł.
 W web/desktop data wybrana na wykresie ma oznaczenie UTC. Dla jednego dnia oś nie powtarza daty na obu końcach. Przy nawigacji klawiaturą po kilku dniach pojawia się wskazówka o strzałkach.
+Otwarty modal i podgląd w stopce sidebara w web i desktopie samodzielnie
+odświeżają dane. Cyfry kosztu i sumy tokenów w podglądzie oraz cyfry w podsumowaniu
+modalu animują się przy otwarciu i przy zmianie wyświetlonej wartości.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy
@@ -220,6 +223,9 @@ pokrycie. Każdy dzień zawiera również `providers`: sumy tego samego zestawu
 koszyków osobno dla providera, do wykresu ze stałymi kolorami źródeł inferencji.
 W modalu Usage zmiana dnia kursorem lub klawiaturą zachowuje pozycję wykresu
 i przewinięcie modalu. Na telefonie dzień można wybrać dotykiem lub strzałkami pod wykresem.
+W web i desktopie raport jest pobierany co 10 sekund, gdy modal jest otwarty,
+a karta widoczna. Odświeżenie zachowuje raport podczas pobierania i podmienia
+wartości po udanym odczycie. Przy ograniczonym ruchu liczby zmieniają się od razu.
 Opcjonalny filtr `requested_service_tier` bez pola wybiera wszystkie tryby,
 a jawne `""` wybiera wyłącznie nieznany tryb. `speeds` zwraca ten sam zestaw
 sum pogrupowany według żądanej szybkości. Filtr działa przed sumowaniem:

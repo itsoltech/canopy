@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { ClassValue } from "svelte/elements";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
-  import { metricValue, usageActivities, type UsageRow, type UsageView } from "./format.ts";
+  import { metricValue, totalTokens, usageActivities, type UsageRow, type UsageView } from "./format.ts";
+  import UsageNumber from "./UsageNumber.svelte";
 
   let { rows, view, class: className }: { rows: UsageRow[]; view: UsageView; class?: ClassValue } = $props();
 
@@ -27,7 +28,14 @@
       <div class="grid min-w-0 content-start gap-1 rounded-xl border border-divider p-3">
         <dt class="text-sm/5 text-zinc-500 dark:text-zinc-400"><TruncatedText text={label} /></dt>
         <dd class="text-base/6 font-medium wrap-anywhere tabular-nums select-text">
-          {amounts ? metricValue(amounts, view) : "None recorded"}
+          {#if amounts}
+            {#key view}
+              <UsageNumber
+                value={metricValue(amounts, view)}
+                amount={view === "cost" ? amounts.effectiveCost : totalTokens(amounts)}
+              />
+            {/key}
+          {:else}None recorded{/if}
         </dd>
       </div>
     {/each}

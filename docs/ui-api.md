@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Aktualizacja (2026-11-27): modal i podgląd Usage w web i desktopie odświeżają
+dane w tle i animują cyfry w podsumowaniu.
+
 Aktualizacja (2026-11-26): Settings → Keybindings w web i desktopie ma
 zwarte wiersze z chipami klawiszy i wirtualizowaną listę.
 
@@ -447,7 +450,9 @@ Pierwsza synchronizacja z gatewayem nie warunkuje otwarcia Settings.
 Jeśli strona Settings została otwarta bezpośrednio podczas przerwy w połączeniu,
 zamknięcie prowadzi do strony głównej.
 Ikona Usage otwiera pełny raport nad bieżącą stroną. Najechanie na nią pokazuje podsumowanie
-tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC; panel pobiera dane przy otwarciu.
+tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC. Panel pobiera dane przy
+otwarciu i co 10 sekund w widocznej karcie. Cyfry obu liczników animują się przy
+otwarciu i przy zmianie wartości, zgodnie z ustawieniem ograniczonego ruchu.
 Najechanie myszą w oknie szerszym niż 40 rem na Usage, Workers, Updates lub Provider usage pokazuje
 jeden panel naraz, bez przenoszenia fokusu. Kliknięcie ikony otwiera pełny widok: raport Usage,
 Settings → Workers, Settings → App updates albo Settings → Providers. Panele nie mają osobnego
@@ -495,7 +500,10 @@ z istniejących koszyków bez dodatkowych zapytań.
 `GET /api/usage?days=30&provider=&computerId=` wywołuje owner-scoped
 `GetUsageStats` i zwraca protobuf JSON z `Cache-Control: no-store`.
 BFF przyjmuje wyłącznie okresy 1, 7, 30 i 90. Modal pobiera dane przy otwarciu,
-zmianie filtra lub ręcznym Refresh; przerywa nieaktualny odczyt i ignoruje jego wynik.
+zmianie filtra, ręcznym Refresh i co 10 sekund w widocznej karcie. Po powrocie
+do karty odświeża dane od razu. W danym zestawie filtrów wykonuje jeden odczyt
+naraz. Zmiana filtrów i zamknięcie przerywają odczyt po stronie klienta. Podczas
+odświeżania modal zachowuje ostatnią udaną odpowiedź wraz z pozycją przewinięcia.
 Zmiana widoku Cost / Tokens korzysta z już pobranej odpowiedzi.
 Opcjonalny parametr `requestedServiceTier` filtruje żądaną prędkość:
 brak parametru oznacza wszystkie, pusty parametr Unknown, `default` Standard.
