@@ -1,9 +1,20 @@
+<script lang="ts" module>
+  import type { Attachment } from "svelte/attachments";
+
+  /** Spread on the trigger: it anchors the panel, and its click (which opens the full page) closes it. */
+  export type FooterTriggerProps = Record<symbol, Attachment<HTMLElement>> & { onclick: () => void };
+</script>
+
 <script lang="ts">
   import { onDestroy, type Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import Popover, { type PopoverTriggerProps } from "#lib/shared/ui/Popover.svelte";
+  import Popover, { anchorOnly } from "#lib/shared/ui/Popover.svelte";
   import type { FooterPopover } from "./footer-popovers.svelte.ts";
 
+  /**
+   * A footer shortcut with a summary panel. The panel opens on mouse hover in a wider window; activating the
+   * trigger goes to the full page, so touch and keyboard reach the same information there.
+   */
   let {
     panel,
     label,
@@ -18,7 +29,7 @@
     class?: ClassValue;
     panelClass?: string;
     maxHeight?: string;
-    trigger: Snippet<[PopoverTriggerProps]>;
+    trigger: Snippet<[FooterTriggerProps]>;
     children: Snippet;
   } = $props();
 
@@ -30,13 +41,13 @@
     bind:open={panel.isOpen, panel.setOpen}
     {label}
     placement="top-start"
-    sheet
-    focusOnOpen={panel.pinned}
+    focusOnOpen={false}
+    morph={false}
     {maxHeight}
     class={[panelClass, panel.superseded && "sidebar-footer-popover-superseded"]}
   >
     {#snippet trigger(props)}
-      {@render triggerButton({ ...props, onclick: panel.press })}
+      {@render triggerButton({ ...anchorOnly(props), onclick: panel.close })}
     {/snippet}
     {@render children()}
   </Popover>

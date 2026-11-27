@@ -331,7 +331,7 @@ pozostała część danego konta. Bezpośrednia instancja i nieznany plan liczą
 Przy więcej niż jednym koncie obok nazwy jest ich liczba („2 accounts”).
 Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
 W web/desktop oba odczyty procentowe używają rozmiaru metadanych wiersza.
-Po wybraniu **Open provider settings** sekcja **Proxy limits** pokazuje odczyty
+Kliknięcie paska w stopce otwiera Settings → Providers, gdzie sekcja **Proxy limits** pokazuje odczyty
 poszczególnych kont używanych proxy. Limity bezpośrednie są w statusie instancji
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu
 nie ma wiersza. Brak danych ukrywa przycisk, zachowując miejsce. Minione okna nie podnoszą

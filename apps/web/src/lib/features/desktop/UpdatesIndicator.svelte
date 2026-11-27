@@ -2,7 +2,7 @@
   import { onMount, untrack } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import SidebarFooterPopover from "#lib/features/navigation/SidebarFooterPopover.svelte";
-  import IconButton from "#lib/shared/ui/IconButton.svelte";
+  import IconButtonLink from "#lib/shared/ui/IconButtonLink.svelte";
   import ProgressRing from "#lib/shared/ui/ProgressRing.svelte";
   import { DesktopUpdatesState } from "./desktop-updates.svelte.ts";
   import { updateCenter } from "#lib/features/workers/updates.svelte.ts";
@@ -40,7 +40,7 @@
 
   // Something waits for the user: an update to install or a download to restart into.
   const attention = $derived(!busy && !failed && (phase === "available" || phase === "ready"));
-  const label = $derived(`Updates: ${headline.text}`);
+  const label = $derived(`Open app updates. ${headline.text}`);
 
   onMount(() => updates.connect());
 
@@ -58,9 +58,11 @@
 >
   {#snippet trigger(props)}
     <div class="relative">
-      <!-- ⟳ stays Check now's: the trigger shows the download tray, a ring while updating, a dot for attention. -->
-      <IconButton
+      <!-- ⟳ stays Check now's: the trigger shows the download tray, a ring while updating, a dot for attention.
+           It opens App updates; hovering it shows the panel. -->
+      <IconButtonLink
         {...props}
+        href="/settings/app-updates#topic-status"
         icon={failed ? "exclamation-circle" : "arrow-down-tray"}
         {label}
         aria-busy={busy || undefined}

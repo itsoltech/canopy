@@ -56,9 +56,8 @@
     <p class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">No workers yet</p>
   {/if}
   {#if canManage}
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <ButtonLink href="/settings/workers?add=1" icon="plus" onclick={onclose}>Add worker</ButtonLink>
-      <ButtonLink href="/settings/workers" variant="text" onclick={onclose}>Open worker settings</ButtonLink>
-    </div>
+    <ButtonLink href="/settings/workers?add=1" icon="plus" onclick={onclose} class="justify-self-start"
+      >Add worker</ButtonLink
+    >
   {/if}
 </div>

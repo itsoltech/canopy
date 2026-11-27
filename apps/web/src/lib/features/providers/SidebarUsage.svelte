@@ -7,7 +7,6 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import SidebarFooterPopover from "#lib/features/navigation/SidebarFooterPopover.svelte";
-  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import TextLink from "#lib/shared/ui/TextLink.svelte";
   import UsageGlance from "./UsageGlance.svelte";
   import UsageSummaryRow from "./UsageSummaryRow.svelte";
@@ -28,7 +27,7 @@
   );
 
   const label = $derived(
-    `Show provider usage. ${[...glance.map((item) => `${item.label}.`), ...notes.map((note) => note.text)].join(" ")}`,
+    `Open provider settings. ${[...glance.map((item) => `${item.label}.`), ...notes.map((note) => note.text)].join(" ")}`,
   );
 </script>
 
@@ -36,17 +35,17 @@
   {#if glance.length || usageProxies.length}
     <SidebarFooterPopover {panel} label="Provider usage" panelClass="w-[min(21rem,calc(100vw-1rem))]">
       {#snippet trigger(props)}
-        <button
+        <a
           {...props}
-          type="button"
+          href="/settings/providers"
           aria-label={label}
-          class="grid h-9 w-14 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 sm:h-8 sm:w-13 dark:hover:bg-white/5"
+          class="grid h-9 w-14 place-items-center rounded-lg focus-ring hover:bg-zinc-950/5 sm:h-8 sm:w-13 dark:hover:bg-white/5 desktop:cursor-default"
         >
           {#if glance.length}<UsageGlance {glance} />{:else}<Icon
               name="link"
               class="size-4 fill-zinc-500 dark:fill-zinc-400"
             />{/if}
-        </button>
+        </a>
       {/snippet}
       <div class="grid gap-3 p-3">
         <h2 class="text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">Provider usage</h2>
@@ -70,9 +69,6 @@
             </p>
           {/each}
         </div>
-        <ButtonLink href="/settings/providers" variant="ghost" onclick={panel.close} class="justify-start"
-          >Open provider settings</ButtonLink
-        >
       </div>
     </SidebarFooterPopover>
   {/if}

@@ -106,6 +106,11 @@
   const habitCount = $derived(pendingHabitCount(overview, capabilities));
   const settingsLabel = $derived(habitCount ? `Open settings, ${habitSuggestionCount(habitCount)}` : "Open settings");
 
+  const manageWorkers = $derived(capabilities?.supports("/settings/workers") ?? true);
+
+  const workerShortcut =
+    "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400";
+
   const iconLink =
     "relative grid size-9 place-items-center rounded-lg text-icon-muted hover:bg-zinc-950/5 hover:text-icon-emphasis focus-ring sm:size-8 dark:hover:bg-white/5 desktop:cursor-default";
 </script>
@@ -213,28 +218,47 @@
     {#if capabilities?.supports("/usage") ?? true}
       <SidebarFooterPopover panel={footer.usage} label="Usage">
         {#snippet trigger(props)}
-          <IconButton {...props} icon="table-cells" label="Show usage" />
+          <IconButton
+            {...props}
+            icon="table-cells"
+            label="Open usage report"
+            onclick={() => {
+              props.onclick();
+              onOpenUsage();
+            }}
+          />
         {/snippet}
-        <UsageReportSummary
-          onOpenUsage={() => {
-            footer.usage.close();
-            onOpenUsage();
-          }}
-        />
+        <UsageReportSummary />
       </SidebarFooterPopover>
     {/if}
     {#if overview.resyncs > 0 && workerCount !== 1}
       <SidebarFooterPopover panel={footer.workers} label="Workers" class="shrink-0">
         {#snippet trigger(props)}
-          <button
-            {...props}
-            type="button"
-            aria-label={`Show workers, ${online} of ${workerCount} online`}
-            class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm/5 text-zinc-500 focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 sm:text-xs/5 @max-[16rem]:gap-0 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
-          >
+          {#snippet count()}
             <Icon name="server" class="size-3.5" />
             <span class="tabular-nums @max-[16rem]:sr-only">{online}/{workerCount}</span>
-          </button>
+          {/snippet}
+          {#if manageWorkers}
+            <a
+              {...props}
+              href="/settings/workers"
+              aria-label={`Open worker settings, ${online} of ${workerCount} workers online`}
+              class={[
+                workerShortcut,
+                "focus-ring hover:bg-zinc-950/5 hover:text-zinc-950 dark:hover:bg-white/5 dark:hover:text-white desktop:cursor-default",
+              ]}>{@render count()}</a
+            >
+          {:else}
+            <div
+              {...props}
+              onclick={undefined}
+              role="img"
+              aria-label={`${online} of ${workerCount} workers online`}
+              class={workerShortcut}
+            >
+              {@render count()}
+            </div>
+          {/if}
         {/snippet}
         <WorkersSummary onclose={footer.workers.close} />
       </SidebarFooterPopover>

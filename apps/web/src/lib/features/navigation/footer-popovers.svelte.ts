@@ -1,7 +1,9 @@
-/** The footer panels share space. Only the active panel can be open, and an explicit press takes priority over hover. */
+/**
+ * The footer panels share space and open on hover only: a click on their icon opens the full page instead.
+ * Only the active panel can be open.
+ */
 export function footerPopovers() {
   let active = $state<"updates" | "provider-usage" | "usage" | "workers">();
-  let pinned = $state(false);
 
   function panel(id: NonNullable<typeof active>) {
     let closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -10,10 +12,7 @@ export function footerPopovers() {
     function close() {
       clearTimeout(closeTimer);
 
-      if (isOpen()) {
-        active = undefined;
-        pinned = false;
-      }
+      if (isOpen()) active = undefined;
     }
 
     $effect(() => () => clearTimeout(closeTimer));
@@ -21,9 +20,6 @@ export function footerPopovers() {
     return {
       isOpen,
       close,
-      get pinned() {
-        return isOpen() && pinned;
-      },
       get superseded() {
         return active !== undefined && !isOpen();
       },
@@ -31,23 +27,13 @@ export function footerPopovers() {
         if (open) active = id;
         else close();
       },
-      press() {
-        clearTimeout(closeTimer);
-
-        if (isOpen() && pinned) close();
-        else {
-          active = id;
-          pinned = true;
-        }
-      },
       enter(event: PointerEvent) {
         if (event.pointerType !== "mouse" || !window.matchMedia("(min-width: 40rem)").matches) return;
         clearTimeout(closeTimer);
-
-        if (!pinned) active = id;
+        active = id;
       },
       leave(event: PointerEvent) {
-        if (event.pointerType !== "mouse" || !isOpen() || pinned) return;
+        if (event.pointerType !== "mouse" || !isOpen()) return;
         clearTimeout(closeTimer);
         closeTimer = setTimeout(close, 250);
       },
