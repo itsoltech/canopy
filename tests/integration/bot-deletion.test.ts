@@ -88,27 +88,34 @@ describe.skipIf(!dockerAvailable)("deleting bots through the gateway", () => {
       ),
     );
 
+  // Deletion only retires the watch. A thread created through the API would keep starting its turn on the worker
+  // after the test ends, and that ingestion would wait on the owner lock behind a later test's deletion.
   async function watchThread(turn: BotTurn, projectId: string) {
-    const workspace = (await gw.api.createWorkspace({ projectId, workerId: gw.workerId, rootPath: "/repo" }))
-      .workspace!;
-
-    const thread = (
-      await gw.api.createThread({
-        projectId,
-        workspaceId: workspace.id,
-        provider: Provider.CODEX,
-        model: "gpt-6.1-sol",
-        initialMessage: "Work independently",
-      })
-    ).thread!;
+    const thread = crypto.randomUUID();
+    const target = crypto.randomUUID();
+    await query(
+      `INSERT INTO threads(id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, status, title)
+       VALUES($1::uuid, $1::uuid, $2::uuid, $3::uuid, 'main', 'gateway', 'anthropic', 'running', 'Work independently')`,
+      thread,
+      projectId,
+      gw.userId,
+    );
+    await query(
+      `INSERT INTO turns(id, thread_id, ordinal, trigger, author_user_id, input, status)
+       VALUES($1::uuid, $2::uuid, 1, 'user', $3::uuid, '{}', 'running')`,
+      target,
+      thread,
+      gw.userId,
+    );
 
     const call = await plan(turn, "watch", "start_thread");
     await query(
       `INSERT INTO bot_thread_watches(call_id, bot_id, target_thread_id, target_turn_id, hops)
-       SELECT $1::uuid, $2::uuid, thread_id, id, 1 FROM turns WHERE thread_id=$3::uuid`,
+       VALUES($1::uuid, $2::uuid, $3::uuid, $4::uuid, 1)`,
       call.id,
       turn.bot_id,
-      thread.id,
+      thread,
+      target,
     );
 
     return call.id;
