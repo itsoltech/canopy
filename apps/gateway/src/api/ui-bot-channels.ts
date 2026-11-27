@@ -5,6 +5,7 @@ import { slackBotAppManifest } from "../connectors/slack-app.ts";
 import { MessengerStore } from "../messengers/store.ts";
 import { slackMessengerAppManifest, slackMessengerAppCreateUrl } from "../messengers/slack.ts";
 import { messengerAdapter } from "../messengers/adapters.ts";
+import { MessengerError } from "../messengers/messenger-error.ts";
 import { invalidMessengerTokens } from "../messengers/account-tokens.ts";
 import { messengerProvider, type MessengerProvider } from "../messengers/provider.ts";
 import { type GatewayCore } from "../core/core.ts";
@@ -160,6 +161,16 @@ async function validateStandaloneEdit(
   return { externalId, ...(previous && { validatedRevision: previous.revision }) };
 }
 
+/** Fixed owner-facing guidance for provider setup codes; provider text is never shown. */
+const setupErrors = new Map([
+  ["unauthorized", "The bot token was rejected. Copy it again and try again."],
+  ["webhook_active", "This Telegram bot has a webhook. Remove it with deleteWebhook, then connect the bot again."],
+  [
+    "message_content_intent",
+    "Turn on Message Content Intent for this bot in the Discord Developer Portal, then connect it again.",
+  ],
+]);
+
 /** Never echo or log provider failures, SQL parameters or write-only credentials. */
 async function messengerGuard<A>(perform: () => Promise<A>): Promise<A> {
   try {
@@ -171,6 +182,11 @@ async function messengerGuard<A>(perform: () => Promise<A>): Promise<A> {
     if (failure instanceof Invalid) throw new ConnectError(failure.message, Code.InvalidArgument);
 
     if (failure instanceof NotFound) throw new ConnectError(failure.message, Code.NotFound);
+
+    const setup =
+      failure instanceof MessengerError && failure.kind === "configuration" && setupErrors.get(failure.code);
+
+    if (setup) throw new ConnectError(setup, Code.FailedPrecondition);
 
     throw new ConnectError("Messenger request failed. Check the configuration and try again.", Code.Internal);
   }
