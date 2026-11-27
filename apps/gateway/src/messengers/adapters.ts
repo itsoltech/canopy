@@ -1,17 +1,12 @@
-import { Invalid } from "../store/store.ts";
-import { messengerLabel, type MessengerAdapter, type MessengerProvider } from "./provider.ts";
+import type { MessengerAdapter, MessengerProvider } from "./provider.ts";
+import { discordAdapter } from "./discord.ts";
 import { slackAdapter } from "./slack.ts";
 import { telegramAdapter } from "./telegram.ts";
 
-const adapters: Partial<Record<MessengerProvider, MessengerAdapter>> = {
+const adapters: Record<MessengerProvider, MessengerAdapter> = {
   slack: slackAdapter,
   telegram: telegramAdapter,
+  discord: discordAdapter,
 };
 
-export function messengerAdapter(provider: MessengerProvider): MessengerAdapter {
-  const adapter = adapters[provider];
-
-  if (!adapter) throw new Invalid(`${messengerLabel(provider)} messaging is unavailable`);
-
-  return adapter;
-}
+export const messengerAdapter = (provider: MessengerProvider): MessengerAdapter => adapters[provider];
