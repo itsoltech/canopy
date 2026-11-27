@@ -13,6 +13,7 @@ Aktualizacja (2026-11-26): composer w web/desktop ustawia czasy przejść raz na
 odcinek ruchu sterowany przewijaniem.
 Aktualizacja (2026-11-26): listy sidebara web/desktop mają mniejszy odstęp po prawej
 i zachowują szerokość po pojawieniu się paska przewijania.
+Aktualizacja (2026-11-28): zakładki tematów ustawień mają na desktopie 28 px zamiast 32 px.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -93,6 +94,7 @@ odziedziczonej prędkości. Nazwy pozostają widoczne w menu.
 | Wiersz menu, opcja listy, select | — | 40 / 28, 44 przy dotyku |
 | Paleta poleceń | — | wiersz 40 / 32, pole 48 / 44 |
 | Segmented control | 32 / 24, tekst 14 / 13 | jak standard |
+| Zakładki tematów ustawień (`SettingsTopics`) | 44 / 28, tekst jak segmented control | — |
 
 Primary, secondary, ghost i danger mają te same wymiary; różnią się tylko kolorem. Przyciski `sm`
 i `IconButton` dostają na ekranach dotykowych niewidoczny cel 48 px (`TouchTarget`).
