@@ -2,7 +2,8 @@
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-26), w tym przerywania okresowego skanu
+Status: opis zaimplementowanego kodu (2026-11-27), w tym ponownego wiązania
+kanału aktualizacji desktopu po parowaniu oraz przerywania okresowego skanu
 worktree przy zamykaniu gatewaya oraz postępu pobierania binarek
 workerów i samodzielnego gatewaya w web i Electronie, animacji cyfr procentu
 pobierania aplikacji desktopowej, szybkich akcji w popoverze
@@ -194,6 +195,10 @@ identyfikatora rejestracji z lokalnego mostka `DesktopStatus.workerId`. Starszy
 mostek bez identyfikatora pokazuje obie pozycje. Wiersz zachowuje lokalny postęp
 pobierania i restart gotowej paczki oraz stan żądania z gatewaya, błąd
 i wymuszony restart po potwierdzeniu. Pozostałe workery są pogrupowane według domu.
+Wersję i dostępność zdalnej aktualizacji aplikacji zgłasza osobny kanał
+desktopu, powiązany z rejestracją workera po jej identyfikatorze. Po ponownym
+parowaniu nowa sesja aktualizacji może zastąpić powiązanie z nieaktywną sesją
+tego samego workera po potwierdzeniu jego poświadczeniem.
 Przy błędzie pojedynczej instalacji można ją ponowić. Po zatrzymaniu Update all
 można ponowić wszystkie błędne kroki lub wybrać jeden w rozwijanych wynikach.
 Odrzucenie błędu pojedynczej instalacji i odrzucenie przebiegu mają osobny zakres.

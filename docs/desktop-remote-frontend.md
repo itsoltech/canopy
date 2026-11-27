@@ -25,6 +25,8 @@ Settings → Linked computers kieruje do aplikacji na komputerze uruchamiającym
 Wskazówka działa także bez połączenia z gatewayem (2026-11-25).
 W aplikacji webowej i desktopowej **Settings → App updates → Status** pokazuje stan
 aktualizacji sparowanego desktopu i akcję **Update Canopy app** (2026-11-25).
+Nowe parowanie może przejąć nieaktywny kanał aktualizacji tej samej rejestracji
+workera (2026-11-27).
 
 ## Decyzja
 
@@ -287,9 +289,14 @@ w przeglądarce sprawdza jedynie układ i stany, bez natywnego IPC i magazynu kl
 przypięty TLS i poświadczenie desktopu. `DesktopWorkerService.Confirm` wymaga
 osobnego credentialu własnego workera i losowego identyfikatora bieżącej sesji.
 Migracja `0063_desktop_updates` zapisuje powiązanie właściciela, urządzenia i workera,
-ostatnią komendę oraz raport. Ponowne parowanie może zastąpić powiązanie dopiero po
-odwołaniu poprzedniego urządzenia; nie dziedziczy jego komendy. Odwołanie urządzenia
-zamyka strumień. `canopy.update.v1` i protokół WorkerLink pozostają bez zmian.
+ostatnią komendę oraz raport. Od 2026-11-27 nowe parowanie może zastąpić
+powiązanie, gdy poprzednie urządzenie straciło dostęp lub jego potwierdzony
+strumień aktualizacji się zakończył. Nowa sesja potwierdza poświadczenie tej samej
+rejestracji workera i dostaje własny stan i komendę. Dostęp sparowanych urządzeń
+nadal można odwołać indywidualnie. Odwołanie zamyka strumień urządzenia.
+Po powrocie wcześniejszego parowania gateway przyjmuje bieżący raport aktualizatora
+i pomija stan historycznego żądania, którego już nie przechowuje.
+`canopy.update.v1` i protokół WorkerLink pozostają bez zmian.
 
 Controller przekazuje komendę prywatnym stdio do main; `RemoteAppUpdate` wywołuje
 istniejący `DesktopUpdates`, bez URL, wyboru kanału i zgody na downgrade w komendzie.

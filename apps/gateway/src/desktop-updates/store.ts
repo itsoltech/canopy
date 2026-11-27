@@ -1,4 +1,5 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -36,15 +37,19 @@ export class DesktopUpdateStore {
     }));
   }
 
-  async bind(workerId: string, deviceId: string) {
-    if (!isUuid(workerId) || !isUuid(deviceId)) return false;
+  async bind(workerId: string, deviceId: string, sessionCurrent: () => boolean, replaceDeviceId?: string) {
+    if (!isUuid(workerId) || !isUuid(deviceId)) return undefined;
     const owner = this.owner;
 
     return this.runtime.runPromise(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        const rows = yield* sql`INSERT INTO desktop_updates (worker_id, device_id, owner_user_id)
+        return yield* sql.withTransaction(
+          Effect.gen(function* () {
+            const [row] = yield* sql<{
+              command: JsonValue;
+            }>`INSERT INTO desktop_updates (worker_id, device_id, owner_user_id)
         SELECT w.id, d.id, ${owner}::uuid FROM workers w, mobile_devices d
         WHERE w.id = ${workerId}::uuid AND d.id = ${deviceId}::uuid
         AND w.owner_user_id = ${owner}::uuid AND d.owner_user_id = ${owner}::uuid
@@ -53,11 +58,19 @@ export class DesktopUpdateStore {
         ON CONFLICT (worker_id) DO UPDATE SET device_id = EXCLUDED.device_id,
           state = CASE WHEN desktop_updates.device_id = EXCLUDED.device_id THEN desktop_updates.state ELSE '{}'::jsonb END,
           command = CASE WHEN desktop_updates.device_id = EXCLUDED.device_id THEN desktop_updates.command ELSE '{}'::jsonb END
-        WHERE desktop_updates.device_id = EXCLUDED.device_id OR EXISTS
-          (SELECT 1 FROM mobile_devices old WHERE old.id = desktop_updates.device_id AND old.revoked_at IS NOT NULL)
-        RETURNING worker_id`;
+        WHERE desktop_updates.owner_user_id = EXCLUDED.owner_user_id AND (
+          desktop_updates.device_id = EXCLUDED.device_id OR desktop_updates.device_id = ${replaceDeviceId ?? null}::uuid
+          OR EXISTS (SELECT 1 FROM mobile_devices old WHERE old.id = desktop_updates.device_id AND old.revoked_at IS NOT NULL)
+        )
+        RETURNING command`;
 
-        return rows.length > 0;
+            // A live session at this point has proved the binding. A later disconnect can lose the acknowledgement.
+            if (!sessionCurrent())
+              return yield* Effect.fail(new ConnectError("Desktop session not confirmed", Code.FailedPrecondition));
+
+            return row && fromJson(ui.DesktopUpdateCommandSchema, row.command);
+          }),
+        );
       }),
     );
   }
