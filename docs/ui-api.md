@@ -31,7 +31,7 @@ Status (2026-11-24): kompozytor istniejącego wątku w web i desktopie otwiera s
 w pełnym rozmiarze na końcu rozmowy. Podczas czytania historii zwija się
 do jednego wiersza z tekstem i główną akcją.
 
-Status (2026-11-24): stopka sidebara w web i desktopie pokazuje podsumowania Usage i Workers.
+Status (2026-11-27): stopka sidebara w web i desktopie pokazuje podsumowania Usage, Workers, Updates i Provider usage po najechaniu; kliknięcie ikony otwiera pełny widok.
 
 Status (2026-11-24): web i desktop pobierają listę skilli z domu wybranego workera
 i umożliwiają archiwizację lokalnej kopii na połączonym komputerze ze wspólną konfiguracją.
@@ -439,17 +439,19 @@ W sidebarze węższym niż 16 rem stopka zmniejsza odstępy i zostawia samą iko
 workerów, gdy skrót jest widoczny. Licznik pozostaje w dostępnej nazwie przycisku.
 Panel Workers pokazuje nazwy i stany workerów ze strumienia overview, najpierw online.
 Przy powtarzających się nazwach dopisuje komputer. Wiersz prowadzi do ustawień workera,
-a „Add worker” otwiera kreator dodawania. Te akcje wymagają obsługi ustawień workerów przez gateway.
+a „Add worker” otwiera kreator dodawania. Kliknięcie skrótu otwiera Settings → Workers.
+Te akcje wymagają obsługi ustawień workerów przez gateway; bez niej skrót jest samym licznikiem.
 
 Zębatka w stopce sidebara otwiera Settings bezpośrednio.
 Pierwsza synchronizacja z gatewayem nie warunkuje otwarcia Settings.
 Jeśli strona Settings została otwarta bezpośrednio podczas przerwy w połączeniu,
 zamknięcie prowadzi do strony głównej.
-Ikona Usage otwiera podsumowanie tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC.
-Panel pobiera dane przy otwarciu. „Open usage report” otwiera pełny raport nad bieżącą stroną.
-Najechanie na Usage, Workers, Updates lub Provider usage pokazuje jeden panel naraz. Panel Updates pokazuje stan i odnośnik do App updates.
-Aktywacja przycisku przypina panel, a na telefonie otwiera dolny arkusz.
-Dotknięcie przyciemnionego tła zamyka arkusz i pozostawia nawigację w miejscu.
+Ikona Usage otwiera pełny raport nad bieżącą stroną. Najechanie na nią pokazuje podsumowanie
+tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC; panel pobiera dane przy otwarciu.
+Najechanie myszą w oknie szerszym niż 40 rem na Usage, Workers, Updates lub Provider usage pokazuje
+jeden panel naraz, bez przenoszenia fokusu. Kliknięcie ikony otwiera pełny widok: raport Usage,
+Settings → Workers, Settings → App updates albo Settings → Providers. Panele nie mają osobnego
+przycisku przejścia. Dotyk i klawiatura od razu otwierają pełny widok.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
 nie pokazuje ikony Usage.

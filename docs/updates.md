@@ -137,15 +137,15 @@ przywracał odrzuconego błędu.
 Zmiana telefonu dotyczy wyłącznie JS/TS i nie wymaga nowego runtime ani builda EAS.
 
 W web i Electronie ikona Updates w stopce wskazuje dostępność, postęp pobierania,
-gotowość do restartu lub błąd. Kliknięcie albo najechanie myszą w szerszym oknie
-otwiera popover. W nagłówku **Check now** sprawdza te same instalacje co przycisk
+gotowość do restartu lub błąd. Kliknięcie otwiera Status w **App updates**, a najechanie
+myszą w szerszym oknie otwiera popover. W nagłówku **Check now** sprawdza te same instalacje co przycisk
 w ustawieniach, także samą aplikację przy niezgodnym gatewayu. Przewijana lista
 pokazuje wersje, postęp i akcje poszczególnych instalacji. Stopka udostępnia
 **Update all**, **Retry failed** albo **Restart to update** dla pobranej lokalnej
 aplikacji. Akcje korzystają z tych samych warunków i potwierdzeń co ustawienia.
-**Settings** otwiera Status w **App updates**, a **What's new** pokazuje
-nieobejrzane notatki. Pozostałe panele stopki (Usage, Workers i Provider usage)
-współdzielą z popoverem obsługę najechania, przypinania i zamknięcia.
+**What's new** pokazuje nieobejrzane notatki. Bez akcji i notatek stopki nie ma.
+Pozostałe panele stopki (Usage, Workers i Provider usage) współdzielą z popoverem
+obsługę najechania i zamknięcia.
 
 Telefon, web i zdalny tryb Electron pokazują nazwę podłączonego komputera oraz te same
 akcje i stany aplikacji co dla partnerów. `UpdatesSnapshot.app_update_supported`

@@ -5,8 +5,6 @@
   import { loadUsage } from "./api.ts";
   import { count, effectiveCost, hasPartialCost, shortCount, totalTokens, type UsageData } from "./format.ts";
 
-  let { onOpenUsage }: { onOpenUsage: () => void } = $props();
-
   let revision = $state(0);
   let data = $state.raw<UsageData>();
   let failed = $state(false);
@@ -75,5 +73,4 @@
       <p class="text-sm/5 text-muted sm:text-xs/5">Some usage data may be missing.</p>
     {/if}
   </div>
-  <Button variant="ghost" class="justify-start" onclick={onOpenUsage}>Open usage report</Button>
 </div>
