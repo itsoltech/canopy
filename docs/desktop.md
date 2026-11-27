@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-27): zwinięty **Activity notch** pokazuje nieruchomy pierścień
+pracy i wstrzymuje animacje etykiet ukrytych wierszy.
+
 Status (2026-11-26): kolory własnego motywu i wybrany akcent obejmują natywne tło okna,
 ekrany startowe oraz elementy powłoki korzystające z palety Desktopu.
 
@@ -531,13 +534,15 @@ razie w górę. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
-dłoń, a trwającą pracę ten sam pierścień co na liście wątków. Ukończoną pracę
+dłoń, a trwającą pracę pierścień, który obraca się przy rozwiniętej
+nakładce i pozostaje nieruchomy przy zwiniętej. Ukończoną pracę
 oznacza zielone koło z czarnym znacznikiem. Ikona ma kolor stanu, a liczba kolor
 tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
-tego stanu; przy trwającej pracy przesuwa się po niej powolny refleks światła,
-jak w etykietach na żywo w aplikacji. Najechanie kursorem lub kliknięcie rozwija
-obrys bez odbicia poza docelowy rozmiar okna, a jego dolne rogi zaokrąglają się
-mocniej. Wiersze wysuwają się spod nagłówka z rozmyciem, jeden po drugim, gdy
+tego stanu. W rozwiniętej nakładce przy trwającej pracy przesuwa się po niej
+powolny refleks światła, jak w etykietach na żywo w aplikacji. Najechanie
+kursorem lub kliknięcie rozwija obrys bez odbicia poza docelowy rozmiar okna,
+a jego dolne rogi zaokrąglają się mocniej. Wiersze wysuwają się spod nagłówka
+z rozmyciem, jeden po drugim, gdy
 obrys do nich dorasta; od piątego wiersza kolejne dołączają razem z nim, a wiersz
 dodany poniżej widocznej listy czeka, aż obrys zrobi mu miejsce. Powyżej pięciu
 wierszy listę można przewijać, do 24 pozycji.
@@ -548,8 +553,8 @@ dotarciem krawędzi. Ponowne najechanie w trakcie zwijania odwraca ruch od bież
 kształtu. W rozwiniętej liście nowe i usuwane wiersze zmieniają przezroczystość,
 a pozostałe przesuwają się na nowe miejsca. Przy zmianie stanu ikona wyłania się
 z rozmycia, na chwilę przekracza pełny rozmiar, a od niej rozchodzi się pierścień
-w kolorze nowego stanu. Przejście z pracy do ukończenia nie podmienia ikony,
-tylko ją przekształca: łuk pierścienia staje i gaśnie, w jego miejscu pojawia się
+w kolorze nowego stanu. Przejście z pracy do ukończenia przekształca ikonę.
+Łuk pierścienia gaśnie, w jego miejscu pojawia się
 zielone koło, a znacznik rysuje się, zanim koło nabierze pełnego koloru. Ikona
 przy tym lekko podskakuje i rośnie, na moment się rozmywając. Powrót do pracy
 odwraca te warstwy krócej. Ukończenie po innym stanie pokazuje znacznik od razu,

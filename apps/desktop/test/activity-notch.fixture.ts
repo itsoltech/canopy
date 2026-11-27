@@ -130,6 +130,18 @@ async function toggleOverlay(overlay: BrowserWindow) {
   return result;
 }
 
+async function assertActivityLoops(overlay: BrowserWindow, expanded: boolean) {
+  const { reducedMotion, running } = await overlay.webContents.executeJavaScript(`({
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+    running: document.getAnimations()
+      .filter((animation) => animation.playState === "running" && animation.effect.getTiming().iterations === Infinity)
+      .map((animation) => animation.animationName)
+      .sort(),
+  })`);
+
+  assert.deepEqual(running, expanded && !reducedMotion ? ["shimmer", "spin"] : []);
+}
+
 interface RenderedActivityRow {
   initials: string | undefined;
   logo: { width: number; height: number; rgba: number[] } | undefined;
@@ -221,6 +233,7 @@ async function mascotBodyColor(overlay: BrowserWindow, expectedImage: string): P
 async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, workingRow: ActivityNotchRow) {
   enter("rendering a project logo and preserving other statuses");
   await toggleOverlay(overlay);
+  await assertActivityLoops(overlay, true);
 
   const invalidColor = {
     path: "/threads/synthetic-malformed-mark",
@@ -283,6 +296,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
   await waitForRows(overlay, ["Open Restore focus, Working", approvalLabel, `Open ${renamedBot}, Completed`]);
   assert.deepEqual(await mascotBodyColor(overlay, recolored.botMascot), [250, 80, 32, 255]);
   await toggleOverlay(overlay);
+  await assertActivityLoops(overlay, false);
 }
 
 async function checkPreloadRedaction(overlay: BrowserWindow) {
@@ -332,6 +346,7 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   const workingRow = { id: row.id, label: working.title, state: "working" } as const;
   assert.deepEqual(first.rows, [workingRow]);
   assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, Working"]), [noMark]);
+  await assertActivityLoops(overlay, false);
 
   await settings.loadURL(`${origin}/settings`);
   await assert.rejects(publish(settings, []), /Untrusted activity notch request/);
@@ -437,7 +452,7 @@ async function clearActivity(overlay: BrowserWindow, source: BrowserWindow) {
   );
 
   if (!reducedMotion) {
-    await overlay.webContents.executeJavaScript(`{
+    await overlay.webContents.executeJavaScript(`(() => {
       const notch = document.querySelector('.notch');
       window.pausedFade = new Promise((resolve) => {
         const observer = new MutationObserver(() => {
@@ -449,7 +464,7 @@ async function clearActivity(overlay: BrowserWindow, source: BrowserWindow) {
         });
         observer.observe(notch, { attributeFilter: ['data-active'] });
       });
-    }`);
+    })()`);
 
     assert.deepEqual(await publishRows(overlay, source, []), []);
     assert.equal(await overlay.webContents.executeJavaScript("window.pausedFade"), true);
