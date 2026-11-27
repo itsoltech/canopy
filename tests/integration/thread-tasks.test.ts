@@ -112,4 +112,47 @@ describe.skipIf(!dockerAvailable)("thread task list (gateway)", () => {
 
     expect(retired.thread?.tasks).toBeUndefined();
   }, 60_000);
+
+  test("the agent bus records an update_tasks call and answers it", async () => {
+    const threadId = (
+      await api.createThread({
+        projectId,
+        workspaceId,
+        title: "bus",
+        provider: Provider.CODEX,
+        permissionMode: PermissionMode.ASK,
+      })
+    ).thread!.id;
+
+    await eventually(
+      () => api.getThread({ threadId }),
+      (r) => r.thread?.status === "idle",
+    );
+
+    const worker = gw.worker;
+    const answered = Promise.withResolvers<Awaited<ReturnType<typeof worker.callTool>>>();
+    worker.handlers.set("startTurn", (value, reply) => {
+      const { turnId } = value as { turnId: string };
+      reply(true);
+      worker.emit(threadId, turnId, { case: "turnStarted", value: { origin: TurnOrigin.COMMAND } });
+      void worker
+        .callTool({
+          threadId,
+          turnId,
+          tool: "update_tasks",
+          args: { tasks: [{ title: "Ship", status: "in_progress" }] },
+        })
+        .then(answered.resolve, answered.reject)
+        .finally(() =>
+          worker.emit(threadId, turnId, { case: "turnFinished", value: { outcome: TurnOutcome.COMPLETED } }),
+        );
+    });
+    await api.sendMessage({ threadId, text: "plan", clientRequestId: "bus-plan" });
+    const result = await answered.promise;
+    worker.handlers.delete("startTurn");
+
+    // The call's row is stored before it runs; a tool missing from agent_bus_calls_tool_check fails here.
+    expect(result.isError, result.content).toBe(false);
+    expect(JSON.parse(result.resultJson)).toMatchObject({ updated: true, total: 1, completed: 0 });
+  }, 60_000);
 });
