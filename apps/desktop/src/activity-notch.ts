@@ -115,6 +115,8 @@ export class ActivityNotch {
   #entries: Entry[] = [];
   #nextId = 0;
   #expanded = false;
+  /** The row that just left work and pops out of the notch on its own, until it is dismissed. */
+  #notice: number | undefined;
   #loaded = false;
   #layout: ActivityNotchLayout | undefined;
   #rowsRevision = 0;
@@ -141,8 +143,19 @@ export class ActivityNotch {
     ipcMain.on("canopy:activity-notch-expanded", (event, expanded: boolean) => {
       if (!this.#fromNotch(event) || !this.#entries.length || (expanded !== true && expanded !== false)) return;
 
-      if (expanded === this.#expanded) return;
+      const notice = this.#notice !== undefined;
+
+      if (expanded === this.#expanded && !notice) return;
       this.#expanded = expanded;
+      this.#notice = undefined;
+
+      if (notice) this.#sendRows();
+      this.#position();
+    });
+    ipcMain.on("canopy:activity-notch-dismiss", (event, id: number) => {
+      if (!this.#fromNotch(event) || id !== this.#notice) return;
+      this.#notice = undefined;
+      this.#sendRows();
       this.#position();
     });
     ipcMain.on("canopy:activity-notch-interactive", (event, interactive: boolean) => {
@@ -160,12 +173,14 @@ export class ActivityNotch {
       if (this.#fromNotch(event) && revision === this.#rowsRevision && !this.#entries.length) this.#destroyWindow();
     });
     ipcMain.on("canopy:activity-notch-open", (event, id: number) => {
-      if (!this.#fromNotch(event) || !this.#expanded) return;
+      if (!this.#fromNotch(event) || (!this.#expanded && this.#notice === undefined)) return;
       const entry = this.#entries.find((row) => row.id === id);
 
       if (entry) {
         this.#expanded = false;
+        this.#notice = undefined;
         sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-collapse"));
+        this.#sendRows();
         this.#position();
         this.openRoute(entry.path);
       }
@@ -228,6 +243,7 @@ export class ActivityNotch {
       if (this.#entries.length) {
         this.#entries = [];
         this.#expanded = false;
+        this.#notice = undefined;
 
         if (this.#loaded) this.#sendRows();
         else this.#destroyWindow();
@@ -271,11 +287,32 @@ export class ActivityNotch {
       return;
 
     this.#entries = entries;
+    this.#updateNotice(previous);
 
     if (this.#target) {
       this.#position();
       this.#sendRows();
     } else this.#createWindow();
+  }
+
+  /**
+   * A row that leaves work for a result or a request pops out alone, like a notification. A newer change replaces
+   * it; it ends when its row goes back to work or leaves the list. An open list already shows every change.
+   */
+  #updateNotice(previous: ReadonlyMap<string, Entry>) {
+    const changed = this.#entries.find(
+      (entry) => entry.state !== "working" && previous.get(entry.path)?.state === "working",
+    );
+
+    if (changed && !this.#expanded) {
+      this.#notice = changed.id;
+
+      return;
+    }
+
+    const current = this.#entries.find((entry) => entry.id === this.#notice);
+
+    if (!current || current.state === "working") this.#notice = undefined;
   }
 
   #fromNotch(event: IpcMainEvent) {
@@ -299,12 +336,15 @@ export class ActivityNotch {
     }));
 
     const revision = ++this.#rowsRevision;
-    sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows, revision));
+    const notice = this.#notice ?? null;
+    sendWindowMessage(this.#target, (contents) => contents.send("canopy:activity-notch-rows", rows, revision, notice));
   }
 
   #displayChanged = () => this.#position({ displayChanged: true });
 
   get #expandedRows() {
+    if (this.#notice !== undefined) return 1;
+
     return this.#expanded ? Math.min(this.#entries.length, activityNotchVisibleRows) : 0;
   }
 
@@ -354,6 +394,7 @@ export class ActivityNotch {
     this.#layout = undefined;
     this.#reservedRows = 0;
     this.#expanded = false;
+    this.#notice = undefined;
 
     if (target && !target.isDestroyed()) target.destroy();
   }

@@ -18,6 +18,9 @@ Po zwinięciu pozostaje na środku, bo natywne okno zmienia tylko wysokość.
 Ikony próśb i błędów oraz kolory etykiet odpowiadają liście wątków.
 Wiersze rozwiniętej listy wyglądają jak wiersze wątków w pasku bocznym: projekt
 ze znakiem i etykietą stanu, tytuł, a pod nim worker, gałąź i znak dostawcy.
+
+Status (2026-11-27): wątek lub bot, który kończy pracę albo czeka na zgodę,
+odpowiedź lub ma błąd, wyskakuje z Activity notch sam, jak powiadomienie.
 Wiersze mają ten sam odstęp od boków i dołu wycięcia. Wiersze botów pokazują
 ich nazwy i maskotki.
 Na Macach z wycięciem wskaźniki zajmują miejsce po obu stronach kamery.
@@ -499,7 +502,20 @@ wiersza, który już jest na liście. W liczniku animują się tylko zmienione c
 z rozmyciem w kierunku zmiany, nowa wskakuje z lekkim sprężynowaniem, kolejno
 od lewej. Pojawiające się wycięcie wyostrza skrzydła z rozmycia. Systemowe
 ograniczenie ruchu wyłącza animacje. Kliknięcie wiersza zwija listę, aktywuje główne okno i otwiera
-odpowiedni wątek lub rozmowę bota. Nakładka stopniowo pojawia się przy pierwszej
+odpowiedni wątek lub rozmowę bota.
+
+Gdy pozycja przechodzi z trwającej pracy do ukończenia, błędu lub prośby o zgodę
+albo odpowiedź, nakładka sama rozwija się jak powiadomienie i pokazuje tylko ten
+jeden wiersz; licznik i ikona nadal obejmują wszystkie pozycje. Kolejna taka zmiana
+zastępuje pokazany wiersz. Najechanie kursorem zatrzymuje powiadomienie i dalej
+pokazuje tylko ten wiersz. Powiadomienie chowa się po 6 sekundach bez kursora,
+chwilę po jego odsunięciu, po kliknięciu nagłówka lub Escape, a także gdy wiersz
+wraca do pracy lub znika z listy. Kliknięcie wiersza otwiera go jak w rozwiniętej
+liście. Po schowaniu nakładka wraca do zwykłego trybu i następne rozwinięcie
+pokazuje wszystkie pozycje. Zmiana stanu przy rozwiniętej liście nie wywołuje
+powiadomienia, bo lista już ją pokazuje.
+
+Nakładka stopniowo pojawia się przy pierwszej
 pozycji i wygasa po wyczerpaniu pozycji lub wyłączeniu ustawienia. Zamknięcie
 głównego okna od razu usuwa nakładkę.
 
