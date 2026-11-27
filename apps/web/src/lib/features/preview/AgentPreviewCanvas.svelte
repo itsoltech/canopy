@@ -2,10 +2,8 @@
   import { onDestroy, onMount } from "svelte";
   import { create, type MessageInitShape } from "@bufbuild/protobuf";
   import { AgentPreviewInputSchema, type AgentPreviewEvent, type AgentPreviewInput } from "@canopy/contracts";
-  import Icon from "#lib/shared/ui/Icon.svelte";
-  import StatusDot from "#lib/shared/ui/StatusDot.svelte";
   import type { ClassValue } from "svelte/elements";
-  import ViewportControls from "./ViewportControls.svelte";
+  import { rise } from "#lib/shared/ui/motion.ts";
   import ViewportResizeHandles from "./ViewportResizeHandles.svelte";
   import PreviewFrame from "./PreviewFrame.svelte";
 
@@ -16,6 +14,7 @@
     emptyText = "Waiting for the first live frame…",
     notice = "",
     browser = false,
+    focused = $bindable(false),
     onaddress,
     fit = $bindable("fit"),
     oninput,
@@ -29,6 +28,7 @@
     emptyText?: string;
     notice?: string;
     browser?: boolean;
+    focused?: boolean;
     onaddress?: () => void;
     fit?: "fit" | "actual";
     oninput: (input: AgentPreviewInput) => void;
@@ -42,7 +42,6 @@
   let surfaceBounds = $state<DOMRectReadOnly>();
   let keyboard = $state<HTMLTextAreaElement>();
   let viewport = $state<HTMLDivElement>();
-  let focused = $state(false);
   const pressed = new Map<string, string>();
   let composing = false;
 
@@ -208,100 +207,96 @@
   }
 </script>
 
-<div class={["relative flex min-h-0 min-w-0 flex-1 flex-col", className]}>
-  <div class="flex min-h-8 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
-    {#if focused}
-      <span class="inline-flex shrink-0 items-center gap-1.5 text-brand-700 dark:text-brand-300">
-        <StatusDot tone="sky" pulse />
-        Keyboard active · Esc to release
-      </span>
-    {:else}
-      <span class="inline-flex shrink-0 items-center gap-1.5"
-        ><Icon name="hand-raised" class="size-3.5" />{enabled ? "Click the screen to control it" : "Preview only"}</span
-      >
-    {/if}
-    {#if browser}
-      <ViewportControls {enabled} width={viewportWidth} height={viewportHeight} onresize={sendResize} />
-    {/if}
-    <span class="min-w-0 flex-1 truncate text-right" title={notice} role="status">{notice}</span>
-  </div>
-  <div class="relative mt-2 min-h-0 min-w-0 flex-1">
+<div class={["relative min-h-0 min-w-0 flex-1", className]}>
+  <div
+    bind:this={surface}
+    bind:contentRect={surfaceBounds}
+    class="absolute inset-0 flex overflow-auto bg-panel p-4 outline-none"
+  >
     <div
-      bind:this={surface}
-      bind:contentRect={surfaceBounds}
+      bind:this={viewport}
       class={[
-        "absolute inset-0 flex overflow-auto rounded-lg border bg-panel p-3 outline-none",
-        focused ? "border-brand-500/70 ring-2 ring-brand-500/20" : "border-divider",
+        "relative m-auto shrink-0 rounded-sm transition-shadow duration-(--duration-fast) motion-reduce:transition-none",
+        focused && "ring-2 ring-brand-500",
       ]}
+      style:width={frameWidth ? `${frameWidth * scale}px` : undefined}
+      style:height={frameHeight ? `${frameHeight * scale}px` : undefined}
     >
-      <div
-        bind:this={viewport}
-        class="relative m-auto shrink-0"
-        style:width={frameWidth ? `${frameWidth * scale}px` : undefined}
-        style:height={frameHeight ? `${frameHeight * scale}px` : undefined}
-      >
-        <PreviewFrame
-          bind:canvas
-          frame={event}
-          {onpaint}
-          {onframeerror}
-          class="block size-full rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900"
-          aria-label="Live screen preview"
-          role="button"
-          tabindex={enabled ? 0 : -1}
-          onkeydown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              focusSurface();
-            }
-          }}
-          onpointerdown={pointerdown}
-          onpointermove={pointermove}
-          onpointerup={pointerup}
-          onpointercancel={() => send("release")}
-          oncontextmenu={(event) => {
-            if (focused) event.preventDefault();
-          }}
-          onwheel={wheel}
-        />
-      </div>
-      <textarea
-        bind:this={keyboard}
-        class="pointer-events-none absolute bottom-0 left-0 size-px resize-none overflow-hidden border-0 p-0 opacity-0"
-        aria-label="Control preview keyboard"
-        tabindex="-1"
-        autocomplete="off"
-        autocapitalize="off"
-        spellcheck="false"
-        onfocus={() => (focused = true)}
-        onblur={() => {
-          releaseKeys();
-          focused = false;
-          send("release");
+      <PreviewFrame
+        bind:canvas
+        frame={event}
+        {onpaint}
+        {onframeerror}
+        class={[
+          "block size-full rounded-sm bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:bg-zinc-900",
+          !event?.data.length && "invisible",
+        ]}
+        aria-label="Live screen preview"
+        role="button"
+        tabindex={enabled ? 0 : -1}
+        onkeydown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            focusSurface();
+          }
         }}
-        onkeydown={keydown}
-        onkeyup={keyup}
-        oninput={inputText}
-        oncompositionstart={() => (composing = true)}
-        oncompositionend={() => {
-          composing = false;
-          inputText();
+        onpointerdown={pointerdown}
+        onpointermove={pointermove}
+        onpointerup={pointerup}
+        onpointercancel={() => send("release")}
+        oncontextmenu={(event) => {
+          if (focused) event.preventDefault();
         }}
-        onpaste={(event) => event.stopPropagation()}></textarea>
-      {#if !event?.data.length}<div
-          class="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-sm/5 text-muted"
-        >
-          {emptyText}
-        </div>{/if}
+        onwheel={wheel}
+      />
     </div>
-    <ViewportResizeHandles
-      {browser}
-      {enabled}
-      width={viewportWidth}
-      height={viewportHeight}
-      {viewport}
-      {surface}
-      onresize={sendResize}
-    />
+    <textarea
+      bind:this={keyboard}
+      class="pointer-events-none absolute bottom-0 left-0 size-px resize-none overflow-hidden border-0 p-0 opacity-0"
+      aria-label="Control preview keyboard"
+      tabindex="-1"
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+      onfocus={() => (focused = true)}
+      onblur={() => {
+        releaseKeys();
+        focused = false;
+        send("release");
+      }}
+      onkeydown={keydown}
+      onkeyup={keyup}
+      oninput={inputText}
+      oncompositionstart={() => (composing = true)}
+      oncompositionend={() => {
+        composing = false;
+        inputText();
+      }}
+      onpaste={(event) => event.stopPropagation()}></textarea>
+    {#if !event?.data.length}<div
+        class="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-sm/5 text-muted"
+      >
+        {emptyText}
+      </div>{/if}
   </div>
+  {#if notice}
+    <div class="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-4" transition:rise>
+      <p
+        class="max-w-full truncate rounded-md bg-zinc-900/90 px-2.5 py-1 text-xs/5 text-white shadow-sm ring-1 ring-white/10 dark:bg-zinc-800/95"
+        title={notice}
+      >
+        {notice}
+      </p>
+    </div>
+  {/if}
+  <p class="sr-only" role="status">{notice}</p>
+  <ViewportResizeHandles
+    {browser}
+    {enabled}
+    width={viewportWidth}
+    height={viewportHeight}
+    {viewport}
+    {surface}
+    onresize={sendResize}
+  />
 </div>
