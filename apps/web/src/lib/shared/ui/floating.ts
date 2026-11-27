@@ -117,7 +117,10 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
 
   const position = computePosition(
     anchor.getBoundingClientRect(),
-    { width: floating.offsetWidth, height: floating.offsetHeight },
+    {
+      width: floating.offsetWidth,
+      height: options?.measureNaturalHeight ? floating.offsetHeight : contentHeight(floating),
+    },
     {
       width: document.documentElement.clientWidth,
       height: window.innerHeight,
@@ -135,6 +138,25 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
   floating.dataset.side = position.side;
 
   return position;
+}
+
+/**
+ * The height a scrolling element wants on either side: its whole content within its own height cap, but not
+ * the room left on the side it sits on now. Measuring the capped box would keep a panel that first opened
+ * small (content still loading) on a cramped side for good, scrolling, while the other side has room.
+ * Only the computed cap is read without the room, so no layout runs at another height and the scroll
+ * position stays where it is.
+ */
+function contentHeight(floating: HTMLElement): number {
+  const content = floating.scrollHeight + floating.offsetHeight - floating.clientHeight;
+  const room = floating.style.getPropertyValue("--float-available-height");
+
+  if (room) floating.style.removeProperty("--float-available-height");
+  const cap = getComputedStyle(floating).maxHeight;
+
+  if (room) floating.style.setProperty("--float-available-height", room);
+
+  return cap.endsWith("px") ? Math.min(content, parseFloat(cap)) : content;
 }
 
 /** Where the floating element grows from: the edge facing the anchor, at the anchor's centre. */
