@@ -88,13 +88,13 @@ test.skipIf(!dockerAvailable)(
     const session = new BffSession({
       ...gateway.api,
       watchOverview(request, options) {
-        overviewRequests.push([...request.threadHeadIds]);
+        overviewRequests.push([...(request.threadHeadIds ?? [])]);
         const signal = AbortSignal.any([...(options?.signal ? [options.signal] : []), drop.signal]);
 
         return gateway.api.watchOverview(request, { ...options, signal });
       },
       watchThreadHeads(request, options) {
-        headRequests.push([...request.threadIds]);
+        headRequests.push([...(request.threadIds ?? [])]);
 
         return gateway.api.watchThreadHeads(request, options);
       },

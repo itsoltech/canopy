@@ -1004,9 +1004,12 @@ partii. Zmiana zestawu zastępuje tę samą subskrypcję overview, bez watcha na
 zakresem właściciela i odczytem co 2 s, ale bez snapshotu overview. Pierwsza wiadomość
 niesie bieżący zestaw, kolejne tylko zmiany. BFF web/desktop prowadzi nim zestaw headów,
 a `WatchOverview` otwiera bez `thread_head_ids`; zmiana zestawu otwiera więc tylko ten
-strumień, bez nowego snapshotu overview. Gateway bez tej metody odpowiada `Unimplemented`:
-BFF wraca wtedy do `thread_head_ids` i restartu `WatchOverview`, a po rzeczywistej przerwie
-strumienia sprawdza metodę ponownie.
+strumień, bez nowego snapshotu overview. Identyfikatory wątków połączonych komputerów
+odczytuje lokalnie z lustra, jak `thread_head_ids`; metoda nie jest trasowana do domu
+ani udostępniana partnerom. Gateway bez tej metody odpowiada `Unimplemented`; przy nim,
+`PermissionDenied` i `FailedPrecondition` BFF wraca do `thread_head_ids` i restartu
+`WatchOverview`, a po rzeczywistej przerwie strumienia sprawdza metodę ponownie.
+Pozostałe błędy ponawia z backoffem do 10 s.
 
 Awaria samego watcha jest lokalna dla wątku. Cache pozostaje widoczny; błędy
 deterministyczne powodują jedną próbę bez kursora, jedną z mniejszym oknem, potem

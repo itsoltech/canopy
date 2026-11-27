@@ -4,6 +4,7 @@ import { Code, ConnectError, type Client } from "@connectrpc/connect";
 
 const RETRY_MIN_MS = 100;
 const RETRY_MAX_MS = 10_000;
+const REFUSED = new Set([Code.Unimplemented, Code.PermissionDenied, Code.FailedPrecondition]);
 
 type Gateway = Pick<Client<typeof ui.GatewayService>, "watchThreadHeads">;
 
@@ -67,8 +68,9 @@ export class BffThreadHeads {
       } catch (cause) {
         if (signal.aborted) return;
 
-        // An older gateway follows heads only on WatchOverview.
-        if (ConnectError.from(cause).code === Code.Unimplemented) {
+        // An older gateway, or one refusing this method, follows heads only on WatchOverview. Other failures are
+        // transient: heads are a latest value, so a retried stream loses nothing.
+        if (REFUSED.has(ConnectError.from(cause).code)) {
           if (this.#stream === stream) this.#stream = undefined;
           this.#unsupported();
 
