@@ -217,4 +217,5 @@ export const expectedSchemaMigrations = [
   "220_slack_channel_context",
   "221_mobile_push_dismissals",
   "222_agent_bus_update_tasks",
+  "223_worker_heartbeat_changes",
 ];

@@ -189,8 +189,10 @@ workera może natomiast zwiększyć rewizję lustra i wywołać ponowną subskry
 historii (`reason: revision`); ten wpis sam w sobie nie oznacza zerwania łącza
 komputerów. Trwały błąd treści zdarzenia nie powinien rozłączać workera
 ([obsługa zapisu i kwarantanny](protocol.md#dostarczanie-transkryptu-at-least-once--idempotencja)).
-Zapis `last_seen_at` z heartbeatów również uruchamia wspólną rewizję metadanych;
-takie odświeżenia mogą występować przy stabilnym łączu, bez rozłączeń workera.
+Sam zapis `last_seen_at` z heartbeatu workera nie zwiększa rewizji metadanych (migracja
+`0223_worker_heartbeat_changes`). Żaden wątek, lustro ani obserwacja nie czyta tej kolumny z dziennika,
+a każdy heartbeat kolejkował nagłówek replikacji wszystkich wątków workera i rewalidację każdej
+obserwacji. Wstawienie, usunięcie i każda inna zmiana wiersza `workers` nadal ją zwiększają.
 
 **Wyłącznie aplikacje Canopy Desktop w trybie lokalnym.** Łącze łączy dwa lub więcej
 lokalnych gatewayów desktopu. Gateway serwerowy (Docker lub samodzielna binarka)
