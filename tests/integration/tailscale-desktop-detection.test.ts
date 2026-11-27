@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, rmdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { ui } from "@canopy/contracts";
@@ -15,30 +15,62 @@ import { statusJson } from "./support/tailscale.ts";
 
 const dirs = tempDirs();
 
-test.skipIf(process.platform === "win32")(
-  "macOS forces CLI mode for the app bundle with no shell PATH",
-  async () => {
-    const cli = join(dirs("canopy-ts-mac-"), "Tailscale.app", "Contents", "MacOS", "Tailscale");
-    mkdirSync(dirname(cli), { recursive: true });
-    writeFileSync(
-      cli,
-      `#!/bin/sh
-[ "$TAILSCALE_BE_CLI" = 1 ] || exit 1
-[ "$#" = 2 ] && [ "$1" = status ] && [ "$2" = --json ] || exit 2
-printf '%s\n' '{"BackendState":"Running"}'
-`,
-      { mode: 0o700 },
-    );
+/**
+ * Puts the macOS app CLI at its bundle path as a link to the system shell, run in a directory whose `status` file
+ * the shell reads as its script. macOS assesses a just-written executable on its first launch and can hold exec
+ * past any deadline, so the fixture never launches a new file.
+ */
+async function bundleCli(script: string, run: (cli: string) => Promise<void>) {
+  const root = dirs("canopy-ts-mac-");
+  const cli = join(root, "Tailscale.app", "Contents", "MacOS", "Tailscale");
+  mkdirSync(dirname(cli), { recursive: true });
+  symlinkSync("/bin/sh", cli);
+  writeFileSync(join(root, "status"), script, { mode: 0o600 });
+  const cwd = process.cwd();
+  process.chdir(root);
 
-    const options = { platform: "darwin" as const, path: "" };
-    expect(locateTailscale({ ...options, macApp: cli })?.cli).toBe(cli);
-    // Allow extra time to launch this generated executable on a cold runner.
-    const status = await runCli(cli, ["status", "--json"], { ...options, timeoutMs: 10_000 });
-    expect(status.ok).toBe(true);
+  try {
+    await run(cli);
+  } finally {
+    process.chdir(cwd);
+  }
+}
+
+const macOS = { platform: "darwin" as const, path: "" };
+
+test.skipIf(process.platform === "win32")("macOS forces CLI mode for the app bundle with no shell PATH", async () => {
+  // `status` is the shell's script, so the CLI's second argument is the script's only one.
+  const script = `[ "$TAILSCALE_BE_CLI" = 1 ] || exit 1
+[ "$#" = 1 ] && [ "$1" = --json ] || exit 2
+[ -z "$PATH" ] || exit 3
+printf '%s\\n' '{"BackendState":"Running"}'
+`;
+
+  await bundleCli(script, async (cli) => {
+    expect(locateTailscale({ ...macOS, macApp: cli })?.cli).toBe(cli);
+    // Below the test timeout, so a failure shows the command's own result.
+    const status = await runCli(cli, ["status", "--json"], { ...macOS, timeoutMs: 3000 });
+    expect(status).toMatchObject({ ok: true });
     expect(parseStatus(status.stdout).state).toBe("connected");
-  },
-  15_000,
-);
+  });
+});
+
+test.skipIf(process.platform === "win32")("a CLI that ignores termination fails at its deadline", async () => {
+  // The shell outlives SIGTERM, and its background child keeps the output open after the shell is gone.
+  const script = `trap '' TERM
+/bin/sleep 10 &
+printf '%s' "$!" > child.pid
+wait
+`;
+
+  await bundleCli(script, async (cli) => {
+    const status = await runCli(cli, ["status", "--json"], { ...macOS, timeoutMs: 2000 });
+    // The shell had ignored SIGTERM and started its child before the deadline.
+    const child = Number(readFileSync("child.pid", "utf8"));
+    process.kill(child, "SIGKILL");
+    expect(status.ok).toBe(false);
+  });
+});
 
 test("Windows finds the installed CLI outside PATH and distinguishes an unreadable status from a missing install", async () => {
   const windowsProgramFiles = join(dirs("canopy-ts-win-"), "Program Files");

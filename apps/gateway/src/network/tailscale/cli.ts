@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, type ChildProcess } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, isAbsolute, join } from "node:path";
 
@@ -73,37 +73,47 @@ export function locateTailscale(lookup: TailscaleLookup = {}): TailscaleAccess |
 
 export type CliResult = { ok: boolean; stdout: string; stderr: string };
 
-/** Runs the CLI with a fixed argument array (never a shell) and a deadline. A failure is a result, not a throw. */
+/**
+ * Runs the CLI with a fixed argument array (never a shell) and a deadline. A failure is a result, not a throw.
+ * The deadline does not wait for the exit: a child stuck in exec, or one whose descendants keep its output
+ * open, would otherwise hold every Tailscale reading behind it.
+ */
 export function runCli(
   cli: string,
   args: readonly string[],
   options: Pick<TailscaleLookup, "path" | "platform"> & { timeoutMs: number },
 ) {
   const platform = options.platform ?? process.platform;
+  const done = Promise.withResolvers<CliResult>();
+  let child: ChildProcess | undefined;
 
-  return new Promise<CliResult>((resolve) => {
-    try {
-      execFile(
-        cli,
-        [...args],
-        {
-          timeout: options.timeoutMs,
-          maxBuffer: 4 * 1024 * 1024,
-          windowsHide: true,
-          env: {
-            ...process.env,
-            ...(options.path !== undefined && { PATH: options.path }),
-            // The macOS app also ships its CLI in this binary. Force CLI mode for scripted calls.
-            ...(platform === "darwin" && { TAILSCALE_BE_CLI: "1" }),
-          },
+  const deadline = setTimeout(() => {
+    child?.kill("SIGKILL");
+    done.resolve({ ok: false, stdout: "", stderr: "The Tailscale command-line tool did not answer in time." });
+  }, options.timeoutMs);
+
+  try {
+    child = execFile(
+      cli,
+      [...args],
+      {
+        maxBuffer: 4 * 1024 * 1024,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          ...(options.path !== undefined && { PATH: options.path }),
+          // The macOS app also ships its CLI in this binary. Force CLI mode for scripted calls.
+          ...(platform === "darwin" && { TAILSCALE_BE_CLI: "1" }),
         },
-        (error, stdout, stderr) => resolve({ ok: !error, stdout: String(stdout), stderr: String(stderr) }),
-      );
-    } catch {
-      // Bun can also throw synchronously when the executable cannot start.
-      resolve({ ok: false, stdout: "", stderr: "The Tailscale command-line tool could not start." });
-    }
-  });
+      },
+      (error, stdout, stderr) => done.resolve({ ok: !error, stdout: String(stdout), stderr: String(stderr) }),
+    );
+  } catch {
+    // Bun can also throw synchronously when the executable cannot start.
+    done.resolve({ ok: false, stdout: "", stderr: "The Tailscale command-line tool could not start." });
+  }
+
+  return done.promise.finally(() => clearTimeout(deadline));
 }
 
 /** GET on tailscaled's LocalAPI over its Unix socket (read-only use). */
