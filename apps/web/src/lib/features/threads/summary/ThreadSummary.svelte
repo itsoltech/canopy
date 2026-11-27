@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { tick, type Snippet } from "svelte";
+  import { tick, untrack, type Snippet } from "svelte";
   import type { Attachment } from "svelte/attachments";
+  import { prefersReducedMotion } from "svelte/motion";
   import type { ui } from "@canopy/contracts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
+  import { duration } from "#lib/shared/ui/motion.ts";
+  import { openedByPress, popoverMorph } from "#lib/shared/ui/popover-morph.ts";
   import { refreshActivities } from "#lib/shared/activity.ts";
   import { devicePreferences as device } from "#lib/features/settings/device-preferences.svelte.ts";
   import type { ThreadTree } from "../thread-tree.ts";
@@ -15,7 +18,9 @@
    * on this device: a fixed-width card as tall as its content, at most to the bottom of the area (it then scrolls
    * inside), or a pill. Elsewhere it is always the pill, and the pill opens the card as a
    * popover under it that closes on Escape, a click outside, a thread change or a resize; the device choice is
-   * untouched. Narrow areas open a sheet instead. The card grows from the pill's corner (motion.css `t-summary`).
+   * untouched. Narrow areas open a sheet instead. Opened or closed by a press, the pill morphs into the card and the
+   * card back into the pill, as anchored popovers do (popover-morph.ts); other changes (a resize, another thread) and
+   * reduced motion keep the plain scale from the pill's corner (motion.css `t-summary`).
    */
   let {
     thread,
@@ -67,6 +72,35 @@
 
   $effect(() => {
     if (floating) sheet = false;
+  });
+
+  const morpher = popoverMorph();
+
+  /** The card and the state its last change left it in; a card mounted just now shows without motion. */
+  let settled: { card: HTMLElement; open: boolean } | undefined;
+
+  $effect(() => () => morpher.cancel());
+
+  // Runs after the flush that shows or hides the card, before its first frame: both boxes are in place.
+  $effect(() => {
+    const now = open;
+    const surface = card;
+
+    if (!surface) return;
+
+    untrack(() => {
+      const before = settled?.card === surface ? settled.open : undefined;
+      settled = { card: surface, open: now };
+
+      if (before === undefined || before === now) return;
+      // Set with the change: the attribute picks the morph or the plain scale for this change.
+      const morphs = openedByPress() && !prefersReducedMotion.current;
+      surface.toggleAttribute("data-morph", morphs);
+
+      if (!morphs) morpher.cancel();
+      else if (now) morpher.open(surface, pill);
+      else morpher.close(surface, pill, duration("quick"));
+    });
   });
 
   async function show() {
@@ -162,7 +196,7 @@
       {id}
       aria-label="Thread details"
       class={[
-        "t-summary pointer-events-auto absolute right-0 flex w-full flex-col overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:shadow-none",
+        "t-summary pointer-events-auto absolute right-0 isolate flex w-full flex-col overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:shadow-none",
         docked
           ? "top-0 max-h-full shadow-sm dark:bg-zinc-900 dark:ring-white/10"
           : "top-10 max-h-[max(16rem,calc(100%-14rem))] shadow-xl sm:top-9 dark:bg-zinc-800 dark:ring-white/15",
