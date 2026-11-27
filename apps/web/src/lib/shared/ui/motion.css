@@ -45,6 +45,33 @@
   }
 }
 
+/* --- Dropdown menu morph: the trigger turns into the panel (popover-morph.ts). The panel stays opaque and
+ * unscaled: `scale` (any value but none) would make it the containing block of its fixed surface and clip it
+ * to the panel, and the script fades the content itself. Its exit runs on --duration-fast, so the collapse
+ * back into the trigger stays visible (Popover keeps the content for this exit). Its `::before` is the morph
+ * surface: empty and invisible at rest, its box and paint animated by the morph. */
+.t-dropdown[data-morph] {
+  opacity: 1;
+  scale: none;
+  transition-duration: var(--duration-fast);
+}
+@starting-style {
+  .t-dropdown[data-morph]:popover-open {
+    opacity: 1;
+    scale: none;
+  }
+}
+.t-dropdown[data-morph]::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: auto;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* --- Bottom sheet (panel reveal 07): a popover or dialog as a sheet on phones ---------------------------
  * Scales and fades on --duration-slow, closes on --duration-medium. While a finger drags
  * it (`data-dragging`, sheet-drag.ts) it follows without a transition. */

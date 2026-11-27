@@ -33,7 +33,7 @@ const fallback: Record<DurationToken, number> = {
 const tokens = new Map<string, string>();
 let tokenObserver: MutationObserver | undefined;
 
-function rootToken(name: string): string {
+export function rootToken(name: string): string {
   let value = tokens.get(name);
 
   if (value === undefined) {

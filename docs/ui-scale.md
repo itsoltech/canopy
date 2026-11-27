@@ -1,11 +1,11 @@
 # Skala typografii i gęstości UI
 
-Status (2026-11-18): opis zaimplementowanej skali web/desktop i zwartego arkusza
+Status (2026-11-27): opis zaimplementowanej skali web/desktop i zwartego arkusza
 szczegółów wątku na natywnym mobile, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
 oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów modelu, wysiłku i prędkości composera,
 z jednoliniowym menu prędkości i oznaczeniami poziomu przyspieszenia.
-Karta zużycia kontekstu composera używa skali nakładek (15 / 13).
+Karta zużycia kontekstu composera używa skali nakładek (15 / 13). Zakotwiczone nakładki powstają z wyzwalacza (morph).
 Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
 Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
 Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
@@ -122,6 +122,17 @@ kontekstu (np. `sm` w nagłówku dialogu).
 
 Na telefonie nakładki z `sheet` otwierają się jako dolny arkusz. Zostają przy tekście nakładki
 (15 / 13), ale wiersze mają co najmniej 40 px (menu 44 px przy dotyku), a pola 16 px.
+
+Zakotwiczony panel `Popover` (menu, pickery, selecty, comboboxy, submenu) powstaje z wyzwalacza
+(`shared/ui/popover-morph.ts`). Powierzchnią jest `::before` panelu (`position: fixed`, więc
+`overflow` panelu go nie przycina, a jako pseudo-element nie zmienia dzieci treści): bierze tło,
+ring, cień i rogi panelu i przejeżdża z pudełka wyzwalacza do pudełka panelu w `--duration-medium`
+na `--ease-spring`, z lekkim przestrzeleniem. W tym czasie panel nie maluje własnej powierzchni,
+a treść wchodzi z lekkiego rozmycia od połowy ruchu. Zamknięcie prowadzi powierzchnię z powrotem
+do wyzwalacza w `--duration-fast` na `--ease-smooth-out`, a treść gaśnie pierwsza. Cały stan
+morpha trzymają animacje Web Animations, więc ich koniec albo anulowanie przywraca panel.
+Hover cardy (`morph={false}`), dolne arkusze i tryb ograniczonego ruchu zostają przy zanikaniu
+i skali z `t-dropdown` (`motion.css`).
 
 ## Zaznaczanie tekstu
 
