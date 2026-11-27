@@ -30,7 +30,15 @@ const unredactedMark = { ...logoMark, logoUrl: "https://fixture.invalid/logo", p
 const noMark = { initials: undefined, logo: undefined };
 const appPath = app.getAppPath();
 const rowsChannel = "activity-notch-fixture:received-rows";
-let stage = "starting Electron";
+let stage = "";
+
+/** The test timestamps each stage as it arrives, so a stall names the step and how long it took to reach it. */
+function enter(next: string) {
+  stage = next;
+  console.log(`Activity notch entered ${next}`);
+}
+
+enter("starting Electron");
 
 app.setPath("userData", join(appPath, "profile"));
 
@@ -210,7 +218,7 @@ async function mascotBodyColor(overlay: BrowserWindow, expectedImage: string): P
 }
 
 async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, workingRow: ActivityNotchRow) {
-  stage = "rendering a project logo and preserving other statuses";
+  enter("rendering a project logo and preserving other statuses");
   await toggleOverlay(overlay);
 
   const invalidColor = {
@@ -244,7 +252,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
   ]);
   assert.deepEqual(await mascotBodyColor(overlay, botRow.botMascot), [18, 171, 239, 255]);
 
-  stage = "updating the project mark and falling back to initials";
+  enter("updating the project mark and falling back to initials");
   const initialsMark = { initials: "DN", foreground: "#cceeff", background: "#112233" };
   const invalidLogo = { ...initialsMark, pixels: `${logoMark.pixels.slice(0, -2)}--` };
   const changed = await publishRows(overlay, source, [{ ...working, projectMark: invalidLogo }, invalidColor, bot]);
@@ -255,7 +263,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
     noMark,
   ]);
 
-  stage = "removing the project mark without changing activity";
+  enter("removing the project mark without changing activity");
   const cleared = await publishRows(overlay, source, [working, invalidColor, bot]);
   assert.deepEqual(cleared, [workingRow, ...otherRows]);
   assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, Working", ...otherLabels]), [
@@ -264,7 +272,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
     noMark,
   ]);
 
-  stage = "updating a bot name and mascot";
+  enter("updating a bot name and mascot");
   const renamedBot = "Release coordinator for production rollouts and customer communications";
   const renamed = await publishRows(overlay, source, [working, invalidColor, botItem(renamedBot, "#12abef")]);
   assert.deepEqual(renamed, [workingRow, approvalRow, { ...botRow, label: renamedBot }]);
@@ -277,7 +285,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
 }
 
 async function checkPreloadRedaction(overlay: BrowserWindow) {
-  stage = "checking the overlay preload redaction";
+  enter("checking the overlay preload redaction");
   const row = { id: 170, label: working.title, state: "answer" } as const;
 
   const projected = overlay.webContents.executeJavaScript(`new Promise((resolve) => {
@@ -325,7 +333,7 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
 
   await checkProjectMarks(overlay, source, workingRow);
 
-  stage = "updating the thread title";
+  enter("updating the thread title");
   const renamed = { ...working, title: "Review <desktop> & restore focus" };
   const titled = await publishRows(overlay, source, [renamed]);
   assert.deepEqual(titled, [{ ...workingRow, label: renamed.title }]);
@@ -339,7 +347,7 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
 
   assert.deepEqual(renderedTitle, { text: renamed.title, tooltip: renamed.title, children: 0 });
 
-  stage = "updating the activity status";
+  enter("updating the activity status");
   const updated = await publishRows(overlay, source, [{ ...working, state: "approval" }]);
   assert.deepEqual(updated, [{ ...workingRow, state: "approval" }]);
   await waitForRows(overlay, ["Open Restore focus, Needs approval"]);
@@ -358,12 +366,12 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
   assertNativeBounds(overlay, 0, headerHeight);
   await assertHeaderFillsBand(overlay, headerHeight);
 
-  stage = "expanding to one row";
+  enter("expanding to one row");
   assert.equal((await toggleOverlay(overlay)).layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 1, headerHeight);
   await assertHeaderFillsBand(overlay, headerHeight);
 
-  stage = "expanding to the row limit";
+  enter("expanding to the row limit");
 
   const extra = Array.from({ length: 9 }, (_, index): ActivityNotchItem => ({
     path: `/threads/synthetic-extra-${index}`,
@@ -378,13 +386,13 @@ async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {
   assert.equal(capped.layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 10, headerHeight);
 
-  stage = "shrinking an open panel";
+  enter("shrinking an open panel");
   const [shrunk] = await Promise.all([receiveLayout(overlay), publish(source, [{ ...working, state: "approval" }])]);
   await waitForNativeSize(overlay, shrunk.layout);
   assert.equal(shrunk.layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 1, headerHeight);
 
-  stage = "collapsing after the transition";
+  enter("collapsing after the transition");
   const collapsed = await toggleOverlay(overlay);
   assert.equal(collapsed.layout.headerHeight, headerHeight);
   assertNativeBounds(overlay, 0, headerHeight);
@@ -460,18 +468,20 @@ async function smoke() {
         throw new Error("Untrusted desktop request");
     });
     activity.track(source);
+    enter("loading the source window");
     await source.loadURL(`${origin}/`);
-    stage = "focusing the source window";
+    launched();
+    enter("focusing the source window");
     const focused = once(source, "focus");
     source.show();
     await focused;
-    stage = "opening the overlay and checking ipc";
+    enter("opening the overlay and checking ipc");
     const overlay = await openOverlay(origin, source, settings);
 
-    stage = "checking compact geometry";
+    enter("checking compact geometry");
     await checkGeometry(overlay, source);
 
-    stage = "switching focus between windows";
+    enter("switching focus between windows");
     const blurred = once(source, "blur");
     settings.show();
     await blurred;
@@ -483,7 +493,7 @@ async function smoke() {
     assert.equal(overlay.isVisible(), true);
 
     // DOM clicks cannot exercise native pointer delivery.
-    stage = "opening a thread from the overlay";
+    enter("opening a thread from the overlay");
     const { layout } = await toggleOverlay(overlay);
 
     const [afterOpen] = await Promise.all([
@@ -496,9 +506,9 @@ async function smoke() {
     assert.equal(overlay.isVisible(), true);
     assertNativeBounds(overlay, 0, layout.headerHeight);
 
-    stage = "clearing activity";
+    enter("clearing activity");
     await clearActivity(overlay, source);
-    stage = "switching the gateway";
+    enter("switching the gateway");
     const [beforeTargetChange] = await Promise.all([showOverlay(), publish(source, [working])]);
     const changed = once(beforeTargetChange, "closed");
     activity.statusChanged({ ...status, gatewayUrl: "https://fixture.invalid" });
@@ -511,11 +521,11 @@ async function smoke() {
       [source.id, settings.id].sort(),
     );
 
-    stage = "opening the overlay for a fresh source";
+    enter("opening the overlay for a fresh source");
     await source.loadURL(`${origin}/fresh`);
     const [beforeSourceClose] = await Promise.all([showOverlay(), publish(source, [working])]);
     await checkPreloadRedaction(beforeSourceClose);
-    stage = "closing the main window";
+    enter("closing the main window");
     const closed = once(beforeSourceClose, "closed");
     source.close();
     await closed;
@@ -528,10 +538,19 @@ async function smoke() {
   }
 }
 
-const watchdog = setTimeout(() => {
-  console.log(`Activity notch timed out while ${stage}`);
-  app.exit(1);
-}, 25_000);
+let watchdog: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * The first page load covers the cold start of the Electron binary and its helpers, which the test budgets
+ * separately. The behaviour after it gets its own deadline, so a slow launch cannot hide a stalled step.
+ */
+function launched() {
+  console.log("Activity notch launched");
+  watchdog = setTimeout(() => {
+    console.log(`Activity notch timed out while ${stage}`);
+    app.exit(1);
+  }, 25_000);
+}
 
 void smoke().then(
   () => {
