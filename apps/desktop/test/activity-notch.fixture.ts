@@ -356,12 +356,34 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
 
   assert.deepEqual(renderedTitle, { text: renamed.title, tooltip: renamed.title, children: 0 });
 
-  enter("updating the activity status");
-  const updated = await publishRows(overlay, source, [{ ...working, state: "approval" }]);
-  assert.deepEqual(updated, [{ ...workingRow, state: "approval" }]);
-  await waitForRows(overlay, ["Open Restore focus, Needs approval"]);
+  await checkNotice(overlay, source, workingRow);
 
   return overlay;
+}
+
+async function checkNotice(overlay: BrowserWindow, source: BrowserWindow, workingRow: ActivityNotchRow) {
+  enter("popping out only the row that changed state");
+  const other = { path: "/threads/synthetic-other", state: "working", title: "Keep working" } as const;
+  const [, otherRow] = await publishRows(overlay, source, [working, other]);
+  assert.ok(otherRow && Number.isSafeInteger(otherRow.id));
+  const approval = { ...working, state: "approval" } as const;
+
+  const [popped, update] = await Promise.all([
+    receiveLayout(overlay),
+    receiveRows(),
+    publish(source, [approval, other]),
+  ]);
+
+  assert.equal(update.notice, workingRow.id);
+  assert.deepEqual(update.rows, [{ ...workingRow, state: "approval" }, otherRow]);
+  await waitForNativeSize(overlay, popped.layout);
+  assertNativeBounds(overlay, 1, popped.layout.headerHeight);
+  await waitForRows(overlay, ["Open Restore focus, Needs approval"]);
+
+  enter("dismissing the notice");
+  await toggleOverlay(overlay);
+  assertNativeBounds(overlay, 0, popped.layout.headerHeight);
+  assert.deepEqual(await publishRows(overlay, source, [approval]), [{ ...workingRow, state: "approval" }]);
 }
 
 async function checkGeometry(overlay: BrowserWindow, source: BrowserWindow) {

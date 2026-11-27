@@ -3,28 +3,33 @@ import type { ActivityNotchRow } from "./activity-notch.ts";
 import type { ActivityNotchLayout } from "./activity-notch-geometry.ts";
 import { rowMeta } from "./activity-notch-meta.ts";
 
-type RowsListener = (rows: readonly ActivityNotchRow[], revision: number) => void;
+type RowsListener = (rows: readonly ActivityNotchRow[], revision: number, notice: number | undefined) => void;
 
-let latestActivity: { rows: readonly ActivityNotchRow[]; revision: number } | undefined;
+let latestActivity: { rows: readonly ActivityNotchRow[]; revision: number; notice: number | undefined } | undefined;
 let rowsListener: RowsListener | undefined;
 let layout: ActivityNotchLayout | undefined;
 let layoutListener: ((layout: ActivityNotchLayout) => void) | undefined;
 let collapseListener: (() => void) | undefined;
 
-ipcRenderer.on("canopy:activity-notch-rows", (_event, rows: readonly ActivityNotchRow[], revision: number) => {
-  const sanitized = rows.map(({ id, label, meta, state, projectMark, botMascot }) => {
-    const facts = meta && rowMeta(meta);
-    const row = { id, label, ...(facts && { meta: facts }), state, ...(botMascot && { botMascot }) };
+ipcRenderer.on(
+  "canopy:activity-notch-rows",
+  (_event, rows: readonly ActivityNotchRow[], revision: number, noticeId?: number) => {
+    const sanitized = rows.map(({ id, label, meta, state, projectMark, botMascot }) => {
+      const facts = meta && rowMeta(meta);
+      const row = { id, label, ...(facts && { meta: facts }), state, ...(botMascot && { botMascot }) };
 
-    if (!projectMark) return row;
-    const { initials, foreground, background, pixels } = projectMark;
+      if (!projectMark) return row;
+      const { initials, foreground, background, pixels } = projectMark;
 
-    return { ...row, projectMark: { initials, foreground, background, ...(pixels && { pixels }) } };
-  });
+      return { ...row, projectMark: { initials, foreground, background, ...(pixels && { pixels }) } };
+    });
 
-  latestActivity = { rows: sanitized, revision };
-  rowsListener?.(sanitized, revision);
-});
+    // The notice names one of the rows the page shows, or nothing.
+    const notice = sanitized.some((row) => row.id === noticeId) ? noticeId : undefined;
+    latestActivity = { rows: sanitized, revision, notice };
+    rowsListener?.(sanitized, revision, notice);
+  },
+);
 
 ipcRenderer.on("canopy:activity-notch-collapse", () => collapseListener?.());
 
@@ -37,7 +42,7 @@ contextBridge.exposeInMainWorld("canopyActivityNotch", {
   onRows(listener: RowsListener) {
     rowsListener = listener;
 
-    if (latestActivity) listener(latestActivity.rows, latestActivity.revision);
+    if (latestActivity) listener(latestActivity.rows, latestActivity.revision, latestActivity.notice);
   },
   onCollapse(listener: () => void) {
     collapseListener = listener;
@@ -59,6 +64,9 @@ contextBridge.exposeInMainWorld("canopyActivityNotch", {
   },
   setExpanded(expanded: boolean) {
     if (expanded === true || expanded === false) ipcRenderer.send("canopy:activity-notch-expanded", expanded);
+  },
+  dismissNotice(id: number) {
+    if (Number.isSafeInteger(id)) ipcRenderer.send("canopy:activity-notch-dismiss", id);
   },
   open(id: number) {
     if (Number.isSafeInteger(id)) ipcRenderer.send("canopy:activity-notch-open", id);

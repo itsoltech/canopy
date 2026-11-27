@@ -40,6 +40,9 @@ const glyphs = Object.entries(activityGlyphs)
   .join("")
   .concat('<span class="ping"></span>');
 
+/** How long a row that changed state stays out of the notch on its own while the pointer is elsewhere. */
+const noticeDuration = 6_000;
+
 const script = `
   const bridge = window.canopyActivityNotch;
   const notch = document.querySelector(".notch");
@@ -65,10 +68,17 @@ ${activityNotchProgressScript}
   let openedByHover = false;
   let layoutRevision;
   let layoutHeight;
+  let layoutHeader;
+  let noticeId;
+  let dismissedNotice;
+  let noticeTimer;
+  let lingering;
+  let latestRows;
 
   function setExpanded(expanded) {
     clearTimeout(collapseTimer);
     openedByHover = false;
+    if (!expanded) clearTimeout(noticeTimer);
     if (notch.dataset.open === String(expanded)) return false;
 
     if (!expanded && panel.contains(document.activeElement)) toggle.focus({ preventScroll: true });
@@ -82,7 +92,55 @@ ${activityNotchProgressScript}
   }
 
   function requestExpanded(expanded) {
+    // The closed list keeps the last notice row while it fades; opening it lists every row again.
+    if (expanded && lingering !== undefined) {
+      lingering = undefined;
+      if (latestRows) renderRows(...latestRows);
+    }
     if (setExpanded(expanded)) bridge.setExpanded(expanded);
+  }
+
+  function syncPanel() {
+    panel.toggleAttribute("data-visible", layoutHeight > layoutHeader && notch.dataset.open === "true");
+  }
+
+  /** Hides the row that popped out alone. The next open shows the whole list again. */
+  function dismissNotice() {
+    clearTimeout(noticeTimer);
+    clearTimeout(collapseTimer);
+    if (noticeId === undefined) return false;
+    dismissedNotice = noticeId;
+    lingering = noticeId;
+    noticeId = undefined;
+    notch.removeAttribute("data-notice");
+    setExpanded(false);
+    bridge.dismissNotice(dismissedNotice);
+    return true;
+  }
+
+  function scheduleNotice() {
+    clearTimeout(noticeTimer);
+    if (!surface.matches(":hover")) noticeTimer = setTimeout(dismissNotice, ${noticeDuration});
+  }
+
+  /** Opens the notch with only the notice row, or closes it when the notice ends. Returns the rows to list. */
+  function showNotice(rows, notice) {
+    if (notice === undefined) dismissedNotice = undefined;
+    const next = notice !== dismissedNotice ? notice : undefined;
+    if (next !== noticeId) {
+      const ended = noticeId !== undefined && next === undefined;
+      lingering = ended ? noticeId : undefined;
+      noticeId = next;
+      notch.toggleAttribute("data-notice", next !== undefined);
+      if (ended) setExpanded(false);
+      if (next !== undefined) {
+        setExpanded(true);
+        syncPanel();
+        scheduleNotice();
+      }
+    }
+    const only = noticeId ?? lingering;
+    return only === undefined ? rows : rows.filter((row) => row.id === only);
   }
 
   function applyLayout({ center, width, height, headerHeight, revision }) {
@@ -90,8 +148,9 @@ ${activityNotchProgressScript}
     if (notch.hasAttribute("data-layout")) notch.dataset.animate = "";
     notch.toggleAttribute("data-shrinking", height < (layoutHeight ?? height));
     layoutHeight = height;
+    layoutHeader = headerHeight;
     // The list fades in once the outline has nearly its open size; the stylesheet holds that delay.
-    panel.toggleAttribute("data-visible", height > headerHeight && notch.dataset.open === "true");
+    syncPanel();
     notch.style.setProperty("--notch-center", center + "px");
     notch.style.setProperty("--notch-width", width + "px");
     notch.style.setProperty("--notch-size", height + "px");
@@ -153,8 +212,10 @@ ${activityNotchRowScript}
     }
   }
 
-  function renderRows(rows, revision) {
+  function renderRows(rows, revision, notice) {
+    latestRows = [rows, revision, notice];
     notch.toggleAttribute("data-active", rows.length > 0);
+    const listed = showNotice(rows, notice);
     if (!rows.length) {
       setExpanded(false);
       const fades = notch.getAnimations().filter((animation) => animation.transitionProperty === "opacity");
@@ -163,8 +224,8 @@ ${activityNotchRowScript}
 
     const counts = new Map();
     const activeRow = document.activeElement;
-    const ids = new Set(rows.map((row) => row.id));
-    const orderChanged = rows.length !== list.children.length || rows.some(({ id }, index) => rowViews.get(id)?.item !== list.children[index]);
+    const ids = new Set(listed.map((row) => row.id));
+    const orderChanged = listed.length !== list.children.length || listed.some(({ id }, index) => rowViews.get(id)?.item !== list.children[index]);
     const positions = orderChanged && panel.hasAttribute("data-visible") && !reducedMotion.matches
       ? new Map(Array.from(list.children, (item) => [item, { rect: item.getBoundingClientRect(), opacity: Number(getComputedStyle(item).opacity) }]))
       : undefined;
@@ -177,7 +238,8 @@ ${activityNotchRowScript}
     }
 
     let nextItem = list.firstElementChild;
-    for (const [index, { id, label, meta, state, projectMark, botMascot }] of rows.entries()) {
+    for (const row of rows) counts.set(row.state, (counts.get(row.state) ?? 0) + 1);
+    for (const [index, { id, label, meta, state, projectMark, botMascot }] of listed.entries()) {
       const existing = rowViews.get(id);
       const view = existing ?? createRow(id);
       rowViews.set(id, view);
@@ -196,7 +258,6 @@ ${activityNotchRowScript}
       }
       if (view.item !== nextItem) list.insertBefore(view.item, nextItem);
       nextItem = view.item.nextElementSibling;
-      counts.set(state, (counts.get(state) ?? 0) + 1);
     }
     if (list.contains(activeRow) && document.activeElement !== activeRow) activeRow.focus({ preventScroll: true });
     if (positions) animateList(positions);
@@ -210,6 +271,8 @@ ${activityNotchRowScript}
       const itemCount = formattedCount + (rows.length === 1 ? " item" : " items");
       description = itemCount + ". " + numbers.format(count) + " " + status + ".";
     }
+    const noticeRow = listed.length === 1 && rows.find((row) => row.id === noticeId);
+    if (noticeRow) description = noticeRow.label + " " + statuses[noticeRow.state].one + ". " + description;
     if (summaryText.textContent !== description) summaryText.textContent = description;
     if (showState(glyphs, state, "icon") && state) ping(ring, state);
     toggle.disabled = !state;
@@ -224,6 +287,7 @@ ${activityNotchRowScript}
   surface.addEventListener("pointerenter", (event) => {
     if (event.pointerType !== "mouse" || toggle.disabled) return;
     clearTimeout(collapseTimer);
+    clearTimeout(noticeTimer);
     if (notch.dataset.open === "true") return;
 
     requestExpanded(true);
@@ -231,7 +295,8 @@ ${activityNotchRowScript}
   });
   surface.addEventListener("pointerleave", (event) => {
     if (event.pointerType !== "mouse" || notch.dataset.open !== "true") return;
-    collapseTimer = setTimeout(() => requestExpanded(false), ${motion.fast});
+    // Leaving a notice hides it, so the next open shows every row.
+    collapseTimer = setTimeout(() => dismissNotice() || requestExpanded(false), ${motion.fast});
   });
   surface.addEventListener("mousedown", (event) => {
     if (event.target.closest("button")) event.preventDefault();
@@ -242,10 +307,16 @@ ${activityNotchRowScript}
       openedByHover = false;
       return;
     }
+    if (dismissNotice()) return;
     requestExpanded(notch.dataset.open !== "true");
   });
   notch.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || !setExpanded(false)) return;
+    if (event.key !== "Escape") return;
+    if (dismissNotice()) {
+      event.preventDefault();
+      return;
+    }
+    if (!setExpanded(false)) return;
     event.preventDefault();
     bridge.setExpanded(false);
   });
