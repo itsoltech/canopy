@@ -12,6 +12,8 @@
     href: string;
     icon: IconName;
     label: string;
+    /** An empty string suppresses the tooltip while preserving the accessible name. */
+    tooltipText?: string | undefined;
     variant?: ButtonVariant;
     /** Default: `md`, `sm` in an overlay (docs/ui-scale.md). */
     size?: ButtonSize;
@@ -20,7 +22,16 @@
     class?: ClassValue;
   };
 
-  let { icon, label, variant = "ghost", size: explicitSize, iconClass, class: className, ...rest }: Props = $props();
+  let {
+    icon,
+    label,
+    tooltipText,
+    variant = "ghost",
+    size: explicitSize,
+    iconClass,
+    class: className,
+    ...rest
+  }: Props = $props();
 
   const density = useDensity();
   const size = $derived(explicitSize ?? defaultButtonSize(density));
@@ -30,7 +41,7 @@
   class={[iconButtonClasses(variant, size, density), "desktop:cursor-default", className]}
   aria-label={label}
   {...rest}
-  {@attach tooltip(label)}
+  {@attach tooltip(tooltipText ?? label)}
 >
   <Icon name={icon} tone={variant === "primary" || variant === "danger" ? "inherit" : "muted"} class={iconClass} />
   <TouchTarget />

@@ -222,6 +222,7 @@
             {...props}
             icon="table-cells"
             label="Open usage report"
+            tooltipText={footer.usage.isOpen() ? "" : undefined}
             onclick={() => {
               props.onclick();
               onOpenUsage();

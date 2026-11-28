@@ -21,8 +21,8 @@
     iconClass?: ClassValue;
     /** Tooltip placement, shortcut hint, … */
     tooltipOptions?: TooltipOptions;
-    /** Override the tooltip; empty when an enclosing element supplies a disabled reason. */
-    tooltipText?: string;
+    /** An empty string suppresses the tooltip while preserving the accessible name. */
+    tooltipText?: string | undefined;
     "aria-description"?: string | undefined;
     class?: ClassValue;
   };

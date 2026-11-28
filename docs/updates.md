@@ -5,7 +5,7 @@ Aktualizacja (2026-11-27): opcjonalne automatyczne Update all, gdy praca właśc
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-27), w tym ponownego wiązania
+Status: opis zaimplementowanego kodu (2026-11-28), w tym ponownego wiązania
 kanału aktualizacji desktopu po parowaniu oraz przerywania okresowego skanu
 worktree przy zamykaniu gatewaya oraz postępu pobierania binarek
 workerów i samodzielnego gatewaya w web i Electronie, animacji cyfr procentu
@@ -148,7 +148,8 @@ pokazuje wersje, postęp i akcje poszczególnych instalacji. Stopka udostępnia
 aplikacji. Akcje korzystają z tych samych warunków i potwierdzeń co ustawienia.
 **What's new** pokazuje nieobejrzane notatki. Bez akcji i notatek stopki nie ma.
 Pozostałe panele stopki (Usage, Workers i Provider usage) współdzielą z popoverem
-obsługę najechania i zamknięcia.
+obsługę najechania i zamknięcia. Przy otwartym podglądzie Usage lub App updates
+ikona w stopce ukrywa własny tooltip.
 
 Telefon, web i zdalny tryb Electron pokazują nazwę podłączonego komputera oraz te same
 akcje i stany aplikacji co dla partnerów. `UpdatesSnapshot.app_update_supported`

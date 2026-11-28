@@ -65,6 +65,7 @@
         href="/settings/app-updates#topic-status"
         icon={failed ? "exclamation-circle" : "arrow-down-tray"}
         {label}
+        tooltipText={panel.isOpen() ? "" : undefined}
         aria-busy={busy || undefined}
         iconClass={[failed && "text-rose-600 dark:text-rose-400"]}
       />
