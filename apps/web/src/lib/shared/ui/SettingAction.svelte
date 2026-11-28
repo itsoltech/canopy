@@ -29,7 +29,7 @@
     scale: 1;
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .setting-action {
       scale: none;
       transition: none;

@@ -2,6 +2,7 @@
   import type { ui } from "@canopy/contracts";
   import { untrack } from "svelte";
   import { clampVisualHeight, VISUAL_LIMITS } from "@canopy/domain/visuals";
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
   import { mountVisualFrame, VisualUnavailable, type FrameHandle } from "./frame-host.ts";
 
@@ -101,6 +102,8 @@
   });
 
   $effect(() => handle?.visible(active));
+
+  $effect(() => handle?.reducedMotion(motionPreferences.reduced));
 
   $effect(() => onheight?.(reserved + footerHeight));
 

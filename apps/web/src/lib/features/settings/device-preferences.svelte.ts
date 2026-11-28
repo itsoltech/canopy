@@ -23,6 +23,9 @@ export const deviceChoices = {
   workAfterTurn: ["collapse", "keep-open"],
   workToolCalls: ["collapsed", "expanded"],
   timeFormat: ["system", "12h", "24h"],
+  animations: ["on", "off"],
+  animationSpeed: ["fast", "standard", "slow"],
+  reduceMotion: ["system", "always"],
   focusIndicators: ["keyboard", "always", "off"],
   contrast: ["standard", "strong", "maximum"],
   effortDisplay: ["name", "bars"],
@@ -59,6 +62,9 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   workAfterTurn: "collapse",
   workToolCalls: "collapsed",
   timeFormat: "system",
+  animations: "on",
+  animationSpeed: "standard",
+  reduceMotion: "system",
   focusIndicators: "keyboard",
   contrast: "standard",
   effortDisplay: "name",
@@ -209,6 +215,9 @@ export const notificationDeviceKeys = [
 ] as const;
 
 export const appearanceDeviceKeys = [
+  "animations",
+  "animationSpeed",
+  "reduceMotion",
   "contrast",
   "effortDisplay",
   "contextDisplay",

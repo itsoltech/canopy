@@ -32,7 +32,7 @@
   transform-origin: left center;
   transition: scale var(--duration-quick) var(--ease-smooth-out);
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-rail-preview,
   .t-rail-tick {
     transition: none !important;
@@ -224,7 +224,7 @@
 
 /* Reduced motion: sheets and drawers fade instead of sliding (the token scale already keeps the other
    surfaces to opacity). */
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-dropdown[data-sheet],
   .t-modal[data-sheet],
   .t-drawer {
@@ -265,7 +265,7 @@
 .t-tt[data-warm]:popover-open {
   transition: none;
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-tt:popover-open {
     transition: none !important;
   }
@@ -296,7 +296,7 @@
 .t-tabs-pill {
   transition: translate var(--duration-fast) var(--ease-smooth-out);
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-tabs-pill {
     transition: none !important;
   }
@@ -321,7 +321,7 @@
 .t-slide-dot {
   transition: background-color var(--duration-fast) var(--ease-smooth-out);
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-slide,
   .t-slide-thumb,
   .t-slide-dot {
@@ -339,7 +339,7 @@
   overflow-clip-margin: --spacing(1);
   transition: height var(--duration-fast) var(--ease-smooth-out);
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-resize,
   .t-resize-height {
     transition: none !important;
@@ -373,7 +373,7 @@
   transition-duration: var(--duration-medium);
 }
 /* Reduced motion: the column and the window-control clearance change at once (layout.css). */
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-sidebar,
   .chat-column,
   .t-sidebar-panel,
@@ -459,7 +459,7 @@
 [data-chat-settling] {
   --chat-settle: var(--duration-slow);
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-panel-column,
   .t-panel,
   .t-summary,
@@ -513,7 +513,7 @@
 .t-composer-disclosure[data-open] > * {
   translate: 0 0;
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-acc-chevron,
   .t-acc-panel,
   .t-acc-panel > * {
@@ -632,7 +632,7 @@
   opacity: 1;
   transition-duration: var(--duration-slow);
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-composer-slot,
   .t-composer-slot .t-composer-panel-header,
   .t-composer-editor,
@@ -715,7 +715,7 @@
     stroke-dashoffset: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-success-check {
     animation: none !important;
   }
@@ -750,7 +750,7 @@
     translate: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-shake {
     animation: none !important;
   }
@@ -765,7 +765,7 @@
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-pop {
     animation: none !important;
   }
@@ -781,7 +781,7 @@
     background-color: transparent;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-code-form {
     animation: none !important;
   }
@@ -837,7 +837,7 @@
     opacity: 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-swap,
   .t-rise,
   .t-reveal,
@@ -864,7 +864,7 @@
     opacity: 0.5;
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-pulse {
     animation: none !important;
   }
@@ -883,7 +883,7 @@
     box-shadow: 0 0 0 --spacing(1.5) color-mix(in oklab, var(--color-amber-400) 18%, transparent);
   }
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   [data-flash] {
     animation: none !important;
     background-color: color-mix(in oklab, var(--color-amber-400) 18%, transparent);
@@ -943,7 +943,7 @@
   opacity: 1;
 }
 .t-task-mark[data-state="in_progress"][data-live] .t-task-arc {
-  animation: t-task-spin 1s var(--ease-linear) infinite;
+  animation: t-task-spin calc(var(--duration-very-slow) * 2) var(--ease-linear) infinite;
 }
 @keyframes t-task-spin {
   to {
@@ -986,7 +986,7 @@
 .t-task-mark[data-state="done"] .t-task-progress {
   opacity: 0;
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .t-task-mark,
   .t-task-mark *,
   .t-task-progress {

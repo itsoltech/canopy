@@ -97,7 +97,7 @@
   .eyes {
     transition: fill var(--duration-fast) var(--ease-in-out);
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .mascot-body,
     .eyes {
       transition: none;

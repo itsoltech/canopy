@@ -9,10 +9,11 @@ import {
   VISUAL_PERMISSIONS,
   type HostMessage,
 } from "@canopy/domain/visuals";
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { Result } from "effect";
 import { reportEmbedHover } from "#lib/shared/ui/virtual/embed-hover.ts";
 import { savedVisualState, saveVisualState } from "./visual-state.ts";
-import { currentVisualTheme, onVisualThemeChange, prefersReducedMotion } from "./visual-theme.ts";
+import { currentVisualTheme, onVisualThemeChange } from "./visual-theme.ts";
 
 export interface FrameOptions {
   readonly title: string;
@@ -34,6 +35,7 @@ export interface FrameOptions {
 export interface FrameHandle {
   readonly frame: HTMLElement;
   visible(visible: boolean): void;
+  reducedMotion(reduced: boolean): void;
   reset(): void;
   destroy(): void;
 }
@@ -80,7 +82,7 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
           nonce,
           instance,
           theme: currentVisualTheme(),
-          reducedMotion: prefersReducedMotion(),
+          reducedMotion: motionPreferences.reduced,
           ...(savedVisualState(options.visualId, options.version) && {
             state: savedVisualState(options.visualId, options.version),
           }),
@@ -168,8 +170,6 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
     frame.contentWindow.postMessage(connectMessage(instance, nonce), "*", [channel.port2]);
   });
 
-  const motion = matchMedia("(prefers-reduced-motion: reduce)");
-  const onMotion = () => post({ type: "reduced_motion", reduced: motion.matches });
   let themed = 0;
 
   const stopTheme = onVisualThemeChange(() => {
@@ -179,11 +179,11 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
     });
   });
 
-  motion.addEventListener("change", onMotion);
   container.append(frame);
 
   return {
     frame,
+    reducedMotion: (reduced) => post({ type: "reduced_motion", reduced }),
     visible: (visible) => post({ type: "visibility", visible }),
     reset: () => post({ type: "reset" }),
     destroy() {
@@ -191,7 +191,6 @@ export async function mountVisualFrame(container: HTMLElement, options: FrameOpt
       cancelAnimationFrame(frameRequest);
       cancelAnimationFrame(themed);
       stopTheme();
-      motion.removeEventListener("change", onMotion);
       channel.port1.onmessage = null;
       channel.port1.close();
       reportEmbedHover(frame, false);

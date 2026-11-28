@@ -136,7 +136,7 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .cursor-position {
       transition: none;
     }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
-  import { prefersReducedMotion } from "svelte/motion";
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
   import type { ClassValue } from "svelte/elements";
   import { duration } from "#lib/shared/ui/motion.ts";
 
@@ -14,7 +14,7 @@
   let hidden = $state(untrack(() => !expanded));
 
   $effect(() => {
-    if (expanded || prefersReducedMotion.current) {
+    if (expanded || motionPreferences.reduced) {
       hidden = !expanded;
 
       return;

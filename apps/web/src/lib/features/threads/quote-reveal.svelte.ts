@@ -1,5 +1,5 @@
 import { tick } from "svelte";
-import { duration } from "#lib/shared/ui/motion.ts";
+import { highlightCitation } from "#lib/shared/ui/highlight-citation.ts";
 import type { FeedRow } from "./feed.ts";
 import type { ThreadState } from "./thread-state.svelte.ts";
 import type { ThreadRewind } from "./rewind-state.svelte.ts";
@@ -83,10 +83,7 @@ export function createQuoteReveal(threadId: () => string, read: () => QuoteRevea
 
     if (!element) return true;
     element.scrollIntoView({ block: "nearest" });
-    element.removeAttribute("data-flash");
-    void element.offsetWidth; // Replay when it is still flashing.
-    element.setAttribute("data-flash", "");
-    setTimeout(() => element.removeAttribute("data-flash"), duration("very-slow") * 3);
+    highlightCitation(element);
 
     return true;
   };

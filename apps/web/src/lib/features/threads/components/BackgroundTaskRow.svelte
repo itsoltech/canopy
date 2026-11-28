@@ -128,7 +128,7 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .task-stop,
     .task-running-time {
       transition: none;

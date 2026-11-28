@@ -2,7 +2,6 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
-  import { duration } from "#lib/shared/ui/motion.ts";
   import { runningAnimation } from "#lib/shared/activity.ts";
 
   let { syncing, children, class: className }: { syncing: boolean; children: Snippet; class?: ClassValue } = $props();
@@ -18,8 +17,9 @@
       return;
     }
 
-    const reveal = setTimeout(() => (shown = true), duration("very-slow"));
-    const announce = setTimeout(() => (announced = true), duration("very-slow") * 4);
+    // Brief syncs stay quiet regardless of the speed of interface animations.
+    const reveal = setTimeout(() => (shown = true), 500);
+    const announce = setTimeout(() => (announced = true), 2000);
 
     return () => {
       clearTimeout(reveal);
@@ -67,7 +67,7 @@
       rotate: 360deg;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .sync-rotation {
       animation: none !important;
     }

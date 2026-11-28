@@ -350,7 +350,7 @@
     margin-inline-start: 0.5rem;
     margin-inline-end: 0.25rem;
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .workspace-tab,
     .workspace-tab::before,
     .workspace-tab::after,

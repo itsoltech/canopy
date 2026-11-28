@@ -21,7 +21,7 @@
 </span>
 
 <style>
-  @media (prefers-reduced-motion: no-preference) {
+  :global(:where(html[data-motion="full"])) {
     .working-badge::after {
       position: absolute;
       inset: auto 0 0;

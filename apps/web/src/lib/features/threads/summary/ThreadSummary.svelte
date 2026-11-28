@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick, untrack, type Snippet } from "svelte";
   import type { Attachment } from "svelte/attachments";
-  import { prefersReducedMotion } from "svelte/motion";
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
   import type { ui } from "@canopy/contracts";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
   import { duration } from "#lib/shared/ui/motion.ts";
@@ -103,7 +103,7 @@
 
       if (before === undefined || before === now) return;
       // Set with the change: the attribute picks the morph or the plain scale for this change.
-      const morphs = openedByPress() && !prefersReducedMotion.current;
+      const morphs = openedByPress() && !motionPreferences.reduced;
       surface.toggleAttribute("data-morph", morphs);
 
       if (!morphs) morpher.cancel();

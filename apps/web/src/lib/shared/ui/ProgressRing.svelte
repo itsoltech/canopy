@@ -46,7 +46,7 @@
       rotate: 270deg;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .progress-ring-turn {
       animation: none;
     }

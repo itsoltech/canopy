@@ -1,3 +1,4 @@
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { flushSync } from "svelte";
 import type { FooterFold } from "../../../shared/ui/virtual/footer-reserve.ts";
 
@@ -42,7 +43,6 @@ export class ComposerMorph {
   #toward: boolean | undefined;
   #animations: Animation[] = [];
   #held: HeldTransition[] | undefined;
-  #motionPreference: MediaQueryList | undefined;
   #frame = 0;
   #request: { progress: number } | { settle: boolean } | undefined;
   #run = 0;
@@ -74,10 +74,6 @@ export class ComposerMorph {
     this.#reset();
   }
 
-  get #reducedMotion() {
-    return (this.#motionPreference ??= matchMedia("(prefers-reduced-motion: reduce)")).matches;
-  }
-
   #reset() {
     cancelAnimationFrame(this.#frame);
     this.#frame = 0;
@@ -103,7 +99,7 @@ export class ComposerMorph {
   }
 
   #hold(progress: number) {
-    if (this.#reducedMotion) {
+    if (motionPreferences.reduced) {
       if (progress >= 1 || progress <= 0) this.set(progress >= 1);
 
       return;
@@ -134,7 +130,7 @@ export class ComposerMorph {
   }
 
   #settle(compact: boolean) {
-    if (this.#reducedMotion) return this.set(compact);
+    if (motionPreferences.reduced) return this.set(compact);
 
     if (this.#toward === undefined) {
       if (this.#compact === compact) return;

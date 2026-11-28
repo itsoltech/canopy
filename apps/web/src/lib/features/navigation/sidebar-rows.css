@@ -160,7 +160,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .sidebar-swap-action,
   .sidebar-swap-resting {
     transition: none !important;
@@ -241,7 +241,7 @@
 }
 
 @media (hover: hover) and (pointer: fine), (pointer: none) {
-  @media (prefers-reduced-motion: no-preference) {
+  :where(html[data-motion="full"]) {
     .sidebar-group-row .sidebar-group-meta {
       transition: translate var(--duration-fast) var(--ease-smooth-out);
     }

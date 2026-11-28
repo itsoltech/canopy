@@ -1,5 +1,5 @@
 import { tick } from "svelte";
-import { prefersReducedMotion } from "svelte/motion";
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { duration } from "#lib/shared/ui/motion.ts";
 import type { SidebarOrder } from "./sidebar-order.svelte.ts";
 
@@ -180,7 +180,7 @@ export class SidebarDragPreview {
     const fallback = operation ? this.destination() : this.origin;
     this.clearTarget();
 
-    if (prefersReducedMotion.current) {
+    if (motionPreferences.reduced) {
       this.remove();
 
       return;

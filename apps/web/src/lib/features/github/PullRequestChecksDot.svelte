@@ -32,14 +32,14 @@
     box-shadow: 0 0 0 1.5px var(--tab-fill, var(--color-surface));
   }
   .pr-checks-dot[data-running="true"] {
-    animation: pr-checks-dot 1.6s var(--ease-in-out) infinite;
+    animation: pr-checks-dot calc(var(--duration-slow) * 4) var(--ease-in-out) infinite;
   }
   @keyframes pr-checks-dot {
     50% {
       opacity: 0.35;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .pr-checks-dot[data-running="true"] {
       animation: none;
     }

@@ -3,7 +3,7 @@ import { clampVisualHeight, VISUAL_LIMITS, type HostMessage } from "@canopy/doma
 import { reportEmbedHover } from "#lib/shared/ui/virtual/embed-hover.ts";
 import { bindDesktopHtmlInput } from "./desktop-html-input.ts";
 import { VisualUnavailable, type FrameHandle, type FrameOptions } from "./frame-host.ts";
-import { currentVisualTheme, onVisualThemeChange, prefersReducedMotion } from "./visual-theme.ts";
+import { currentVisualTheme, onVisualThemeChange } from "./visual-theme.ts";
 
 function previewCanvas(title: string): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
@@ -76,9 +76,6 @@ export async function mountDesktopHtmlFrame(container: HTMLElement, options: Fra
 
   resizeObserver.observe(container);
   const stopTheme = onVisualThemeChange(() => host({ type: "theme", theme: currentVisualTheme() }));
-  const motion = matchMedia("(prefers-reduced-motion: reduce)");
-  const onMotion = () => host({ type: "reduced_motion", reduced: motion.matches });
-  motion.addEventListener("change", onMotion);
   options.signal?.addEventListener("abort", destroy, { once: true });
 
   function fail(message = "Couldn't open this visual.") {
@@ -120,7 +117,6 @@ export async function mountDesktopHtmlFrame(container: HTMLElement, options: Fra
     resizeObserver.disconnect();
     stopEvents();
     stopTheme();
-    motion.removeEventListener("change", onMotion);
     options.signal?.removeEventListener("abort", destroy);
     input.destroy();
     reportEmbedHover(surface, false);
@@ -139,7 +135,6 @@ export async function mountDesktopHtmlFrame(container: HTMLElement, options: Fra
     });
     send({ type: "resize", width, height });
     host({ type: "theme", theme: currentVisualTheme() });
-    host({ type: "reduced_motion", reduced: prefersReducedMotion() });
     options.onHeight(height);
   } catch (error) {
     destroy();
@@ -148,6 +143,7 @@ export async function mountDesktopHtmlFrame(container: HTMLElement, options: Fra
 
   return {
     frame: surface,
+    reducedMotion: (reduced) => host({ type: "reduced_motion", reduced }),
     visible: (visible) => {
       input.active(visible);
       host({ type: "visibility", visible });

@@ -1,7 +1,6 @@
 import type { Attachment } from "svelte/attachments";
 import { autoPosition, type Placement } from "./floating.ts";
 import { hotkeyKeys, isApple } from "./hotkeys.ts";
-import { duration } from "./motion.ts";
 
 /**
  * Tooltip as an attachment: a short label in the top layer, shown after a hover delay (instantly while
@@ -37,6 +36,7 @@ function trackModality() {
   document.addEventListener("pointerdown", () => (keyboardLast = false), true);
 }
 
+const HOVER_DELAY_MS = 80;
 const WARM_MS = 400;
 let counter = 0;
 
@@ -102,8 +102,7 @@ export function tooltip(
     };
 
     const onpointerenter = (event: PointerEvent) => {
-      if (event.pointerType === "mouse")
-        later(Date.now() - lastHidden < WARM_MS ? 0 : (delay ?? duration("micro")), show);
+      if (event.pointerType === "mouse") later(Date.now() - lastHidden < WARM_MS ? 0 : (delay ?? HOVER_DELAY_MS), show);
     };
 
     const onpointerleave = (event: PointerEvent) => {

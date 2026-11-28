@@ -33,7 +33,7 @@
       translate: 180% 0;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .update-progress-pulse {
       animation: none;
     }

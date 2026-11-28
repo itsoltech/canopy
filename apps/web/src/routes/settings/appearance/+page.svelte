@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import { motionSettingsKeywords } from "@canopy/ui/settings";
   import SettingsTopics from "#lib/features/settings/SettingsTopics.svelte";
   import { applicationName } from "#lib/application-name.ts";
   import {
@@ -23,7 +24,7 @@
   import Select from "#lib/shared/ui/Select.svelte";
   import OptionTile from "#lib/shared/ui/OptionTile.svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
-  import AnimatedMascotsSetting from "#lib/features/bots/components/AnimatedMascotsSetting.svelte";
+  import MotionSettings from "#lib/features/settings/MotionSettings.svelte";
   import InterfaceSettings from "#lib/features/settings/InterfaceSettings.svelte";
   import TypographySettings from "#lib/features/settings/TypographySettings.svelte";
   import PreferenceRow from "#lib/features/settings/PreferenceRow.svelte";
@@ -86,6 +87,12 @@
       content: interfaceOptions,
     },
     { id: "typography", label: "Typography", content: typography },
+    {
+      id: "motion",
+      label: "Motion",
+      keywords: motionSettingsKeywords,
+      content: motion,
+    },
   ]}
 />
 
@@ -154,7 +161,6 @@
   <SettingsGroup title={threadWidthPreference.group}>
     <InterfaceSettings />
     <ThemeShapeSettings />
-    {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
     {#if settings.moduleEnabled("threads")}
       <PreferenceRow
         title={threadWidthPreference.label}
@@ -183,4 +189,8 @@
 
 {#snippet typography()}
   <TypographySettings />
+{/snippet}
+
+{#snippet motion()}
+  <MotionSettings />
 {/snippet}
