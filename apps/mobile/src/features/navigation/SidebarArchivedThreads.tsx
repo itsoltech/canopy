@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { Pressable, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { ArchivedThreadsPager, indexChangesArchived } from "@canopy/domain/archived-threads";
 import { collapsedArchivedThread, isArchivedSidebarThread } from "@canopy/domain/sidebar-threads";
 import { useSession } from "../../state/session";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { useOverview } from "../../state/overview";
 import { styles, useColors } from "../../ui/theme";
-import { Chevron } from "../../ui/MotionViews";
-import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
+import { Chevron, useArrivals } from "../../ui/MotionViews";
+import { useMotion } from "../../ui/motion";
+import { sidebarListInset, sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
+import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import { Button, Notice } from "../../ui/components";
 import { ListSkeleton } from "../../ui/Skeleton";
 import type { useSidebarThreads } from "./useSidebarThreads";
 
-export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThreads>) {
+function useArchivedThreads(navigation: ReturnType<typeof useSidebarThreads>) {
   const { client, archivedCache, online, epoch } = useSession();
   const device = useDevicePreferences();
   const { threads, projects, workers, stream, linkedReads } = useOverview();
@@ -134,9 +137,51 @@ export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThrea
   };
 }
 
-export type ArchivedThreads = ReturnType<typeof useArchivedThreads>;
+type ArchivedThreads = ReturnType<typeof useArchivedThreads>;
 
-export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads }) {
+export function SidebarArchivedSection({ navigation }: { navigation: ReturnType<typeof useSidebarThreads> }) {
+  const archive = useArchivedThreads(navigation);
+  const threads = archive.expanded ? archive.roots : archive.sticky ? [archive.sticky] : [];
+  const arrival = useArrivals(threads.map((thread) => thread.id));
+  const { layout } = useMotion();
+
+  if (!archive.visible) return null;
+
+  return (
+    <View style={{ maxHeight: "50%", paddingHorizontal: sidebarListInset, paddingBottom: 8 }}>
+      <SidebarArchivedHeader archive={archive} />
+      {(archive.expanded || archive.sticky) && (
+        <Animated.FlatList
+          style={{ flexGrow: 0 }}
+          data={threads}
+          keyExtractor={(thread) => thread.id}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustContentInsets={false}
+          contentInsetAdjustmentBehavior="never"
+          itemLayoutAnimation={layout}
+          windowSize={7}
+          onEndReached={archive.more}
+          onEndReachedThreshold={0.4}
+          ListFooterComponent={archive.expanded ? <SidebarArchivedStatus archive={archive} /> : undefined}
+          renderItem={({ item }) => (
+            <Animated.View entering={arrival(item.id)}>
+              <SidebarThreadTreeRow
+                thread={item}
+                archived
+                current={archive.current}
+                projects={archive.projects}
+                workers={archive.workers}
+                sideThreads={archive.sideThreads.get(item.id) ?? []}
+              />
+            </Animated.View>
+          )}
+        />
+      )}
+    </View>
+  );
+}
+
+function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads }) {
   const c = useColors("sidebar-list");
   const type = useSidebarTypography();
 
@@ -165,7 +210,7 @@ export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads })
   );
 }
 
-export function SidebarArchivedStatus({ archive }: { archive: ArchivedThreads }) {
+function SidebarArchivedStatus({ archive }: { archive: ArchivedThreads }) {
   const c = useColors("sidebar-list");
   const { page, roots, stale, query } = archive;
 

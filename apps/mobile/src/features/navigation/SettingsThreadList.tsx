@@ -10,9 +10,10 @@ import type { SidebarListHeader } from "./SidebarListHeader";
 import Animated, { LayoutAnimationConfig } from "react-native-reanimated";
 import { useArrivals } from "../../ui/MotionViews";
 import { useMotion } from "../../ui/motion";
+import { useContentInsets } from "../../ui/ScreenFrame";
 import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
-import { SidebarArchivedHeader, SidebarArchivedStatus, useArchivedThreads } from "./SidebarArchivedThreads";
+import { SidebarArchivedSection } from "./SidebarArchivedThreads";
 import { useSnoozedThreads } from "./SidebarSnoozedThreads";
 import { SidebarThreadDisclosure } from "./SidebarThreadDisclosure";
 import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
@@ -39,7 +40,8 @@ export function SettingsThreadList({
   workers: ui.Worker[];
   empty: ReactNode;
 }) {
-  const { rise, layout } = useMotion();
+  const { rise } = useMotion();
+  const insets = useContentInsets();
   const { view, setView } = useDevicePreferences();
   const { workingThreadsExpanded: workingOpen, groupByWorktree } = view;
   const snoozed = useSnoozedThreads(navigation);
@@ -77,7 +79,6 @@ export function SettingsThreadList({
     header.listTop,
   );
 
-  const archive = useArchivedThreads(navigation);
   const workingIndex = visible.findIndex((entry) => entry.working);
 
   const active: SidebarListEntry[] = visible.map((entry, index) => ({
@@ -94,7 +95,6 @@ export function SettingsThreadList({
     ...ordered,
     ...(!active.length && !snoozed.count ? [{ key: "empty", section: "empty" as const }] : []),
     ...snoozed.entries,
-    ...archivedEntries(archive),
   ];
 
   // Insert or remove the section in one layout without gliding other cells over the new rows.
@@ -111,7 +111,7 @@ export function SettingsThreadList({
     <SidebarDragContext.Provider value={drag.context}>
       {/* Switching to Bots unmounts the whole list: its rows leave at once instead of fading over the next list. */}
       <LayoutAnimationConfig skipExiting>
-        <GestureHandlerRootView style={styles.fill}>
+        <GestureHandlerRootView style={[styles.fill, { marginBottom: insets.bottom }]}>
           <GestureDetector gesture={drag.gesture}>
             <Animated.View ref={drag.frame} style={styles.fill}>
               <ThreadFlatList
@@ -120,12 +120,11 @@ export function SettingsThreadList({
                 CellRendererComponent={SidebarOrderCell}
                 keyExtractor={(entry) => entry.key}
                 {...header.listProps}
+                contentContainerStyle={{ ...header.listProps.contentContainerStyle, paddingBottom: 8 }}
                 initialNumToRender={12}
                 maxToRenderPerBatch={8}
                 windowSize={7}
                 onContentSizeChange={(_, height) => drag.content.set(height)}
-                onEndReached={archive.more}
-                onEndReachedThreshold={0.4}
                 renderItem={({ item }) => {
                   const workingRow = item.section === "working";
                   const snoozedRow = item.section === "snoozed";
@@ -136,12 +135,11 @@ export function SettingsThreadList({
                     <Animated.View
                       entering={toggled ? undefined : arrival(item.key)}
                       exiting={disclosureRow ? undefined : rise.exiting}
-                      layout={!disclosing && item.section === "archived-heading" ? layout : undefined}
                       style={disclosureRow && { paddingTop: 2 }}
                     >
                       <SidebarNesting depth={item.depth}>
                         <SidebarListEntryView
-                          {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
+                          {...{ item, navigation, snoozed, rootIds, projects, workers, empty, workingOpen }}
                           onWorking={() => setView({ workingThreadsExpanded: !workingOpen })}
                         />
                       </SidebarNesting>
@@ -152,29 +150,16 @@ export function SettingsThreadList({
               <SidebarDragFeedback entries={entries} />
             </Animated.View>
           </GestureDetector>
+          <SidebarArchivedSection navigation={navigation} />
         </GestureHandlerRootView>
       </LayoutAnimationConfig>
     </SidebarDragContext.Provider>
   );
 }
 
-function archivedEntries(archive: ReturnType<typeof useArchivedThreads>): SidebarListEntry[] {
-  if (!archive.visible) return [];
-
-  const entries: SidebarListEntry[] = [{ key: "archived-heading", section: "archived-heading" }];
-  const threads = archive.expanded ? archive.roots : archive.sticky ? [archive.sticky] : [];
-
-  for (const thread of threads) entries.push({ key: `archived-${thread.id}`, thread, section: "archived" });
-
-  if (archive.expanded) entries.push({ key: "archived-status", section: "status" });
-
-  return entries;
-}
-
 function SidebarListEntryView({
   item,
   navigation,
-  archive,
   snoozed,
   rootIds,
   projects,
@@ -185,7 +170,6 @@ function SidebarListEntryView({
 }: {
   item: SidebarListEntry;
   navigation: ReturnType<typeof useSidebarThreads>;
-  archive: ReturnType<typeof useArchivedThreads>;
   snoozed: ReturnType<typeof useSnoozedThreads>;
   rootIds: ReadonlySet<string>;
   projects: ui.Project[];
@@ -200,10 +184,6 @@ function SidebarListEntryView({
 
   if (item.section === "empty") return empty;
 
-  if (item.section === "archived-heading") return <SidebarArchivedHeader archive={archive} />;
-
-  if (item.section === "status") return <SidebarArchivedStatus archive={archive} />;
-
   if (item.section === "snoozed-heading")
     return (
       <SidebarThreadDisclosure
@@ -215,18 +195,6 @@ function SidebarListEntryView({
 
   if (item.working && item.heading)
     return <SidebarThreadDisclosure working label={item.heading} expanded={workingOpen} onToggle={onWorking} />;
-
-  if (item.section === "archived" && item.thread)
-    return (
-      <SidebarThreadTreeRow
-        thread={item.thread}
-        archived
-        current={current}
-        projects={archive.projects}
-        workers={archive.workers}
-        sideThreads={archive.sideThreads.get(item.thread.id) ?? []}
-      />
-    );
 
   if (item.thread) {
     const sleeping = item.section === "snoozed";

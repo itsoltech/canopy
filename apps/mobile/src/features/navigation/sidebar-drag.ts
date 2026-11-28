@@ -18,7 +18,7 @@ import type { useSidebarOrder } from "./sidebar-order";
 import { dropAt, rowAt, type DragItem, type RowBox } from "./sidebar-drag-target";
 
 export type SidebarListEntry = SidebarEntry & {
-  section: "active" | "working" | "snoozed" | "snoozed-heading" | "archived" | "archived-heading" | "status" | "empty";
+  section: "active" | "working" | "snoozed" | "snoozed-heading" | "empty";
   disclosing?: boolean;
 };
 
