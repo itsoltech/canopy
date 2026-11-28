@@ -86,8 +86,9 @@
     {anchor}
     role="none"
     focusOnOpen={false}
+    morph={false}
     placement="top-start"
-    class="w-(--float-anchor-width) max-w-[calc(100vw-1rem)]"
+    class="w-(--float-anchor-width) max-w-[calc(100vw-1rem)] data-[side=top]:top-auto data-[side=top]:bottom-(--float-bottom)"
   >
     <div class={className}>{@render children()}</div>
   </Popover>

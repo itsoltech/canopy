@@ -186,7 +186,10 @@ export function rangeAtPoint(root: HTMLElement, x: number, y: number): Range | u
   if (chip && root.contains(chip)) {
     const bounds = chip.getBoundingClientRect();
 
-    if (x < bounds.left + bounds.width / 2) range.setStartBefore(chip);
+    const before =
+      chip.getClientRects().length > 1 ? y < bounds.top + bounds.height / 2 : x < bounds.left + bounds.width / 2;
+
+    if (before) range.setStartBefore(chip);
     else range.setStartAfter(chip);
   } else range.setStart(node, offset);
   range.collapse(true);

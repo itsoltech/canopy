@@ -62,11 +62,12 @@ export function attachmentIcon(source: string): IconName {
   return "document-text";
 }
 
-export const CHIP_LAYOUT_CLASS =
-  "mention-chip inline-flex max-w-full items-baseline gap-1 rounded-md py-px pr-1.5 pl-1 align-baseline font-medium select-text";
+const CHIP_BASE = "mention-chip rounded-md py-px pr-1.5 pl-1 align-baseline font-medium select-text";
+const CHIP_TONE = "bg-brand-600/8 text-brand-700 dark:bg-brand-400/12 dark:text-brand-300";
+export const CHIP_LAYOUT_CLASS = `${CHIP_BASE} inline-flex max-w-full items-baseline gap-1`;
 
 /** The chip: accent text with the kind's icon (or the plugin's own), on a faint accent wash. */
-export const CHIP_CLASS = `${CHIP_LAYOUT_CLASS} bg-brand-600/8 text-brand-700 dark:bg-brand-400/12 dark:text-brand-300`;
+export const CHIP_CLASS = `${CHIP_LAYOUT_CLASS} ${CHIP_TONE}`;
 
 export const CHIP_ICON_CLASS =
   "size-4 shrink-0 self-center fill-brand-600 text-brand-600 dark:fill-brand-400 dark:text-brand-400";
@@ -108,7 +109,10 @@ export const INLINE_RENDERERS = {
 
       const data = escape(JSON.stringify({ ...mention, kind: mention.kind }));
 
-      return `<span contenteditable="false" draggable="true" data-element="mention" data-mention="${data}" class="${CHIP_CLASS}" title="${escape(chipTitle(mention))}">${glyph}<span class="truncate">${escape(chipLabel(mention))}</span></span>`;
+      // An inline icon slot keeps the glyph with the first word. The label can wrap with the draft text.
+      const iconSlot = `<span aria-hidden="true" class="relative ps-5 [&>*]:absolute [&>*]:start-0 [&>*]:top-1/2 [&>*]:-translate-y-1/2">${glyph}</span>`;
+
+      return `<span contenteditable="false" draggable="true" data-element="mention" data-mention="${data}" class="${CHIP_BASE} ${CHIP_TONE}" title="${escape(chipTitle(mention))}">${iconSlot}${escape(chipLabel(mention))}</span>`;
     },
   },
 } satisfies {

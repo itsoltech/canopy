@@ -3,7 +3,8 @@
  * element next to its anchor, flip to the other side when it does not fit, shift it along the edge to
  * stay in the viewport. Results go into CSS variables, so the element's classes decide what to use:
  * `--float-x`, `--float-y` (viewport px), `--float-available-height` (room on the chosen side),
- * `--float-anchor-width` and `--float-origin` (the anchor's side, for motion that grows from it).
+ * `--float-anchor-width`, `--float-bottom` (bottom inset for top placements) and
+ * `--float-origin` (the anchor's side, for motion that grows from it).
  *
  *   const stop = autoPosition(anchor, panel, { placement: "top-start" });
  *   // panel: class="fixed left-(--float-x) top-(--float-y) max-h-(--float-available-height)"
@@ -34,6 +35,7 @@ export interface Position {
 }
 
 const opposite: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+const DEFAULT_OFFSET = 6;
 
 type Align = "start" | "center" | "end";
 
@@ -55,7 +57,7 @@ export function computePosition(
   anchor: Pick<DOMRect, "top" | "bottom" | "left" | "right" | "width" | "height">,
   size: { readonly width: number; readonly height: number },
   viewport: { readonly width: number; readonly height: number; readonly top?: number },
-  { placement = "bottom-start", offset = 6, padding = 8 }: PositionOptions = {},
+  { placement = "bottom-start", offset = DEFAULT_OFFSET, padding = 8 }: PositionOptions = {},
 ): Position {
   const [preferred, align] = split(placement);
   const safeTop = viewport.top ?? 0;
@@ -115,8 +117,10 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export function positionNow(anchor: Element, floating: HTMLElement, options?: PositionOptions): Position {
   if (options?.measureNaturalHeight) floating.style.removeProperty("--float-available-height");
 
+  const box = anchor.getBoundingClientRect();
+
   const position = computePosition(
-    anchor.getBoundingClientRect(),
+    box,
     {
       width: floating.offsetWidth,
       height: options?.measureNaturalHeight ? floating.offsetHeight : contentHeight(floating),
@@ -132,7 +136,10 @@ export function positionNow(anchor: Element, floating: HTMLElement, options?: Po
   floating.style.setProperty("--float-x", `${position.x}px`);
   floating.style.setProperty("--float-y", `${position.y}px`);
   floating.style.setProperty("--float-available-height", `${position.availableHeight}px`);
-  const box = anchor.getBoundingClientRect();
+  floating.style.setProperty(
+    "--float-bottom",
+    `${Math.round(window.innerHeight - box.top + (options?.offset ?? DEFAULT_OFFSET))}px`,
+  );
   floating.style.setProperty("--float-anchor-width", `${box.width}px`);
   floating.style.setProperty("--float-origin", transformOrigin(position, box, floating));
   floating.dataset.side = position.side;
