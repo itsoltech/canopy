@@ -570,11 +570,10 @@
   const onkeydown = (event: KeyboardEvent) => navigateFeedKey(event, footerElement, scroller, positions, focusRow);
 </script>
 
-<div
-  class="feed-shell relative h-full [--feed-end-gap:--spacing(8)]"
-  style:--feed-edge="{footerEdge}px"
-  style:--feed-gutter="{gutter}px"
->
+<div class="feed-shell relative h-full [--feed-end-gap:--spacing(8)]" style:--feed-gutter="{gutter}px">
+  <!-- Paint the fade under the scrollbar. Keep its moving edge local to the footer decorations:
+       inheriting the per-frame custom property through the scroller restyles every mounted row. -->
+  <div aria-hidden="true" class="footer-backdrop right-0 w-(--feed-gutter)" style:--feed-edge="{footerEdge}px"></div>
   <!-- The viewport already has a fixed height and clips overflow. Size/layout/paint containment
        prevents growing descendants from invalidating the surrounding application layout. -->
   <!-- The labelled, focusable scroll region supports native scrolling keys. -->
@@ -691,12 +690,14 @@
             </div>
           </div>
         </div>
-        <div class="footer-backdrop inset-x-0 -z-10" aria-hidden="true"></div>
-        <FeedFooterActions
-          accessory={footerAccessory}
-          showJump={!stuck && extent.overflows && !extent.endVisible}
-          onjump={() => jumpToLatest(true)}
-        />
+        <div class="contents" style:--feed-edge="{footerEdge}px">
+          <div class="footer-backdrop inset-x-0 -z-10" aria-hidden="true"></div>
+          <FeedFooterActions
+            accessory={footerAccessory}
+            showJump={!stuck && extent.overflows && !extent.endVisible}
+            onjump={() => jumpToLatest(true)}
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -709,19 +710,11 @@
     --feed-fade: var(--feed-backdrop, var(--color-surface));
   }
 
-  .feed-shell::before,
   .footer-backdrop {
     position: absolute;
     bottom: 0;
     height: calc(var(--feed-edge) + var(--feed-end-gap));
     background: linear-gradient(to top, var(--feed-fade) var(--feed-edge), transparent);
     pointer-events: none;
-  }
-
-  /* Continue the backdrop under the transparent scrollbar track, behind the thumb. */
-  .feed-shell::before {
-    content: "";
-    right: 0;
-    width: var(--feed-gutter);
   }
 </style>

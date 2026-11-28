@@ -5,6 +5,9 @@ import type { FooterFold } from "../../../shared/ui/virtual/footer-reserve.ts";
 
 type Publish = (compact: boolean, fold: FooterFold) => void;
 
+/** Scroll travel shorter than one 120 Hz frame can take its target on the first paint. */
+const MIN_TWEEN_MS = 1000 / 120;
+
 interface HeldTransition {
   animation: CSSTransition;
   end: number;
@@ -105,7 +108,7 @@ export class ComposerMorph {
 
     // A small gesture takes a fraction of a frame. Longer travel eases into the endpoint.
     const ms = Math.abs(delta) * duration(delta > 0 ? "medium" : "slow");
-    const t = ms > 0 ? Math.min(1, Math.max(0, now - this.#started) / ms) : 1;
+    const t = ms > MIN_TWEEN_MS ? Math.min(1, Math.max(0, now - this.#started) / ms) : 1;
     this.#lastFrame = now;
 
     if (this.#toward === undefined) this.#start(this.#progress === 0);
