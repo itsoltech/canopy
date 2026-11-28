@@ -67,16 +67,18 @@ export function ReplySuggestions({
   const disabled = inactive || send.activeId !== itemId;
 
   return (
-    <View accessibilityLabel="Suggested replies" style={[{ gap: 8, alignItems: "flex-start", minWidth: 0 }, style]}>
+    <View accessibilityLabel="Suggested replies" style={[{ gap: 4, alignItems: "flex-start", minWidth: 0 }, style]}>
       {replies.map((reply, index) => (
         <Button
           key={`${index}:${reply}`}
           title={reply}
           hint="Sends this reply"
+          size="sm"
+          reserveTouchTarget
           multiline
           disabled={disabled}
           onPress={() => send.send(itemId, reply)}
-          style={{ minHeight: 48, maxWidth: "100%", paddingVertical: 10 }}
+          style={{ maxWidth: "100%", paddingVertical: 4 }}
         />
       ))}
     </View>
