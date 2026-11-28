@@ -7,6 +7,7 @@ import { font, styles, useColors, useTypography } from "./theme";
 import { WorkingSpinner } from "./WorkingSpinner";
 
 const GAP = 2;
+const VERTICAL_HIT_SLOP = { top: 6, bottom: 6 };
 
 // The sidebar's 272 dp breakpoint minus its 12 dp gutters and the track padding.
 const NARROW_TRACK = 244;
@@ -55,6 +56,7 @@ export function Segmented<T extends string>({
   return (
     <View
       accessibilityRole="tablist"
+      hitSlop={wrap ? VERTICAL_HIT_SLOP : undefined}
       onLayout={(event) => setTrack(event.nativeEvent.layout.width - GAP * 2)}
       style={[
         styles.row,
@@ -105,11 +107,11 @@ export function Segmented<T extends string>({
               accessibilityState={{ selected, disabled: option.disabled }}
               disabled={option.disabled}
               onPress={() => onChange(option.value)}
-              hitSlop={wrap ? undefined : { top: 6, bottom: 6 }}
+              hitSlop={wrap ? wrappedHitSlop(option.value, options, bounds) : VERTICAL_HIT_SLOP}
               style={[
                 {
                   ...(wrap ? { flexGrow: 1, maxWidth: "100%" } : { flex: 1 }),
-                  minHeight: wrap ? 44 : compact ? 28 : 32,
+                  minHeight: compact ? 28 : 32,
                   paddingHorizontal: compact ? 8 : 12,
                   paddingVertical: compact ? 4 : 6,
                   alignItems: "center",
@@ -147,6 +149,20 @@ export function Segmented<T extends string>({
       </LayoutAnimationConfig>
     </View>
   );
+}
+
+/** Expand the outer edges for touch and split the gap between adjacent rows. */
+function wrappedHitSlop<T extends string>(
+  value: T,
+  options: SegmentedProps<T>["options"],
+  bounds: Partial<Record<T, LayoutRectangle>>,
+) {
+  const y = bounds[value]?.y;
+
+  return {
+    top: y === bounds[options[0].value]?.y ? VERTICAL_HIT_SLOP.top : GAP / 2,
+    bottom: y === bounds[options[options.length - 1].value]?.y ? VERTICAL_HIT_SLOP.bottom : GAP / 2,
+  };
 }
 
 function pillStyle(dark: boolean, ring: string): ViewStyle {
