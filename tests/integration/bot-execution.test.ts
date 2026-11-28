@@ -93,9 +93,22 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
       ).toMatchObject({ id, executing });
     };
 
+    const expectDelegated = async (working: number, finished: number, after = 0) => {
+      const counts = { working, finished };
+
+      const matches = (bot?: bots.Bot) =>
+        bot?.delegatedThreads?.working === working && bot.delegatedThreads.finished === finished;
+
+      expect(await eventually(() => listed(id, api), matches)).toMatchObject({ delegatedThreads: counts });
+      expect(await eventually(async () => updates.slice(after).find(matches), Boolean)).toMatchObject({
+        delegatedThreads: counts,
+      });
+    };
+
     return {
       updates,
       expectSummary,
+      expectDelegated,
       close: async () => {
         controller.abort();
         await reading;
@@ -112,7 +125,7 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
     ).toEqual([{ status: "completed" }]);
   }
 
-  async function requestDelegatedApproval(botId: string) {
+  async function requestDelegatedApproval(botId: string, stream: ReturnType<typeof watch>) {
     const project = (await gw.api.createProject({ name: "Delegated work" })).project!;
 
     const workspace = (
@@ -132,10 +145,14 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
     await query("INSERT INTO bot_started_threads(thread_id,bot_id) VALUES($1::uuid,$2::uuid)", [thread.id, botId]);
     worker.holdTurns = true;
 
+    const beforeStart = stream.updates.length;
+
     const turn = (await gw.api.sendMessage({ threadId: thread.id, clientRequestId: crypto.randomUUID(), text: "Wait" }))
       .turn!;
 
     expect(await eventually(async () => worker.started.has(turn.id), Boolean)).toBe(true);
+    await stream.expectDelegated(1, 0, beforeStart);
+    const beforeWait = stream.updates.length;
     const requestId = crypto.randomUUID();
     worker.ask({
       requestId,
@@ -152,8 +169,11 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
         (bot) => bot?.pendingApproval?.id === requestId,
       ),
     ).toMatchObject({ executing: true, pendingApproval: { id: requestId, threadId: thread.id } });
+    await stream.expectDelegated(0, 0, beforeWait);
     await gw.api.answerInteraction({ requestId, allow: false });
+    const beforeFinish = stream.updates.length;
     worker.finish(thread.id, turn.id);
+    await stream.expectDelegated(0, 1, beforeFinish);
     worker.holdTurns = false;
   }
 
@@ -195,7 +215,7 @@ describe.skipIf(!dockerAvailable)("bot execution summaries over gRPC", () => {
       worker.emit(id, turnId, { case: "turnStarted", value: {} });
       await stream.expectSummary(true);
       expect((await gw.api.getBot({ botId: id })).bot?.executing).toBeUndefined();
-      await requestDelegatedApproval(id);
+      await requestDelegatedApproval(id, stream);
 
       const beforeQuestion = stream.updates.length;
       tool = gw.core.bots.harnessTools.handle(

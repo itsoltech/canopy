@@ -16,11 +16,19 @@
   let { query = "" }: { query?: string } = $props();
   const settings = useSettings();
   const capabilities = useGatewayCapabilities();
+  const showDelegatedThreads = $derived(settings.moduleEnabled("threads"));
 
   const conversations = $derived(
     botList.list
       .filter((b) => !b.archived)
-      .map((b) => botConversation(b, settings.sidebar.pinnedBotIds, botList.executing(b.id))),
+      .map((b) =>
+        botConversation(
+          b,
+          settings.sidebar.pinnedBotIds,
+          botList.executing(b.id),
+          showDelegatedThreads ? (botList.delegatedThreads(b)?.working ?? null) : undefined,
+        ),
+      ),
   );
 
   const archived = $derived(botList.list.filter((b) => b.archived).map((b) => botConversation(b)));

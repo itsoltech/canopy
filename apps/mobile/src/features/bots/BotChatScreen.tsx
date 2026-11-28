@@ -10,6 +10,7 @@ import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
 import { botParticipant, learnFromConversation, type BotTimelineRow } from "@canopy/domain/bot-chat";
 import { useAppearance } from "../../state/appearance";
+import { useOverviewStream } from "../../state/overview-bus";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
 import { useBotSnapshot } from "../../state/bot";
@@ -38,7 +39,7 @@ import { DropZone } from "../attachments/FileIntake";
 const chatRowId = (row: BotTimelineRow) => row.id;
 
 function useBotChat(id: string) {
-  const { session, client, online, bots: known } = useSession();
+  const { session, client, online, bots: cachedBots } = useSession();
   const history = useBotSnapshot(id);
   const { snapshot: conversation, stream } = history;
   const [details, setDetails] = useState(false);
@@ -57,7 +58,7 @@ function useBotChat(id: string) {
   };
 
   // Your other bots name the counterparts of bot ⇄ bot exchanges: the shared list keeps them current.
-  useBotList();
+  const botList = useBotList();
 
   return {
     session,
@@ -72,7 +73,8 @@ function useBotChat(id: string) {
     stream,
     seen: history.seen,
     history: history.history,
-    known,
+    known: botList.data?.bots ?? cachedBots,
+    botListCurrent: botList.loaded && !botList.stale && !botList.error,
     answer: history.answer,
   };
 }
@@ -85,9 +87,15 @@ function useBotConversation(id: string, rule: string) {
   const chat = useBotChat(id);
   const { threadsEnabled } = useAppearance();
   const { conversation, known, stream, following, seen } = chat;
+  const overviewStream = useOverviewStream();
 
   const home = useComputerHome(conversation?.bot?.nodeId || splitId(id).node);
-  const bot = conversation?.bot ?? known.find((bot) => bot.id === id);
+  const summary = known.find((bot) => bot.id === id);
+  const bot = conversation?.bot ?? summary;
+
+  const delegatedThreads =
+    chat.botListCurrent && !home.away && overviewStream.connection === "live" ? summary?.delegatedThreads : undefined;
+
   const connected = stream.connection === "live" && !home.away;
   const live = connected && !bot?.archived;
   const onViewableItemsChanged = useBotRead(conversation, connected && following.atBottom && !chat.details && !rule);
@@ -110,7 +118,20 @@ function useBotConversation(id: string, rule: string) {
 
   const composer = useFloatingComposer(following, Boolean(message.draft.value.text.length || message.quotes.length));
 
-  return { chat, home, bot, live, message, approvals, waiting, rows, arrival, composer, onViewableItemsChanged };
+  return {
+    chat,
+    home,
+    bot,
+    delegatedThreads,
+    live,
+    message,
+    approvals,
+    waiting,
+    rows,
+    arrival,
+    composer,
+    onViewableItemsChanged,
+  };
 }
 
 function BotConversation({ id, rule }: { id: string; rule: string }) {
@@ -172,7 +193,9 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
         </DropZone>
       </ChatKeyboard>
       <BotDetailsPanel
+        bot={bot}
         conversation={conversation}
+        delegatedThreads={state.delegatedThreads}
         readOnly={!live}
         visible={chat.details || !!rule}
         selectedRule={rule}

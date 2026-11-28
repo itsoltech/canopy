@@ -1,5 +1,9 @@
 # Boty
 
+Status (2026-11-28): lista Bots rozróżnia pracę bota od pracy uruchomionych
+przez niego wątków. Liczniki są w jego szczegółach, w sekcji [Delegated threads](#aktywność-zleconych-wątków).
+Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-28): zapisane wiadomości botów i użytkownika mają widoczną datę
 i godzinę wysłania w web/desktop oraz na iOS i Androidzie.
 
@@ -171,6 +175,27 @@ wracają od najbliższego przyszłego terminu według ich strefy czasowej. Gatew
 zaległe wystąpienia i pozostawia ręcznie wstrzymane rutyny w pauzie. Jednorazowe
 przypomnienie, którego termin minął w czasie wyłączenia, trafia do kolejki jeden raz,
 o ile nadal jest aktywne. Anulowane przypomnienia pozostają anulowane.
+
+## Aktywność zleconych wątków
+
+Na liście Bots dotychczasowe **Working** opisuje turę samego bota. Osobny
+sygnał, np. **2 threads working**, pokazuje pracę wątków tego bota. Oba sygnały
+mogą wystąpić jednocześnie. W **Bot details → Delegated threads** widać
+**Working** i **Finished**. Przy braku aktualnych danych lista pokazuje
+**Threads unknown**, a szczegóły pokazują kreski. Zero oznacza potwierdzony odczyt.
+
+Gateway domu bota liczy wątki ze zapisanym powiązaniem z bezpośrednim
+`start_thread` tego bota we wszystkich projektach. Wątki usunięte, zarchiwizowane,
+potomkowie uruchomieni przez agenta i wątki, do których bot tylko pisał, nie wchodzą
+do licznika. **Working** obejmuje tworzenie, rozpoczęcie i wykonywanie tury
+bez blokującego pytania lub zgody. Wątek tylko zakolejkowany, oczekujący na
+odpowiedź lub mający wyłącznie aktywne zadanie w tle nie jest liczony jako pracujący.
+**Finished** obejmuje zakończenie udane, błąd lub przerwanie, gdy wątek nie ma
+dalszej pracy w toku lub w kolejce. Wycofanie wiadomości z kolejki samo w sobie
+nie kończy próby. Wznowiony wątek jest liczony według aktualnego stanu.
+Podsumowania listy i aktualizacje overview niosą oba liczniki. Przy wyłączonym
+module Threads interfejs pomija sekcję i sygnał. Przy nieaktualnym odczycie
+listy z domu bota wartości są nieznane.
 
 ## Połączenie z wątkami
 

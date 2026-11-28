@@ -1,6 +1,8 @@
 import { create } from "@bufbuild/protobuf";
 import { untrack } from "svelte";
 import { bots } from "@canopy/contracts";
+import { sharesThreads } from "@canopy/domain/computer-presence";
+import { REMOTE_BOTS } from "@canopy/domain/computers";
 import { requestJson } from "#lib/shared/http.ts";
 import { decode, encode } from "#lib/shared/wire.ts";
 import { botCache } from "./cache.ts";
@@ -39,6 +41,27 @@ class BotList {
   // Conversation and mutation responses also update bot metadata. Execution comes only from list summaries.
   executing(botId: string): boolean {
     return this.synchronized && this.#executing.has(botId);
+  }
+
+  /** Counts from a synchronized list summary, including a verified zero. */
+  delegatedThreads(bot: bots.Bot | undefined): bots.Bot["delegatedThreads"] {
+    if (!bot || !this.synchronized || this.error) return undefined;
+
+    if (bot.nodeId) {
+      const home = this.#overview?.computer(bot.nodeId);
+
+      if (
+        !home ||
+        !sharesThreads(home) ||
+        !home.capabilities.includes(REMOTE_BOTS) ||
+        home.unavailableReason ||
+        this.unavailableComputers.some((computer) => computer.nodeId === bot.nodeId) ||
+        this.refreshingComputers.some((computer) => computer.nodeId === bot.nodeId)
+      )
+        return undefined;
+    }
+
+    return bot.delegatedThreads;
   }
 
   /** Keeps the list fresh until the returned function is called (use it from an `$effect`). */
@@ -156,10 +179,17 @@ class BotList {
     const previous = this.list.find((b) => b.id === bot.id);
     let next = bot;
 
-    if (previous && from === "conversation")
-      next = { ...bot, pendingApproval: previous.pendingApproval, executing: previous.executing };
+    if (from === "conversation")
+      next = {
+        ...bot,
+        ...(previous && { pendingApproval: previous.pendingApproval, executing: previous.executing }),
+        delegatedThreads: previous?.delegatedThreads,
+      };
 
-    if (previous && from === "archive") next = { ...previous, archived: bot.archived, updatedAt: bot.updatedAt };
+    if (from === "archive")
+      next = previous
+        ? { ...previous, archived: bot.archived, updatedAt: bot.updatedAt }
+        : { ...bot, delegatedThreads: undefined };
     next = this.#keepEdit(next);
     this.list = previous ? this.list.map((b) => (b.id === bot.id ? next : b)) : [...this.list, next];
   }

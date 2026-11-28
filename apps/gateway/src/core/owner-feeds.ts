@@ -6,6 +6,7 @@ import { botThreadConnection } from "../store/module-access.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
+import { delegatedThreadCounts, type DelegatedThreadCounts } from "./bot-delegated-threads.ts";
 import { executingBotIds, listBotSummaries } from "./bot-execution.ts";
 import { suggestionsFor } from "../memory/reflection-review.ts";
 
@@ -82,6 +83,7 @@ export class OwnerFeeds {
   #clock: { epoch: string; revision: string } | undefined;
   #cards = new Map<string, string>();
   #executing: ReadonlySet<string> = new Set();
+  #delegated: ReadonlyMap<string, DelegatedThreadCounts> = new Map();
   #views = new Map<string, bots.Bot>();
   #connectors: string | undefined;
   #proxies: string | undefined;
@@ -122,6 +124,7 @@ export class OwnerFeeds {
       this.#clock = undefined;
       this.#cards.clear();
       this.#executing = new Set();
+      this.#delegated = new Map();
       this.#views.clear();
       this.#connectors = undefined;
       this.#proxies = undefined;
@@ -200,10 +203,11 @@ export class OwnerFeeds {
 
     const { runtime, userId } = this.core[coreState].options;
 
-    const [clock, cards, executing, connectors, proxies, config] = await Promise.all([
+    const [clock, cards, executing, delegated, connectors, proxies, config] = await Promise.all([
       this.#query(BOT_CLOCK),
       runtime.runPromise(botCards(userId)),
       executingBotIds(this.core),
+      delegatedThreadCounts(this.core),
       this.#query(CONNECTOR_REVISION),
       this.#query(PROXY_REVISION),
       this.#query(CONFIG_REVISION),
@@ -214,6 +218,7 @@ export class OwnerFeeds {
       { epoch: clock[0]?.id ?? "", revision: clock[0]?.revision ?? "0" },
       new Map(cards.map((row) => [row.id ?? "", row.revision])),
       executing,
+      delegated,
       full,
     );
     const connector = connectors[0]?.revision ?? "";
@@ -253,11 +258,12 @@ export class OwnerFeeds {
     this.#publish({ case: "memoryHabitsChanged", value: true });
   }
 
-  /** Bots named by the journal, or whose waiting cards or live execution changed. */
+  /** Bots named by the journal, or whose waiting cards, execution or delegated threads changed. */
   async #changed(
     clock: { epoch: string; revision: string },
     cards: Map<string, string>,
     executing: ReadonlySet<string>,
+    delegated: ReadonlyMap<string, DelegatedThreadCounts>,
   ): Promise<Set<string>> {
     const previous = this.#clock!;
     const ids = new Set<string>();
@@ -271,6 +277,13 @@ export class OwnerFeeds {
     for (const id of new Set([...executing, ...this.#executing]))
       if (executing.has(id) !== this.#executing.has(id)) ids.add(id);
 
+    for (const id of new Set([...delegated.keys(), ...this.#delegated.keys()])) {
+      const before = this.#delegated.get(id);
+      const after = delegated.get(id);
+
+      if (before?.working !== after?.working || before?.finished !== after?.finished) ids.add(id);
+    }
+
     return ids;
   }
 
@@ -278,20 +291,28 @@ export class OwnerFeeds {
     clock: { epoch: string; revision: string },
     cards: Map<string, string>,
     executing: ReadonlySet<string>,
+    delegated: ReadonlyMap<string, DelegatedThreadCounts>,
     full: boolean,
   ) {
     // Start the feed with authoritative summaries, including a false value if a client read just before a finish.
     const reset = clock.epoch !== this.#clock?.epoch;
-    const changed = reset ? new Set<string>() : await this.#changed(clock, cards, executing);
+    const changed = reset ? new Set<string>() : await this.#changed(clock, cards, executing, delegated);
 
-    if (reset || full || changed.size) await this.#publishBots(reset, full, changed, executing);
+    if (reset || full || changed.size) await this.#publishBots(reset, full, changed, executing, delegated);
     this.#clock = clock;
     this.#cards = cards;
     this.#executing = executing;
+    this.#delegated = delegated;
   }
 
-  async #publishBots(reset: boolean, full: boolean, changed: Set<string>, executing: ReadonlySet<string>) {
-    const list = await listBotSummaries(this.core, true, executing);
+  async #publishBots(
+    reset: boolean,
+    full: boolean,
+    changed: Set<string>,
+    executing: ReadonlySet<string>,
+    delegated: ReadonlyMap<string, DelegatedThreadCounts>,
+  ) {
+    const list = await listBotSummaries(this.core, true, executing, delegated);
     const listed = new Set(list.map((bot) => bot.id));
 
     for (const bot of list) {

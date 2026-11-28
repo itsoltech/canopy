@@ -47,7 +47,9 @@ export function executionLists(
       const unconfirmed = new Set([...unavailableComputers, ...refreshingComputers].map((computer) => computer.nodeId));
 
       const remote = others.flatMap((response) =>
-        response.bots.map((bot) => (unconfirmed.has(bot.nodeId) ? { ...bot, executing: false } : bot)),
+        response.bots.map((bot) =>
+          unconfirmed.has(bot.nodeId) ? { ...bot, executing: false, delegatedThreads: undefined } : bot,
+        ),
       );
 
       return create(bots.ListBotsResponseSchema, {

@@ -48,6 +48,8 @@ export interface ConversationView {
   lastMessage?: ConversationPreview | undefined;
   unread: number;
   executing?: boolean | undefined;
+  /** Working delegated threads. Null means unknown; omission hides the indicator. */
+  delegatedThreadsWorking?: number | null | undefined;
   /** Pinned conversations sit at the top of the Bots section as large avatars. */
   pinned: boolean;
   archived?: boolean | undefined;

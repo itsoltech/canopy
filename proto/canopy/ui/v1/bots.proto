@@ -53,6 +53,12 @@ message Bot {
   BotApproval pending_approval = 1000;
   // Present in list and overview summaries. The worker has started a turn and it can still execute.
   optional bool executing = 1001;
+  // Obecne w aktualnym podsumowaniu listy, gdy bot ma dostęp do wątków.
+  BotDelegatedThreads delegated_threads = 1002;
+}
+message BotDelegatedThreads {
+  uint32 working = 1;
+  uint32 finished = 2;
 }
 message BotMessage {
   string id = 1;
