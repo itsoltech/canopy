@@ -22,6 +22,12 @@
   const gatewayPreferences = $derived(gateway && !gateway.gatewayBundled);
   const autoUpdate = $derived(gateway?.autoUpdateSupported ?? false);
 
+  const desktopReleases = $derived(
+    app.status?.updateVersion && ["downloading", "downloaded", "error"].includes(app.status.phase)
+      ? (app.status.releases ?? []).filter((release) => release.markdown.trim())
+      : [],
+  );
+
   onMount(() => app.connect());
 
   $effect(() => {
@@ -76,10 +82,15 @@
 
 {#snippet releases()}
   <WhatsNewSettings />
-  {#if gateway && !gateway.gatewayBundled}
-    <UpdateNotes current={gateway.gatewayVersion} target={gatewayRowTarget(gateway)} channel={gateway.channel} />
+  {#if desktopReleases.length && app.status}
+    <UpdateReleaseNotes releases={desktopReleases} title={`What’s new · ${app.status.channel}`} />
   {/if}
-  {#if app.status?.updateVersion && ["downloading", "downloaded", "error"].includes(app.status.phase)}
-    <UpdateReleaseNotes releases={app.status.releases ?? []} channel={app.status.channel} />
+  {#if gateway && !gateway.gatewayBundled}
+    <UpdateNotes
+      current={gateway.gatewayVersion}
+      target={gatewayRowTarget(gateway)}
+      channel={gateway.channel}
+      {desktopReleases}
+    />
   {/if}
 {/snippet}

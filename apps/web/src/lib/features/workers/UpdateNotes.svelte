@@ -27,33 +27,28 @@
 </script>
 
 <script lang="ts">
-  import type { ClassValue } from "svelte/elements";
-  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import UpdateReleaseNotes from "#lib/features/desktop/UpdateReleaseNotes.svelte";
 
   let {
     current,
     target,
     channel,
-    source = "canopy",
-    expanded = false,
-    compact = false,
-    class: className,
+    desktopReleases,
   }: {
     current: string;
     target: string;
     channel: string;
-    source?: "canopy" | "claude" | "codex";
-    expanded?: boolean;
-    compact?: boolean;
-    class?: ClassValue;
+    desktopReleases: readonly ReleaseNote[];
   } = $props();
 
   let notes = $state<ReleaseNote[]>([]);
 
   const query = $derived(
-    current && target && current !== target ? new URLSearchParams({ current, target, channel, source }).toString() : "",
+    current && target && current !== target ? new URLSearchParams({ current, target, channel }).toString() : "",
   );
+
+  const desktopVersions = $derived(new Set(desktopReleases.map((release) => release.version)));
+  const gatewayReleases = $derived(notes.filter((release) => !desktopVersions.has(release.version)));
 
   $effect(() => {
     notes = [];
@@ -72,11 +67,6 @@
   });
 </script>
 
-{#if notes.length}
-  <Disclosure open={expanded} class={className} summaryClass="py-1 text-sm/5 text-muted">
-    {#snippet summary()}{#if compact}What’s new{:else}Release notes · {current} → {target}{/if}{/snippet}
-    <div class={["break-anywhere pt-2", compact && "max-h-60 scroll-stable overflow-y-auto overscroll-contain"]}>
-      <UpdateReleaseNotes releases={notes} {channel} {source} />
-    </div>
-  </Disclosure>
+{#if gatewayReleases.length}
+  <UpdateReleaseNotes releases={gatewayReleases} title={`Gateway releases · ${channel}`} />
 {/if}
