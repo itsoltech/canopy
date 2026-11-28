@@ -209,7 +209,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
       ["result.png", png],
       ["demo.mp4", mp4],
       ["notes.txt", text],
-      ["data.bin", binary],
+      ["data.dat", binary],
     ]);
 
     exportFiles(files);
@@ -228,7 +228,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
 
     const callId = crypto.randomUUID();
     const sent = await message([...files.keys()], callId);
-    expect(sent.isError).toBe(false);
+    expect(sent.isError, sent.content).toBe(false);
     expect((await message([...files.keys()], callId)).content).toBe(sent.content);
     const callback = (await bots.run((s) => s.claim(userId)))!;
 
@@ -241,7 +241,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
       ["result.png", "image", "image/png"],
       ["demo.mp4", "video", "video/mp4"],
       ["notes.txt", "file", "text/plain"],
-      ["data.bin", "file", "application/octet-stream"],
+      ["data.dat", "file", "application/octet-stream"],
     ]);
     expect(attachments[0]).toMatchObject({ width: 24, height: 16, hasThumbnail: true });
     expect(attachments[1]?.durationMs).toBe(2000);
@@ -276,7 +276,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
       args: { text: "The requested report", attachment_paths: ["report.txt"] },
     });
 
-    expect(sent.isError).toBe(false);
+    expect(sent.isError, sent.content).toBe(false);
 
     const callback = (await bots.run((s) => s.claim(gw.userId)))!;
     expect(callback.conversation_id).toBe(f.turn.conversation_id);
