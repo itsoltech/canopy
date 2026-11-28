@@ -205,6 +205,8 @@ export function applyThreadRows(
     history: ui.ThreadSnapshot;
     handoff: string;
     notice: { eventId: string; payload: JsonValue };
+    /** The thread continues its own harness session (docs/thread-transfers.md) instead of a handoff note. */
+    native?: { sessionId: string; note: string };
     files: link.MovedFile[];
     blobs: link.MovedBlob[];
   },
@@ -264,14 +266,22 @@ export function applyThreadRows(
           row.created_at,
           row.title,
           row.title_source === "provisional" ? "user" : row.title_source,
-          JSON.stringify({ handoff: input.handoff }),
-          row.kind === "main" ? row.archived_at : null,
+          JSON.stringify(input.native ? { branchNote: input.native.note } : { handoff: input.handoff }),
+          // The main thread is archived after its side threads exist (movesApplyThread).
+          null,
           row.auto_archive_on_merge ?? null,
           history.thread?.permissionModeSelected ?? false,
           row.snoozed ?? false,
           row.snoozed ? (row.snoozed_until ?? null) : null,
         ],
       );
+
+      if (input.native)
+        yield* sql.unsafe(
+          `UPDATE threads SET provider_thread_id = $2, status = CASE WHEN status = 'creating' THEN 'idle' ELSE status END
+          WHERE id = $1::uuid AND (provider_thread_id IS NULL OR provider_thread_id = $2)`,
+          [input.threadId, input.native.sessionId],
+        );
       yield* sql.unsafe(
         `INSERT INTO thread_reads (user_id, thread_id, seen_seq) VALUES ($1::uuid, $2::uuid, $3) ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_seq = greatest(thread_reads.seen_seq, EXCLUDED.seen_seq)`,
         [owner, input.threadId, String(lastSeq)],
@@ -366,5 +376,48 @@ export function audit(sql: Sql, owner: string, action: string, target: string, d
   return sql.unsafe(
     `INSERT INTO audit_log (id, actor_user_id, action, target_type, target_id, details) VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid, $6::jsonb)`,
     [Bun.randomUUIDv7(), owner, action, action.split(".")[2] ?? "thread", target, JSON.stringify(details)],
+  );
+}
+
+const ARCHIVE_REASONS = ["user", "agent", "merge"] as const;
+
+/**
+ * The family's archive state as it was on the source, once every row exists: side threads first, each its own time
+ * and reason. A side thread closed with its main thread keeps that link, so reopening the main thread reopens it.
+ */
+export async function restoreArchived(
+  store: ComputerStore,
+  rows: readonly {
+    id: string;
+    parent_thread_id?: string | null;
+    archived_at?: string | Date | null;
+    archived_by?: string | null | undefined;
+    archived_by_thread_id?: string | null | undefined;
+  }[],
+) {
+  const archived = rows
+    .flatMap((r) => {
+      if (!r.archived_at) return [];
+
+      const cascade =
+        r.archived_by === "cascade" && Boolean(r.parent_thread_id) && r.archived_by_thread_id === r.parent_thread_id;
+
+      // Only reasons this database knows (a partner's value is not trusted); anything else counts as the owner's.
+      const by = cascade ? "cascade" : (ARCHIVE_REASONS.find((reason) => reason === r.archived_by) ?? "user");
+
+      return [{ id: r.id, at: new Date(r.archived_at), by, parent: cascade ? r.parent_thread_id : null }];
+    })
+    .toReversed();
+
+  if (!archived.length) return;
+  await transaction(store, (sql) =>
+    Effect.forEach(archived, (row) =>
+      sql.unsafe(
+        `UPDATE threads SET archived_at = $2::timestamptz, status = 'archived', archived_by = $3,
+          archived_by_thread_id = $4::uuid
+        WHERE id = $1::uuid AND (archived_at IS DISTINCT FROM $2::timestamptz OR archived_by IS DISTINCT FROM $3)`,
+        [row.id, row.at.toISOString(), row.by, row.parent],
+      ),
+    ),
   );
 }

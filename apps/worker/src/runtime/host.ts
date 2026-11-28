@@ -35,6 +35,8 @@ import { HeadTracker } from "../git/heads.ts";
 import { recoverWorker } from "./recovery.ts";
 import { UpdateCheckTimer } from "@canopy/domain/update-checks";
 import { WorkspaceCopies } from "../workspace-copy/index.ts";
+import { ThreadTransfers } from "../thread-transfer/index.ts";
+import { fileTransferOutput, threadTransferHost } from "./thread-transfer-host.ts";
 import { AgentTools, AgentToolRefused } from "../agent-tools/index.ts";
 import { WorkerStorageCleanup } from "./storage-cleanup.ts";
 import { HostPreviews } from "./host-previews.ts";
@@ -74,6 +76,7 @@ export class WorkerHost {
   readonly storage: WorkerStorageCleanup;
   readonly #previewCleanup: WorkerPreviewCleanup;
   readonly #copies: WorkspaceCopies;
+  readonly #transfers: ThreadTransfers;
   readonly #cliChecks: UpdateCheckTimer;
   readonly #commands = new Map<string, Promise<CommandResultInit | undefined>>();
   readonly secrets: HostState["secrets"];
@@ -104,6 +107,8 @@ export class WorkerHost {
       previewLocalSkill: (request) => this.environment.previewLocalSkill(request),
       stopThreadPreviews: (threadId) => this.previews.stopThread(threadId),
     });
+    this.#transfers = new ThreadTransfers(threadTransferHost(this.#ctx));
+    void this.#transfers.reconcile().catch(() => {});
     this.storage = new WorkerStorageCleanup(this.#ctx);
     this.secrets = state.secrets;
     state.heads = new HeadTracker((heads) => this.#ctx.ops.send({ case: "gitHeads", value: { heads } }));
@@ -398,13 +403,7 @@ export class WorkerHost {
       if (current && !current())
         throw new CommandError("THREAD_CLOSED", "This command was cancelled while the thread was closing.", true);
 
-      if (command.kind.case === "workspaceCopy" && command.kind.value.action.case === "scan")
-        this.#ctx.ops.checkCwd(command.kind.value.action.value.rootPath);
-
-      const output =
-        command.kind.case === "workspaceCopy"
-          ? { workspaceCopy: await this.#copies.execute(command.kind.value) }
-          : await this.#ctx.ops.execute(command, link);
+      const output = await fileTransferOutput(this.#copies, this.#transfers, this.#ctx, command, link);
 
       const result = successResult(command.commandId, output);
 

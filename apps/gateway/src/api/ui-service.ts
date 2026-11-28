@@ -22,6 +22,7 @@ import { agentEnvironmentHandlers } from "./ui-agent-environment.ts";
 import { worktreesHandlers } from "./ui-worktrees.ts";
 import { importsHandlers } from "./ui-imports.ts";
 import { workspaceCopyHandlers } from "./ui-workspace-copy.ts";
+import { threadTransferHandlers } from "./ui-thread-transfers.ts";
 import { githubHandlers } from "./ui-github.ts";
 import { pullRequestHandlers } from "./ui-pull-requests.ts";
 import { githubReadHandlers } from "./ui-github-read.ts";
@@ -112,6 +113,7 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...worktreesHandlers(core),
     ...importsHandlers(core),
     ...workspaceCopyHandlers(core),
+    ...threadTransferHandlers(core),
     ...githubHandlers(core),
     ...pullRequestHandlers(core),
     ...githubReadHandlers(core),

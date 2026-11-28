@@ -18,6 +18,7 @@ import { connectorCatalog } from "./connector-catalog.ts";
 import { heldDelivery } from "./held-delivery.ts";
 import { commandTracking } from "./commands.ts";
 import { claudeSessionTracking } from "./claude-session-homes.ts";
+import { codexSessions } from "./codex-sessions.ts";
 import { secretEventRedactor } from "../runtime/secret-event-redactor.ts";
 import { journalStatistics, type JournalStatistics } from "./statistics.ts";
 import { workerDiagnostics } from "../diagnostics/worker.ts";
@@ -98,8 +99,12 @@ export class Journal extends Context.Service<
   {
     readonly journalId: string;
     hasCodexSessionHistory(threadId: string, sessionId: string): Effect.Effect<boolean, JournalError>;
+    /** A thread transfer adopted this session's rollout here: it has history even before its first turn here. */
+    setCodexSessionHistory(threadId: string, sessionId: string, present: boolean): Effect.Effect<void, JournalError>;
     codexCliHome(id: string): Effect.Effect<string | undefined, JournalError>;
     rememberCodexCliHome(id: string, home: string): Effect.Effect<void, JournalError>;
+    /** Undoes a binding a cancelled thread transfer wrote (only that exact one). */
+    forgetCodexCliHome(id: string, home: string): Effect.Effect<void, JournalError>;
     claudeSessionHome: ReturnType<typeof claudeSessionTracking>["claudeSessionHome"];
     isClaudeSessionHomeBound: ReturnType<typeof claudeSessionTracking>["isClaudeSessionHomeBound"];
     bindClaudeSessionHome: ReturnType<typeof claudeSessionTracking>["bindClaudeSessionHome"];
@@ -272,35 +277,6 @@ function botAdmission(db: Database, append: (botId: string, event: ThreadEventIn
 
     return event;
   });
-}
-
-function codexSessions(
-  db: Database,
-  attempt: <A>(operation: string, run: () => A) => Effect.Effect<A, JournalError>,
-): Pick<Journal["Service"], "codexCliHome" | "rememberCodexCliHome" | "hasCodexSessionHistory"> {
-  // The turn_harness row is removed on turn end. Keep proof of a nonempty rollout across ACK and restart.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS codex_session_history (thread_id TEXT, session_id TEXT, PRIMARY KEY (thread_id, session_id));
-    CREATE TRIGGER IF NOT EXISTS codex_session_used AFTER INSERT ON turn_harness WHEN new.harness='codex'
-    BEGIN INSERT OR IGNORE INTO codex_session_history VALUES (new.thread_id, new.session_id); END;
-    INSERT OR IGNORE INTO codex_session_history SELECT thread_id, session_id FROM turn_harness WHERE harness='codex';
-  `);
-  const used = db.query("SELECT 1 FROM codex_session_history WHERE thread_id=? AND session_id=?");
-
-  return {
-    hasCodexSessionHistory: (threadId, sessionId) =>
-      attempt("hasCodexSessionHistory", () => used.get(threadId, sessionId) !== null),
-    codexCliHome: (id) =>
-      attempt(
-        "codexCliHome",
-        () =>
-          db.query<{ home: string }, [string]>("SELECT home FROM codex_cli_homes WHERE session_id = ?").get(id)?.home,
-      ),
-    rememberCodexCliHome: (id, home) =>
-      attempt("rememberCodexCliHome", () => {
-        db.query("INSERT OR IGNORE INTO codex_cli_homes VALUES (?, ?)").run(id, home);
-      }),
-  };
 }
 
 function makeJournal(db: Database, diagnostics: boolean, serviceInvocation: string): Journal["Service"] {

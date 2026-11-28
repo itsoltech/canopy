@@ -20,8 +20,9 @@ export type MoveRequest = { nodeId: string; items?: MoveRef[]; everything?: bool
 export const previewMove = async (request: MoveRequest) =>
   decode(ui.MovePreviewSchema, await requestJson("PUT", "/api/computers/moves", request, 30_000));
 
-export const startMove = async (request: MoveRequest & { placements: { projectId: string; workspaceId: string }[] }) =>
-  decode(ui.MovesSnapshotSchema, await requestJson("POST", "/api/computers/moves", request, 30_000));
+export const startMove = async (
+  request: MoveRequest & { placements: { projectId: string; workspaceId: string }[]; nativeFiles: string[] },
+) => decode(ui.MovesSnapshotSchema, await requestJson("POST", "/api/computers/moves", request, 30_000));
 
 export const getMoves = async (batchId = "") =>
   decode(

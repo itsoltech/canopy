@@ -190,6 +190,9 @@ message MovePreviewItem {
   string project_id = 7;
   string project_name = 8;
   bool archived = 9;
+  // thread: the agent's session and the thread's changes move along and continue in a new worktree there
+  // (docs/thread-transfers.md); otherwise it continues from a handoff note.
+  bool native_files = 10;
 }
 message MovePreview {
   string node_id = 1;
@@ -212,6 +215,9 @@ message StartMoveRequest {
   repeated MoveItemRef items = 2;
   bool everything = 3;
   repeated MovePlacement placements = 4;
+  // Threads whose confirmed preview said native_files. Others (and every thread from older clients) continue from a
+  // handoff note; a listed thread that can no longer move that way asks for a new preview.
+  repeated string native_files = 5;
 }
 message ComputerMove {
   string id = 1;

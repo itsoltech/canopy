@@ -2,6 +2,7 @@ import { loginAuthorized } from "./automation-permissions.ts";
 import { createCoreGitHub } from "./core-github.ts";
 import { CliImports } from "../imports/index.ts";
 import { WorkspaceCopyJobs } from "../workspace-copy/jobs.ts";
+import { ThreadTransfers } from "../thread-transfers/index.ts";
 import type { GitHubAccounts } from "../github/service.ts";
 import { GitHubDetection } from "../github/detection.ts";
 import { Diagnostics } from "../diagnostics/service.ts";
@@ -264,6 +265,9 @@ export class GatewayCore {
 
   /** Background workspace copies (docs/workspace-copy.md). */
   readonly copyJobs: WorkspaceCopyJobs;
+
+  /** Moving threads with their sessions and files between workers (docs/thread-transfers.md). */
+  readonly threadTransfers = new ThreadTransfers(this);
 
   constructor(options: GatewayCoreOptions) {
     this.role = options.role ?? "server";

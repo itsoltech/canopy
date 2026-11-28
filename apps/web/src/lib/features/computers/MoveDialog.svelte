@@ -142,6 +142,8 @@
           ? { everything: true }
           : { items: movable.flatMap((i) => (isMoveKind(i.kind) ? [{ kind: i.kind, id: i.id }] : [])) }),
         placements: projects.map((p) => ({ projectId: p.id, workspaceId: placements[p.id]! })),
+        // The mode this preview showed: threads listed here move with their session and files.
+        nativeFiles: preview.items.flatMap((i) => (i.nativeFiles ? [i.id] : [])),
       });
 
       moves = result.moves;

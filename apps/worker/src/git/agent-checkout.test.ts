@@ -10,6 +10,7 @@ import { Journal } from "../journal/index.ts";
 import { HostState } from "../runtime/host-state.ts";
 import { HostContext } from "../runtime/host-context.ts";
 import { freshGit } from "./git.ts";
+import { WorktreeIntents } from "./worktree-intents.ts";
 import { createWorktree } from "./worktrees.ts";
 
 const temp = tempDirs();
@@ -144,4 +145,22 @@ test("worktree destinations exclude the private secret store while manual Git di
     state.secrets.close();
     await runtime.dispose();
   }
+});
+
+test("a replayed agent checkout whose result was never remembered gets the worktree its first run added", async () => {
+  const f = fixture("");
+  const intents = new WorktreeIntents(join(f.dir, "data"));
+  const commandId = "thread-transfer/move/feature-exact";
+
+  const first = await freshGit(() =>
+    createWorktree(join(f.dir, "worktrees"), f.request, undefined, undefined, undefined, (plan) =>
+      intents.record(commandId, plan),
+    ),
+  );
+
+  // The worker stopped before remembering the result: the replay answers with the worktree already on its branch.
+  expect(await intents.recover(commandId)).toMatchObject({ path: first.path, branch: "feature/exact" });
+
+  run(f.repo, "worktree", "remove", "--force", first.path!);
+  expect(await intents.recover(commandId)).toBeUndefined();
 });

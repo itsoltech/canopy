@@ -32,6 +32,7 @@
       capabilities?.linkedComputers ?? false,
       onThisComputer(thread, actions.overview.worker(thread.workerId), capabilities?.ownGateway ?? false),
       actions.overview.worker(thread.workerId)?.os,
+      actions.overview.ownWorkers.some((w) => w.id !== thread.workerId && !w.revokedAt),
     ).filter(
       (item) =>
         !omit.includes(item.id) &&

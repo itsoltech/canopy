@@ -221,4 +221,5 @@ export const expectedSchemaMigrations = [
   "224_messenger_providers",
   "225_messenger_outbound_files",
   "226_project_logins",
+  "227_thread_transfers",
 ];

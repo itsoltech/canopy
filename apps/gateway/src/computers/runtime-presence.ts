@@ -41,6 +41,7 @@ import {
   CONFIG_SYNC,
   LAN_ROUTES,
   MOVE_ITEMS,
+  MOVE_NATIVE_SESSIONS,
   REMOTE_APP_UPDATE,
   REMOTE_CLI_UPGRADE_ONLY,
   RELAY,
@@ -169,6 +170,8 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               LINKED_SCHEDULE_SANDBOX_PROFILES,
             ]
           : []),
+        // Moving a thread with its session and files (docs/thread-transfers.md); past the 32-entry guard.
+        ...(this.moves && this.options.core ? [MOVE_NATIVE_SESSIONS] : []),
       ],
     });
 

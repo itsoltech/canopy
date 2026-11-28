@@ -9,6 +9,7 @@ import { CONFIG_SYNC, splitId } from "@canopy/domain/computers";
 import { Effect } from "effect";
 
 import { botBlocker, threadBlocker, threadFamily, transaction } from "./move-state.ts";
+import { nativeFamily } from "./move-native.ts";
 import { DECIDE_TIMEOUT_MS, movesState } from "./moves-context.ts";
 import { movesUnary } from "./moves-recovery.ts";
 import type { ComputerMoves } from "./moves.ts";
@@ -76,7 +77,12 @@ export async function movesInspect(
   );
 }
 
-export async function movesPreviewThread(hostContext: ComputerMoves, id: string, inspection?: link.MoveInspection) {
+export async function movesPreviewThread(
+  hostContext: ComputerMoves,
+  id: string,
+  target: string,
+  inspection?: link.MoveInspection,
+) {
   const owner = hostContext[movesState].store.owner;
   const item = create(ui.MovePreviewItemSchema, { kind: "thread", id });
 
@@ -137,9 +143,19 @@ export async function movesPreviewThread(hostContext: ComputerMoves, id: string,
   if (counts.schedules) item.moves.push(counts.schedules === 1 ? "1 schedule" : `${counts.schedules} schedules`);
 
   if (counts.files) item.moves.push(counts.files === 1 ? "1 attachment" : `${counts.files} attachments`);
-  item.redo.push(
-    "The agent continues in a new session with a handoff note; files of this computer's workspace stay here",
-  );
+
+  // The same decision the move makes (docs/thread-transfers.md): said before the owner confirms.
+  item.nativeFiles = Boolean(await nativeFamily(hostContext, facts.family, target).catch(() => undefined));
+
+  if (item.nativeFiles) {
+    item.moves.push("The agent's session and the thread's changes: unpushed commits, edits and new files");
+    item.redo.push(
+      "It continues in a new worktree there; new files that may hold secrets, ignored files, dependencies and build output stay here",
+    );
+  } else
+    item.redo.push(
+      "The agent continues in a new session with a handoff note; files of this computer's workspace stay here",
+    );
 
   if (counts.goal) item.redo.push(`Set the goal again: ${counts.goal.slice(0, 120)}`);
 
@@ -304,7 +320,7 @@ export const movesPreviewMethods: MovesPreviewMethods = {
       preview.items.push(
         ref.kind === "bot"
           ? await movesPreviewBot(this, ref.id, inspection)
-          : await movesPreviewThread(this, ref.id, inspection),
+          : await movesPreviewThread(this, ref.id, target, inspection),
       );
 
     if (request.everything) Object.assign(preview, await movesConfiguration(this, target));

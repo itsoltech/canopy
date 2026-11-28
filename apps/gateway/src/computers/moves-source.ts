@@ -23,6 +23,7 @@ import { movesEverything } from "./moves-preview.ts";
 import { movesCore, movesHook, movesRows, movesRun, movesUnary } from "./moves-recovery.ts";
 import type { ComputerMoves } from "./moves.ts";
 import { validateMoveContent } from "./move-validation.ts";
+import { discardNative, drainNative, moveNative, releaseCheckout, releaseNative, verifyNative } from "./move-native.ts";
 
 export async function movesRefused(
   hostContext: ComputerMoves,
@@ -74,10 +75,12 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
     if (move?.state !== "preparing") return;
     const target = move.peer_node_id;
 
+    let prepare: link.MovePrepare | undefined;
+
     try {
       await movesHook(hostContext, "frozen", move);
 
-      const prepare = create(link.MovePrepareSchema, {
+      prepare = create(link.MovePrepareSchema, {
         moveId,
         kind: move.kind,
         itemId: move.item_id,
@@ -87,6 +90,9 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
       });
 
       const self = hostContext[movesState].host.self();
+
+      // A family moving with its session lets go of its worker before its history is read.
+      if (move.kind === "thread") await drainNative(hostContext, move, target);
 
       if (move.kind === "thread")
         prepare.thread = await exportThread(
@@ -98,6 +104,10 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
         );
       else prepare.bot = await exportBot(hostContext[movesState].store, move.item_id, self.name, self.nodeId);
       validateMoveContent(prepare);
+
+      // The thread's own session and files go first when both sides can (the preview said which).
+      if (move.kind === "thread" && hostContext[movesState].host.ready(target))
+        prepare.native = await moveNative(hostContext, move, target);
 
       if (
         (prepare.bot?.draft || prepare.bot?.files.length) &&
@@ -119,9 +129,13 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
       );
 
       if (reply.state !== "prepared") throw new MoveRefused(reply.error || "The other computer refused the move.");
+      // The checkout still is what moved (an editor may have saved while the target prepared).
+      await verifyNative(moveId);
       await movesHook(hostContext, "prepared", move);
     } catch (error) {
       if (error instanceof MoveCrash) return;
+
+      if (prepare?.native) await discardNative(hostContext, move, target);
 
       // Before the decision: roll back here; the target drops what it staged.
       const reason =
@@ -158,6 +172,8 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
 
     await movesSettle(hostContext, moveId).catch(() => {});
   } finally {
+    releaseCheckout(moveId);
+    await releaseNative(moveId);
     hostContext[movesState].driving.delete(moveId);
   }
 }
@@ -240,6 +256,7 @@ export const movesSourceMethods: MovesSourceMethods = {
       placements.set(splitId(p.projectId).id, id);
     }
 
+    const nativeFiles = new Set(request.nativeFiles.map((id) => splitId(id).id));
     const batchId = refs.length > 1 ? crypto.randomUUID() : undefined;
     const started: string[] = [];
     const all: string[] = [];
@@ -265,7 +282,8 @@ export const movesSourceMethods: MovesSourceMethods = {
               threadId: ref.id,
               target,
               ...(batchId && { batchId }),
-              placement: { workspaceId },
+              // The mode the owner confirmed in the preview (docs/thread-transfers.md).
+              placement: { workspaceId, nativeFiles: nativeFiles.has(splitId(ref.id).id) },
             })
           : { error: "Choose a workspace on the other computer for its project." };
       } else

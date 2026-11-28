@@ -1,3 +1,4 @@
+import { TRANSFER_BUSY } from "./errors.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { Invalid, NotFound } from "./errors.ts";
@@ -23,8 +24,9 @@ export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerS
 
       const admission = yield* sql<{
         rewind_pending_id: string | null;
+        transfer_pending_id: string | null;
         last_seq: bigint;
-      }>`SELECT rewind_pending_id,last_seq FROM threads
+      }>`SELECT rewind_pending_id,transfer_pending_id,last_seq FROM threads
         WHERE id = ${threadId}::uuid FOR UPDATE`;
 
       const thread = admission[0];
@@ -33,6 +35,8 @@ export function createSteer(sql: SqlClient.SqlClient, request: Parameters<SteerS
 
       if (thread.rewind_pending_id)
         return yield* Effect.fail(new Invalid("This thread is rewinding. Wait for it to finish."));
+
+      if (thread.transfer_pending_id) return yield* Effect.fail(new Invalid(TRANSFER_BUSY));
       const id = Bun.randomUUIDv7();
       // Admission order survives even a failed steer with no user_message or fallback turn.
       const stored = { ...(input ?? { text }), admittedAfterSeq: String(thread.last_seq) };

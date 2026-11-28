@@ -6,6 +6,7 @@
   import Field from "#lib/shared/ui/Field.svelte";
   import Input from "#lib/shared/ui/Input.svelte";
   import MoveDialog from "#lib/features/computers/MoveDialog.svelte";
+  import ThreadTransferDialog from "./ThreadTransferDialog.svelte";
   import ThreadSnoozeDialog from "./ThreadSnoozeDialog.svelte";
   import ThreadBulkDialog from "./ThreadBulkDialog.svelte";
   import type { ClassValue } from "svelte/elements";
@@ -109,3 +110,12 @@
     items={actions.moving ? [{ kind: "thread", id: actions.moving.id }] : []}
     name={actions.moving?.title ?? ""}
   />{/if}
+<ThreadTransferDialog
+  bind:open={
+    () => Boolean(actions.transferring),
+    (open) => {
+      if (!open) actions.transferring = undefined;
+    }
+  }
+  thread={actions.transferring}
+/>

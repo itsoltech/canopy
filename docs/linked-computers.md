@@ -1,5 +1,8 @@
 # Połączone komputery
 
+Aktualizacja (2026-11-28): **Move to…** wątku Claude lub Codexa kontynuuje tę samą sesję dostawcy
+w nowym worktree celu, gdy obie strony to obsługują ([thread-transfers.md](thread-transfers.md)).
+
 Aktualizacja (2026-11-27): start gatewaya i włączenie dostępu sieciowego nie zrywają łączy
 nawiązanych przed otwarciem listenera, więc partner nie znika na sekundę po każdym starcie.
 
@@ -2347,7 +2350,9 @@ tylko wraz z workerem należącym do właściciela źródła. Worker zgłasza bi
 gałęzi po połączeniu z celem. Pierwotna baza zachowuje dane urządzeń, buforowane
 projekcje, szkice przypisane do urządzeń i zbiorczą historię użycia. Praca w toku,
 nieobsługiwane zależności, brak treści załączników lub kolizja identyfikatorów
-poza obsługiwanymi konfliktami konfiguracji blokują import. Procedurę operatora
+poza obsługiwanymi konfliktami konfiguracji blokują import. Praca w toku obejmuje też
+niezakończone [przeniesienie wątku](thread-transfers.md) między workerami (także ruch, który czeka na
+sprzątanie) i niezamkniętą rezerwację plików ruchu natywnego; ich tabele zostają w bazie źródłowej. Procedurę operatora
 opisuje [instrukcja wdrożenia](deploy.md).
 
 ## Konkretny protokół etapu 8
@@ -2438,12 +2443,24 @@ oba komputery mają kopię — po Unlink nic już ich nie łączy.
   (prowadzą tam albo dalej przez redirect), id przeniesionych wątków, ich tur i plików są lokalne.
   Anulowana tura-zastępczy rezerwuje numery historii, więc nowe tury idą dalej; `last_seq` kontynuuje
   numerację, a komunikat osi czasu „Moved from Laptop A to Laptop C” oznacza miejsce przeniesienia.
+- **Kontynuacja natywna:** gdy obie strony ogłaszają `move_native_sessions_v1`, a rodzina to Claude lub Codex
+  z sesją w jednym folderze, źródło przed `PrepareMove` przenosi sesję i pliki przez `TransferMoveFiles`
+  do nowego worktree celu, a `MovePrepare.native` każe celowi wznowić tę samą sesję
+  ([thread-transfers.md](thread-transfers.md#połączone-komputery)). Podgląd zapowiada ten tryb przed
+  potwierdzeniem; jego błąd kończy ruch z powodem, a pliki na celu idą za decyzją ruchu.
 - **Kontynuacja:** sesja CLI i pliki zostają na starej maszynie. Cel tworzy wątek w wybranym przez
   użytkownika workspace (domyślnie workspace tego samego, wspólnego projektu), a nowa sesja workera
   dostaje w instrukcjach **notatkę przekazania**: skąd i dokąd, stara i nowa ścieżka, pierwotne zadanie
   i wyciąg z ostatnich 30 wiadomości (oznaczony jako niepełny, do 16 000 znaków). Notatka jest
   deterministyczna (bez wywołania modelu), jak fallback handoffu botów. Model, którego nie ma na celu,
   zastępuje domyślny model instancji.
+- **Archiwum:** cel tworzy całą rodzinę, a dopiero potem przywraca stan archiwum każdego wiersza z jego
+  pierwotnym czasem i powodem (wątku bocznego nie da się utworzyć pod zarchiwizowanym rodzicem). Wątek boczny
+  zamknięty razem z głównym (`archived_by = 'cascade'`) zachowuje to powiązanie, więc przywrócenie głównego
+  przywraca go także na celu; zarchiwizowany osobno zostaje w archiwum. Powód i wątek, który zamknął wiersz,
+  pochodzą z migawki historii (`archivedBy`, `archivedByThreadId`), którą wysyłają także starsze wersje;
+  `cascade` cel przyjmuje tylko dla wątku bocznego zamkniętego przez rodzica, a brak powodu daje `user`.
+  Błąd zostawia ruch zatwierdzony, więc odtwarzanie ponawia ten krok.
 - **Bot:** prywatna rozmowa z zakończonymi turami, wiadomościami (z nowymi numerami `seq` i odpowiednim
   znacznikiem przeczytania), wywołaniami narzędzi, rozstrzygniętymi kartami, notatkami przekazania,
   rutynami i przypomnieniami. Cel sprawdza powiązania tych rekordów oraz plików i szkicu z przenoszonym

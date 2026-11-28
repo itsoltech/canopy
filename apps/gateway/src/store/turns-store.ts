@@ -1,3 +1,4 @@
+import { TRANSFER_BUSY } from "./errors.ts";
 import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
@@ -103,11 +104,13 @@ export function turnStore(sql: SqlClient.SqlClient): TurnStore {
             return yield* Effect.fail(new Invalid("message is empty"));
 
           // Serialize ordinal allocation and admission with queue edits and dispatch.
-          const admission = yield* sql<{ rewind_pending_id: string | null }>`SELECT rewind_pending_id FROM threads
-            WHERE id = ${threadId}::uuid FOR UPDATE`;
+          const admission = yield* sql<{ rewind_pending_id: string | null; transfer_pending_id: string | null }>`
+            SELECT rewind_pending_id, transfer_pending_id FROM threads WHERE id = ${threadId}::uuid FOR UPDATE`;
 
           if (admission[0]?.rewind_pending_id)
             return yield* Effect.fail(new Invalid("This thread is rewinding. Wait for it to finish."));
+
+          if (admission[0]?.transfer_pending_id) return yield* Effect.fail(new Invalid(TRANSFER_BUSY));
           const id = Bun.randomUUIDv7();
 
           const rows = yield* sql<TurnRow>`

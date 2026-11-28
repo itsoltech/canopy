@@ -412,6 +412,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
     this.worktreeCleanup.start();
     this.imports.runner.start();
     this.copyJobs.start();
+    this.threadTransfers.resume();
     this.github.device.start();
     this.github.background.start();
     this.checkWatches.start();
@@ -434,6 +435,7 @@ export const coreWorkLoopMethods: CoreWorkLoopMethods = {
       "worktree cleanup": () => this.worktreeCleanup.stop(),
       imports: () => this.imports.runner.stop(),
       "workspace copies": () => this.copyJobs.stop(),
+      "thread transfers": () => this.threadTransfers.stop(),
       "PR check watches": () => this.checkWatches.stop(),
       "thread snoozes": () => this.snoozes.stop(),
       GitHub: async () => {

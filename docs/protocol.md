@@ -762,6 +762,11 @@ strumienie wątków. Komendy i wyniki z plikami omijają outbox i journal.
 `WORKER_LINK_PROTOCOL` i UpdateService nie zmieniają się.
 Kontrakt i bezpieczeństwo: [workspace-copy.md](workspace-copy.md).
 
+Capability `thread_transfer_v1` dodaje nietrwałe `Command.thread_transfer` (240) i
+`CommandResult.thread_transfer` (242): inspect/export/read_batch/release/tips/prepare/write_batch/stage/apply/cancel.
+Ramki plików jak w kopiowaniu workspace'u; komendy omijają outbox i journal. `WORKER_LINK_PROTOCOL`
+się nie zmienia. Kontrakt: [thread-transfers.md](thread-transfers.md).
+
 Capability `network_route_migration` dodaje `NetworkRoutes` (adresy + pełny pin) i `NetworkRouteStatus`.
 Gateway wysyła trasy po połączeniu, przy zmianie Network access oraz przy heartbeat; starsze workery
 nie dostają tych ramek. `WorkerLinkService.ProbeNetworkRoute` sprawdza credential i zgodność worker_id

@@ -110,7 +110,7 @@ export type MoveRow = {
   batch_id: string | null;
   title: string;
   state: string;
-  placement: { workspaceId?: string; projectId?: string };
+  placement: { workspaceId?: string; projectId?: string; nativeFiles?: boolean };
   redo: string[];
   frozen: Frozen;
   error: string;

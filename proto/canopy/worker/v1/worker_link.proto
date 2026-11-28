@@ -13,6 +13,7 @@ import "canopy/worker/v1/agent_environment.proto";
 import "canopy/worker/v1/agent_tools.proto";
 import "canopy/worker/v1/cli_import.proto";
 import "canopy/worker/v1/workspace_copy.proto";
+import "canopy/worker/v1/thread_transfer.proto";
 import "canopy/ui/v1/diagnostics.proto";
 import "canopy/ui/v1/attachments.proto";
 
@@ -549,6 +550,8 @@ message Command {
     FailedWorktreeCleanup failed_worktree_cleanup = 238;
     // Transient, capability agent_local_skill_import_v1. Never persisted in the outbox.
     PreviewLocalSkill preview_local_skill = 239;
+    // Transient, capability thread_transfer_v1: moving a thread with its session and files (docs/thread-transfers.md).
+    ThreadTransferOperation thread_transfer = 240;
     // CLI dostawców (sekcja na końcu pliku). Nietrwała: nigdy z outboxa.
     InstallCli install_cli = 800;
     // Local automation tools. These commands are transient and never enter the outbox.
@@ -906,6 +909,7 @@ message CommandResult {
   bool worktree_branch_cleanup_finished = 239;
   FailedWorktreeCleanupInspection failed_worktree_cleanup = 240;
   SkillArtifact local_skill_preview = 241;
+  ThreadTransferResult thread_transfer = 242;
   // Normalized identity only; never the raw remote URL or its credentials.
   string workspace_origin = 216;
   // Credential-free clone URL; only requested by GetWorkspaceCloneSource, never persisted.

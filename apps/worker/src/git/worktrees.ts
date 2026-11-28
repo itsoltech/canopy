@@ -6,6 +6,7 @@ import { WORKTREE_CHECKOUT_TIMEOUT_MS } from "@canopy/domain/worktree-timing";
 import { FETCH_TIMEOUT_MS, git, GitError, gitMessage, gitOk, validBranch, withLocalGitPolicy } from "./git.ts";
 import { listGitRefs, repoRoot } from "./refs.ts";
 import { addWorktree } from "./add-worktree.ts";
+import type { WorktreeIntent } from "./worktree-intents.ts";
 import type { FailedWorktreeCleanup } from "./failed-worktree-cleanup.ts";
 import { canonicalPath } from "./checkout-paths.ts";
 
@@ -182,8 +183,9 @@ export async function createWorktree(
   progress?: WorktreeProgress,
   cleanup?: FailedWorktreeCleanup,
   secretsRoot?: string,
+  intend?: (plan: WorktreeIntent) => void,
 ): Promise<WorktreeInfoInit> {
-  const create = () => performCreate(managedRoot, request, progress, cleanup, secretsRoot);
+  const create = () => performCreate(managedRoot, request, progress, cleanup, secretsRoot, intend);
 
   return request.agentRequested ? withLocalGitPolicy(create) : create();
 }
@@ -194,6 +196,7 @@ async function performCreate(
   progress?: WorktreeProgress,
   cleanup?: FailedWorktreeCleanup,
   secretsRoot?: string,
+  intend?: (plan: WorktreeIntent) => void,
 ): Promise<WorktreeInfoInit> {
   if (request.agentRequested && (request.startFromRemote || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(request.baseRef)))
     throw new GitError("BAD_REF", "Agent worktrees require a local base commit.");
@@ -234,6 +237,9 @@ async function performCreate(
   if (!isWithin(root, path)) throw new GitError("PATH_OUTSIDE_ROOT", "the worktree path is outside its root");
 
   if (request.agentRequested && secretsRoot) assertWorktreeDestination(path, secretsRoot);
+  // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.
+  const visiblePath = request.location ? join(request.location, relative(root, path)) : path;
+  intend?.({ repo, path, visiblePath, branch, commit });
   await addWorktree(
     repo,
     { path, branch, commit },
@@ -241,9 +247,6 @@ async function performCreate(
     cleanup,
     request.agentRequested,
   );
-
-  // Preserve the configured root's spelling (it may itself be a symlink); containment uses its real path above.
-  const visiblePath = request.location ? join(request.location, relative(root, path)) : path;
 
   progress?.({ step: "create_worktree", status: "completed" });
 

@@ -63,6 +63,9 @@ export const REVEAL_PATH_CAPABILITY = "reveal_path";
 /** Bounded transient workspace file transfers, negotiated without breaking protocol 1. Batched, resumable frames. */
 export const WORKSPACE_COPY_CAPABILITY = "workspace_copy_batch_v3";
 
+/** Moving a thread with its harness session and working tree changes to another worker (docs/thread-transfers.md). */
+export const THREAD_TRANSFER_CAPABILITY = "thread_transfer_v1";
+
 /** The single-chunk transfer that older gateways still drive; workers keep announcing it. */
 export const WORKSPACE_COPY_LEGACY_CAPABILITY = "workspace_copy_scope_v2";
 

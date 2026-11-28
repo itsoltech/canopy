@@ -41,6 +41,8 @@ export class ThreadActions {
   }>();
   /** The thread "Move to…" is open for (MoveDialog). */
   moving = $state.raw<ui.Thread>();
+  /** The thread "Move to another worker…" is open for (ThreadTransferDialog). */
+  transferring = $state.raw<ui.Thread>();
   /** `group`: the sidebar's selected threads, snoozed together until a chosen time (`done` runs after). */
   snoozing = $state.raw<{
     thread: ui.Thread;
@@ -107,6 +109,9 @@ export class ThreadActions {
 
         case "move":
           this.moving = thread;
+          break;
+        case "transfer":
+          this.transferring = thread;
           break;
         case "regenerate":
           await requestTitleRegeneration(thread.id);

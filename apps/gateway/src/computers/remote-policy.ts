@@ -259,6 +259,7 @@ export const SERVED = new Set([
   "DecideMove",
   "MoveOutcome",
   "InspectMove",
+  "TransferMoveFiles",
   "RenameWorker",
   "SetInstanceWorker",
   "SetWorkerCliUpdateSettings",
@@ -320,7 +321,7 @@ export const WORKER_SETTINGS = new Set([
 ]);
 
 /** Stage 8: the two sides of a move, direct partners only (never relayed). */
-export const MOVE_METHODS = new Set(["PrepareMove", "DecideMove", "MoveOutcome", "InspectMove"]);
+export const MOVE_METHODS = new Set(["PrepareMove", "DecideMove", "MoveOutcome", "InspectMove", "TransferMoveFiles"]);
 
 export const methodNamed = (name: string) =>
   ui.GatewayService.methods.find((m) => m.name === name) ??

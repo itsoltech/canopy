@@ -52,6 +52,9 @@ export const STEER_ATTACHMENTS = "steer_attachments_v1";
 /** Stage 8: two-phase moves of threads and bots between directly linked computers, and redirects. */
 export const MOVE_ITEMS = "move_items";
 
+/** A moved thread continues its own harness session and files on the target's worker (docs/thread-transfers.md). */
+export const MOVE_NATIVE_SESSIONS = "move_native_sessions_v1";
+
 /** Remote app updates: a directly linked computer's Canopy app updates on request (docs/updates.md). */
 export const REMOTE_APP_UPDATE = "remote_app_update";
 

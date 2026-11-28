@@ -28,6 +28,7 @@ export const NOT_REMEMBERED: ReadonlySet<Command["kind"]["case"]> = new Set([
   "cloneRepository",
   "cancelCloneRepository",
   "workspaceCopy",
+  "threadTransfer",
   "botFile",
   "steerBotTurn",
   "switchThreadBranch",

@@ -1,0 +1,128 @@
+syntax = "proto3";
+package canopy.worker.v1;
+
+import "canopy/worker/v1/workspace_copy.proto";
+
+// Moving a thread to another worker (docs/thread-transfers.md), capability thread_transfer_v1.
+// Transient and owner initiated: never journal, log or put these messages or their bytes in an outbox.
+
+// A harness session of one thread of the moved family.
+message ThreadTransferSession {
+  string thread_id = 1;
+  // claude or codex.
+  string provider = 2;
+  // The provider instance on the worker that runs the command ("" = native).
+  string profile_id = 3;
+  string provider_thread_id = 4;
+}
+
+// Source: what a move would take from the thread's directory.
+message ThreadTransferInspect {
+  string cwd = 1;
+  repeated ThreadTransferSession sessions = 2;
+}
+
+// An ignored local file (for example .env) the owner may take along.
+message ThreadTransferLocalFile {
+  string path = 1;
+  uint64 size = 2;
+  bool secret = 3;
+}
+
+message ThreadTransferSummary {
+  // Why the files can't move; empty when they can.
+  string blocked = 1;
+  string branch = 2;
+  string head = 3;
+  uint32 changed_files = 4;
+  uint32 untracked_files = 5;
+  repeated ThreadTransferLocalFile local_files = 6;
+  // Threads whose harness session is not on this worker.
+  repeated string missing_sessions = 7;
+  // Commits on HEAD that no remote-tracking ref contains.
+  uint32 unpushed_commits = 8;
+}
+
+// Source: build the package in a private directory. Its files are read with read_batch.
+message ThreadTransferExport {
+  string token = 1;
+  string cwd = 2;
+  repeated ThreadTransferSession sessions = 3;
+  // Ignored local files the owner chose, relative to cwd.
+  repeated string local_files = 4;
+  // Commits the target already has; the bundle leaves out what they reach.
+  repeated string known_commits = 5;
+  // The HEAD the preview showed; a different HEAD refuses the export.
+  string expected_head = 6;
+}
+
+message ThreadTransferPackage {
+  string token = 1;
+  repeated WorkspaceCopyEntry entries = 2;
+  uint64 bytes = 3;
+  string head = 4;
+  string branch = 5;
+}
+
+// Target: commits reachable from the repository's branches and remote-tracking refs (at most 2000 tips).
+message ThreadTransferTips { string repo_path = 1; }
+
+// Target: a new private staging directory for the package.
+message ThreadTransferPrepare {
+  string token = 1;
+  repeated WorkspaceCopyEntry entries = 2;
+  uint64 bytes = 3;
+}
+
+// Target: verify the whole package and fetch its commits into the workspace repository.
+message ThreadTransferStage {
+  string token = 1;
+  string sha256 = 2;
+  string repo_path = 3;
+}
+
+// Target: recreate the working tree changes in the new checkout and adopt the sessions.
+message ThreadTransferApply {
+  string token = 1;
+  // The new worktree, checked out at the package's head.
+  string cwd = 2;
+  // provider_thread_id and the instance on this worker that continues each thread.
+  repeated ThreadTransferSession sessions = 3;
+}
+
+// Source, right before the gateway commits: the checkout is still exactly as it was exported (nothing wrote to it
+// meanwhile); otherwise the move is refused.
+message ThreadTransferVerify {
+  string token = 1;
+  string cwd = 2;
+}
+
+message ThreadTransferOperation {
+  oneof action {
+    ThreadTransferInspect inspect = 1;
+    ThreadTransferExport export = 2;
+    WorkspaceCopyReadBatch read_batch = 3;
+    // Source: delete the package. Target: delete the staging files and the fetched ref; adopted sessions stay.
+    string release = 4;
+    ThreadTransferTips tips = 5;
+    ThreadTransferPrepare prepare = 6;
+    WorkspaceCopyBatch write_batch = 7;
+    ThreadTransferStage stage = 8;
+    ThreadTransferApply apply = 9;
+    // Target, before the gateway commits: undo everything staged, fetched and adopted for this token.
+    string cancel = 10;
+    ThreadTransferVerify verify = 11;
+  }
+}
+
+message ThreadTransferResult {
+  ThreadTransferSummary summary = 1;
+  ThreadTransferPackage package = 2;
+  WorkspaceCopyBatch batch = 3;
+  repeated string tips = 4;
+  // Stage: the commit to check out and the source's branch name.
+  string head = 5;
+  string branch = 6;
+  // Apply: the sessions the worker adopted, exactly one per requested thread (the adoption receipt).
+  repeated ThreadTransferSession adopted = 7;
+}

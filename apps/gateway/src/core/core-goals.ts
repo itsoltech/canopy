@@ -1,3 +1,4 @@
+import { TRANSFER_BUSY } from "../store/errors.ts";
 import { providerOf, supportsNativeGoals } from "@canopy/domain/harnesses";
 import { requireThreadModule } from "./thread-module-runtime.ts";
 import { create } from "@bufbuild/protobuf";
@@ -158,6 +159,8 @@ async function setThreadGoal(this: GatewayCore, request: ui.SetGoalRequest): Pro
   if (thread.preparation_fingerprint) throw new InvalidError("This thread's worktree is not ready.");
 
   if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
+
+  if (thread.transfer_pending_id) throw new InvalidError(TRANSFER_BUSY);
 
   if (thread.runtime !== "worker" || !thread.worker_id) throw new InvalidError("goals need a worker thread");
 

@@ -51,6 +51,7 @@ Powiązane dokumenty:
 - [goals.md](goals.md) — cele: silnikiem jest harness (Codex goals, Claude `/goal`), platforma je śledzi i steruje nimi z UI
 - [agent-bus.md](agent-bus.md) — szyna agentów: delegowanie przez wątki boczne, interakcje, harmonogram; natywna orkiestracja dostawców wyłączona
 - [agent-visuals.md](agent-visuals.md) — obrazy w odpowiedziach (`show_images`) i interaktywne visuals (`render_visual`, `render_html`): format, sandbox klientów, trwały zapis
+- [thread-transfers.md](thread-transfers.md) — przenoszenie wątku z sesją harnessu i plikami na inny worker
 - [workspace.md](workspace.md) — zakładki wątku, karta podsumowania i panel Files/Preview
 - [desktop.md](desktop.md) — Canopy Desktop: kontroler, tryb lokalny, aktualizacje; [desktop-remote-frontend.md](desktop-remote-frontend.md) — tryb zdalny z lokalnym BFF
 - [linked-computers.md](linked-computers.md) — połączone komputery (wyłącznie lokalne gatewaye desktopu); [network-access.md](network-access.md) — wspólny port TLS dla telefonów, desktopów, workerów i komputerów

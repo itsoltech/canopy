@@ -54,6 +54,11 @@ const MAX_WRITE_BYTES = 2 * 1024 * 1024;
 export class ThreadFiles {
   constructor(readonly core: GatewayCore) {}
 
+  /** A checkout a thread move is reading takes no edits from Canopy until the move's decision. */
+  #admitted<A>(target: { workerId: string; request: { path: string } }, work: () => Promise<A>) {
+    return this.core.threadTransfers.writes.admit(target.workerId, target.request.path, work);
+  }
+
   async #target(threadId: string, path: string) {
     const owner = this.core[coreState].options.userId;
     const thread = await coreRun(this.core, (s) => s.thread(threadId));
@@ -136,17 +141,19 @@ export class ThreadFiles {
     this.#checkpoint(request.expectedRootIdentity, target.rootCheckpoint);
 
     return threadFile(
-      await this.#query(target.workerId, {
-        case: "writeFile",
-        value: {
-          target: {
-            ...target.request,
-            expectedSha256: request.expectedSha256,
-            expectedRootIdentity: request.expectedRootIdentity,
+      await this.#admitted(target, () =>
+        this.#query(target.workerId, {
+          case: "writeFile",
+          value: {
+            target: {
+              ...target.request,
+              expectedSha256: request.expectedSha256,
+              expectedRootIdentity: request.expectedRootIdentity,
+            },
+            content: request.content,
           },
-          content: request.content,
-        },
-      }),
+        }),
+      ),
     );
   }
 
@@ -154,14 +161,16 @@ export class ThreadFiles {
     const target = await this.#target(request.threadId, request.path);
     this.#checkpoint(request.expectedRootIdentity, target.rootCheckpoint);
 
-    await this.#query(target.workerId, {
-      case: "deleteFile",
-      value: {
-        ...target.request,
-        expectedSha256: request.expectedSha256,
-        expectedRootIdentity: request.expectedRootIdentity,
-      },
-    });
+    await this.#admitted(target, () =>
+      this.#query(target.workerId, {
+        case: "deleteFile",
+        value: {
+          ...target.request,
+          expectedSha256: request.expectedSha256,
+          expectedRootIdentity: request.expectedRootIdentity,
+        },
+      }),
+    );
   }
 
   async open(request: ui.ThreadFileRequest): Promise<void> {

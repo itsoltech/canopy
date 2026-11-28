@@ -1,17 +1,11 @@
+import { dropMoveFiles, moveKey, serialized, sweepMoveFiles } from "./move-native-files.ts";
 import { create, type DescMethod, type Message } from "@bufbuild/protobuf";
 
 import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import {
-  decideTarget,
-  discardTarget,
-  MOVE_COLUMNS,
-  restoreSource,
-  unfreezeSource,
-  type MoveRow,
-} from "./move-state.ts";
+import { decideTarget, MOVE_COLUMNS, restoreSource, unfreezeSource, type MoveRow } from "./move-state.ts";
 import { ACTIVE, ASK_AFTER_MS, DECIDE_TIMEOUT_MS, movesState, type MovePhase } from "./moves-context.ts";
 import { movesChanged, movesDrive, movesSettle } from "./moves-source.ts";
 import { movesApply } from "./moves-target.ts";
@@ -91,6 +85,9 @@ export const movesRecoveryMethods: MovesRecoveryMethods = {
     this[movesState].ticking = true;
 
     try {
+      // Staged session and files follow their move's decision here, also when it was learned while offline.
+      await sweepMoveFiles(this).catch(() => {});
+
       for (const move of await movesRows(this, `state = ANY($2::text[])`, [ACTIVE])) {
         if (this[movesState].closed) break;
 
@@ -114,10 +111,16 @@ export const movesRecoveryMethods: MovesRecoveryMethods = {
             );
 
             if (outcome.state === "commit" || outcome.state === "abort") {
-              if (
-                (await decideTarget(this[movesState].store, move.peer_node_id, move.id, outcome.state)) === "committed"
-              )
-                await movesApply(this, move.id);
+              // Decided in the move's serialized work, as DecideMove is; files go only with a durable abort.
+              const decided = await serialized(this, moveKey(move.id), async () => {
+                const state = await decideTarget(this[movesState].store, move.peer_node_id, move.id, outcome.state);
+
+                if (state === "aborted") await dropMoveFiles(this, move.id, move.peer_node_id).catch(() => {});
+
+                return state;
+              });
+
+              if (decided === "committed") await movesApply(this, move.id);
             }
           }
         } catch {
@@ -147,8 +150,13 @@ export const movesRecoveryMethods: MovesRecoveryMethods = {
         await restoreSource(this[movesState].store, move);
         await this[movesState].host.redirects.load();
         await movesChanged(this, move.kind, move.item_id, move.frozen.family);
-      } else if (move.state === "prepared") await discardTarget(this[movesState].store, move);
-      else await movesApply(this, move.id);
+      } else if (move.state === "prepared") {
+        // Through the row-locking decision, in the move's serialized work: only a move still undecided rolls back.
+        await serialized(this, moveKey(move.id), async () => {
+          if ((await decideTarget(this[movesState].store, nodeId, move.id, "abort")) === "aborted")
+            await dropMoveFiles(this, move.id, nodeId).catch(() => {});
+        });
+      } else await movesApply(this, move.id);
     }
   },
 

@@ -14,6 +14,7 @@ export type ThreadActionId =
   | "filter"
   | "settings"
   | "move"
+  | "transfer"
   | "archive"
   | "delete";
 
@@ -36,6 +37,8 @@ export function threadActions(
   local = false,
   /** The OS of the thread's worker (`process.platform`): it names the file manager. */
   os = "",
+  /** This gateway has another worker the thread could move to (docs/thread-transfers.md). */
+  otherWorkers = false,
 ): ThreadAction[] {
   if (thread.deletedAt) return [];
   const archived = thread.status === "archived";
@@ -78,6 +81,9 @@ export function threadActions(
     // Stage 8: only this computer's own main threads; side threads move with their parent.
     ...(linkedComputers && !thread.nodeId && !thread.parentThreadId
       ? [{ id: "move" as const, label: "Move to…", icon: "arrows-right-left" as const, group: 3 }]
+      : []),
+    ...(otherWorkers && !archived && !thread.nodeId && !thread.parentThreadId
+      ? [{ id: "transfer" as const, label: "Move to another worker…", icon: "arrows-right-left" as const, group: 3 }]
       : []),
     {
       id: "archive",

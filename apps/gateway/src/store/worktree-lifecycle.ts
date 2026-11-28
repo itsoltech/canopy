@@ -40,7 +40,12 @@ const snapshot = `SELECT w.*,
     EXISTS (SELECT 1 FROM goals g WHERE g.thread_id = t.id AND g.status NOT IN ('achieved', 'cancelled')
       AND (t.archived_at IS NULL AND t.deleted_at IS NULL OR g.status IN ('active', 'proposed'))) OR
     EXISTS (SELECT 1 FROM worker_commands c WHERE c.thread_id = t.id AND c.status IN ('pending', 'delivered')
-      AND c.kind IN ('startTurn', 'createThread', 'setGoal') AND c.expires_at > now())))) AS busy
+      AND c.kind IN ('startTurn', 'createThread', 'setGoal') AND c.expires_at > now()))) OR
+    -- A thread move's new worktree, before its thread owns it (docs/thread-transfers.md).
+    EXISTS (SELECT 1 FROM computer_move_files f WHERE f.worktree_id = w.id
+      AND f.state IN ('receiving', 'applied', 'staged', 'kept')) OR
+    EXISTS (SELECT 1 FROM thread_transfers x WHERE x.state IN ('preparing', 'prepared')
+      AND (x.target_worktree_id = w.id OR x.worktree_attempts @> jsonb_build_array(jsonb_build_object('id', w.id::text))))) AS busy
   FROM worktrees w`;
 
 export function worktreeLifecycleStore(sql: SqlClient.SqlClient) {

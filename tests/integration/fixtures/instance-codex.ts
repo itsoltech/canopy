@@ -323,6 +323,12 @@ for await (const line of createInterface({ input: process.stdin })) {
       .map(String)
       .find((p) => p.endsWith(`-${session}.jsonl`));
 
+    // Codex's own answer for a session it can't find (a test drops this marker into the home to get it).
+    if (request.method === "thread/resume" && existsSync(join(home, "no-rollout"))) {
+      send({ id, error: { code: -32600, message: `no rollout found for thread id ${session}` } });
+      continue;
+    }
+
     if (request.method === "thread/resume" && !existsSync(file) && !rollout) {
       send({ id, error: { code: -32000, message: "Session missing from CODEX_HOME" } });
       continue;
