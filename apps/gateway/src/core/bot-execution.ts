@@ -1,3 +1,6 @@
+import { create } from "@bufbuild/protobuf";
+import { bots } from "@canopy/contracts";
+import { delegatedThreadCounts, type DelegatedThreadCounts } from "./bot-delegated-threads.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
 
@@ -18,8 +21,25 @@ export async function executingBotIds(core: GatewayCore): Promise<ReadonlySet<st
   );
 }
 
-export async function listBotSummaries(core: GatewayCore, includeArchived: boolean, executing?: ReadonlySet<string>) {
-  const [listed, active] = await Promise.all([core.bots.list(includeArchived), executing ?? executingBotIds(core)]);
+export async function listBotSummaries(
+  core: GatewayCore,
+  includeArchived: boolean,
+  executing?: ReadonlySet<string>,
+  delegated?: ReadonlyMap<string, DelegatedThreadCounts>,
+) {
+  const [listed, active, counts] = await Promise.all([
+    core.bots.list(includeArchived),
+    executing ?? executingBotIds(core),
+    delegated ?? delegatedThreadCounts(core),
+  ]);
 
-  return listed.map((bot) => ({ ...bot, executing: !bot.archived && active.has(bot.id) }));
+  return listed.map((bot) => {
+    const value = counts.get(bot.id);
+
+    return {
+      ...bot,
+      executing: !bot.archived && active.has(bot.id),
+      delegatedThreads: value && create(bots.BotDelegatedThreadsSchema, value),
+    };
+  });
 }

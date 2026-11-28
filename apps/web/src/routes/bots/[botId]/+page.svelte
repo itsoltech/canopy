@@ -116,7 +116,8 @@
 
   let observedBotId: string | undefined;
 
-  const bot = $derived(botList.list.find((b) => b.id === data.bot.id) ?? snapshot.bot ?? data.bot);
+  const listedBot = $derived(botList.list.find((b) => b.id === data.bot.id));
+  const bot = $derived(listedBot ?? snapshot.bot ?? data.bot);
   const home = useBotHome(() => bot.nodeId);
   const canAct = $derived(history.live && !bot.archived && !home.reason);
   const config = $derived(bot.configuration ?? create(bots.BotConfigurationSchema));
@@ -455,6 +456,9 @@
     <BotDetailsLayout bind:this={detailsLayout} bind:open={detailsOpen} ownerId={bot.ownerUserId}>
       {#snippet panel()}<BotDetailsPanel
           {bot}
+          delegatedThreads={settings.moduleEnabled("threads")
+            ? (botList.delegatedThreads(listedBot) ?? null)
+            : undefined}
           routines={snapshot.routines}
           triggers={snapshot.triggers}
           waiting={snapshot.approvals.filter((a) => a.parked && a.status === "pending")}

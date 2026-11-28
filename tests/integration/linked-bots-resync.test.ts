@@ -165,15 +165,19 @@ describe.skipIf(!dockerAvailable)("linked bots survive home restarts and updates
     expect((await a.api.listBots({})).bots.map((bot) => bot.id)).toEqual(ids.slice(0, 2).map(qualified));
   });
 
-  test("a cached Working badge is cleared during loss and until the reachable home refreshes", async () => {
+  test("cached bot activity clears during loss and until the reachable home refreshes", async () => {
     const method = ui.GatewayService.method.listBots;
     const request = create(bots.ListBotsRequestSchema, { includeArchived: true });
     const id = qualified(ids[0]!);
     const snapshot = await list();
     const cached = snapshot.bots.find((bot) => bot.id === id)!;
     cached.executing = true;
+    cached.delegatedThreads = create(bots.BotDelegatedThreadsSchema, { working: 1, finished: 2 });
     la.reads.remember(node, method, request, snapshot);
-    expect((await list()).bots.find((bot) => bot.id === id)?.executing).toBe(true);
+    expect((await list()).bots.find((bot) => bot.id === id)).toMatchObject({
+      executing: true,
+      delegatedThreads: { working: 1, finished: 2 },
+    });
 
     const gate = Promise.withResolvers<void>();
     holdBotList = gate.promise;
@@ -183,11 +187,13 @@ describe.skipIf(!dockerAvailable)("linked bots survive home restarts and updates
       const away = await list();
       expect(away.unavailableComputers.map((peer) => peer.nodeId)).toContain(node);
       expect(away.bots.find((bot) => bot.id === id)?.executing).toBe(false);
+      expect(away.bots.find((bot) => bot.id === id)?.delegatedThreads).toBeUndefined();
 
       la.reads.connected(node);
       const refreshing = await list();
       expect(refreshing.refreshingComputers.map((peer) => peer.nodeId)).toContain(node);
       expect(refreshing.bots.find((bot) => bot.id === id)?.executing).toBe(false);
+      expect(refreshing.bots.find((bot) => bot.id === id)?.delegatedThreads).toBeUndefined();
     } finally {
       holdBotList = undefined;
       gate.resolve();

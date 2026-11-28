@@ -16,7 +16,12 @@ import {
 
 export { approvalView, botEntries, botParticipant, displayText, exchangeEntries };
 
-export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = [], executing = false): ConversationView {
+export function botConversation(
+  bot: bots.Bot,
+  pinnedIds: readonly string[] = [],
+  executing = false,
+  delegatedThreadsWorking?: number | null,
+): ConversationView {
   const last = bot.lastMessage;
 
   return {
@@ -26,6 +31,7 @@ export function botConversation(bot: bots.Bot, pinnedIds: readonly string[] = []
     bots: [botParticipant(bot)],
     unread: bot.unreadCount,
     executing,
+    delegatedThreadsWorking,
     archived: bot.archived,
     pinned: !bot.archived && pinnedIds.includes(bot.id),
     pinOrder: pinnedIds.indexOf(bot.id),

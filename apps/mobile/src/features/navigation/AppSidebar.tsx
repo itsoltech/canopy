@@ -32,7 +32,7 @@ import { useDevicePreferences } from "../settings/device-preferences";
 import { AddProjectSheet } from "../settings/AddProject";
 
 function useSidebarState() {
-  const { session, ready, bots } = useSession();
+  const { session, ready, bots: cachedBots } = useSession();
   const { projects, threads, workers, loaded, stream } = useOverview();
   const { selectedModule: section, selectModule: setSection } = useLayout();
   const { modules } = useAppearance();
@@ -49,6 +49,7 @@ function useSidebarState() {
   const botList = useBotList();
   const botError = botList.error ? "Could not load bots." : "";
   const botsLoaded = botList.loaded;
+  const botActivityLive = stream.connection === "live" && botsLoaded && !botList.stale && !botList.error;
   const query = queries[section].trim().toLowerCase();
   const botSummaries = botList.data?.bots;
 
@@ -88,9 +89,10 @@ function useSidebarState() {
     setSection,
     queries,
     setQueries,
-    bots,
+    bots: botSummaries ?? cachedBots,
     botError,
     botsLoaded,
+    botActivityLive,
     activity,
     threadPicker,
     setThreadPicker,
@@ -279,7 +281,7 @@ function SidebarLists({ state, header }: { state: ReturnType<typeof useSidebarSt
 function BotList({ state, header }: { state: ReturnType<typeof useSidebarState>; header: SidebarListHeader }) {
   const pinned = useAppearance().user?.sidebar?.pinnedBotIds ?? [];
   const { layout } = useMotion();
-  const { query, bots, botError, botsLoaded } = state;
+  const { query, bots, botError, botsLoaded, botActivityLive } = state;
   const device = useDevicePreferences();
   const archivedOpen = device.view.archivedBotsExpanded;
 
@@ -309,7 +311,7 @@ function BotList({ state, header }: { state: ReturnType<typeof useSidebarState>;
       {...header.listProps}
       renderItem={({ item }) => (
         <Animated.View entering={botArrival(item.id)}>
-          <BotListItem bot={item} />
+          <BotListItem bot={item} activityLive={botActivityLive} />
         </Animated.View>
       )}
       ListEmptyComponent={
@@ -337,7 +339,8 @@ function BotList({ state, header }: { state: ReturnType<typeof useSidebarState>;
               title={`${archivedOpen ? "Hide" : "Show"} archived bots · ${archived.length}`}
               onPress={() => device.setView({ archivedBotsExpanded: !archivedOpen })}
             />
-            {archivedOpen && archived.map((bot) => <BotListItem key={bot.id} bot={bot} />)}
+            {archivedOpen &&
+              archived.map((bot) => <BotListItem key={bot.id} bot={bot} activityLive={botActivityLive} />)}
           </View>
         ) : undefined
       }

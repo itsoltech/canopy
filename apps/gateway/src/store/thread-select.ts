@@ -21,6 +21,10 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
 
 export const STARTED_BY_BOT = "EXISTS (SELECT 1 FROM bot_started_threads s WHERE s.thread_id = t.id)";
 
+// An asynchronous question needs the user only once the agent has stopped working.
+export const BLOCKING_THREAD_INTERACTION =
+  "i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating')";
+
 const PROJECT_SECRETS_CONFIGURED = `t.runtime = 'worker' AND EXISTS (
   SELECT 1 FROM projects p WHERE p.id=t.project_id AND p.owner_user_id=t.owner_user_id AND p.kind='project'
     AND p.archived_at IS NULL AND (EXISTS (SELECT 1 FROM project_secrets s WHERE s.project_id=p.id)
@@ -30,7 +34,6 @@ export const listThreadSelect = (where: string, extraColumns = "") => threadSele
 
 /** The thread columns (ThreadRow) with the joined ones, for `FROM threads t` and the given clauses. */
 export const threadSelect = (where: string, extraColumns = "", metadata = false) => `
-          -- An asynchronous question (wait=false) needs the user only once the agent has stopped working.
           SELECT ${metadata ? LIST_COLUMNS : `t.*, ${STARTED_BY_BOT} AS started_by_bot, ${PROJECT_SECRETS_CONFIGURED} AS project_secrets_configured`}, to_char(t.archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS archived_at_key,
                  (SELECT row_to_json(c) FROM (${COMPOSER_CHOICE_SELECT}) c) AS last_user_turn_choices,
                  (SELECT p.kind FROM projects p WHERE p.id = t.project_id) AS project_kind, ${extraColumns}
@@ -78,7 +81,7 @@ export const threadSelect = (where: string, extraColumns = "", metadata = false)
                  (SELECT json_build_object('agent_cli', ti.agent_cli, 'mode', ti.mode, 'imported_at', ti.imported_at)
                     FROM thread_imports ti WHERE ti.thread_id = t.id) AS imported
             FROM threads t CROSS JOIN LATERAL (
-              SELECT count(*) FILTER (WHERE i.question_wait IS DISTINCT FROM false OR t.status NOT IN ('running', 'creating')) AS pending_interactions,
+              SELECT count(*) FILTER (WHERE ${BLOCKING_THREAD_INTERACTION}) AS pending_interactions,
                      count(*) > 0 AS has_pending_requests
                 FROM interaction_requests i WHERE i.thread_id = t.id AND i.status = 'pending'
             ) requests ${where}`;

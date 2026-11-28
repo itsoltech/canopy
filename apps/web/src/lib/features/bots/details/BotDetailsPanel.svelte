@@ -13,6 +13,7 @@
   import { stateForStatus } from "../behaviour-math.ts";
   import { openBotSettings } from "../settings/open.ts";
   import MascotFace from "../components/MascotFace.svelte";
+  import DelegatedThreadsDetails from "./DelegatedThreadsDetails.svelte";
   import DetailsSection from "./DetailsSection.svelte";
   import RoutineRow from "./RoutineRow.svelte";
   import TriggerRow from "./TriggerRow.svelte";
@@ -24,6 +25,7 @@
   /** Section composition leaves a slot for Connections without coupling to the settings editor. */
   let {
     bot,
+    delegatedThreads,
     routines,
     triggers = [],
     waiting = [],
@@ -35,6 +37,7 @@
     class: className,
   }: {
     bot: bots.Bot;
+    delegatedThreads?: bots.Bot["delegatedThreads"] | null;
     routines: readonly bots.BotRoutine[];
     triggers?: readonly bots.BotTrigger[];
     /** Parked cards of background runs that wait for the owner. */
@@ -128,6 +131,7 @@
   </div>
 
   {#if error}<Alert tone="error">{error}</Alert>{/if}
+  {#if delegatedThreads !== undefined}<DelegatedThreadsDetails counts={delegatedThreads} />{/if}
   {#if waiting.length && onreveal}
     <DetailsSection title="Waiting for you" description="Your answer or decision starts a new background run.">
       <ul role="list" class="divide-y divide-zinc-950/6 dark:divide-white/8">

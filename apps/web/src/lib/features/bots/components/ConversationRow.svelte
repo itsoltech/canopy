@@ -13,6 +13,7 @@
   import MarkdownSnippet from "#lib/shared/ui/markdown/MarkdownSnippet.svelte";
   import ActionItems from "./ActionItems.svelte";
   import BotWorkingBadge from "./BotWorkingBadge.svelte";
+  import DelegatedThreadsIndicator from "./DelegatedThreadsIndicator.svelte";
   import SidebarQuickArchive from "#lib/features/navigation/SidebarQuickArchive.svelte";
   import { focusAfterArchive } from "#lib/features/navigation/sidebar-focus.ts";
 
@@ -43,8 +44,14 @@
   const title = $derived(conversationTitle(conversation));
   const home = useBotHome(() => conversation.nodeId);
   const workingId = $props.id();
+  const delegatedId = `${workingId}-delegated`;
   const showWorking = $derived(conversation.kind === "direct" && !conversation.archived && !home.reason);
   const working = $derived(showWorking && conversation.executing === true);
+
+  const showDelegatedStatus = $derived(
+    conversation.delegatedThreadsWorking === null || (conversation.delegatedThreadsWorking ?? 0) > 0,
+  );
+
   const items = $derived(conversationMenu(conversation, home.reason ? {} : handlers));
 
   async function archive(event: MouseEvent) {
@@ -95,12 +102,12 @@
       </div>
     {/if}
   </div>
-  <div class="grid min-w-0 flex-1 grid-cols-1 gap-0.5">
+  <div class="@container grid min-w-0 flex-1 grid-cols-1 gap-0.5">
     <p class="flex items-baseline gap-2">
       <a
         {href}
         aria-current={current ? "page" : undefined}
-        aria-describedby={working ? workingId : undefined}
+        aria-describedby={working ? `${workingId} ${delegatedId}` : delegatedId}
         class="min-w-0 flex-1 truncate text-base/5.5 font-medium text-zinc-900 after:absolute after:inset-0 after:rounded-xl focus:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-brand-500 sm:text-sm/5 dark:text-zinc-100"
       >
         {title}
@@ -115,20 +122,24 @@
           </time>{/if}
       </span>
     </p>
-    <p class="flex items-center gap-2">
-      <span
-        class={[
-          "min-w-0 flex-1 truncate text-sm/5 sm:text-xs/4.5",
-          conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400",
-        ]}
-      >
-        {#if !conversation.lastMessage}
-          No messages yet
-        {:else if conversation.lastMessage.failed}
-          <span class="text-rose-600 dark:text-rose-400">Couldn't reply</span>
-        {:else}
-          {#if author}{`${author}: `}{/if}<MarkdownSnippet text={conversation.lastMessage.text} />
-        {/if}
+    <p class="flex items-center gap-2 @max-[9rem]:gap-1">
+      <span class="flex min-w-0 flex-1 items-center">
+        <span
+          class={[
+            "min-w-0 flex-1 truncate text-sm/5 sm:text-xs/4.5",
+            showDelegatedStatus && !conversation.lastMessage?.failed && "@max-[9rem]:opacity-0",
+            conversation.unread > 0 ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-500 dark:text-zinc-400",
+          ]}
+        >
+          {#if !conversation.lastMessage}
+            No messages yet
+          {:else if conversation.lastMessage.failed}
+            <span class="text-rose-600 dark:text-rose-400">Couldn't reply</span>
+          {:else}
+            {#if author}{`${author}: `}{/if}<MarkdownSnippet text={conversation.lastMessage.text} />
+          {/if}
+        </span>
+        <DelegatedThreadsIndicator id={delegatedId} working={conversation.delegatedThreadsWorking} />
       </span>
       <span class={["flex w-7 shrink-0 justify-end", handlers.onArchive && !home.reason && "sidebar-swap-resting"]}>
         {#if conversation.unread > 0}<span

@@ -10,6 +10,7 @@
   import AvatarStack from "./AvatarStack.svelte";
   import BotAvatar from "./BotAvatar.svelte";
   import BotWorkingBadge from "./BotWorkingBadge.svelte";
+  import DelegatedThreadsIndicator from "./DelegatedThreadsIndicator.svelte";
   import ActionItems from "./ActionItems.svelte";
   import { useBotHome } from "../home.svelte.ts";
 
@@ -37,6 +38,7 @@
   const title = $derived(conversationTitle(conversation));
   const home = useBotHome(() => conversation.nodeId);
   const workingId = $props.id();
+  const delegatedId = `${workingId}-delegated`;
   const direct = $derived(conversation.kind === "direct" && Boolean(conversation.bots[0]));
   const working = $derived(direct && !home.reason && conversation.executing === true);
 
@@ -52,7 +54,7 @@
       {href}
       aria-current={current ? "page" : undefined}
       aria-labelledby={`${workingId}-name`}
-      aria-describedby={working ? `${hint ?? ""} ${workingId}`.trim() : hint}
+      aria-describedby={`${hint ? `${hint} ` : ""}${working ? `${workingId} ` : ""}${delegatedId}`}
       {title}
       class={[
         "group flex w-full min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 pt-2 pb-1.5 focus-ring select-none [-webkit-touch-callout:none] hover:bg-zinc-950/4 aria-[current=page]:bg-zinc-950/6 dark:hover:bg-white/4 dark:aria-[current=page]:bg-white/8",
@@ -70,6 +72,7 @@
         {#if conversation.unread > 0}
           <span class={["absolute top-0 right-0 size-3 rounded-full bg-brand-500", avatarRing]}></span>
         {/if}
+        <DelegatedThreadsIndicator id={delegatedId} working={conversation.delegatedThreadsWorking} pinned />
       </span>
       <BotWorkingBadge id={workingId} name={title} active={working} class="flex h-4 items-center" />
       <span
