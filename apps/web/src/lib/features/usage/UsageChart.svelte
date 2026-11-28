@@ -8,8 +8,9 @@
   let { days, providers, view }: { days: UsageDay[]; providers: UsageRow[]; view: UsageView } = $props();
 
   const hintId = $props.id();
-  let active = $state(-1);
-  const selectedIndex = $derived(active < 0 ? days.length - 1 : Math.min(active, days.length - 1));
+  let activeDay = $state<string>();
+  const activeIndex = $derived(days.findIndex((day) => day.key === activeDay));
+  const selectedIndex = $derived(activeIndex < 0 ? days.length - 1 : activeIndex);
   const selected = $derived(days[selectedIndex]);
   const firstDay = $derived(days[0]);
   const lastDay = $derived(days.at(-1));
@@ -71,9 +72,9 @@
           tabindex={index === selectedIndex ? 0 : -1}
           aria-label={describe(day, true)}
           title={describe(day)}
-          onpointerenter={() => (active = index)}
-          onfocus={() => (active = index)}
-          onclick={() => (active = index)}
+          onpointerenter={() => (activeDay = day.key)}
+          onfocus={() => (activeDay = day.key)}
+          onclick={() => (activeDay = day.key)}
           onkeydown={(event) => navigate(event, index)}
           class="h-full min-w-0 flex-1 rounded-sm focus-ring focus-visible:bg-zinc-950/3 dark:focus-visible:bg-white/3"
         ></button>

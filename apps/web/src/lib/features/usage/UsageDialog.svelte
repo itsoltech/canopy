@@ -29,7 +29,7 @@
   let computerId = $state("");
   let speed = $state("");
   let activity = $state("");
-  let data = $state.raw<UsageData>();
+  let report = $state.raw<{ data: UsageData; activityKind: string }>();
   let computers = $state<UsageData["computers"]>([]);
   let speeds = $state<UsageData["speeds"]>([]);
   let supportsActivityBreakdown = $state(false);
@@ -84,7 +84,6 @@
     let pending = false;
     let received = false;
     let reportFailure = false;
-    data = undefined;
     loading = true;
     failed = false;
 
@@ -101,7 +100,7 @@
 
         if (controller.signal.aborted) return;
         received = true;
-        data = result;
+        report = { data: result, activityKind: filters.activityKind };
         failed = false;
         supportsActivityBreakdown = result.supportsActivityBreakdown;
 
@@ -127,7 +126,11 @@
           };
         }
       } catch {
-        if (!controller.signal.aborted && (!received || reportFailure)) failed = true;
+        if (controller.signal.aborted) return;
+
+        if (!received) report = undefined;
+
+        if (!received || reportFailure) failed = true;
       } finally {
         pending = false;
         reportFailure = false;
@@ -148,14 +151,29 @@
   });
 </script>
 
-<Dialog bind:open title="Usage" bare fullscreen size="output" class="settings-density h-[min(90dvh,55rem)]">
+<Dialog
+  bind:open
+  onexited={() => (report = undefined)}
+  title="Usage"
+  bare
+  fullscreen
+  size="output"
+  class="settings-density h-[min(90dvh,55rem)]"
+>
   <div class="flex h-full min-h-0 flex-col">
     <header
       class="flex shrink-0 items-center gap-3 border-b border-divider bg-surface py-2 pr-3 pl-5 sm:pl-6"
       data-window-drag
     >
       <h2 class="min-w-0 flex-1 text-lg/7 font-semibold">Usage</h2>
-      <IconButton icon="arrow-path" label="Refresh usage" disabled={loading} onclick={() => refreshUsage?.()} />
+      <IconButton
+        icon="arrow-path"
+        label="Refresh usage"
+        iconClass={loading && report ? "motion-safe:animate-spin" : undefined}
+        aria-busy={loading}
+        disabled={loading}
+        onclick={() => refreshUsage?.()}
+      />
       <IconButton icon="x-mark" label="Close usage" data-autofocus onclick={() => (open = false)} />
     </header>
     <div class="min-h-0 flex-1 scroll-stable overflow-y-auto overscroll-contain">
@@ -230,7 +248,7 @@
         <p class="-mt-3 text-xs/5 text-zinc-500 dark:text-zinc-400">
           Requested speed may differ from the speed served by the provider.
         </p>
-        {#if loading}
+        {#if loading && !report}
           <p
             role="status"
             class="flex items-center justify-center gap-2 py-20 text-sm/6 text-zinc-500 dark:text-zinc-400"
@@ -243,11 +261,12 @@
             {#snippet actions()}<Button size="sm" onclick={() => refreshUsage?.()}>Try again</Button>{/snippet}
           </Alert>
         {/if}
-        {#if data}
+        {#if report}
+          {@const { data, activityKind: reportedActivity } = report}
           {#if data.supportsActivityBreakdown && data.hasUnattributedUsage}
             <Alert tone="info">
               Canopy can’t identify the activity for some recorded usage.
-              {#if activityKind && activityKind !== "unattributed"}Choose Unattributed to view it.{/if}
+              {#if reportedActivity && reportedActivity !== "unattributed"}Choose Unattributed to view it.{/if}
             </Alert>
           {/if}
           {#if data.totals.reports === 0n}
@@ -259,7 +278,7 @@
             </div>
           {:else}
             <UsageTotals totals={data.totals} view={selectedView} />
-            {#if data.supportsActivityBreakdown && !activityKind}
+            {#if data.supportsActivityBreakdown && !reportedActivity}
               <UsageActivityBreakdown rows={data.activities} view={selectedView} />
             {/if}
             <UsageChart days={data.days} providers={data.providers} view={selectedView} />

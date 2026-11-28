@@ -9,6 +9,7 @@ harnessów, niezależne szacunki według stawek API modeli, wybór kosztu per li
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów,
 a także podsumowanie w stopce sidebara z miejscem na liczniki i informację o pokryciu rezerwowanym przy otwarciu.
+W web i desktopie modal zachowuje widoczny raport podczas zmiany zakresu lub filtra.
 Stopka sidebara w web i desktopie pokazuje sumę tokenów wejściowych i wyjściowych
 oraz koszt w USD za ostatnie 30 dni kalendarzowych UTC. Z podsumowania można otworzyć pełny raport.
 Web, desktop i [aplikacja mobilna](mobile.md#raport-usage) pokazują w raporcie Usage skrócone liczby tokenów i dzienny wykres według dostawcy.
@@ -225,10 +226,15 @@ kalendarzowych UTC, łącznie z dzisiejszym; zero wybiera 30. Zwraca sumę, dni
 pokrycie. Każdy dzień zawiera również `providers`: sumy tego samego zestawu
 koszyków osobno dla providera, do wykresu ze stałymi kolorami źródeł inferencji.
 W modalu Usage zmiana dnia kursorem lub klawiaturą zachowuje pozycję wykresu
-i przewinięcie modalu. Na telefonie dzień można wybrać dotykiem lub strzałkami pod wykresem.
+i przewinięcie modalu. Po zmianie zakresu w web i desktopie wykres zachowuje
+wskazaną datę, jeśli mieści się w nowym zakresie. W pozostałych przypadkach
+pokazuje ostatni dzień zakresu. Na telefonie dzień można wybrać dotykiem lub strzałkami pod wykresem.
 W web i desktopie raport jest pobierany co 10 sekund, gdy modal jest otwarty,
-a karta widoczna. Odświeżenie zachowuje raport podczas pobierania i podmienia
-wartości po udanym odczycie. Przy ograniczonym ruchu liczby zmieniają się od razu.
+a karta widoczna. Przy zmianie zakresu lub filtra dotychczasowy raport pozostaje
+widoczny do czasu otrzymania odpowiedzi dla ostatniego wyboru. Błąd pobrania
+nowego zakresu lub filtra wyświetla komunikat z możliwością ponowienia.
+Odświeżenie tego samego raportu podmienia wartości po udanym odczycie.
+Przy ograniczonym ruchu liczby zmieniają się od razu.
 Opcjonalny filtr `requested_service_tier` bez pola wybiera wszystkie tryby,
 a jawne `""` wybiera wyłącznie nieznany tryb. `speeds` zwraca ten sam zestaw
 sum pogrupowany według żądanej szybkości. Filtr działa przed sumowaniem:
