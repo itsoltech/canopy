@@ -15,6 +15,8 @@ Corner radius i Spacing są w zakładce Interface. Propozycje bota otwierają si
 jako nowy motyw własny.
 **Preview in app** pokazuje edytowany motyw na ekranie, z którego otwarto
 Settings. **Draft** i **Current** przełączają motyw w podglądzie.
+Aktualizacja (2026-11-28): zakładka Motion w web i desktopie ma ustawienia animacji, ich tempa
+i ograniczenia ruchu. Desktop udostępnia tę samą preferencję ograniczenia ruchu w Accessibility.
 
 Settings → Appearance pozwala wybrać osobno motyw Light i Dark. Color scheme
 (System / Light / Dark) określa, który wariant jest aktywny. Przykład: Fern dla
@@ -260,6 +262,23 @@ polega na podaniu identyfikatora i granic w lokalnym kalendarzu oraz dodaniu
 dekoracji dla tego identyfikatora. Przy nakładających się okresach obowiązuje
 pierwszy pasujący wpis.
 
+## Ruch w web i desktopie
+
+W **Settings → Appearance → Motion** przełącznik **Animations** jest domyślnie włączony.
+**Animation speed** ustala czas trwania przejść. Standard (domyślnie) zachowuje ich
+podstawowy czas, Fast skraca go do 70%, a Slow wydłuża do 150%.
+**Reduce motion** domyślnie korzysta z ustawienia systemu (**System**). **Always**
+ogranicza ruch także wtedy, gdy system zezwala na animacje. Przy ograniczonym ruchu
+wybrane tempo dotyczy także zachowanych przejść przez przenikanie. Wyłączenie
+**Animations** pomija animacje i zachowuje tempo do ponownego włączenia.
+
+Przy włączonym module Bots zakładka Motion zawiera także **Animated mascots**.
+Maskotki respektują ustawienia ruchu nawet przy włączonej animacji oczu i mimiki.
+Wybory są lokalne dla profilu przeglądarki lub instalacji desktopowej. Reset
+przy wierszu przywraca domyślną wartość tego ustawienia. **Reset appearance**
+przywraca wszystkie domyślne ustawienia ruchu. Osobne okno Activity Notch na desktopie
+respektuje systemową preferencję ograniczenia ruchu.
+
 ## Dostępność w Desktopie
 
 **Settings → Accessibility → Focus indicators** określa, kiedy Canopy rysuje obrys
@@ -269,10 +288,9 @@ więc można od razu pisać bez obrysu wokół pola. **Always** pokazuje obrys r
 po kliknięciu, a **Off** go ukrywa. Przy systemowych wymuszonych kolorach
 obrys pozostaje widoczny w każdym trybie.
 
-W tej samej sekcji są **Contrast**, **Interface size**, **Diff colors** przy włączonym
-module Threads i **Animated mascots** przy włączonym module Bots. Korzystają z tych
-samych wartości co w Appearance i Diffs. Animacje maskotek respektują także systemową
-preferencję ograniczonego ruchu.
+W tej samej sekcji są **Reduce motion**, **Contrast**, **Interface size**, **Diff colors**
+przy włączonym module Threads i **Animated mascots** przy włączonym module Bots.
+Korzystają z tych samych wartości co w Appearance i Diffs.
 
 Wybory zapisuje profil Electron w localStorage pod stałym adresem lokalnego interfejsu.
 Zmiana obowiązuje od razu, także w innych oknach tej instalacji. Oba tryby Desktop

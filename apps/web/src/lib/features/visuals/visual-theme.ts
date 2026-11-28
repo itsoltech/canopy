@@ -11,8 +11,6 @@ export function currentVisualTheme(): VisualTheme {
   return visualTheme(isThemeName(name) ? name : "birch", mode, scale);
 }
 
-export const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 const listeners = new Set<() => void>();
 let observer: MutationObserver | undefined;
 

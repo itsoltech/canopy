@@ -368,7 +368,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .video-player
     :is(
       .video-player-badge,

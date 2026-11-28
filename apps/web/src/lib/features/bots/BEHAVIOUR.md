@@ -40,9 +40,10 @@ legacy pupils keep extra space inside their sclera. One screen-wide owner admits
 and bot failures use status text instead of a shake. Only an offending form field shakes on validation.
 State changes cause one cue, never a repeating attention loop. Durations read existing motion tokens.
 
-Settings → Appearance → **Animated mascots** defaults on and is saved locally on this device,
-with live updates in other tabs. `prefers-reduced-motion: reduce` always wins and disables all
-mascot motion, including blinks. Turning either switch off restores neutral SVG transforms immediately.
+The **Animated mascots** preference defaults on and updates across tabs on this device.
+Disabling mascots or interface animations restores neutral SVG transforms. Reduced motion does
+the same, whether requested by the operating system or in Accessibility. Animation speed scales
+breathing, blinks, gaze movement and expressions.
 
 ## Verification
 

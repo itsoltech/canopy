@@ -6,6 +6,7 @@
   import { isDesktopRoute, type DesktopWindowControl } from "@canopy/ui/desktop";
   import { onMount } from "svelte";
   import { applyDesktopFocusIndicators } from "#lib/features/desktop/focus-indicators.svelte.ts";
+  import { applyMotionPreferences } from "#lib/features/settings/apply-motion.ts";
   import { applyDeviceAppearance } from "#lib/features/settings/device-appearance.ts";
   import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
   import AppShell from "#lib/features/navigation/AppShell.svelte";
@@ -38,9 +39,9 @@
 
   onMount(() => appearanceState.connect());
 
-  onMount(() => devicePreferences.connect());
-
   $effect(() => applyDeviceAppearance(devicePreferences));
+
+  $effect(applyMotionPreferences);
 
   const setKeyboardNavigation = applyDesktopFocusIndicators(() => devicePreferences.values.focusIndicators);
 

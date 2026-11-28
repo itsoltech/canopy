@@ -261,7 +261,7 @@ function accessibilitySection(modules: readonly string[]): SettingsSection {
     icon: "accessible",
     group: "Preferences",
     keywords: [
-      "focus indicators keyboard navigation pointer outline ring contrast interface font size text scale",
+      "focus indicators keyboard navigation pointer outline ring contrast interface font size text scale reduce reduced motion system always",
       modules.includes("threads") && "diff colors colorblind color blind red green blue orange",
       modules.includes("bots") && "animated mascots bot animation motion",
     ]
@@ -270,18 +270,21 @@ function accessibilitySection(modules: readonly string[]): SettingsSection {
   };
 }
 
-/** The guide includes all possible desktop sections and search terms. */
-export const desktopSettingsSections: readonly SettingsSection[] = [
-  desktopSection,
-  accessibilitySection(["threads", "bots"]),
-];
+export const motionSettingsKeywords = "animations speed timing transitions fast standard slow reduced motion";
 
-/** Put Accessibility beside Appearance and index the controls visible for the enabled modules. */
-export function desktopSettingsNavigation(modules: readonly string[]): SettingsSection[] {
+/** Web and desktop share the Motion topic. Only desktop offers Accessibility and Desktop sections. */
+export function rendererSettingsNavigation(client: "web" | "desktop", modules: readonly string[]): SettingsSection[] {
   return settingsSections.flatMap((section) => {
-    if (section.href === "/settings/appearance") return [section, accessibilitySection(modules)];
+    if (section.href === "/settings/appearance") {
+      const appearance = {
+        ...section,
+        keywords: `${section.keywords} ${motionSettingsKeywords}`,
+      };
 
-    if (section.href === "/settings/app-updates") return [section, desktopSection];
+      return client === "desktop" ? [appearance, accessibilitySection(modules)] : [appearance];
+    }
+
+    if (client === "desktop" && section.href === "/settings/app-updates") return [section, desktopSection];
 
     return [section];
   });

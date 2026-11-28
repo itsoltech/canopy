@@ -108,6 +108,7 @@ export function compileHtml(
     readonly nonce: string;
     readonly instance: string;
     readonly theme?: VisualTheme;
+    readonly reducedMotion?: boolean;
   },
 ): CompiledHtml {
   if (specJson.length > 6 * 512 * 1024 + 64) throw new Error("HTML source is too large");
@@ -129,10 +130,16 @@ export function compileHtml(
         .join(";")
     : "--canopy-canvas:#ffffff;--canopy-surface:#f5f5f5;--canopy-panel:#eeeeee;--canopy-ink:#171717;--canopy-muted:#666666;--canopy-border:#dddddd;--canopy-accent:#4778f5;--canopy-action:#4778f5;--canopy-on-accent:#ffffff";
 
-  const style = `:root{${colors};color-scheme:${theme?.mode ?? "light dark"}}body{margin:0;background:var(--canopy-canvas);color:var(--canopy-ink);font-family:system-ui}`;
+  const baseStyle = `:root{${colors};color-scheme:${theme?.mode ?? "light dark"}}body{margin:0;background:var(--canopy-canvas);color:var(--canopy-ink);font-family:system-ui}`;
+
+  const motionStyle =
+    ':root[data-reduced-motion="true"]{&, *, *::before, *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}';
+
   const root = tree.childNodes.find((n) => element(n) && n.tagName === "html");
 
   if (!root || !element(root)) throw new Error("Missing HTML root");
+  root.attrs = root.attrs.filter((attr) => attr.name !== "data-reduced-motion");
+  root.attrs.push({ name: "data-reduced-motion", value: String(options.reducedMotion ?? false) });
   const head = root.childNodes.find((n) => element(n) && n.tagName === "head");
   const body = root.childNodes.find((n) => element(n) && n.tagName === "body");
 
@@ -141,7 +148,7 @@ export function compileHtml(
   const prefix = [
     node("meta", { "http-equiv": "Content-Security-Policy", content: htmlPolicy(hashes) }),
     node("meta", { name: "referrer", content: "no-referrer" }),
-    node("style", {}, style),
+    node("style", {}, baseStyle + motionStyle),
   ];
 
   for (const child of prefix.reverse()) {

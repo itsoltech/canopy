@@ -30,7 +30,7 @@
   border-left-width: 0;
   background: transparent;
 }
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .activity-shell > summary,
   .activity-group-head > button,
   .activity-group-head {

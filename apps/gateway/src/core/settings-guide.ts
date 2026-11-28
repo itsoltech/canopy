@@ -2,7 +2,7 @@ import type { JsonObject } from "@bufbuild/protobuf";
 import { NETWORK_ACCESS_PURPOSE, type SettingsGuideArgs } from "@canopy/domain";
 import { CANOPY_VERSION, releaseChannel } from "@canopy/domain/release/version";
 import {
-  desktopSettingsSections,
+  rendererSettingsNavigation,
   matchesSettingsSection,
   settingsSectionEnabled,
   settingsSearchWords,
@@ -42,7 +42,10 @@ export function findCanopySettings(
       reason: "This catalogue cannot verify a Settings path for a different client build.",
     };
 
-  const sections = client === "desktop" ? [...settingsSections, ...desktopSettingsSections] : settingsSections;
+  const sections =
+    client === "web" || client === "desktop"
+      ? rendererSettingsNavigation(client, ["threads", "bots"])
+      : settingsSections;
 
   const exact = sections.find((section) => settingsSearchWords(section.label).join(" ") === sectionQuery);
 

@@ -183,7 +183,13 @@ export function mountVisualShell(
       .slice(0, 64);
 
     const token = options.random();
-    const compiled = compileHtml(specJson, { nonce, instance, theme: options.theme });
+
+    const compiled = compileHtml(specJson, {
+      nonce,
+      instance,
+      theme: options.theme,
+      reducedMotion: options.reducedMotion,
+    });
 
     return {
       kind: "ready",

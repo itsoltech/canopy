@@ -1,5 +1,8 @@
 # Mapa ustawień Canopy
 
+Status (2026-11-28): web i desktop mają zakładkę Motion w Appearance.
+Desktop udostępnia Reduce motion także w Accessibility.
+
 Status (2026-11-28): Notifications w web/desktop obejmuje potwierdzone odnowienia
 limitów Codexa i pokazuje stan dostępności alertów Groka.
 
@@ -170,12 +173,15 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Appearance / Interface | Effort display | urządzenie | Name | Nazwa lub paski w kontrolkach wysiłku modelu, z dostępną nazwą |
 | Appearance / Interface | Context display | urządzenie | Off | Off / Circle / Text / Bar we wszystkich wątkach web/desktop; ostatni raport zajętości i limitu kontekstu, szczegóły po hoverze, fokusie klawiatury lub dotknięciu. Nie uwzględnia szkicu; brak pomiaru ukrywa wskaźnik, zachowując miejsce. Reset pola i całej strony przywraca Off |
 | Appearance / Interface | Render math | urządzenie | On | LaTeX w wiadomościach; wyłączenie pokazuje źródło |
-| Appearance / Interface | Animated mascots | urządzenie | On | Istniejąca animacja botów, respektuje reduced motion |
+| Appearance / Motion (web i desktop) | Animations | urządzenie | On | Przełącznik animacji interfejsu |
+| Appearance / Motion (web i desktop) | Animation speed | urządzenie | Standard | Fast, Standard lub Slow |
+| Appearance / Motion (web i desktop) | Reduce motion | urządzenie | System | System ogranicza ruch zgodnie z ustawieniem urządzenia, Always ogranicza go stale |
+| Appearance / Motion (web i desktop) | Animated mascots | urządzenie | On | Wymaga włączonego modułu Bots. Maskotki respektują Animations i Reduce motion |
 | Appearance / Typography | Interface font; Interface size | urządzenie | Inter; 14 px | Rodzina i skala typografii interfejsu web/desktop |
 | Appearance / Typography | Monospace font; Monospace size | urządzenie | System mono; 13 px | Kod, diffy, wyjście terminala; podgląd wiadomości, diffu i terminala |
 | Appearance / Typography | Wrap code blocks; Wrap diffs | urządzenie | Off; Off | Zawijanie długich linii na odpowiednich powierzchniach |
 | Accessibility (Desktop) | Focus indicators | urządzenie | Keyboard only | Obrys aktywnej kontrolki podczas nawigacji klawiaturą. Always pokazuje go także po kliknięciu. W trybie Off obrys pozostaje widoczny wyłącznie przy systemowych wymuszonych kolorach. |
-| Accessibility (Desktop) | Contrast, Interface size, Diff colors, Animated mascots | urządzenie | Standard, 14 px, Red & green, On | Te same preferencje co w Appearance i Diffs. Diff colors wymaga włączonego modułu Threads, a Animated mascots modułu Bots. |
+| Accessibility (Desktop) | Contrast, Interface size, Reduce motion, Diff colors, Animated mascots | urządzenie | Standard, 14 px, System, Red & green, On | Te same preferencje co w Appearance i Diffs. Diff colors wymaga włączonego modułu Threads, a Animated mascots modułu Bots. |
 | Diffs / Viewer | Layout | urządzenie | Stacked | Stacked albo side by side; zmiana również na pasku diffu |
 | Diffs / Viewer | Hide whitespace changes | urządzenie | Off | Ukrycie wyłącznie zmian różniących się białymi znakami |
 | Diffs / Viewer | Default file state | urządzenie | Expanded | Początkowy stan pliku; ręczny wybór obowiązuje w zamontowanym widoku |

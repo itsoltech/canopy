@@ -127,7 +127,7 @@
       stroke-dashoffset: 1;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .quit-progress,
     .quit-progress.draining {
       animation: none;

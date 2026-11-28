@@ -114,7 +114,7 @@
     filter: blur(var(--icon-swap-blur));
     transform: scale(var(--icon-swap-start-scale));
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .t-icon-swap .t-icon {
       transition: none !important;
     }

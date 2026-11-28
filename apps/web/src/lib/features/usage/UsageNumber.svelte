@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
+
   let { value, amount }: { value: string; amount?: number | bigint } = $props();
 
   interface Reading {
@@ -38,7 +40,8 @@
   $effect(() => {
     const next = { value, amount };
 
-    if (value !== previous?.value) motion = animate(next, previous);
+    if (motionPreferences.reduced) motion = undefined;
+    else if (value !== previous?.value) motion = animate(next, previous);
     previous = next;
   });
 </script>
@@ -138,7 +141,7 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  @media (forced-colors: active) {
     .animating {
       display: inline;
     }

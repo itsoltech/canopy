@@ -1,5 +1,5 @@
 import { tick } from "svelte";
-import { prefersReducedMotion } from "svelte/motion";
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { duration } from "#lib/shared/ui/motion.ts";
 
 /** A row's place in the list when the gesture measured it (`offsetTop`, which no translate changes). */
@@ -152,7 +152,7 @@ export class QueueDrag {
   #settle(id: string, offsets: Map<string, number>, to: number | undefined): void {
     this.settling = true;
     this.#offsets = offsets;
-    const timer = setTimeout(() => this.#land?.(), prefersReducedMotion.current ? 0 : duration("fast"));
+    const timer = setTimeout(() => this.#land?.(), motionPreferences.reduced ? 0 : duration("fast"));
 
     this.#land = () => {
       clearTimeout(timer);

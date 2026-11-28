@@ -108,7 +108,7 @@
     scale: 1.1;
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .new-theme,
     .plus {
       transition: none;

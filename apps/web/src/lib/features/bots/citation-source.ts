@@ -1,6 +1,6 @@
 import type { ui } from "@canopy/contracts";
 import type { ChatEntry } from "@canopy/domain/bot-chat";
-import { duration } from "#lib/shared/ui/motion.ts";
+import { highlightCitation } from "#lib/shared/ui/highlight-citation.ts";
 import type { ChatHistory } from "./chat-history.ts";
 
 /** Page in the cited message if needed, then let the virtual feed mount and reveal its row. */
@@ -32,10 +32,7 @@ export async function revealBotCitation(
   const target = view.root.querySelector<HTMLElement>(`[data-quote-item="${CSS.escape(quote.sourceItemId)}"]`);
 
   if (!target) return false;
-  target.removeAttribute("data-flash");
-  void target.offsetWidth;
-  target.setAttribute("data-flash", "");
-  setTimeout(() => target.removeAttribute("data-flash"), duration("very-slow") * 3);
+  highlightCitation(target);
 
   return true;
 }

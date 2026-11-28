@@ -97,7 +97,7 @@
     translate: 0 0;
     pointer-events: auto;
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .pr-compact {
       transition: none;
       translate: none;

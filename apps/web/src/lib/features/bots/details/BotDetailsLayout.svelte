@@ -120,7 +120,7 @@
     pointer-events: auto;
     transition-duration: var(--duration-slow);
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     aside,
     .t-panel-slide {
       transition: none !important;

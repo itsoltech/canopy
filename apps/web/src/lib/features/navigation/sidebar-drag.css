@@ -168,7 +168,7 @@ dialog > .sidebar-drop-indicator {
   position: absolute;
 }
 
-@media (prefers-reduced-motion: reduce) {
+:where(html:not([data-motion="full"])) {
   .sidebar-drag-ghost,
   .sidebar-drag-ghost > .sidebar-row,
   .sidebar-pin-zone,

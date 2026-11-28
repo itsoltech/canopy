@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { prefersReducedMotion } from "svelte/motion";
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
   import { expand, rise } from "./motion.ts";
 
   /**
@@ -16,7 +16,7 @@
   }: { class?: ClassValue; children: Snippet; overlay?: boolean } = $props();
 
   const transition = (node: HTMLElement) =>
-    overlay ? rise(node, { instant: prefersReducedMotion.current }) : expand(node);
+    overlay ? rise(node, { instant: motionPreferences.reduced }) : expand(node);
 </script>
 
 <div class={className} transition:transition>{@render children()}</div>

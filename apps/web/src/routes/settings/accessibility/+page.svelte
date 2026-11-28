@@ -4,6 +4,7 @@
   import ContrastSetting from "#lib/features/settings/ContrastSetting.svelte";
   import DeviceChoiceRow from "#lib/features/settings/DeviceChoiceRow.svelte";
   import DiffColorsSetting from "#lib/features/settings/DiffColorsSetting.svelte";
+  import ReduceMotionSetting from "#lib/features/settings/ReduceMotionSetting.svelte";
   import InterfaceSizeSetting from "#lib/features/settings/InterfaceSizeSetting.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
@@ -27,5 +28,6 @@
   <ContrastSetting />
   <InterfaceSizeSetting />
   {#if settings.moduleEnabled("threads")}<DiffColorsSetting />{/if}
+  <ReduceMotionSetting />
   {#if settings.moduleEnabled("bots")}<AnimatedMascotsSetting />{/if}
 </SettingsGroup>

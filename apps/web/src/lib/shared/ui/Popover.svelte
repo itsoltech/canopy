@@ -29,7 +29,7 @@
   import { tick, untrack, type Snippet } from "svelte";
   import { createAttachmentKey } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
-  import { prefersReducedMotion } from "svelte/motion";
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
   import { autoPosition, focusables, positionNow, type Placement } from "./floating.ts";
   import { exitDuration } from "./motion.ts";
   import OverlayScope from "./OverlayScope.svelte";
@@ -117,7 +117,7 @@
   const mounted = $derived.by(() => (opened ||= open));
   let anchor = $state<HTMLElement>();
   const narrow = $derived(sheet && narrowScreen.current);
-  const morphing = $derived(morph && !narrow && !prefersReducedMotion.current);
+  const morphing = $derived(morph && !narrow && !motionPreferences.reduced);
   const positioning = $derived({ placement, offset, followMotion, measureNaturalHeight: !scrollable });
   const morpher = popoverMorph();
 

@@ -87,7 +87,7 @@
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .edit,
     .edit :global(.pencil) {
       transition: none;

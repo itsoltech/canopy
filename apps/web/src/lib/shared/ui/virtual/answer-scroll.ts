@@ -1,3 +1,4 @@
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { tick } from "svelte";
 
 /** Wait for the final answer and its disclosure layout before deciding whether it needs start alignment. */
@@ -30,7 +31,7 @@ export async function answerStart(
 }
 
 export function moveToAnswer(scroller: HTMLElement, top: number, setTop: (top: number) => void): number {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (motionPreferences.reduced) {
     setTop(top);
 
     return 0;

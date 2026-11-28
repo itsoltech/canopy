@@ -191,7 +191,7 @@
   .pr-disclosure[data-open="true"] {
     grid-template-rows: 1fr;
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .pr-disclosure {
       transition: none;
     }

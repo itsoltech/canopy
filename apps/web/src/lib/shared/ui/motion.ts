@@ -1,6 +1,6 @@
 import { flip } from "svelte/animate";
 import { cubicInOut, quintOut } from "svelte/easing";
-import { prefersReducedMotion } from "svelte/motion";
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import type { AnimationConfig } from "svelte/animate";
 import type { Attachment } from "svelte/attachments";
 import type { TransitionConfig } from "svelte/transition";
@@ -38,7 +38,10 @@ export function rootToken(name: string): string {
 
   if (value === undefined) {
     tokenObserver ??= new MutationObserver(() => tokens.clear());
-    tokenObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    tokenObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-motion"],
+    });
     value = getComputedStyle(document.documentElement).getPropertyValue(name);
     tokens.set(name, value);
   }
@@ -85,9 +88,10 @@ export function expand(
     overhang = false,
   }: { delay?: number; instantReduced?: boolean; overhang?: boolean } = {},
 ): TransitionConfig {
+  if (motionPreferences.disabled) return { duration: 0 };
   const ms = duration("fast");
 
-  if (prefersReducedMotion.current)
+  if (motionPreferences.reduced)
     return { delay: instantReduced ? 0 : delay, duration: instantReduced ? 0 : ms, css: (t) => `opacity: ${t}` };
   const height = node.offsetHeight;
 
@@ -117,7 +121,7 @@ export function expand(
  * mid-transition, so a reversed toggle keeps its scale. Instant with reduced motion.
  */
 export function expandGrid(node: HTMLElement): TransitionConfig {
-  if (prefersReducedMotion.current) return { duration: 0 };
+  if (motionPreferences.reduced) return { duration: 0 };
   const content = node.firstElementChild;
   const height = content instanceof HTMLElement ? content.scrollHeight : node.offsetHeight;
 
@@ -133,7 +137,7 @@ export function expandTrack(
   _node: HTMLElement,
   { easing = smoothOut }: { easing?: TransitionConfig["easing"] } = {},
 ): TransitionConfig {
-  if (prefersReducedMotion.current) return { duration: 0 };
+  if (motionPreferences.reduced) return { duration: 0 };
 
   return {
     duration: duration("fast"),
@@ -152,7 +156,7 @@ export function rise(
   { delay = 0, instant = false }: { delay?: number; instant?: boolean } = {},
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
-  if (instant) return { duration: 0 };
+  if (instant || motionPreferences.disabled) return { duration: 0 };
   const out = options?.direction === "out";
   const ms = duration(out ? "quick" : "fast");
 
@@ -170,9 +174,8 @@ export function rise(
  * and remounted rows show it at once.
  */
 export function swap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
+  if (motionPreferences.reduced) return { duration: 0 };
   const ms = duration("quick");
-
-  if (prefersReducedMotion.current) return { delay, duration: 0 };
   const distance = length("--distance-micro", 4);
   const blur = length("--blur-small", 2);
 
@@ -196,7 +199,7 @@ export function stepSwap(
   { step = 1, distance = "micro" }: { step?: number; distance?: "micro" | "base" } = {},
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
-  if (prefersReducedMotion.current) return { duration: 0 };
+  if (motionPreferences.reduced) return { duration: 0 };
   const ms = duration("quick");
 
   const offset =
@@ -223,9 +226,10 @@ export function pageSlide(
   { step = 1 }: { step?: number } = {},
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
+  if (motionPreferences.disabled) return { duration: 0 };
   const ms = duration("fast");
 
-  if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
+  if (motionPreferences.reduced) return { duration: ms, css: (t) => `opacity: ${t}` };
   const offset = length("--distance-base", 8) * (options?.direction === "out" ? -step : step);
   const blur = length("--blur-medium", 3);
 
@@ -243,9 +247,10 @@ export function pageSlide(
  * goes at once, so the two never overlap. With reduced motion it only fades.
  */
 export function pageIn(_node: HTMLElement, { from = 1 }: { from?: number } = {}): TransitionConfig {
+  if (motionPreferences.disabled) return { duration: 0 };
   const ms = duration("fast");
 
-  if (prefersReducedMotion.current) return { duration: ms, css: (t) => `opacity: ${t}` };
+  if (motionPreferences.reduced) return { duration: ms, css: (t) => `opacity: ${t}` };
   const distance = length("--distance-base", 8) * from;
   const blur = length("--blur-medium", 3);
 
@@ -258,9 +263,8 @@ export function pageIn(_node: HTMLElement, { from = 1 }: { from?: number } = {})
 
 /** Icon swap (09), entering half: a status icon that changed grows in from a quarter with a blur. */
 export function iconSwap(_node: HTMLElement, { delay = 0 }: { delay?: number } = {}): TransitionConfig {
+  if (motionPreferences.reduced) return { duration: 0 };
   const ms = duration("fast");
-
-  if (prefersReducedMotion.current) return { delay, duration: 0 };
   const blur = length("--blur-small", 2);
 
   return {
@@ -280,10 +284,11 @@ export function pop(
   { delay = 0 }: { delay?: number } = {},
   options?: { direction: "in" | "out" | "both" },
 ): TransitionConfig {
+  if (motionPreferences.disabled) return { duration: 0 };
   const out = options?.direction === "out";
   const ms = duration(out ? "quick" : "fast");
 
-  if (prefersReducedMotion.current) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
+  if (motionPreferences.reduced) return { delay, duration: ms, css: (t) => `opacity: ${t}` };
   const from = length("--scale-medium", 0.97);
   const blur = length("--blur-small", 2);
 
@@ -298,9 +303,9 @@ export function pop(
 /** List reorder (`animate:reorder` in a keyed each): rows glide to their new place (position change). */
 export function reorder(node: Element, positions: { from: DOMRect; to: DOMRect }): AnimationConfig {
   // A long list moves hundreds of rows nobody sees: only rows on screen before or after the move animate.
-  if (!onScreen(positions.from) && !onScreen(positions.to)) return { duration: 0 };
+  if (motionPreferences.reduced || (!onScreen(positions.from) && !onScreen(positions.to))) return { duration: 0 };
 
-  return flip(node, positions, { duration: prefersReducedMotion.current ? 0 : duration("fast"), easing: smoothOut });
+  return flip(node, positions, { duration: duration("fast"), easing: smoothOut });
 }
 
 const onScreen = (rect: DOMRect) =>
@@ -317,7 +322,7 @@ export function stagger(index: number, cap = 7): number {
  */
 export function shake(trigger: string | boolean | undefined): Attachment<HTMLElement> {
   return (node) => {
-    if (!trigger || prefersReducedMotion.current) return;
+    if (!trigger || motionPreferences.reduced) return;
     node.classList.remove("t-shake");
     void node.offsetWidth; // restart the animation
     node.classList.add("t-shake");

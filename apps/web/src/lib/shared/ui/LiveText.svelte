@@ -61,7 +61,7 @@
       transform: translateX(-200%);
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  :global(:where(html:not([data-motion="full"]))) {
     .live-text-sweep {
       display: none;
       animation: none;

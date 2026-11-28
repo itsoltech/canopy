@@ -1,4 +1,4 @@
-import { prefersReducedMotion } from "svelte/motion";
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { duration, rootToken } from "./motion.ts";
 
 /**
@@ -146,7 +146,7 @@ export function popoverMorph(containingBlock?: () => HTMLElement) {
     open(panel: HTMLElement, trigger: Element | undefined) {
       stop();
 
-      if (prefersReducedMotion.current) return;
+      if (motionPreferences.reduced) return;
       const ms = duration("fast");
 
       if (!trigger?.isConnected) {
@@ -197,7 +197,7 @@ export function popoverMorph(containingBlock?: () => HTMLElement) {
     close(panel: HTMLElement, trigger: Element | undefined, exitMs: number) {
       stop();
 
-      if (prefersReducedMotion.current || exitMs <= 0) return;
+      if (motionPreferences.reduced || exitMs <= 0) return;
 
       if (!trigger?.isConnected) {
         running.push(fade(panel, false, exitMs));

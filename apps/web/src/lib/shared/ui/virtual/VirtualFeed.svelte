@@ -1,4 +1,5 @@
 <script lang="ts" generics="T">
+  import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
   import { FeedHandoff } from "./feed-handoff.ts";
   import type { VirtualFeedProps } from "./feed-props.ts";
   import { tick, untrack } from "svelte";
@@ -416,7 +417,7 @@
     onlatest?.();
     stuck = true;
     const distance = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-    const smooth = animate && distance < viewport * 2 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const smooth = animate && distance < viewport * 2 && !motionPreferences.reduced;
 
     if (smooth) {
       endScroll.start(scroller, setTop, settle);
@@ -461,7 +462,7 @@
     await tick();
 
     if (!scroller || rowTarget !== rowKey) return false;
-    const smooth = options.smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const smooth = options.smooth && !motionPreferences.reduced;
     smoothUntil = smooth ? performance.now() + 1000 : 0;
     scroller.scrollTo({ top: listTop + index.offset(at), behavior: smooth ? "smooth" : "instant" });
     scrollTop = scroller.scrollTop;

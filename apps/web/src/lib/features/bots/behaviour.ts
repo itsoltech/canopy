@@ -1,3 +1,5 @@
+import { toStore } from "svelte/store";
+import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { duration } from "#lib/shared/ui/motion.ts";
 import type { MascotShape } from "./mascot.ts";
 import {
@@ -62,7 +64,18 @@ let reduced = false;
 let enabled = true;
 let attentionOwner: Character | undefined;
 let pointer = { x: 0, y: 0, at: -Infinity, touch: false };
-let timings = { blink: 160, attention: 350, breath: 6000, glance: 1000, ease: 80 };
+
+function readTimings() {
+  return {
+    blink: duration("micro") * 2,
+    breath: duration("very-slow") * 12,
+    glance: duration("very-slow") * 2,
+    ease: duration("micro"),
+  };
+}
+
+let timings: ReturnType<typeof readTimings>;
+let timingsDirty = true;
 
 function awake(c: Character): boolean {
   return canAnimate({
@@ -108,7 +121,7 @@ function reconcile(): void {
 function attention(c: Character, kind: Attention, now = performance.now()): void {
   if (!awake(c) || (attentionOwner && attentionOwner !== c)) return;
   attentionOwner = c;
-  c.attention = { kind, start: now, ms: timings.attention };
+  c.attention = { kind, start: now, ms: duration("medium") };
   schedule();
 }
 
@@ -229,6 +242,12 @@ function tick(now: number): void {
   frame = 0;
 
   if (reduced || !enabled || document.hidden) return;
+
+  if (timingsDirty) {
+    timings = readTimings();
+    timingsDirty = false;
+  }
+
   const dt = Math.min(64, lastFrame ? now - lastFrame : 16);
   lastFrame = now;
 
@@ -252,27 +271,11 @@ function tick(now: number): void {
 }
 
 function connect(): void {
-  const media = matchMedia("(prefers-reduced-motion: reduce)");
-  reduced = media.matches;
-
-  const readTimings = () => {
-    timings = {
-      blink: (duration("micro") || 80) * 2,
-      attention: duration("medium") || 350,
-      breath: (duration("very-slow") || 500) * 12,
-      glance: (duration("very-slow") || 500) * 2,
-      ease: duration("micro") || 80,
-    };
-  };
-
-  readTimings();
-
-  const motion = () => {
-    reduced = media.matches;
-
-    if (!reduced) readTimings();
+  const stopMotion = toStore(() => (motionPreferences.reduced ? "off" : motionPreferences.speed)).subscribe((speed) => {
+    reduced = speed === "off";
+    timingsDirty = true;
     reconcile();
-  };
+  });
 
   const invalidate = () => {
     geometryDirty = true;
@@ -320,7 +323,6 @@ function connect(): void {
     reconcile();
   });
 
-  media.addEventListener("change", motion);
   window.addEventListener("pointermove", move, { passive: true });
   window.addEventListener("pointerdown", tap, { passive: true });
   window.addEventListener("focusin", focus);
@@ -329,7 +331,7 @@ function connect(): void {
   document.addEventListener("visibilitychange", reconcile);
   dispose = () => {
     preference();
-    media.removeEventListener("change", motion);
+    stopMotion();
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerdown", tap);
     window.removeEventListener("focusin", focus);

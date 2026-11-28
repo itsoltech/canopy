@@ -35,6 +35,10 @@ export function htmlBootstrap(instance: string, nonce: string): string {
       port=event.ports[0];send("ready");
       port.onmessage=function(received){
         var m=received.data;
+        if(m && m.type==="reduced_motion" && typeof m.reduced==="boolean"){
+          document.documentElement.dataset.reducedMotion=String(m.reduced);
+          return;
+        }
         if(!m || m.type!=="theme" || !m.theme || !m.theme.colors) return;
         ["canvas","surface","panel","hover","ink","muted","border","accent","action","action-hover","on-accent","info","success","warning","danger"].forEach(function(key){
           var color=m.theme.colors[key];
