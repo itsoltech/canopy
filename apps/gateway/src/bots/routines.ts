@@ -191,35 +191,38 @@ function deliverRoutines(sql: SqlClient.SqlClient, hooks: Hooks, user: string, n
   });
 }
 
+/** Interrupts a routine's or trigger's queued and running turns and discards their open cards. */
+export const stopRoutine = (sql: SqlClient.SqlClient, id: string) =>
+  Effect.gen(function* () {
+    const stopped = yield* sql<{
+      id: string;
+    }>`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now()
+    WHERE routine_id = ${id}::uuid AND status IN ('queued','running','waiting') RETURNING id`;
+
+    yield* stoppedRoutineActivity(
+      sql,
+      stopped.map((turn) => turn.id),
+    );
+
+    if (stopped.length) yield* sql`UPDATE bot_routines SET last_outcome = 'Stopped' WHERE id = ${id}::uuid`;
+    yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE status = 'pending'
+    AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid AND status = 'interrupted')`;
+    // Parked cards of earlier runs would start continuations of a routine that no longer runs.
+    yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE parked AND status = 'pending'
+    AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid)`;
+  });
+
 /** Mutation callers preserve bot -> routine -> turn lock order. */
 export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
   const rows = (botId: string) =>
-    sql<RoutineRow>`SELECT * FROM bot_routines WHERE bot_id = ${botId}::uuid AND deleted_at IS NULL ORDER BY created_at, id`;
+    sql<RoutineRow>`SELECT * FROM bot_routines WHERE bot_id = ${botId}::uuid AND kind = 'routine' AND deleted_at IS NULL ORDER BY created_at, id`;
 
   const get = (botId: string, id: string) =>
-    sql<RoutineRow>`SELECT * FROM bot_routines WHERE id = ${id}::uuid AND bot_id = ${botId}::uuid AND deleted_at IS NULL`.pipe(
+    sql<RoutineRow>`SELECT * FROM bot_routines WHERE id = ${id}::uuid AND bot_id = ${botId}::uuid AND kind = 'routine' AND deleted_at IS NULL`.pipe(
       Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : Effect.fail(new NotFound("routine not found")))),
     );
 
-  const stop = (id: string) =>
-    Effect.gen(function* () {
-      const stopped = yield* sql<{
-        id: string;
-      }>`UPDATE bot_turns SET status = 'interrupted', lease_token = NULL, lease_until = NULL, finished_at = now()
-      WHERE routine_id = ${id}::uuid AND status IN ('queued','running','waiting') RETURNING id`;
-
-      yield* stoppedRoutineActivity(
-        sql,
-        stopped.map((turn) => turn.id),
-      );
-
-      if (stopped.length) yield* sql`UPDATE bot_routines SET last_outcome = 'Stopped' WHERE id = ${id}::uuid`;
-      yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE status = 'pending'
-      AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid AND status = 'interrupted')`;
-      // Parked cards of earlier runs would start continuations of a routine that no longer runs.
-      yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE parked AND status = 'pending'
-      AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid)`;
-    });
+  const stop = (id: string) => stopRoutine(sql, id);
 
   const update = (user: string, botId: string, id: string, patch: RoutinePatch, now: Date) =>
     sql.withTransaction(

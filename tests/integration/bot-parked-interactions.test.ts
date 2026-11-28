@@ -295,6 +295,27 @@ describe.skipIf(!dockerAvailable)("bot parked interactions: background runs neve
     expect(next!.input).not.toContain("requires user approval");
   });
 
+  test("an approved parked change to an owner thread acts with the asking run's access", async () => {
+    const id = await add();
+    const project = (await gw.api.createProject({ name: `Parked ${Bun.randomUUIDv7()}` })).project!.id;
+    const thread = Bun.randomUUIDv7();
+    await query(
+      `INSERT INTO threads(id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, status, title)
+       VALUES($1::uuid, $1::uuid, $2::uuid, $3::uuid, 'main', 'gateway', 'anthropic', 'idle', 'Release build')`,
+      [thread, project, gw.userId],
+    );
+    const { card } = await parkWith(id, "rename_thread", { thread_id: thread, title: "Release 2.1" }, "Proposed");
+
+    expect(card.kind).toBe("approval");
+    await gw.api.answerBotApproval({ approvalId: card.id, approve: true, answer: "" });
+    await idle(id);
+
+    const [renamed] = await query<{ title: string }>("SELECT title FROM threads WHERE id = $1::uuid", [thread]);
+    expect(renamed!.title).toBe("Release 2.1");
+    const [next] = await continuations(id);
+    expect(next!.input).not.toContain("delegated from this conversation");
+  });
+
   test("a decision taken before the run ends still gives the continuation that run's final answer", async () => {
     const id = await add();
     const r = await routine(id);

@@ -7,7 +7,7 @@ import { type GatewayCore } from "../core/core.ts";
 import { routed } from "./routed.ts";
 import { attachmentsHandlers } from "./ui-attachments.ts";
 import { botChannelHandlers } from "./ui-bot-channels.ts";
-import { botsHandlers } from "./ui-bots.ts";
+import { botsHandlers, botTriggerHandlers } from "./ui-bots.ts";
 import { computersHandlers } from "./ui-computers.ts";
 import { connectorsHandlers } from "./ui-connectors.ts";
 import { mobileHandlers } from "./ui-mobile.ts";
@@ -104,6 +104,7 @@ export function uiHandlers(core: GatewayCore): UiHandlers {
     ...connectorsHandlers(core),
     ...threadPanelHandlers(core),
     ...botsHandlers(core),
+    ...botTriggerHandlers(core),
     ...botChannelHandlers(core),
     ...projectsHandlers(core),
     ...settingsHandlers(core),

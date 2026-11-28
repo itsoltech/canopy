@@ -1,7 +1,14 @@
 # Boty
 
-Status (2026-11-27): pytania i zgody w przebiegach rutyn są parkowane. Rutyna nie
-blokuje kolejki bota, a decyzja właściciela uruchamia kontynuację. Szczegóły w sekcji
+Status (2026-11-28): boty mają wyzwalacze zdarzeń wątków, CI PR-ów, harmonogramów,
+limitów dostawców i sugestii nawyków. Bot subskrybuje typ zdarzenia
+z jawnym zakresem i warunkami, a pasujące zdarzenia uruchamiają przebieg w tle.
+Szczegóły w sekcji [Wyzwalacze zdarzeń](#wyzwalacze-zdarzeń). Dostępność w kanałach
+określa [promocja wydań](release.md).
+
+Status (2026-11-28): pytania i zgody w przebiegach w tle (rutyny, wyzwalacze,
+pobudki) są parkowane. Przebieg nie blokuje kolejki bota, a decyzja właściciela
+uruchamia kontynuację. Szczegóły w sekcji
 [Parkowane pytania i zgody rutyn](#parkowane-pytania-i-zgody-rutyn). Dostępność
 w kanałach określa [promocja wydań](release.md).
 
@@ -1046,32 +1053,50 @@ lokalnego wątku o odrębnym zakresie.
 
 ### Parkowane pytania i zgody rutyn
 
-Pytanie `ask_user` albo narzędzie wymagające karty w przebiegu rutyny, także
-w jej kontynuacjach i odpowiedziach wracających do niej, tworzy kartę oznaczoną
-jako zaparkowana (`bot_approvals.parked`, `BotApproval.parked`). Model od razu
-dostaje wynik `status: parked`, kończy przebieg i w odpowiedzi końcowej zapisuje,
-co robił. Gateway dołącza tę odpowiedź do karty jako notatkę (do 4000 znaków).
-Kolejka bota jest wolna, więc prywatna wiadomość właściciela nie czeka na decyzję.
-Prywatna rozmowa właściciela nadal czeka na swoje karty jak dotąd.
+Pytanie `ask_user` albo narzędzie wymagające karty w przebiegu w tle tworzy kartę
+oznaczoną jako zaparkowana (`bot_approvals.parked`, `BotApproval.parked`). Przebieg
+w tle to tura rutyny lub wyzwalacza (także ich kontynuacje i odpowiedzi wracające do
+nich), pobudka z prywatnej rozmowy (`wakeup:<id>`, sprawdzana w `bot_wakeups`) oraz
+kontynuacja zaparkowanej karty (`parked:<id>`, sprawdzana w `bot_approvals`). Tury
+rozmów zewnętrznych i odpowiedzi botów niczego nie parkują (`bots/parked.ts`). Model
+od razu dostaje wynik `status: parked`, kończy przebieg i w odpowiedzi końcowej zapisuje,
+co robił. Gateway dołącza tę odpowiedź do kart przebiegu jako notatkę (do 4000 znaków),
+także gdy właściciel zdecydował, zanim przebieg się skończył. Kolejka bota jest wolna,
+więc prywatna wiadomość właściciela nie czeka na decyzję. Prywatna rozmowa właściciela
+nadal czeka na swoje karty jak dotąd.
 
-Karta pokazuje **From routine ‹title› · Your answer starts a new run** albo
-**· Your decision starts a new run**. Decyzja właściciela zapisuje się w tej samej
-transakcji co tura-kontynuacja z pochodzeniem rutyny i kluczem `parked:<id karty>`.
+Karta pokazuje **From routine ‹title›** albo **From event trigger ‹title›**
+(`BotApproval.routine_kind`) i dopisek **· Your answer starts a new run** albo
+**· Your decision starts a new run**. Panel szczegółów bota w web/desktop i na telefonie
+ma sekcję **Waiting for you** z zaparkowanymi kartami i przyciskiem **Show in chat**,
+który przewija rozmowę do karty. Decyzja właściciela zapisuje się w tej samej
+transakcji co tura-kontynuacja z pochodzeniem przebiegu i kluczem `parked:<id karty>`.
 Ponowienie decyzji zwraca zapisany wynik i nie tworzy drugiej kontynuacji.
-Kontynuacja dostaje pytanie lub proponowane działanie, decyzję i notatkę.
+Kontynuacja dostaje pytanie lub proponowane działanie i decyzję. Notatkę przebiegu
+dostaje przy starcie, gdy przebieg na pewno się już skończył.
 
 Zatwierdzone działanie wykonuje się wyłącznie w kontynuacji, przed modelem, zwykłą
 ścieżką narzędzi z lease tej tury, bieżącymi grantami i polityką
-(`bots/parked-resume.ts`). Wywołanie i jego zatwierdzenie zapisują się w kontynuacji,
-więc restart nie powtarza efektu. Wynik trafia do wejścia tury raz. Powtórka
+(`bots/parked-resume.ts`). Wywołanie i jego zatwierdzenie, razem z zatwierdzonym
+podglądem bota i wątkiem z ograniczoną widocznością, zapisują się w kontynuacji, więc
+restart nie powtarza efektu. Wynik trafia do wejścia tury raz. Karty działań na plikach
+bota nie są parkowane: kontynuacja dostałaby nowy workspace bez plików przebiegu, więc
+przebieg czeka na decyzję jak dotąd. Kontynuacja niesie skrót karty (pytanie do 8000
+znaków, odpowiedź właściciela w całości), więc zmieści się w kolejce niezależnie od
+rozmiaru karty. Kontynuacja rutyny ma uprawnienia przebiegu, który zapytał (zapis wątków
+właściciela i notatek), ustalone po zweryfikowanych krawędziach `parked:` → karta → tura.
+Kontynuacja pobudki zachowuje dostęp do wątków delegowanych tej pobudce. Powtórka
 zaparkowanego przebiegu po restarcie zwraca wynik `parked` i nie wykonuje działania,
 nawet gdy decyzja już zapadła. Odrzucenie albo edycja na karcie niczego nie wykonuje,
 a kontynuacja dostaje decyzję lub poprawioną wersję jako niezaufany tekst.
 
 Zaparkowana karta wygasa po 24 godzinach według czasu bazy. Pętla kolejki oznacza ją
-jako wygasłą i tworzy jedną kontynuację z tą informacją. Wyłączenie lub usunięcie
-rutyny odrzuca jej zaparkowane karty bez kontynuacji, a wyłączenie modułu Bots je
-wygasza. Archiwizacja i usunięcie bota wygaszają je jak pozostałe karty.
+jako wygasłą i tworzy jedną kontynuację z tą informacją. Blokady bierze w tej samej
+kolejności co odpowiedź właściciela (moduł, bot, tura, karta), więc obie się nie
+zakleszczą. Wyłączenie lub usunięcie rutyny odrzuca jej zaparkowane karty bez
+kontynuacji, a wyłączenie modułu Bots je wygasza i przerywa oczekujące kontynuacje.
+Archiwizacja i usunięcie bota wygaszają je jak pozostałe karty. Przeniesienie bota na
+inny komputer zabiera zakończone kontynuacje razem z ich kartami.
 
 ### Ukryty transkrypt i celowe efekty
 
@@ -1132,6 +1157,191 @@ Przegląd **componentize** wydzielił `BotDetailsLayout`, `BotDetailsPanel`, `De
 `RoutineRow` i `ReminderRow`. Ruch z **transitions-dev**: card resize + panel reveal,
 z reduced motion; mobilny dialog korzysta ze wspólnego ruchu dolnego panelu.
 
+
+## Wyzwalacze zdarzeń
+
+Wyzwalacz uruchamia bota w tle, gdy w Canopy zajdzie zdarzenie, które bot jawnie
+subskrybuje. Zastępuje rutynę, która co kilkanaście minut sprawdza, czy coś się
+zmieniło. Bot bez wyzwalacza nie dostaje żadnych zdarzeń.
+
+### Model danych
+
+Wyzwalacz jest wierszem `bot_routines` z `kind = 'trigger'` (migracja **0229**):
+bez crona, z typem zdarzenia (`event`), filtrem (`filter`), rewizją z czasem jej
+ostatniej zmiany (`revised_at`), stanem `auto_paused` i licznikiem godzin na limicie. Tury wyzwalacza mają `routine_id`
+tego wiersza. Dzięki temu pochodzenie, ukryty transkrypt, delegowanie, raporty
+obserwowanych wątków, [parkowanie](#parkowane-pytania-i-zgody-rutyn), zatrzymanie
+i przeniesienie działają jak w rutynach. Listy i narzędzia rutyn pomijają wiersze
+wyzwalaczy. Bot ma najwyżej 20 nieusuniętych wyzwalaczy, osobno od 20 rutyn.
+
+Katalog typów i walidacja filtra są w `@canopy/domain/bot-triggers`. Filtr ma:
+
+- jeden typ zdarzenia z zamkniętej listy, bez wzorców;
+- `scope`: identyfikatory zasobów według rodzaju. Każdy typ wymaga co najmniej jednego
+  konkretnego zasobu, a pusty zakres jest błędem. Najwyżej 20 identyfikatorów.
+  Identyfikatory w jednym rodzaju łączy „lub”, różne rodzaje „i”;
+- `where`: warunki `eq`, `in`, `gte`, `lte` na polach typu, bez wolnego tekstu;
+- `exclude_own` (domyślnie włączone), `coalesce_seconds` (30–3600, domyślnie 300)
+  i `max_turns_per_hour` (1–12, domyślnie 4).
+
+Gateway sprawdza przy zapisie i włączeniu, że zasoby należą do właściciela i istnieją.
+Opis zwykłym językiem, np. „When a thread turn finishes in project canopy, if status
+is failed; at most 4 runs an hour”, powstaje na serwerze i trafia do `schedule_text`.
+
+| Typ | Źródło | Zakres | Pola |
+| --- | --- | --- | --- |
+| `thread.turn_finished` | `turns`: `completed`, `failed` albo `interrupted` nie przez użytkownika | projekt, worker, wątek | `status`, `thread_origin` |
+| `thread.needs_input` | `interaction_requests`: nowa prośba `pending` do człowieka | projekt, worker, wątek | `kind`, `tool_name` |
+| `pr.checks` | `pr_check_notes`: notatka jawnej (`watch_pr_checks`) lub automatycznej obserwacji CI PR-a powiązanego z wątkiem | projekt, repozytorium, PR | `event` (`failure`, `each`, `complete`, `ended`), `reason`, `failed_count`, `automatic` |
+| `schedule.run` | `schedule_runs`: wystąpienie pominięte (`missed`, `running`) lub wygasłe oraz koniec tury z `schedule_runs.turn_id` | harmonogram, projekt | `phase` (`skipped`, `expired`, `finished`), `status` |
+| `provider.limit` | `provider_usage`: wzrost `usedPercent` okna względem poprzedniej obserwacji tego samego konta, konfiguracji i resetu | worker i profil `<harness>/<id>` natywnej instancji (oba wymagane) | `window` (wymagane), `used_percent` (wymagany sam próg `gte`) |
+| `habit.suggested` | `memory_habits`: stan `pending` (nowy albo nowa rewizja) | projekt (wymagany) | brak |
+
+Wątki i harmonogramy delegowane z rozmowy zewnętrznej (`memory_audience`
+`conversation:…`) nie emitują zdarzeń. Typy wątków, CI i harmonogramów wymagają
+włączonych modułów Bots i Threads. Zdarzenie harmonogramu niesie wątek docelowy, a koniec
+uruchomienia także turę i jej `hops`.
+
+Zakończone CI z błędami to `event = complete` z `failed_count > 0`, a konflikt to
+`event = ended` z `reason = conflict`. Samo powiązanie PR-a bez obserwacji nie daje
+zdarzeń. Próg `gte` na `used_percent` pasuje tylko wtedy, gdy poprzednia obserwacja
+była poniżej progu i powstała po bieżącej rewizji wyzwalacza, więc obserwacja sprzed
+subskrypcji nie jest punktem odniesienia. Okno z danym resetem zgłasza się raz na
+rewizję (`context.once`, z długością okna; potwierdzenia w `bot_trigger_receipts` do resetu
+okna albo zmiany rewizji), także gdy użycie spadnie i znów przekroczy próg. Okna o tym samym
+kluczu i różnej długości są osobnymi zdarzeniami, a okno po resecie niczego nie zgłasza. Profil to
+`<harness>/<id>`, więc instancje Claude i Codexa o tym samym id są różnymi profilami.
+Limity dostawcy raportują dziś natywne instancje Claude i Codexa. Zdarzenie
+współdzielonego workera trafia osobno do każdego właściciela, którego wyzwalacz wskazuje
+profil i który widzi jego użycie tak jak widok użycia (migracja **0231**; zdarzenia są
+unikalne per właściciel).
+`provider.limit` i `habit.suggested` nie mają historii, więc ich utworzenie zawsze
+wymaga karty.
+
+### Zapis, dopasowanie i tura
+
+1. Wyzwalacz PostgreSQL tabeli źródłowej (migracja **0230**) wywołuje
+   `bot_trigger_record` w transakcji faktu. Funkcja szuka po indeksie
+   `bot_trigger_scopes`, jednym odczytem na zasób zdarzenia, włączonych wyzwalaczy,
+   których zakres go obejmuje.
+   Tylko wtedy zapisuje `bot_trigger_events` z identyfikatorami, polami typu i listą
+   kandydatów z ich rewizjami. Wiersz nie zawiera treści. Wiersze zakresów istnieją
+   tylko dla włączonych, niewstrzymanych wyzwalaczy.
+2. Pętla kolejki bota (`bots/trigger-matcher.ts`) bierze porcję zdarzeń właściciela
+   pod blokadą modułu; przy wyłączonych Bots je usuwa. Zdarzenie zapisane przed ostatnim
+   przełączeniem modułu (`bot_trigger_generations`), także w transakcji zatwierdzonej po
+   nim, jest odrzucane. Kandydatów blokuje raz,
+   w kolejności id, przed odczytem rewizji. Rozważa wyłącznie kandydatów z rewizją równą
+   zapisanej, więc wyzwalacz utworzony lub zmieniony po zapisie zdarzenia go nie dostanie.
+   Zdarzenie kandydata, którego bot jest zamrożony przez nierozstrzygnięte przeniesienie,
+   czeka (`held_until`): wycofanie je dopasuje, zatwierdzenie odrzuci.
+   Pomija tury obserwowane przez bota (ich raport przychodzi z obserwacji, także po
+   dostarczeniu), a przy `exclude_own` także wątki uruchomione przez niego i tury z jego
+   wiadomością (wejście lub steer). Dopasowane zdarzenie trafia do otwartej partii tej
+   rewizji jako projekcja z nazwami zasobów. Partia trzyma licznik i ostatnie 50 projekcji.
+3. Partia zamyka się po oknie ciszy albo po 20 zdarzeniach (`bots/trigger-flush.ts`).
+   Gateway czyta ją ponownie pod blokadami w kolejności moduł, bot, wyzwalacz, partia.
+   Gdy trwa tura tego wyzwalacza, partia czeka 30 sekund (`check_after`). Po wyczerpaniu
+   limitu godzinowego czeka do zwolnienia miejsca i dalej zbiera zdarzenia. Wstrzymane
+   partie nie zajmują miejsca nowszym. Licznik liczy kolejne godziny zegarowe z partią
+   wstrzymaną na limicie; przebiegi pomiędzy nimi go nie zerują. Trzecia z kolei taka
+   godzina wstrzymuje wyzwalacz, usuwa jego zakresy i dodaje do czatu wpis „Paused
+   trigger ‹title›: it fired too often”. Przed utworzeniem tury gateway usuwa z partii
+   zdarzenia, których zasób nie jest już właściciela lub nie jest widoczny, z usuniętych,
+   przeniesionych lub zarchiwizowanych wątków, rozwiązane prośby, przejrzane nawyki oraz
+   zdarzenia typów wątków przy wyłączonym module Threads. Pusta partia nie uruchamia
+   modelu. Zdarzenia minionych wystąpień harmonogramu są aktualne także po jego
+   zakończeniu. Zdarzenie limitu wymaga, by właściciel nadal widział użycie tej pary worker
+   i profil. To samo sprawdzenie powtarza się przy pierwszym uruchomieniu tury: tura
+   czekająca w kolejce dostaje tylko aktualne zdarzenia, z instrukcjami i opisem
+   wyzwalacza z chwili utworzenia tury (`bot_trigger_batches.snapshot`), a bez nich kończy
+   się bez wywołania modelu („Nothing left to report”). Tura wznowiona po restarcie lub
+   odpowiedzi odzyskuje się jak zwykle. Tura bota z harnessem czeka, aż jej worker będzie
+   miał połączenie botów z którąkolwiek bramą (`worker_connections.bot_presence_until`);
+   worker połączony bez harnessu botów albo zarchiwizowany lub odwołany kończy turę błędem
+   konfiguracji. Pod swoją dzierżawą
+   tura sprawdza zdarzenia jeszcze raz tuż przed zapisaniem pierwszej komendy: po zmianie
+   zaczyna od nowa z aktualnymi zdarzeniami, a bez nich kończy się jak przebieg bez wyniku,
+   bez wywołania modelu. Komenda tury wyzwalacza ma własny identyfikator. Przy pierwszym
+   wysłaniu ta sama transakcja sprawdza zdarzenia i zapisuje decyzję: `delivered` przed
+   wysłaniem ramki albo `failed` z `TRIGGER_SUPERSEDED`, gdy zdarzenia się zmieniły.
+   Odrzucona komenda nigdy nie wychodzi, traci treść (`payload_pruned_at`), a przebieg zaczyna
+   od nowa z nową komendą i aktualnymi zdarzeniami albo kończy się bez wyniku. Komenda wysłana
+   wcześniej jest odzyskiwana bez zmian. Brama, która nie może wysłać komendy tury bota przez
+   brak zdolności workera, kończy ją błędem `BOT_WORKER_OUTDATED`, więc tura nie czeka
+   w nieskończoność; odmawia tylko bieżąca rejestracja workera (`worker_connections.epoch`)
+   i tylko dla komendy, której żadne połączenie jeszcze nie próbowało wysłać. Każda komenda
+   tury bota przekazana do połączenia jest od razu zapisana jako `delivered`, także przed
+   potwierdzeniem workera. Tura bota czekająca na workera (także na potwierdzenie
+   przerwania poprzedniej tury), który został w międzyczasie zarchiwizowany albo odwołany,
+   kończy się błędem konfiguracji (sprawdzane co 5 s): otwarta komenda dostaje
+   `BOT_WORKER_REMOVED`, a tura harnessu, której start worker już potwierdził, kończy się
+   jako `FAILED` z tym samym kodem, bo taki worker nie może jej już wykonać ani zgłosić wyniku.
+   Wynik końcowy zapisany wcześniej zostaje. Zdarzenie limitu musi też pochodzić z bieżącej
+   konfiguracji workera, a jego okno nie może być już zresetowane według zegara botów.
+4. Tura ma klucz `trigger:<id>:<partia>`, `hops` równe większej z wartości wyzwalacza
+   i najwyższego `hops` źródła plus jeden oraz wejście z instrukcjami, opisem filtra
+   i listą zdarzeń oznaczoną jako niezaufane dane.
+
+Zmiana, wyłączenie albo włączenie podnosi rewizję i porzuca otwarte partie. Wyłączenie
+i usunięcie przerywają tury wyzwalacza i odrzucają jego zaparkowane karty. Edycja nie
+wznawia wyzwalacza wstrzymanego automatycznie; robi to tylko jawne włączenie.
+Wyłączenie i włączenie modułu Bots usuwa zapisane zdarzenia i porzuca otwarte partie,
+a wyłączenie przerywa też oczekujące tury wyzwalaczy. Niedostarczona partia wygasa po
+24 godzinach, a zamknięte partie są usuwane po 14 dniach, także bez nowej pracy bota,
+ale nie wcześniej, niż skończy się ich tura.
+
+Tura wyzwalacza jest ukrytym przebiegiem w tle, jak rutyna. Prompt nazywa ją
+„event trigger”. Model widzi wyłącznie wejście tej tury, bez prywatnej historii
+i handoffu. Pamięć zakresu Bot jest tylko do odczytu. Odczyt wątków właściciela
+działa jak w rutynie. Narzędzia zarządzania rutynami i wyzwalaczami oraz
+`update_self` są niedostępne. Pamięć i odczyt wątków wymagają, by wyzwalacz utworzyło
+wywołanie `create_trigger` z prywatnej wiadomości właściciela. Odczyt i lista wątków
+pomijają wątki delegowane z rozmowy zewnętrznej i wątki innych komputerów. Tak samo
+lista i zmiany harmonogramów (także rodzic nowego wątku harmonogramu) pomijają
+harmonogramy i wątki pracujące dla rozmowy zewnętrznej,
+a pliki z prywatnej rozmowy właściciela są dla tury wyzwalacza niedostępne.
+
+### Narzędzia
+
+| Nazwa | Działanie | Zgoda |
+| --- | --- | --- |
+| `list_trigger_event_types` | Katalog typów, rodzajów zakresu, pól i wartości | R |
+| `preview_trigger` | Walidacja filtra, opis i szacunek z ostatnich 7 dni, bez zapisu; wymaga prywatnej wiadomości właściciela | R |
+| `create_trigger` | Nowy wyzwalacz; wymaga prywatnej wiadomości właściciela, sprawdzanej przed kartą | Karta przy szacunku powyżej 10 przebiegów w dobie albo bez pełnej historii, także w Full auto |
+| `update_trigger` | Zmiana z wymaganą `revision`; `enabled` wstrzymuje lub wznawia | Jak wyżej, gdy zmienia typ, filtr lub instrukcje włączonego wyzwalacza albo go włącza |
+| `list_triggers` | Własne wyzwalacze z licznikami z 7 dni | R |
+| `delete_trigger` | Usunięcie i przerwanie tur | Bez karty |
+
+Szacunek (`bots/trigger-history.ts`) czyta historię źródła z 7 dni z wykluczeniami
+własnej pracy bota i odtwarza okno ciszy, rozmiar partii i limit godzinowy, z partią
+czekającą na wolne miejsce (`estimateRuns`). Typ bez historii albo źródło bez faktów
+starszych niż 7 dni (np. nowa instalacja) zwraca „No full history…”, nigdy zero.
+Wywołanie ponawiane, gdy jego karta czeka, używa szacunku z pierwszej próby.
+
+UI API: `SetBotTriggerEnabled` i `DeleteBotTrigger`, z trasowaniem do domu bota na
+połączonych komputerach. **Bot details** w web/desktopie (`TriggerRow`) i na telefonie
+(`BotTriggers`) ma sekcję **Event triggers** obok rutyn: tytuł, opis filtra, liczbę
+zdarzeń i przebiegów z 7 dni albo stan pauzy (także **Paused after running too often**),
+ostatni przebieg, przełącznik i usunięcie z potwierdzeniem. Pusty stan podaje przykład
+prośby. Tworzenie i edycja odbywają się w rozmowie z botem. BFF web ma trasę
+`/api/bots/:botId/triggers/:triggerId` (PUT, DELETE). `BotConversation.triggers` przenosi wyzwalacze z licznikami.
+Przeniesienie bota dostarcza wyzwalacze wyłączone, bez zakresów, bo wskazują zasoby
+źródłowego komputera. Po wskazaniu lokalnych zasobów właściciel włącza je ponownie.
+Bot z wyzwalaczami (także usuniętymi) przenosi się tylko na komputer z możliwością
+`move_bot_triggers_v1`. Konsolidacja gatewayów przenosi zakresy razem z wyzwalaczami,
+pomija kolejki zdarzeń, partii, generacji i potwierdzeń, a import historii nie budzi
+wyzwalaczy celu (źródłowe wyzwalacze PostgreSQL celu są na ten czas wyłączone). Projekt
+scalony z istniejącym dostaje zachowane id w zakresach i filtrach wyzwalaczy.
+
+Testy: `tests/integration/bot-event-trigger-sources.test.ts` (CI, harmonogram i rozmowa
+zewnętrzna, próg limitu z punktem odniesienia i tożsamością profilu, współdzielony worker,
+nawyk), `tests/integration/bot-event-triggers.test.ts` (zakres i walidacja, składanie
+w jedną izolowaną turę, wyścig rewizji, własne i obserwowane tury, wyłączenie, limit
+i pauza w trzech godzinach, ponowny odczyt partii pod blokadą, tura z nieaktualnymi
+zdarzeniami, przełączenie modułu, odczyt wątku rozmowy zewnętrznej, karta w Full auto),
+`tests/integration/bot-parked-interactions.test.ts` oraz asercje przeniesienia
+w `computer-moves.test.ts`.
 
 ## 1. Decyzja o wykonaniu
 

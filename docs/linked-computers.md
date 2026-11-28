@@ -2463,8 +2463,11 @@ oba komputery mają kopię — po Unlink nic już ich nie łączy.
   Błąd zostawia ruch zatwierdzony, więc odtwarzanie ponawia ten krok.
 - **Bot:** prywatna rozmowa z zakończonymi turami, wiadomościami (z nowymi numerami `seq` i odpowiednim
   znacznikiem przeczytania), wywołaniami narzędzi, rozstrzygniętymi kartami, notatkami przekazania,
-  rutynami i przypomnieniami. Cel sprawdza powiązania tych rekordów oraz plików i szkicu z przenoszonym
-  botem. Rozmowy komunikatorów zostają u źródła. Cel wybiera własnego workera i uprawnienia dla nowych
+  rutynami, wyzwalaczami zdarzeń (przychodzą wyłączone) i przypomnieniami. Cel sprawdza powiązania tych
+  rekordów oraz plików i szkicu z przenoszonym botem, także odwołanie kontynuacji do jej zaparkowanej
+  karty (`resume_approval_id`, odtwarzane po wstawieniu kart). Bot z wyzwalaczami przenosi się tylko na
+  komputer z capability **`move_bot_triggers_v1`**; starszy cel odmawia przed decyzją. Rozmowy
+  komunikatorów zostają u źródła. Cel wybiera własnego workera i uprawnienia dla nowych
   działań bota. Zachowuje wymóg każdorazowej zgody oraz tryby `read_only` i `ask` dla tworzonych
   wątków. Pozostałe ustawienia uprawnień dostają lokalne wartości `safe` i `user_default`.
 - **Nie przechodzi (lista „To do again” w podglądzie):** konta connectorów i serwery MCP (są per komputer;

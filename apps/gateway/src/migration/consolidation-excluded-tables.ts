@@ -5,6 +5,11 @@ import { reflectionSourceTables } from "./consolidation-memory.ts";
 export const localOnlyTables = [
   "users",
   "schema_migrations",
+  // Event trigger queues: facts recorded on this gateway for its own triggers, never replayed elsewhere.
+  "bot_trigger_events",
+  "bot_trigger_batches",
+  "bot_trigger_generations",
+  "bot_trigger_receipts",
   "gateway_onboarding",
   "network_access",
   "mobile_devices",

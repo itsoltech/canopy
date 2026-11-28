@@ -14,6 +14,14 @@ export function botModuleTransition(sql: SqlClient.SqlClient, owner: string, ena
       AND deleted_at IS NULL ORDER BY id FOR UPDATE`;
 
     const ids = bots.map((b) => b.id);
+    // Events and batches recorded around a transition are never delivered after it, including an event whose
+    // transaction commits later: it carries the previous generation.
+    yield* sql`INSERT INTO bot_trigger_generations(owner_user_id, generation) VALUES (${owner}::uuid, 1)
+      ON CONFLICT (owner_user_id) DO UPDATE SET generation = bot_trigger_generations.generation + 1`;
+    yield* sql`DELETE FROM bot_trigger_events WHERE owner_user_id=${owner}::uuid`;
+    yield* sql`UPDATE bot_trigger_batches SET status='dropped', reason=${enabled ? "Bots was turned on" : reason},
+      closed_at=now(), check_after=NULL WHERE status='open'
+      AND trigger_id IN (SELECT id FROM bot_routines WHERE bot_id=ANY(${ids}::uuid[]))`;
 
     if (enabled) {
       const now = new Date();
@@ -38,7 +46,8 @@ export function botModuleTransition(sql: SqlClient.SqlClient, owner: string, ena
     const stopped = yield* sql<{ id: string }>`UPDATE bot_turns t SET status='interrupted',
       lease_token=NULL, lease_until=NULL, finished_at=now() WHERE bot_id=ANY(${ids}::uuid[]) AND
       (status IN ('running','waiting') OR (status='queued' AND (checkpoint <> '[]'::jsonb
-        OR (routine_id IS NOT NULL AND client_request_id LIKE 'routine:%')
+        OR (routine_id IS NOT NULL AND (client_request_id LIKE 'routine:%' OR client_request_id LIKE 'trigger:%'))
+        OR client_request_id LIKE 'parked:%'
         OR EXISTS(SELECT 1 FROM bot_harness_turns h WHERE h.turn_id=t.id)))) RETURNING id`;
 
     const turns = stopped.map((t) => t.id);

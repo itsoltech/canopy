@@ -136,6 +136,7 @@ function questionView(a: bots.BotApproval): QuestionView {
     freeText: true,
     expired: a.status === "expired",
     routineTitle: a.routineTitle || undefined,
+    routineKind: a.routineKind === "trigger" ? "trigger" : a.routineTitle ? "routine" : undefined,
     parked: a.parked || undefined,
     ...(!["pending", "expired"].includes(a.status) && {
       answer: {
@@ -188,6 +189,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
     fields: a.fields.length ? a.fields : fields,
     status,
     routineTitle: a.routineTitle || undefined,
+    routineKind: a.routineKind === "trigger" ? "trigger" : a.routineTitle ? "routine" : undefined,
     parked: a.parked || undefined,
     botProposal: proposal
       ? {

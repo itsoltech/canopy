@@ -76,6 +76,29 @@ function refFunction(sql: Database) {
     END $$`;
 }
 
+/**
+ * Event triggers name projects twice: in their scope rows and in their filter. A project merged into an existing
+ * one gets the kept id in both, once (docs/bots.md, Wyzwalacze zdarzeń).
+ */
+function rewriteTriggerProjects(sql: Database) {
+  return Effect.gen(function* () {
+    const [staged] = yield* sql<{ present: boolean }>`SELECT to_regclass('pg_temp.cc_bot_trigger_scopes') IS NOT NULL
+      AS present`;
+
+    if (!staged?.present) return;
+    yield* sql`UPDATE pg_temp.cc_bot_trigger_scopes s SET ref_id=m.target_id::text FROM pg_temp.cc_merge m
+      WHERE m.table_name='projects' AND s.kind='project' AND s.ref_id=m.source_id::text
+        AND m.target_id IS DISTINCT FROM m.source_id`;
+    yield* sql`DELETE FROM pg_temp.cc_bot_trigger_scopes a USING pg_temp.cc_bot_trigger_scopes b
+      WHERE a.ctid>b.ctid AND a.trigger_id=b.trigger_id AND a.kind=b.kind AND a.ref_id=b.ref_id`;
+    yield* sql`UPDATE pg_temp.cc_bot_routines r SET filter=jsonb_set(r.filter,'{scope,project}',
+      (SELECT coalesce(jsonb_agg(DISTINCT coalesce(m.target_id::text,p.value)),'[]') FROM
+        jsonb_array_elements_text(r.filter#>'{scope,project}') p(value)
+        LEFT JOIN pg_temp.cc_merge m ON m.table_name='projects' AND m.source_id::text=p.value))
+      WHERE r.kind='trigger' AND jsonb_typeof(r.filter#>'{scope,project}')='array'`;
+  });
+}
+
 /** Retain the federation parent relation, whose logical children may use another worker and project. */
 export function rewriteStagedReferences(sql: Database, input: ConsolidationInput) {
   return Effect.gen(function* () {
@@ -104,6 +127,8 @@ export function rewriteStagedReferences(sql: Database, input: ConsolidationInput
        FROM jsonb_array_elements(b.configuration->'mcpServerIds') WITH ORDINALITY ref(value,ordinal)
        LEFT JOIN pg_temp.cc_merge m ON m.table_name='connector_accounts' AND m.source_id::text=ref.value#>>'{}'))
       WHERE jsonb_typeof(b.configuration->'mcpServerIds')='array'`;
+
+    yield* rewriteTriggerProjects(sql);
 
     // A connector rule is an authorization for its original account. Keep the review history
     // and require a new grant if an explicit merge selected a competing account configuration.

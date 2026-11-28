@@ -177,6 +177,70 @@ describe.skipIf(!dockerAvailable)("bot capabilities on the harness runtime", () 
     expect((await f.settled(child.id)).messages.at(-1)?.text).toBe("FIXTURE_OK");
   });
 
+  test("an event trigger runs through the worker with a command of its own", async () => {
+    clock = new Date("2030-01-07T09:00:00.000Z");
+    const bot = await f.add(Provider.CODEX);
+    const project = (await f.gw.api.createProject({ name: `Triggers ${crypto.randomUUID().slice(0, 8)}` })).project!.id;
+    await f.tool(bot.id, "create_trigger", {
+      title: "Failed turns",
+      instructions: "Explain each failure.",
+      event: "thread.turn_finished",
+      filter: { scope: { project: [project] }, where: { status: { in: ["failed"] } } },
+    });
+
+    // Without history the owner approves how often it may run.
+    const card = await eventually(
+      () => f.read(bot.id),
+      (r) => r.approvals.some((a) => a.status === "pending"),
+    );
+
+    await f.gw.api.answerBotApproval({
+      approvalId: card.approvals.find((a) => a.status === "pending")!.id,
+      approve: true,
+    });
+    const trigger = (await f.settled(bot.id)).triggers[0]!;
+    const thread = crypto.randomUUID();
+    const turn = crypto.randomUUID();
+    await f.query(
+      `INSERT INTO threads(id, root_thread_id, project_id, owner_user_id, kind, runtime, provider, status, title)
+       VALUES($1::uuid, $1::uuid, $2::uuid, $3::uuid, 'main', 'gateway', 'anthropic', 'running', 'Release build')`,
+      [thread, project, f.gw.userId],
+    );
+    await f.query(
+      `INSERT INTO turns(id, thread_id, ordinal, trigger, author_user_id, input, status)
+       VALUES($1::uuid, $2::uuid, 1, 'user', $3::uuid, '{}', 'running')`,
+      [turn, thread, f.gw.userId],
+    );
+    await f.query("UPDATE turns SET status = 'failed', completed_at = now(), last_seq = 0 WHERE id = $1::uuid", [turn]);
+    // The background ticker may already be running: wait until the event is in a batch, then pass its quiet window.
+    await eventually(
+      async () => {
+        await f.gw.core.bots.tick();
+
+        return f.query("SELECT 1 FROM bot_trigger_batches WHERE trigger_id = $1::uuid AND status = 'open'", [
+          trigger.id,
+        ]);
+      },
+      (rows) => rows.length === 1,
+    );
+    clock = new Date(clock.getTime() + 301_000);
+    await f.gw.core.bots.tick();
+
+    const done = await eventually(
+      () =>
+        f.query<{ id: string; status: string; command_id: string }>(
+          `SELECT t.id, t.status, h.command_id FROM bot_turns t JOIN bot_harness_turns h ON h.turn_id = t.id
+           WHERE t.routine_id = $1::uuid`,
+          [trigger.id],
+        ),
+      (rows) => rows[0]?.status === "completed",
+    );
+
+    // A command of its own: one refused before its first send can be replaced without reusing its id.
+    expect(done[0]!.command_id).not.toBe(done[0]!.id);
+    expect((await f.read(bot.id)).triggers[0]?.runCount).toBe(1);
+  }, 20_000);
+
   test("multiple mentions retain exact bot ids and bot-to-bot replies use the target harness", async () => {
     const source = await f.add(Provider.CLAUDE);
     const targets = [await f.add(Provider.CODEX), await f.add(Provider.GROK)];

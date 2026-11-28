@@ -55,6 +55,9 @@ export const MOVE_ITEMS = "move_items";
 /** A moved thread continues its own harness session and files on the target's worker (docs/thread-transfers.md). */
 export const MOVE_NATIVE_SESSIONS = "move_native_sessions_v1";
 
+/** The target accepts a moved bot's event triggers (routines of kind trigger, without a cron). */
+export const MOVE_BOT_TRIGGERS = "move_bot_triggers_v1";
+
 /** Remote app updates: a directly linked computer's Canopy app updates on request (docs/updates.md). */
 export const REMOTE_APP_UPDATE = "remote_app_update";
 

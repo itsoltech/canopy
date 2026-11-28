@@ -18,6 +18,13 @@ import type { StoredAttachment } from "../store/attachments.ts";
 import type { BotAccess } from "./store-access.ts";
 import type { BotTurn } from "./types.ts";
 import type { AgentToolCall } from "@canopy/contracts";
+
+/** A worker connected without the capabilities a bot turn needs. */
+export const BOT_WORKER_OUTDATED = "BOT_WORKER_OUTDATED";
+
+/** A worker archived or revoked while a bot turn's command waited for it: it can never run or report it. */
+export const BOT_WORKER_REMOVED = "BOT_WORKER_REMOVED";
+
 import { storageEvent } from "../store/event-text.ts";
 import { withEventQuarantine } from "../store/event-quarantine.ts";
 import { settleChatSteer } from "./store-chat-steer.ts";
@@ -58,6 +65,41 @@ const commandFailure = (sql: SqlClient.SqlClient, id: string) =>
     result: JsonValue;
   }>`SELECT c.result FROM bot_harness_turns h JOIN worker_commands c ON c.id = h.command_id WHERE h.turn_id = ${id}::uuid AND c.status = 'failed'`.pipe(
     Effect.map((r) => r[0]?.result),
+  );
+
+/** Only the worker's current registration refuses a bot command, and only one no connection has attempted. */
+export const refuseBotCommand = (sql: SqlClient.SqlClient, id: string, workerId: string, epoch: bigint) =>
+  sql`UPDATE worker_commands c SET status = 'failed', completed_at = now(), result = ${JSON.stringify({
+    errorCode: BOT_WORKER_OUTDATED,
+    errorMessage: "Update this worker to run this bot, or pick another worker.",
+  })}::jsonb
+    WHERE c.id = ${id}::uuid AND c.status = 'pending' AND c.delivered_epoch IS NULL
+      AND EXISTS (SELECT 1 FROM worker_connections l WHERE l.worker_id = ${workerId}::uuid
+        AND l.epoch = ${epoch.toString()}::bigint)`;
+
+/**
+ * A bot turn whose worker was archived or revoked: that worker can never run its command or report an outcome. An
+ * open command ends with BOT_WORKER_REMOVED; a start the worker already acknowledged ends its harness turn. A
+ * terminal outcome already recorded is kept. True when the worker is gone.
+ */
+export const settleRemovedWorker = (sql: SqlClient.SqlClient, turnId: string, workerId: string) =>
+  sql.withTransaction(
+    Effect.gen(function* () {
+      const gone = yield* sql`SELECT 1 FROM workers WHERE id = ${workerId}::uuid
+        AND (archived_at IS NOT NULL OR revoked_at IS NOT NULL)`;
+
+      if (!gone.length) return false;
+      yield* sql`UPDATE worker_commands c SET status = 'failed', completed_at = now(),
+          result = ${JSON.stringify({ errorCode: BOT_WORKER_REMOVED })}::jsonb
+        FROM bot_harness_turns h WHERE h.turn_id = ${turnId}::uuid AND h.worker_id = ${workerId}::uuid
+          AND c.id = h.command_id AND c.worker_id = h.worker_id AND c.status IN ('pending', 'delivered')`;
+      yield* sql`UPDATE bot_harness_turns h SET outcome = ${TurnOutcome.FAILED}, error_code = ${BOT_WORKER_REMOVED},
+          reason = 'The worker was removed before the turn finished.', finished_at = now()
+        FROM worker_commands c WHERE h.turn_id = ${turnId}::uuid AND h.worker_id = ${workerId}::uuid
+          AND h.outcome IS NULL AND c.id = h.command_id AND c.worker_id = h.worker_id AND c.status = 'completed'`;
+
+      return true;
+    }),
   );
 
 const steerNotice = Schema.decodeUnknownSync(Schema.Struct({ input_id: Schema.String }));

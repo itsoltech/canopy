@@ -128,6 +128,8 @@ export interface StoredCall {
 
 export interface PreparedBotTool {
   prompt?: string;
+  /** The tool asks for a card this time, whatever the bot's policy (e.g. a frequent event trigger). */
+  requireApproval?: boolean;
   restrictedThreadId?: string;
 }
 

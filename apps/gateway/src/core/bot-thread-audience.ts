@@ -41,7 +41,8 @@ export async function botThreadAudience(core: GatewayCore, turn: BotTurn): Promi
   if (access.conversationId) return `conversation:${turn.bot_id}:${access.conversationId}`;
   const scope = access.scopes[0];
 
-  if (scope?.kind === "bot" && access.canWrite) return "";
+  // Routine and trigger runs read the owner's threads; a trigger also needs them to inspect its events.
+  if (scope?.kind === "bot" && (access.canWrite || access.trigger)) return "";
 
   if (scope?.kind === "bot" && turn.routine_id) return `routine:${scope.botId}:${turn.routine_id}`;
 
@@ -181,6 +182,103 @@ async function deliveredQuestion(core: GatewayCore, turn: BotTurn, call: StoredC
 }
 
 /** Check before any approval preview or history fetch. Remote history is attested by its own home. */
+/** An event trigger run: it reads the owner's threads, but none delegated from an external conversation. */
+export async function triggerThreadReads(core: GatewayCore, turn: BotTurn) {
+  if (!turn.routine_id) return false;
+  const { actions } = core[coreState];
+
+  const rows = await actions.run(
+    SqlClient.SqlClient.use(
+      (sql) => sql`SELECT 1 FROM bot_routines WHERE id=${turn.routine_id}::uuid AND kind='trigger'`,
+    ),
+  );
+
+  return rows.length > 0;
+}
+
+const TRIGGER_THREAD_ERROR =
+  "Event trigger runs read threads of this computer that were not delegated from a conversation.";
+
+async function requireTriggerThreads(core: GatewayCore, call: StoredCall) {
+  const { actions, options } = core[coreState];
+
+  const nested = call.arguments["new_thread"];
+
+  // A schedule's new thread can name its parent too.
+  const parent =
+    Predicate.isObject(nested) && !Array.isArray(nested) && "parent_thread_id" in nested
+      ? nested["parent_thread_id"]
+      : undefined;
+
+  const refs: [string, unknown][] = [
+    ...["thread_id", "parent_thread_id", "request_id", "schedule_id"].map((key): [string, unknown] => [
+      key,
+      call.arguments[key],
+    ]),
+    ["parent_thread_id", parent],
+  ];
+
+  for (const [key, id] of refs) {
+    // A reminder of this bot is not a platform schedule.
+    if (!Predicate.isString(id) || (key === "schedule_id" && call.arguments["scope"] === "wakeup")) continue;
+    const ref = ["request_id", "schedule_id"].includes(key) ? id : (core.computers?.redirects.map("thread", id) ?? id);
+
+    if (splitId(ref).node || !isUuid(ref)) throw new Invalid(TRIGGER_THREAD_ERROR);
+
+    const rows = await actions.run(SqlClient.SqlClient.use((sql) => triggerTarget(sql, options.userId, key, ref)));
+
+    if (!rows.length) throw new Invalid(TRIGGER_THREAD_ERROR);
+  }
+}
+
+/** The thread, request or schedule a trigger run names, if it may use it. */
+function triggerTarget(sql: SqlClient.SqlClient, owner: string, key: string, ref: string) {
+  switch (key) {
+    case "request_id":
+      return sql`SELECT 1 FROM interaction_requests i JOIN threads t ON t.id=i.thread_id WHERE i.id=${ref}::uuid
+        AND t.owner_user_id=${owner}::uuid AND t.memory_audience NOT LIKE 'conversation:%'`;
+    case "schedule_id":
+      return sql`SELECT 1 FROM schedules s WHERE s.id=${ref}::uuid AND ${triggerSchedule(sql, owner)}`;
+    default:
+      return sql`SELECT 1 FROM threads WHERE id=${ref}::uuid AND owner_user_id=${owner}::uuid
+        AND memory_audience NOT LIKE 'conversation:%'`;
+  }
+}
+
+/** A schedule `s` of the owner that neither it nor its thread works for an external conversation. */
+const triggerSchedule = (sql: SqlClient.SqlClient, owner: string) =>
+  sql`EXISTS (SELECT 1 FROM projects p WHERE p.id=s.project_id AND p.owner_user_id=${owner}::uuid)
+    AND s.memory_audience NOT LIKE 'conversation:%' AND (s.thread_id IS NULL OR EXISTS (SELECT 1 FROM threads t
+      WHERE t.id=s.thread_id AND t.memory_audience NOT LIKE 'conversation:%'))`;
+
+/** Of these schedules, the ones an event trigger run may list. */
+export async function triggerListableSchedules(core: GatewayCore, ids: readonly string[]) {
+  const { actions, options } = core[coreState];
+
+  const rows = await actions.run(
+    SqlClient.SqlClient.use(
+      (sql) => sql<{ id: string }>`SELECT s.id::text FROM schedules s WHERE s.id=ANY(${ids.filter(isUuid)}::uuid[])
+        AND ${triggerSchedule(sql, options.userId)}`,
+    ),
+  );
+
+  return new Set(rows.map((row) => row.id));
+}
+
+/** Of these local threads, the ones an event trigger run may list. */
+export async function triggerListableThreads(core: GatewayCore, ids: readonly string[]) {
+  const { actions, options } = core[coreState];
+
+  const rows = await actions.run(
+    SqlClient.SqlClient.use(
+      (sql) => sql<{ id: string }>`SELECT id::text FROM threads WHERE id=ANY(${ids.filter(isUuid)}::uuid[])
+        AND owner_user_id=${options.userId}::uuid AND memory_audience NOT LIKE 'conversation:%'`,
+    ),
+  );
+
+  return new Set(rows.map((row) => row.id));
+}
+
 export async function authorizeBotThreadCall(
   core: GatewayCore,
   turn: BotTurn,
@@ -192,6 +290,8 @@ export async function authorizeBotThreadCall(
     (!usesThreadConnection(call.tool.name) && call.tool.name !== "send_bot_message")
   )
     return;
+
+  if (await triggerThreadReads(core, turn)) await requireTriggerThreads(core, call);
   const name = call.tool.name;
   const audiences = await botThreadAudiences(core, turn, ["get_thread", "read_thread", "send_message"].includes(name));
 

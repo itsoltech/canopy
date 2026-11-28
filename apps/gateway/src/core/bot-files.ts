@@ -29,7 +29,8 @@ export async function conversationFiles(core: GatewayCore, turn: BotTurn, ids?: 
       const history =
         Boolean(turn.conversation_id) ||
         (yield* botMemoryAccess(sql, owner, turn).pipe(
-          Effect.map((access) => access.scopes.length > 0),
+          // An event trigger reads its event, never files from the owner's private chat.
+          Effect.map((access) => access.scopes.length > 0 && !access.trigger),
           Effect.catchIf(
             (error) => error instanceof Invalid,
             () => Effect.succeed(false),

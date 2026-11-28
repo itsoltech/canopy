@@ -6,6 +6,9 @@ import messengerOutboundFiles from "./0225_messenger_outbound_files.sql" with { 
 import projectLogins from "./0226_project_logins.sql" with { type: "text" };
 import threadTransfers from "./0227_thread_transfers.sql" with { type: "text" };
 import botParkedInteractions from "./0228_bot_parked_interactions.sql" with { type: "text" };
+import botEventTriggers from "./0229_bot_event_triggers.sql" with { type: "text" };
+import botTriggerThreadEvents from "./0230_bot_trigger_thread_events.sql" with { type: "text" };
+import botTriggerMoreEvents from "./0231_bot_trigger_more_events.sql" with { type: "text" };
 import { mobilePushDismissalMigrations } from "./mobile-push.ts";
 import { sqlFile } from "./run.ts";
 
@@ -20,4 +23,7 @@ export const recentMigrations = {
   "0226_project_logins": sqlFile(projectLogins),
   "0227_thread_transfers": sqlFile(threadTransfers),
   "0228_bot_parked_interactions": sqlFile(botParkedInteractions),
+  "0229_bot_event_triggers": sqlFile(botEventTriggers),
+  "0230_bot_trigger_thread_events": sqlFile(botTriggerThreadEvents),
+  "0231_bot_trigger_more_events": sqlFile(botTriggerMoreEvents),
 };

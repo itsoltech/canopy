@@ -51,6 +51,12 @@ function admitBotCommand(sql: SqlClient.SqlClient, commandId: string, turnId: st
   });
 }
 
+/** A bot command once attempted is never refused later: the worker may have received it. */
+const botAttempt = (sql: SqlClient.SqlClient, commandId: string) =>
+  sql`UPDATE worker_commands c SET status = 'delivered', delivered_epoch = w.epoch
+    FROM worker_connections w WHERE c.id = ${commandId}::uuid AND c.status = 'pending'
+      AND w.worker_id = c.worker_id`.pipe(Effect.asVoid);
+
 export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
   return {
     commandDispatchable: (commandId) =>
@@ -73,7 +79,9 @@ export function outboxStore(sql: SqlClient.SqlClient): OutboxStore {
             )
             UPDATE worker_commands c SET status = 'delivered', delivered_epoch = attempt.epoch FROM attempt
             WHERE c.id = attempt.id AND c.status = 'pending'`.pipe(Effect.asVoid)
-          : Effect.void,
+          : command.kind.case === "runBotTurn"
+            ? botAttempt(sql, command.commandId)
+            : Effect.void,
         sql.withTransaction(
           Effect.gen(function* () {
             const bot = command.kind.case === "runBotTurn";

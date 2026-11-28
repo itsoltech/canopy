@@ -56,6 +56,7 @@ export interface ApprovalRow {
   options?: unknown;
   proposed_bot: JsonValue | null;
   routine_title?: string;
+  routine_kind?: string | null;
   arguments?: JsonObject;
   prepared?: boolean;
   preference_change?: boolean;
@@ -168,6 +169,7 @@ export const approvalView = (row: ApprovalRow) =>
       : [],
     proposedBot: row.proposed_bot ? fromJson(bots.BotConfigurationSchema, row.proposed_bot) : undefined,
     routineTitle: row.routine_title ?? "",
+    routineKind: row.routine_kind ?? "",
     ruleOptions: decodedRules(row.rule_options),
     allowedByRule: row.allowed_by_rule ? fromJson(bots.BotApprovalRuleSchema, row.allowed_by_rule) : undefined,
     parked: row.parked === true,

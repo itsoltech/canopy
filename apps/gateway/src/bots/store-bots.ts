@@ -128,8 +128,9 @@ export function botMethods(sql: SqlClient.SqlClient, core: BotCore) {
         // Notifications: the newest card waiting for the owner, without its fields or proposal.
         const pending =
           yield* sql<ApprovalRow>`SELECT DISTINCT ON(a.bot_id) a.id, a.bot_id, a.turn_id, a.kind, left(a.prompt, 2000) AS prompt, a.status, '' AS answer,
-          a.created_at, a.expires_at, t.routine_title, NULL AS proposed_bot
+          a.created_at, a.expires_at, t.routine_title, rk.kind AS routine_kind, a.parked, NULL AS proposed_bot
         FROM bot_approvals a JOIN bots b ON b.id = a.bot_id JOIN bot_turns t ON t.id = a.turn_id
+        LEFT JOIN bot_routines rk ON rk.id = t.routine_id
         WHERE b.owner_user_id = ${user}::uuid AND b.deleted_at IS NULL AND a.status = 'pending' ORDER BY a.bot_id, a.created_at DESC, a.id DESC`;
 
         const byBot = new Map(latest.map((m) => [m.bot_id, messageView(m)]));

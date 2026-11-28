@@ -151,6 +151,15 @@ const historicalTriggers = new Map<string, readonly string[]>(
   }),
 );
 
+/** Source triggers that record events for bot event triggers (docs/bots.md). */
+const eventTriggerSources: readonly (readonly [string, readonly string[]])[] = [
+  ["turns", ["bot_trigger_turn_finished", "bot_trigger_schedule_finished"]],
+  ["interaction_requests", ["bot_trigger_needs_input"]],
+  ["pr_check_notes", ["bot_trigger_pr_checks"]],
+  ["schedule_runs", ["bot_trigger_schedule_run_insert", "bot_trigger_schedule_run_update"]],
+  ["memory_habits", ["bot_trigger_habit_insert", "bot_trigger_habit_update"]],
+];
+
 interface AdmissionChanges {
   triggers: { table: string; name: string }[];
   foreign: { table: string; name: string }[];
@@ -180,6 +189,17 @@ function suspendHistoricalAdmission(sql: Database, tables: readonly SelectedTabl
       if (order.has("bot_channel_routes"))
         changes.triggers.push({ table: "bot_channel_routes", name: "sync_slack_route_context" });
     }
+
+    // Imported history never wakes this gateway's event triggers, whatever the source had: its facts happened there.
+    const sources = eventTriggerSources.flatMap(([table, names]) =>
+      order.has(table) ? names.map((name) => ({ table, name })) : [],
+    );
+
+    const present = yield* sql<{ table: string; name: string }>`SELECT c.relname AS "table", t.tgname AS name
+      FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+      WHERE c.relnamespace='public'::regnamespace AND NOT t.tgisinternal AND t.tgname LIKE 'bot\_trigger\_%'`;
+
+    changes.triggers.push(...sources.filter((s) => present.some((p) => p.table === s.table && p.name === s.name)));
 
     // Previously imported or existing threads can acquire a resolved qualified reference too.
     if (!order.has("threads")) changes.triggers.push({ table: "threads", name: "threads_before_update" });

@@ -223,4 +223,7 @@ export const expectedSchemaMigrations = [
   "226_project_logins",
   "227_thread_transfers",
   "228_bot_parked_interactions",
+  "229_bot_event_triggers",
+  "230_bot_trigger_thread_events",
+  "231_bot_trigger_more_events",
 ];

@@ -7,6 +7,7 @@ import { settingsTools } from "./settings.ts";
 import { createBotTool } from "./create-bot.ts";
 import { reactToMessage } from "./reactions.ts";
 import { routineTools } from "./routines.ts";
+import { triggerTools } from "./triggers.ts";
 import { attachmentTools } from "./attachments.ts";
 import { workspaceTools } from "./workspace.ts";
 import { outgoingFileTools } from "./outgoing-files.ts";
@@ -34,6 +35,7 @@ export const areaTools = [
   createBotTool,
   reactToMessage,
   ...routineTools,
+  ...triggerTools,
   ...messengerTools,
 ];
 

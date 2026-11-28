@@ -24,6 +24,11 @@ import { messageDelegatingBot } from "./thread-messages.ts";
 import type { CallSource } from "../store/agent-bus-types.ts";
 import { botExecutions } from "./bot-execution.ts";
 import { botParked } from "./parked.ts";
+import { refuseBotCommand, settleRemovedWorker } from "./store-harness.ts";
+import { recheckTrigger, triggerDispatchable, workerBotLink } from "./trigger-current.ts";
+import { triggerStore } from "./triggers.ts";
+import { matchTriggerEvents } from "./trigger-matcher.ts";
+import { flushTriggerBatches } from "./trigger-flush.ts";
 
 export {
   botConfiguration,
@@ -83,9 +88,22 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...botTurns(sql, core),
     ...botApprovals(sql, core),
     ...botParked(sql, core),
+    recheckTrigger: (owner: string, turn: import("./types.ts").BotTurn, now: Date) =>
+      recheckTrigger(sql, owner, turn, now),
+    triggerDispatchable: (commandId: string, now: Date) => triggerDispatchable(sql, commandId, now),
+    workerBotLink: (workerId: string) => workerBotLink(sql, workerId),
+    refuseBotCommand: (id: string, workerId: string, epoch: bigint) => refuseBotCommand(sql, id, workerId, epoch),
+    settleRemovedWorker: (turnId: string, workerId: string) => settleRemovedWorker(sql, turnId, workerId),
+    ...queryMethods("bots.queue", triggerStore(sql, core)),
     // Scheduled background work: due routines, then parked cards whose decision window closed.
     deliverRoutines: (user: string, now: Date) =>
-      queue.routines.deliverRoutines(user, now).pipe(Effect.andThen(botParked(sql, core).expireParked(user))),
+      queue.routines
+        .deliverRoutines(user, now)
+        .pipe(
+          Effect.andThen(botParked(sql, core).expireParked(user)),
+          Effect.andThen(matchTriggerEvents(sql, user, now)),
+          Effect.andThen(flushTriggerBatches(sql, core, user, now)),
+        ),
     ...botRules(sql, core),
     ...botThreadApprovals(sql),
     ...botWakeups(sql, core),

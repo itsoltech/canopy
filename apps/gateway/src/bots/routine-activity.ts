@@ -9,14 +9,21 @@ type Phase = "started" | "completed" | "failed" | "interrupted";
 
 export function routineActivity(sql: SqlClient.SqlClient, turn: RoutineTurn, phase: Phase) {
   if (!turn.routine_id) return Effect.void;
+  const routineId = turn.routine_id;
 
-  const title = turn.routine_title ? ` “${turn.routine_title}”` : "";
+  return Effect.gen(function* () {
+    const [row] = yield* sql<{ kind: string }>`SELECT kind FROM bot_routines WHERE id = ${routineId}::uuid`;
+    const noun = row?.kind === "trigger" ? "trigger" : "routine";
+    const title = turn.routine_title ? ` “${turn.routine_title}”` : "";
 
-  const subject = turn.client_request_id.startsWith("routine:") ? `Routine${title}` : `Follow-up for routine${title}`;
+    const subject = turn.client_request_id.startsWith(`${noun}:`)
+      ? `${noun === "trigger" ? "Trigger" : "Routine"}${title}`
+      : `Follow-up for ${noun}${title}`;
 
-  const text = `${subject} ${phase === "interrupted" ? "stopped" : phase}`;
+    const text = `${subject} ${phase === "interrupted" ? "stopped" : phase}`;
 
-  return botActivityEvent(sql, turn.bot_id, turn.id, `routine-${phase}`, text);
+    yield* botActivityEvent(sql, turn.bot_id, turn.id, `routine-${phase}`, text);
+  });
 }
 
 /** Administrative stops bypass finish(). Only close runs that actually started. */

@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { triggerStore } from "./triggers.ts";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { bots, connectors } from "@canopy/contracts";
 import { Effect } from "effect";
@@ -90,6 +91,7 @@ export function botConversation(sql: SqlClient.SqlClient, core: BotCore) {
             delta: !!selection,
             removedMessageIds: selection?.ids ?? [],
             routines: yield* routines.routines(user, id),
+            triggers: yield* triggerStore(sql, core).triggers(user, id),
             reminders: reminders.map((r) =>
               create(bots.BotReminderSchema, {
                 id: r.id,
@@ -254,12 +256,14 @@ function ownerApprovals(sql: SqlClient.SqlClient, id: string) {
   return sql<ApprovalRow & { source_context: string | null }>`SELECT a.*, c.arguments,
               (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'answer_interaction') AS prepared,
               (c.tool ->> 'source' = 'platform' AND c.tool ->> 'name' = 'set_canopy_preference') AS preference_change,
-              t.routine_title, CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options,
+              t.routine_title, rk.kind AS routine_kind,
+              CASE WHEN a.kind = 'question' THEN c.arguments -> 'options' END AS options,
               CASE WHEN x.id IS NOT NULL THEN concat('External task · Slack account ', ma.name,
                 ' · channel ', x.channel_id, ' · thread ', x.thread_id,
                 CASE WHEN a.kind = 'question' THEN E'\nYour answer goes to the bot for this external task. Keep private details out.' ELSE '' END)
               END AS source_context
         FROM bot_approvals a JOIN bot_turns t ON t.id = a.turn_id LEFT JOIN bot_tool_calls c ON c.id = a.id
+        LEFT JOIN bot_routines rk ON rk.id = t.routine_id
         LEFT JOIN bot_channel_conversations x ON x.id=t.conversation_id
         LEFT JOIN bot_channel_routes r ON r.id=x.route_id LEFT JOIN messenger_accounts ma ON ma.id=r.account_id
         WHERE a.bot_id = ${id}::uuid ORDER BY a.created_at, a.id`;

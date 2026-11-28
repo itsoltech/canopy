@@ -149,13 +149,14 @@ function botEnqueue(
         const routine = options.routineId
           ? (yield* sql<{
               instructions: string;
-            }>`SELECT instructions FROM bot_routines WHERE id = ${options.routineId}::uuid AND bot_id = ${botId}::uuid AND enabled AND deleted_at IS NULL`)[0]
+              kind: string;
+            }>`SELECT instructions, kind FROM bot_routines WHERE id = ${options.routineId}::uuid AND bot_id = ${botId}::uuid AND enabled AND deleted_at IS NULL`)[0]
           : undefined;
 
         if (options.routineId && !routine) return yield* Effect.fail(new Invalid("routine is disabled or deleted"));
 
         const storedInput = routine
-          ? `Routine instructions (${options.routineTitle}):\n${routine.instructions}\n\n${input}`
+          ? `${routine.kind === "trigger" ? "Event trigger" : "Routine"} instructions (${options.routineTitle}):\n${routine.instructions}\n\n${input}`
           : input;
 
         const inserted =
