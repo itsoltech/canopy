@@ -31,8 +31,9 @@ wierszu. Panel i strzałka używają ruchu sekcji osi czasu, a przy ograniczeniu
 przełączają się od razu.
 
 Status (2026-11-28). Na iOS i Androidzie sekcje ustawień z kilkoma tematami mają
-przełącznik zakładek taki jak w pasku bocznym Threads/Bots. Zakładki mieszczą się
-w kilku wierszach na wąskim ekranie. W **Settings → Threads** domyślnie otwiera się
+przełącznik zakładek o tej samej wysokości co Threads/Bots. Każda zakładka ma
+minimum 32 dp wysokości i rośnie wraz z tekstem. Na wąskim ekranie zakładki
+przechodzą do kolejnych wierszy. W **Settings → Threads** domyślnie otwiera się
 **New threads**. **Thread list** zawiera ustawienia paska bocznego i potwierdzeń,
 **Conversation** grupuje ustawienia rozmowy, **Sandbox and subagents** zawiera
 profile sandboxa i uprawnienia subagentów, a **Archiving** obejmuje archiwizację i retencję.
