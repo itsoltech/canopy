@@ -1,5 +1,7 @@
 # Aktualizacje Canopy
 
+Aktualizacja (2026-11-28): zakładka Releases pokazuje notatki do każdej wersji Canopy tylko raz.
+
 Aktualizacja (2026-11-27): opcjonalne automatyczne Update all, gdy praca właściciela jest wolna
 ([Automatyczne aktualizacje](#automatyczne-aktualizacje)).
 
@@ -265,8 +267,9 @@ do Status. Agent CLI instaluje się w szczegółach jego workera.
 **Update preferences** grupuje lokalny kanał i częstotliwość sprawdzania aplikacji
 oraz, dla osobnego gatewaya, jego kanał i pin wersji. Zmiana na starszy kanał
 lub starszą przypiętą wersję gatewaya wymaga potwierdzenia. **Releases** zawiera
-historię zmian oraz dostępne notatki wydania. Pusty zakres notatek aktualizacji
-ukrywa jego rozwinięcie.
+historię zmian zainstalowanej wersji. Poniżej widać od razu notatki do dostępnej
+aktualizacji desktopu. Dla osobnego gatewaya zakładka pokazuje również notatki
+do tych wersji, których nie wyświetliła już przy aktualizacji desktopu.
 
 Proces main, gateway i web BFF czytają statyczny indeks wydań z CDN GitHub Pages,
 bez tokena i bez limitu REST API. Każdy proces współdzieli cache 15 min oraz trwające
