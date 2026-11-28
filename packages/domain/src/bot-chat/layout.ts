@@ -1,4 +1,5 @@
 import {
+  compareEntryTime,
   entryAt,
   entryId,
   type ApprovalView,
@@ -65,7 +66,7 @@ export interface ChatLayoutInput {
 }
 
 export function layoutChat({ entries, participants, me, kind, endSideId, firstUnreadId }: ChatLayoutInput): ChatRow[] {
-  const sorted = [...entries].sort((a, b) => entryAt(a).getTime() - entryAt(b).getTime());
+  const sorted = [...entries].sort(compareEntryTime);
   const rows: ChatRow[] = [];
   let previousAt: Date | undefined;
 
@@ -73,11 +74,10 @@ export function layoutChat({ entries, participants, me, kind, endSideId, firstUn
     const id = entryId(entry);
     const at = entryAt(entry);
 
-    if (!previousAt || !sameDay(previousAt, at) || at.getTime() - previousAt.getTime() >= DATE_GAP_MS)
+    if (at && (!previousAt || !sameDay(previousAt, at) || at.getTime() - previousAt.getTime() >= DATE_GAP_MS))
       rows.push({ kind: "date", id: `date:${id}`, at });
 
     if (id === firstUnreadId) rows.push({ kind: "unread", id: `unread:${id}` });
-    previousAt = at;
 
     if (entry.kind === "event") rows.push({ kind: "event", id, event: entry.event });
     else if (entry.kind === "question")
@@ -102,7 +102,9 @@ export function layoutChat({ entries, participants, me, kind, endSideId, firstUn
       const continues =
         before?.kind === "message" &&
         before.message.senderId === message.senderId &&
-        message.at.getTime() - before.message.at.getTime() < RUN_GAP_MS;
+        at !== undefined &&
+        previousAt !== undefined &&
+        at.getTime() - previousAt.getTime() < RUN_GAP_MS;
 
       if (continues) before.last = false;
       rows.push({
@@ -117,6 +119,8 @@ export function layoutChat({ entries, participants, me, kind, endSideId, firstUn
         showName: !continues && !mine && kind !== "direct",
       });
     }
+
+    previousAt = at;
   }
 
   return rows;

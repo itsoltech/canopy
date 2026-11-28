@@ -69,3 +69,25 @@ describe("bot conversation history with forwarded approvals", () => {
     expect(new Set(after.map((row) => row.id)).size).toBe(after.length);
   });
 });
+
+test("message rows show only their own recorded send time", () => {
+  const snapshot = create(bots.BotConversationSchema, {
+    bot: { id: "bot" },
+    streamingText: "Typing",
+    messages: [
+      { id: "undated", senderId: "user", text: "Earlier message" },
+      { id: "request", senderId: "user", createdAt: at(10), text: "Question" },
+      { id: "reply", senderId: "bot", createdAt: at(11), text: "Answer" },
+    ],
+  });
+
+  const timeline = rows(botEntries(snapshot));
+
+  expect(timeline.flatMap((row) => (row.kind === "date" ? [row.id] : []))).toEqual(["date:request"]);
+  expect(timeline.flatMap((row) => (row.kind === "message" ? [[row.id, row.message.at?.toISOString()]] : []))).toEqual([
+    ["undated", undefined],
+    ["request", "2026-11-10T08:10:00.000Z"],
+    ["reply", "2026-11-10T08:11:00.000Z"],
+    ["stream:bot", undefined],
+  ]);
+});

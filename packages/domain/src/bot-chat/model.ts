@@ -69,7 +69,8 @@ export interface LinkView {
 export interface ChatMessageView {
   id: string;
   senderId: string;
-  at: Date;
+  /** The recorded send time, if available. */
+  at: Date | undefined;
   /** Markdown from bots; your own messages are shown as plain text. */
   text: string;
   mentions?: readonly Mention[] | undefined;
@@ -195,14 +196,15 @@ export interface BotStatusView {
 }
 
 export type ChatEntry =
-  | { kind: "message"; message: ChatMessageView }
+  // A streaming reply can be positioned against the saved history before it has its own send time.
+  | { kind: "message"; message: ChatMessageView; positionAt?: Date | undefined }
   | { kind: "event"; event: ChatEventView }
   | { kind: "question"; question: QuestionView }
   | { kind: "approval"; approval: ApprovalView }
   | { kind: "error"; error: ChatErrorView }
   | { kind: "exchange"; exchange: ChatExchangeView };
 
-const entryValue = (entry: ChatEntry): { id: string; at: Date } => {
+const entryValue = (entry: ChatEntry): { id: string; at: Date | undefined } => {
   switch (entry.kind) {
     case "message":
       return entry.message;
@@ -221,7 +223,11 @@ const entryValue = (entry: ChatEntry): { id: string; at: Date } => {
 
 export const entryId = (entry: ChatEntry): string => entryValue(entry).id;
 
-export const entryAt = (entry: ChatEntry): Date => entryValue(entry).at;
+export const entryAt = (entry: ChatEntry): Date | undefined =>
+  entry.kind === "message" ? (entry.message.at ?? entry.positionAt) : entryValue(entry).at;
+
+export const compareEntryTime = (a: ChatEntry, b: ChatEntry): number =>
+  (entryAt(a)?.getTime() ?? 0) - (entryAt(b)?.getTime() ?? 0);
 
 /** Name shown for a conversation: the group's title or its bots' names. */
 export function conversationTitle(conversation: ConversationView): string {

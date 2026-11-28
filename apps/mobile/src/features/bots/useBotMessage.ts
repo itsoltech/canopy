@@ -96,7 +96,7 @@ export function useBotMessage(id: string, live: boolean, onSend: () => void, sou
         sourceThreadId: id,
         sourceKind: "agent_message",
         sourceAuthor: message.senderId === "me" ? "You" : sourceName,
-        sourceTime: message.at.toLocaleString(),
+        sourceTime: message.at?.toLocaleString() ?? "",
       }),
     );
   }

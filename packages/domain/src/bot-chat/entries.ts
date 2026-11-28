@@ -1,7 +1,7 @@
 import { harnessName } from "../harnesses.ts";
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
 import type { bots } from "@canopy/contracts";
-import { entryAt, type ApprovalView, type BotView, type ChatEntry, type QuestionView } from "./model.ts";
+import { compareEntryTime, type ApprovalView, type BotView, type ChatEntry, type QuestionView } from "./model.ts";
 
 /** A bot's chat (bots.BotConversation) as chat entries and participants (model.ts), for every client. */
 
@@ -16,6 +16,12 @@ export function botParticipant(bot: bots.Bot): BotView {
 }
 
 export const dateOf = (at: Timestamp | undefined) => (at ? timestampDate(at) : new Date(0));
+
+function sentAt(at: Timestamp | undefined): Date | undefined {
+  const date = at && timestampDate(at);
+
+  return date && Number.isFinite(date.getTime()) ? date : undefined;
+}
 
 /** "Message from Grok Bot: hi" (what the receiving bot's model reads) is shown as "hi". */
 const relayed = /^Message from [^:\n]{1,80}: /;
@@ -39,7 +45,8 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
   const lastReply = snapshot.messages.findLast((message) => message.senderId !== "activity");
 
   const entries: ChatEntry[] = snapshot.messages.map((m): ChatEntry => {
-    const at = dateOf(m.createdAt);
+    const createdAt = sentAt(m.createdAt);
+    const at = createdAt ?? new Date(0);
 
     if (m.failed)
       return {
@@ -94,7 +101,7 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
       kind: "message",
       message: {
         id: m.id,
-        at,
+        at: createdAt,
         senderId: m.senderId === "user" ? "me" : m.senderId,
         text: m.text,
         mentions: m.mentions,
@@ -115,11 +122,12 @@ export function botEntries(snapshot: bots.BotConversation): ChatEntry[] {
   if (snapshot.streamingText)
     entries.push({
       kind: "message",
-      message: { id: `stream:${botId}`, at: dateOf(last?.createdAt), senderId: botId, text: snapshot.streamingText },
+      message: { id: `stream:${botId}`, at: undefined, senderId: botId, text: snapshot.streamingText },
+      positionAt: sentAt(last?.createdAt),
     });
 
   // Clients select the latest window before layoutChat runs. Cards arrive separately from messages.
-  return entries.sort((a, b) => entryAt(a).getTime() - entryAt(b).getTime());
+  return entries.sort(compareEntryTime);
 }
 
 function questionView(a: bots.BotApproval): QuestionView {
@@ -213,6 +221,6 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
 export function exchangeEntries(messages: readonly bots.BotMessage[]): ChatEntry[] {
   return messages.map((m) => ({
     kind: "message",
-    message: { id: m.id, at: dateOf(m.createdAt), senderId: m.senderId, text: displayText(m) },
+    message: { id: m.id, at: sentAt(m.createdAt), senderId: m.senderId, text: displayText(m) },
   }));
 }

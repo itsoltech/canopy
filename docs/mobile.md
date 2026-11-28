@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). W rozmowach z botami pod zapisaną wiadomością widać datę
+i godzinę wysłania, jeżeli są dostępne. Godzina uwzględnia ustawienie **Time format**.
+
 Status (2026-11-28). Wskaźnik kontekstu w kompozytorze ma nowy tryb **Percentage**.
 W trybach **Text** i **Percentage** zmieniające się cyfry pojawiają się z animacją.
 
