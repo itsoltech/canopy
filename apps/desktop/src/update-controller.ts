@@ -8,6 +8,7 @@ import { UpdateOperation, UpdateResumed, updateTimeouts } from "./update-operati
 import type { CheckClock } from "@canopy/domain/update-checks";
 import { systemCheckClock } from "@canopy/domain/update-checks";
 import { ReleaseRateLimit } from "@canopy/domain/release/http";
+import { UpdateInstallerMissingError, WindowsManualUpdateError, WindowsUpdateAdminError } from "./update-install.ts";
 
 export type Updater = Pick<
   AppUpdater,
@@ -146,6 +147,7 @@ export class UpdateController {
         phase: this.enabled ? "idle" : "disabled",
         updateVersion: undefined,
         stagedVersion: undefined,
+        manualInstall: undefined,
         error: undefined,
         progress: undefined,
         releases: undefined,
@@ -189,6 +191,18 @@ export class UpdateController {
 
     return this.running && this.operation ? this.operation : Promise.resolve(this.status());
   }
+  installerMissing(error = new UpdateInstallerMissingError()) {
+    if (this.state.phase !== "downloaded") return;
+    this.staged = undefined;
+    this.publish({
+      phase: "error",
+      message: error.message,
+      error: error.message,
+      stagedVersion: undefined,
+      manualInstall: undefined,
+      progress: undefined,
+    });
+  }
   async prepareInstall() {
     if (!this.state.stagedVersion || this.state.changingChannel || this.installing) return false;
     this.installing = true;
@@ -201,9 +215,23 @@ export class UpdateController {
         return true;
       } catch (error) {
         this.installing = false;
-        this.publish({
-          error: error instanceof Error ? error.message : "Could not prepare the app update. Retry on this computer.",
-        });
+
+        if (error instanceof UpdateInstallerMissingError) this.installerMissing(error);
+        else {
+          const manualInstall =
+            error instanceof WindowsUpdateAdminError
+              ? "administrator"
+              : error instanceof WindowsManualUpdateError
+                ? "unconfirmed"
+                : undefined;
+
+          const message =
+            error instanceof Error ? error.message : "Could not prepare the app update. Retry on this computer.";
+
+          if (this.staged) this.staged = { ...this.staged, manualInstall, error: message };
+          this.publish({ manualInstall, error: message });
+        }
+
         throw error;
       }
     }
@@ -235,9 +263,10 @@ export class UpdateController {
             message: this.staged.message,
             updateVersion: this.staged.updateVersion,
             stagedVersion: this.staged.stagedVersion,
+            manualInstall: this.staged.manualInstall,
             progress: 100,
             releases: this.staged.releases,
-            error,
+            error: error ?? (this.staged.manualInstall ? this.staged.error : undefined),
           }
         : { phase: error ? "error" : "idle", message: error ?? message, error, progress: undefined },
     );
@@ -394,6 +423,7 @@ export class UpdateController {
           message: "An update is ready to install",
           updateVersion: this.downloadedVersion,
           stagedVersion: this.downloadedVersion,
+          manualInstall: undefined,
           error: undefined,
           progress: 100,
         });

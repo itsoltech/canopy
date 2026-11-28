@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
+  import { browser } from "$app/environment";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -33,6 +34,8 @@
 
   const status = $derived(updates.status);
   const ready = $derived(!!status?.stagedVersion || status?.phase === "downloaded");
+  const windows = browser && window.canopyDesktop?.platform === "win32";
+  const manualInstall = $derived(status?.phase === "downloaded" && status.manualInstall);
 
   const reported = $derived(worker?.desktop ?? (bundled ? center.snapshot?.app : undefined));
 
@@ -90,12 +93,24 @@
                 : undefined,
   );
 
-  const row = $derived(center.rowStatus(key, furthestStatus(own, requested)));
+  const row = $derived(
+    windows && downloading
+      ? "updating"
+      : manualInstall
+        ? "failed"
+        : center.rowStatus(key, furthestStatus(own, requested)),
+  );
+
   const actionable = $derived(center.writable && !!worker && desktop?.connected && !desktop.disabledReason);
   const gatewayBusy = $derived(center.writable && center.active);
 
+  const retryLocally = $derived(
+    windows && row === "failed" && !ready && status?.phase !== "disabled" && status?.phase !== "checking",
+  );
+
   const error = $derived(
-    desktop?.reason ||
+    (windows && status?.error) ||
+      desktop?.reason ||
       center.snapshot?.run?.steps[step]?.reason ||
       updates.error ||
       status?.error ||
@@ -146,7 +161,16 @@
     class={className}
   >
     {#snippet action()}
-      {#if row === "downloaded" || (ready && (row === "failed" || downloading))}
+      {#if manualInstall && compact}
+        <IconButton
+          icon="folder-open"
+          size="sm"
+          label="Update manually"
+          disabled={!!status.changingChannel || gatewayBusy}
+          loading={updates.restarting}
+          onclick={() => void updates.run()}
+        />
+      {:else if !manualInstall && (row === "downloaded" || (ready && (row === "failed" || downloading)))}
         {#if !restartInFooter}
           <IconButton
             icon="power"
@@ -160,7 +184,16 @@
             onclick={() => void updates.run()}
           />
         {/if}
-      {:else if row === "failed" && step < 0}
+      {:else if retryLocally && compact}
+        <IconButton
+          icon="repeat"
+          size="sm"
+          label="Retry app update"
+          disabled={gatewayBusy || !!status.changingChannel}
+          loading={updates.pending}
+          onclick={() => void updates.check()}
+        />
+      {:else if row === "failed" && step < 0 && !windows}
         <IconButton
           icon="repeat"
           size="sm"
@@ -198,6 +231,23 @@
       {/if}
     {/snippet}
     {#snippet errorActions()}
+      {#if manualInstall}
+        <Button
+          size="sm"
+          class="justify-self-start"
+          disabled={gatewayBusy || !!status.changingChannel}
+          loading={updates.restarting}
+          onclick={() => void updates.run()}>Update manually</Button
+        >
+      {:else if retryLocally}
+        <Button
+          size="sm"
+          class="justify-self-start"
+          disabled={gatewayBusy || !!status.changingChannel}
+          loading={updates.pending}
+          onclick={() => void updates.check()}>Retry app update</Button
+        >
+      {/if}
       {#if desktop?.phase === "failed" && (worker || bundled)}
         <Button
           size="sm"
@@ -219,7 +269,7 @@
         {status.buildChannel} build{bundled ? " · Includes this computer’s gateway and worker." : ""}
       </p>
       {#if info}<p class="break-anywhere">{info}</p>{/if}
-      {#if ready}
+      {#if ready && !manualInstall}
         <p>
           {downloading
             ? "Restart waits for the download, then stops agents running on this computer."

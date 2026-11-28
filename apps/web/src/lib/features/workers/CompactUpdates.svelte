@@ -33,6 +33,7 @@
 
   const restartInFooter = $derived(
     (!!app.status?.stagedVersion || app.status?.phase === "downloaded") &&
+      !app.status?.manualInstall &&
       !stopped &&
       updates.run?.state !== "running" &&
       !(snapshot && bulkUpdatesAvailable(snapshot)),

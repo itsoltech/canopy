@@ -123,6 +123,8 @@ export interface DesktopUpdateStatus {
   updateVersion?: string | undefined;
   /** Exact cached version available for explicit installation, including during a newer download. */
   stagedVersion?: string | undefined;
+  /** The staged Windows installer needs a manual install on this computer. */
+  manualInstall?: "administrator" | "unconfirmed" | undefined;
   error?: string | undefined;
   /** Release checks pause until the public metadata service's rate limit resets. */
   retryAt?: number | undefined;

@@ -49,7 +49,7 @@ export function remoteAppUpdate(
         }).show();
     },
     prepareRestart: () => updates.prepareRestart(),
-    restart: () => updates.restartPrepared(),
+    restart: () => updates.restartPrepared("remote"),
   });
 }
 

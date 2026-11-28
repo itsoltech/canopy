@@ -81,6 +81,11 @@ export function appUpdateInstaller(updater: AppUpdater) {
   return updater instanceof StagedNsisUpdater ? updater.manualInstaller : null;
 }
 
+/** Windows uses the verified download without electron-updater's elevation and shell fallbacks. */
+export function launchWindowsAppUpdate(updater: AppUpdater) {
+  return updater instanceof StagedNsisUpdater ? updater.launch() : undefined;
+}
+
 class StagedAppImageUpdater extends AppImageUpdater {
   private readonly downloads = new StagedDownloads();
   constructor(directory?: string) {
