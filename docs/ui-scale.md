@@ -15,8 +15,9 @@ Aktualizacja (2026-11-26): listy sidebara web/desktop mają mniejszy odstęp po 
 i zachowują szerokość po pojawieniu się paska przewijania.
 Aktualizacja (2026-11-28): zakładki tematów ustawień mają na desktopie 28 px zamiast 32 px.
 Aktualizacja (2026-11-28): menu zadań w tle nad composerem pokazuje podglądy poleceń w wierszach listy.
-Aktualizacja (2026-11-28): wiadomość od agenta dołączona do trwającej tury w web/desktop
-pokazuje odnośnik do nadawcy i początek treści w jednym wierszu. Przy szerokości
+Aktualizacja (2026-11-28): w web/desktop pierwsza wiadomość wątku od bota lub innego
+agenta oraz wiadomość dołączona przez nich do trwającej tury pokazują odnośnik
+do nadawcy i początek treści w jednym wierszu. Przy szerokości
 kolumny poniżej 30 rem podgląd przechodzi pod nazwę. Osobny przycisk rozwija
 treść z metadanymi i akcjami, a status oczekującej wiadomości jest widoczny
 również po zwinięciu. Panel i strzałka korzystają z ruchu akordeonu, z natychmiastową

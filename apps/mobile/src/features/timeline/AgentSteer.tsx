@@ -8,13 +8,14 @@ import { Chevron } from "../../ui/MotionViews";
 import { useAnchoredToggle } from "../../ui/feed-anchor";
 import { styles, useTypography } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
-import { BotSender, SenderDetails } from "./SenderLabel";
+import { BotSender, LocalBotSender, SenderDetails } from "./SenderLabel";
 import { TimelineDisclosure } from "./TimelineDisclosure";
 import { ThreadLink } from "./items/bus/ThreadLink";
 
 export function AgentSteer({
   sourceId,
   sender,
+  botId,
   text,
   status,
   pending,
@@ -25,6 +26,7 @@ export function AgentSteer({
 }: {
   sourceId: string;
   sender?: ui.AgentSender | undefined;
+  botId?: string | undefined;
   text: string;
   status: string;
   pending: boolean;
@@ -64,6 +66,8 @@ export function AgentSteer({
             <View pointerEvents="box-none" style={{ flex: 1, minWidth: 0, alignItems: "flex-start" }}>
               {sender?.botId ? (
                 <BotSender verb="" botId={sender.botId} sender={sender} color={violet.text} />
+              ) : botId ? (
+                <LocalBotSender botId={botId} color={violet.text} />
               ) : sourceId ? (
                 <ThreadLink threadId={sourceId} fallback={sender?.title || "Another thread"} />
               ) : (

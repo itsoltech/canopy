@@ -1,7 +1,8 @@
 import { useAppearance } from "../../state/appearance";
 import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
-import type { ui } from "@canopy/contracts";
+import type { bots, ui } from "@canopy/contracts";
+import { useBotList } from "../../state/bot-list";
 import { router } from "expo-router";
 import { MascotAvatar } from "../bots/BotAvatar";
 import { ProviderIcon } from "../../ui/ProviderIcon";
@@ -13,15 +14,17 @@ export function BotSender({
   verb = "Message from",
   botId,
   sender,
+  bot,
   color,
 }: {
   verb?: string;
   botId: string;
   sender?: ui.AgentSender | undefined;
+  bot?: bots.BotConfiguration | undefined;
   color: string;
 }) {
   const { botsEnabled } = useAppearance();
-  const name = sender?.botId ? sender.title : "";
+  const name = sender?.botId ? sender.title : bot?.name;
 
   return (
     <View style={[styles.row, { gap: 6, flexShrink: 1 }]}>
@@ -35,7 +38,13 @@ export function BotSender({
           hitSlop={8}
           style={[styles.row, { gap: 4, flexShrink: 1 }]}
         >
-          <MascotAvatar id={botId} name={name} shape={sender?.botShape} color={sender?.botColor} size={16} />
+          <MascotAvatar
+            id={botId}
+            name={name}
+            shape={sender?.botShape ?? bot?.shape}
+            color={sender?.botColor ?? bot?.color}
+            size={16}
+          />
           <Text numberOfLines={1} style={[styles.meta, { flexShrink: 1, fontFamily: font.medium, color }]}>
             {name}
           </Text>
@@ -45,6 +54,13 @@ export function BotSender({
       )}
     </View>
   );
+}
+
+/** A local bot can start a thread with only its ID in the turn history. */
+export function LocalBotSender({ botId, color }: { botId: string; color: string }) {
+  const bot = useBotList().data?.bots.find((entry) => entry.id === botId);
+
+  return <BotSender verb="" botId={botId} bot={bot?.configuration} color={color} />;
 }
 
 /**

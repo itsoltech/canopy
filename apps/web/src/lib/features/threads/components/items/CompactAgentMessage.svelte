@@ -15,23 +15,29 @@
 
   let {
     sender,
-    threadId,
+    botId: sourceBotId,
+    threadId: sourceThreadId,
     note,
-    pending,
+    pending = false,
     text,
     previewFallback,
+    metadata,
     children,
   }: {
     sender?: ui.AgentSender | undefined;
+    botId?: string | undefined;
     threadId: string;
     note: MessageNote;
-    pending: boolean;
+    pending?: boolean;
     text: string;
     previewFallback?: string | undefined;
+    metadata?: Snippet | undefined;
     children: Snippet;
   } = $props();
 
   const directory = useThreadDirectory();
+  const botId = $derived(sender?.botId || sourceBotId);
+  const threadId = $derived(sender?.threadId || sourceThreadId);
   const memory = useRemembered<boolean>("agent-message");
   const id = $props.id();
   const preview = $derived(firstLine(text).text || previewFallback || "Show message");
@@ -40,7 +46,7 @@
   $effect(() => memory?.set(expanded));
 </script>
 
-<div class="@container w-full max-w-[42rem]">
+<div class="@container ml-auto w-full max-w-[42rem]">
   <div
     class="relative ml-auto grid w-fit max-w-full items-center gap-x-2 rounded-lg bg-violet-500/5 px-2 py-1 text-sm/5 text-zinc-700 sm:text-[0.8125rem]/5 @min-[30rem]:min-h-8 @min-[30rem]:grid-cols-[fit-content(45%)_minmax(0,1fr)] dark:text-zinc-300 pointer-coarse:min-h-11"
   >
@@ -53,8 +59,8 @@
       <span
         class="relative z-1 inline-flex max-w-full min-w-0 items-center text-sm/5 font-medium sm:text-xs/5 [&_a]:pointer-events-auto"
       >
-        {#if sender?.botId}
-          <BotSenderLabel botId={sender.botId} {sender} verb="" />
+        {#if botId}
+          <BotSenderLabel {botId} {sender} verb="" />
         {:else if threadId}
           <ThreadLink {threadId} fallback={sender?.title || "another thread"} />
         {:else}
@@ -94,8 +100,9 @@
       <div
         class="mt-1 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
       >
-        {#if sender && !sender.botId}<ProviderModel provider={sender.provider} model={sender.model} />{/if}
+        {#if sender && !botId}<ProviderModel provider={sender.provider} model={sender.model} />{/if}
         {#if sender?.computerName}<span class="min-w-0 break-words">on {sender.computerName}</span>{/if}
+        {@render metadata?.()}
         {#if !pending}<AgentMessageActions {text} />{/if}
       </div>
     </div>

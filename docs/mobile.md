@@ -14,9 +14,12 @@ Po wysłaniu propozycja pozostaje widoczna w tym samym rozmiarze.
 
 Status (2026-11-28). Settings → GitHub pozwala nadać projektom i botom dostęp do wybranego repozytorium. Dodawanie GitHuba w Connectors otwiera tę sekcję.
 
-Status (2026-11-28). Dostarczony steer od agenta zajmuje na telefonie dwa wiersze.
-Nazwa nadawcy otwiera wątek lub czat bota. Dotknięcie podglądu albo strzałki
-rozwija treść, informacje o modelu i dostarczeniu, załączniki oraz akcje wiadomości.
+Status (2026-11-28). Gdy pierwszą turę wątku rozpoczyna inny wątek lub bot,
+jego zadanie albo wiadomość zajmuje na telefonie dwa wiersze, tak jak steer
+od agenta. Nazwa nadawcy otwiera wątek lub czat bota. Dotknięcie podglądu
+albo strzałki rozwija treść, dane nadawcy, załączniki i akcje wiadomości.
+Wejście pierwszej tury pokazuje wtedy „Task” albo „Message” i liczbę kroków
+między agentami, a steer pokazuje stan dostarczenia.
 Podczas wysyłania i po przyjęciu przez dostawcę stan jest widoczny także w zwiniętym
 wierszu. Panel i strzałka używają ruchu sekcji osi czasu, a przy ograniczeniu ruchu
 przełączają się od razu.
