@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { View } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import type { useAppearance } from "../../state/appearance";
@@ -17,33 +16,84 @@ import { FollowUpSettings } from "./FollowUpSettings";
 import { SubagentPermissionSettings } from "./SubagentPermissionSettings";
 import { AccountConfigNotices } from "./AccountConfigNotices";
 import { SandboxProfilesSettings } from "./SandboxProfilesSettings";
-import { PullRequestSettings } from "./PullRequestSettings";
+import { AutoArchiveSetting, PullRequestNotificationSetting } from "./PullRequestSettings";
 import { Button } from "../../ui/components";
 import { ThreadRetentionSettings } from "./ThreadRetentionSettings";
+import { ThreadDisplaySettings } from "./ThreadDisplaySettings";
+import { ConfirmationSettings, ThreadListSettings } from "./ThreadListSettings";
+import { TurnActivitySettings } from "./TurnActivitySettings";
+import { SettingsTopics } from "./SettingsTopics";
 
 type Settings = ReturnType<typeof useAppearance>;
 
-export function ThreadDefaultsSettings({ settings }: { settings: Settings }) {
+export function ThreadSettings({ settings }: { settings: Settings }) {
   const defaults = settings.user?.threadDefaults ?? create(ui.ThreadDefaultsSchema);
 
+  const pullRequests = {
+    value: defaults,
+    disabled: !settings.user || settings.saving,
+    onChange: (patch: Partial<ui.ThreadDefaults>) =>
+      void settings.update({ threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, ...patch }) }),
+  };
+
   return (
-    <View style={{ gap: 24 }}>
-      <FollowUpSettings settings={settings} />
-      <SubagentPermissionSettings settings={settings} />
-      <SandboxProfilesSettings />
-      <PullRequestSettings
-        value={defaults}
-        disabled={!settings.user || settings.saving}
-        onChange={(patch) =>
-          void settings.update({
-            threadDefaults: create(ui.ThreadDefaultsSchema, { ...defaults, ...patch }),
-          })
-        }
+    <>
+      <SettingsTopics
+        topics={[
+          { id: "new-threads", label: "New threads", content: <NewThreadSettings settings={settings} /> },
+          {
+            id: "thread-list",
+            label: "Thread list",
+            content: (
+              <>
+                <ThreadListSettings />
+                <ConfirmationSettings />
+                <AccountConfigNotices sections={["general", "sidebar"]} />
+              </>
+            ),
+          },
+          {
+            id: "conversation",
+            label: "Conversation",
+            content: (
+              <>
+                <FollowUpSettings settings={settings} />
+                <TurnActivitySettings />
+                <ThreadDisplaySettings />
+                <SettingsGroup title="Pull requests">
+                  <PullRequestNotificationSetting {...pullRequests} />
+                </SettingsGroup>
+                <AccountConfigNotices sections={["composer"]} />
+              </>
+            ),
+          },
+          {
+            id: "permissions",
+            label: "Sandbox and subagents",
+            content: (
+              <>
+                <SubagentPermissionSettings settings={settings} />
+                <SandboxProfilesSettings />
+              </>
+            ),
+          },
+          {
+            id: "archiving",
+            label: "Archiving",
+            content: (
+              <>
+                <SettingsGroup title="Pull requests">
+                  <AutoArchiveSetting {...pullRequests} />
+                </SettingsGroup>
+                <ThreadRetentionSettings settings={settings} />
+                <AccountConfigNotices sections={["threadRetention"]} />
+              </>
+            ),
+          },
+        ]}
       />
-      <ThreadRetentionSettings settings={settings} />
-      <NewThreadSettings settings={settings} />
-      <AccountConfigNotices sections={["threadDefaults", "composer", "threadRetention", "general", "sidebar"]} />
-    </View>
+      <AccountConfigNotices sections={["threadDefaults"]} />
+    </>
   );
 }
 

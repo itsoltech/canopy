@@ -1,3 +1,4 @@
+import { useIsFocused, useLocalSearchParams } from "expo-router";
 import { useLayoutEffect, useRef, useState, type ComponentRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
@@ -7,6 +8,7 @@ import { MemoryNoteFilters } from "./MemoryNoteFilters";
 import { Button, EmptyState, Notice } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { useClock, useDateTime } from "./display";
+import { useMemoryHabits } from "./memory-habits";
 import { useMemoryNotes } from "./use-memory-notes";
 import { useRevealSettingsView } from "./SettingsScroll";
 import { SkeletonScope } from "../../ui/Skeleton";
@@ -15,9 +17,37 @@ import { MemoryHabits } from "./MemoryHabits";
 import { MemoryNoteSheet } from "./MemoryNoteSheet";
 import { SettingsActions, SettingsGroup, SettingsGroupHeader } from "./SettingsGroup";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
+import { SettingsTopics } from "./SettingsTopics";
 
 export function MemorySettings() {
   const notes = useMemoryNotes();
+  const focused = useIsFocused();
+  const habits = useMemoryHabits(focused);
+  const { topic } = useLocalSearchParams<{ topic?: string }>();
+  const picker = useRef<{ selectTopic(id: string): void }>(null);
+
+  useLayoutEffect(() => {
+    if (topic === "habits") picker.current?.selectTopic("habits");
+  }, [topic]);
+
+  return (
+    <SettingsTopics
+      ref={picker}
+      defaultTopic={topic}
+      topics={[
+        { id: "notes", label: "Notes", content: <MemoryNotes notes={notes} /> },
+        {
+          id: "habits",
+          label: "Habits",
+          hidden: habits.data === null,
+          content: <MemoryHabits resource={habits} onApproved={notes.refresh} />,
+        },
+      ]}
+    />
+  );
+}
+
+function MemoryNotes({ notes }: { notes: ReturnType<typeof useMemoryNotes> }) {
   const [selected, setSelected] = useState<ui.MemoryNote>();
   const [wide, setWide] = useState(false);
   const { data, page, options, filters, filtered } = notes;
@@ -49,7 +79,6 @@ export function MemorySettings() {
 
   return (
     <>
-      <MemoryHabits onApproved={notes.refresh} />
       {data === null ? (
         <Notice>Update Canopy on your gateway to manage memory notes.</Notice>
       ) : (

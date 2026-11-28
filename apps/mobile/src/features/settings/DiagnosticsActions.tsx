@@ -11,38 +11,53 @@ import { mobileMeasurements } from "./client-diagnostics";
 import { styles, useColors } from "../../ui/theme";
 import { DiagnosticsLogs } from "./DiagnosticsLogs";
 
-export function DiagnosticsActions({
-  computers,
-  range,
+export function DiagnosticsReports({ computers, range }: { computers: ui.ComputerDiagnostics[]; range: number }) {
+  const [report, setReport] = useState(false);
+  const [logsJobId, setLogsJobId] = useState("");
+
+  return (
+    <>
+      <SettingsGroup title="Diagnostics report" description="Choose which computers to include in the report.">
+        <SettingsActions>
+          <Button title="Prepare report" onPress={() => setReport(true)} />
+        </SettingsActions>
+      </SettingsGroup>
+      <DiagnosticsLogs computers={computers} onReady={setLogsJobId} />
+      {report && (
+        <DiagnosticsReport computers={computers} range={range} logsJobId={logsJobId} onClose={() => setReport(false)} />
+      )}
+    </>
+  );
+}
+
+export function DiagnosticsCounters({
+  localComputerId,
   computer,
   onReset,
 }: {
-  computers: ui.ComputerDiagnostics[];
-  range: number;
-  computer: ui.ComputerDiagnostics | undefined;
+  localComputerId?: string;
+  computer: ui.ComputerDiagnostics;
   onReset(): Promise<void>;
 }) {
   const c = useColors();
   const { client, queries } = useSession();
-  const [report, setReport] = useState(false);
   const [resetting, setResetting] = useState<ui.ComputerDiagnostics>();
   const [process, setProcess] = useState("gateway");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const running = useRef(false);
-  const [logsJobId, setLogsJobId] = useState("");
 
   const processes = [
     { value: "gateway", label: "Gateway" },
-    ...(computer?.links ?? [])
+    ...computer.links
       .filter((link) => link.kind === "worker" && link.online)
       .map((link) => ({ value: `worker:${link.targetId}`, label: link.name })),
   ];
 
   const canReset =
     !!resetting &&
-    computer?.computerId === resetting.computerId &&
+    computer.computerId === resetting.computerId &&
     computer.epoch === resetting.epoch &&
     computer.status === "online" &&
     !computer.restoring &&
@@ -66,7 +81,7 @@ export function DiagnosticsActions({
       diagnosticsEpochs.reset(target.computerId, receipt.epoch, receipt.epochStartedAtMs);
       queries.forget((key) => key.startsWith("GetDiagnostics:") || key.startsWith("GetComputerDiagnostics:"));
 
-      if (target.computerId === computers[0]?.computerId) mobileMeasurements.clear(receipt.epoch);
+      if (target.computerId === localComputerId) mobileMeasurements.clear(receipt.epoch);
       setResetting(undefined);
       setMessage("Counters reset.");
       await onReset();
@@ -80,18 +95,11 @@ export function DiagnosticsActions({
 
   return (
     <>
-      <SettingsGroup title="Report and actions">
+      <SettingsGroup title="Performance counters" description={computer.name}>
         <SettingsActions>
           <Button
-            title="Prepare report"
-            onPress={() => {
-              setMessage("");
-              setReport(true);
-            }}
-          />
-          <Button
             title="Reset counters"
-            disabled={!computer || computer.status !== "online" || computer.restoring}
+            disabled={computer.status !== "online" || computer.restoring}
             onPress={() => {
               setProcess("gateway");
               setError("");
@@ -106,10 +114,6 @@ export function DiagnosticsActions({
           </Text>
         ) : null}
       </SettingsGroup>
-      <DiagnosticsLogs computers={computers} onReady={setLogsJobId} />
-      {report ? (
-        <DiagnosticsReport computers={computers} range={range} logsJobId={logsJobId} onClose={() => setReport(false)} />
-      ) : null}
       <Sheet
         title="Reset counters?"
         visible={!!resetting}

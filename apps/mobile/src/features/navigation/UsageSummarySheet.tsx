@@ -29,7 +29,7 @@ export function UsageSummarySheet({
 
   function settings(section: "providers" | "proxies") {
     onClose();
-    openSettingsSection(section);
+    openSettingsSection(section, section === "proxies" ? { topic: "accounts" } : {});
   }
 
   return (

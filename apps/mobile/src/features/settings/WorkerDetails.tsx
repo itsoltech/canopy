@@ -4,6 +4,7 @@ import { ui } from "@canopy/contracts";
 import { useOpenSettingsSection } from "./navigation";
 import { Button, Notice } from "../../ui/components";
 import { SettingsRow, SettingsSection } from "./SettingsGroup";
+import { SettingsTopics } from "./SettingsTopics";
 import { SettingsInput } from "./SettingsInput";
 import { SettingsValue } from "./SettingsValue";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
@@ -12,25 +13,30 @@ import { WorkerProviderAccounts } from "./WorkerProviderAccounts";
 import { providerName } from "../models/catalog";
 import { useWorkerPresence } from "../computers/presence";
 
-export function WorkerDetails({
-  worker,
-  setup,
-  environment,
-  record,
-  onChanged,
-  onClose,
-}: {
+interface WorkerDetailsProps {
   worker: ui.Worker;
   setup: ui.GetWorkerSetupResponse;
+  defaultTopic?: string;
+  scopeKey: string;
   environment: ui.AgentEnvironmentSnapshot;
   record?: ui.WorkerRecord;
   onChanged: () => void;
   onClose: () => void;
-}) {
+}
+
+export function WorkerDetails({
+  worker,
+  setup,
+  defaultTopic,
+  scopeKey,
+  environment,
+  record,
+  onChanged,
+  onClose,
+}: WorkerDetailsProps) {
   const resource = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
   const { threadsEnabled } = useAppearance();
   const openSettingsSection = useOpenSettingsSection();
-  const tags = record ?? environment.workers.find((w) => w.workerId === worker.id);
 
   const readOnly =
     useWorkerPresence()(worker).reason ||
@@ -40,86 +46,132 @@ export function WorkerDetails({
   const disabled = resource.busy || !!readOnly;
   const own = !worker.nodeId;
 
+  const tags = record ?? environment.workers.find((w) => w.workerId === worker.id);
+
+  async function saveTags(value: string) {
+    const result = await resource.run((api) =>
+      api.setEnvironmentTags({
+        workerId: worker.id,
+        tags: value
+          .split("\n")
+          .map((v) => v.trim())
+          .filter(Boolean),
+        expectedRevision: record ? 0n : environment.revision,
+      }),
+    );
+
+    onChanged();
+
+    return !!result;
+  }
+
   return (
     <ResourceState resource={resource} gap={0}>
       {readOnly ? <Notice>{readOnly} These are the last saved settings.</Notice> : null}
-      {threadsEnabled && own && worker.cliImport && (
-        <Button
-          title="Import CLI threads"
-          disabled={!worker.online}
-          onPress={() => openSettingsSection("import", { worker: worker.id })}
-        />
-      )}
-      <SettingsSection title="Agent CLIs" description="Nothing changes until you install or update.">
-        <WorkerCliSettings worker={worker} readOnly={readOnly} onChanged={onChanged} />
-      </SettingsSection>
-      <SettingsSection
-        title="Configuration"
-        actions={
-          <Button title="Manage providers" onPress={() => openSettingsSection("providers", { worker: worker.id })} />
-        }
-      >
-        <SettingsValue
-          title="Providers"
-          value={
-            worker.providerInstances
-              .filter((i) => i.enabled)
-              .map((i) => `${providerName(i.harness)} · ${i.label || i.id}`)
-              .join(", ") || "None"
-          }
-        />
-        <SettingsValue
-          title="Version"
-          value={`v${worker.appliedVersion}${worker.appliedVersion !== worker.configVersion ? ` · v${worker.configVersion} pending` : ""}`}
-        />
-        {worker.configIssues.map((issue, index) => (
-          <SettingsValue key={index} title={issue.path || "Configuration issue"} value={issue.message} />
-        ))}
-      </SettingsSection>
-      <WorkerProviderAccounts worker={worker} readOnly={readOnly} />
-      <SettingsSection title="Tags">
-        <SettingsValue title="Automatic tags" value={tags?.automaticTags.join(", ")} />
-        <SettingsInput
-          title="Manual tags"
-          description="Groups for instruction, skill and plugin assignments. Use up to 32 tags, one per line."
-          value={tags?.manualTags.join("\n") || ""}
-          multiline
-          busy={disabled || (!own && !record)}
-          onSave={async (value) => {
-            const result = await resource.run((api) =>
-              api.setEnvironmentTags({
-                workerId: worker.id,
-                tags: value
-                  .split("\n")
-                  .map((v) => v.trim())
-                  .filter(Boolean),
-                expectedRevision: record ? 0n : environment.revision,
-              }),
-            );
+      <SettingsTopics
+        scopeKey={scopeKey}
+        defaultTopic={defaultTopic}
+        topics={[
+          {
+            id: "configuration",
+            label: "Configuration",
+            content: (
+              <>
+                <WorkerConfiguration worker={worker} />
+                <WorkerProviderAccounts worker={worker} readOnly={readOnly} />
+                <SettingsSection title="Worker actions">
+                  <SettingsInput
+                    title="Machine name"
+                    value={worker.name}
+                    busy={disabled}
+                    onSave={async (name) => {
+                      const result = await resource.run((api) => api.renameWorker({ workerId: worker.id, name }));
+                      onChanged();
 
-            onChanged();
-
-            return !!result;
-          }}
-        />
-      </SettingsSection>
-      <SettingsSection title="Worker actions">
-        <SettingsInput
-          title="Machine name"
-          value={worker.name}
-          busy={disabled}
-          onSave={async (name) => {
-            const result = await resource.run((api) => api.renameWorker({ workerId: worker.id, name }));
-            onChanged();
-
-            return !!result;
-          }}
-        />
-      </SettingsSection>
-      {own && (
-        <WorkerAccess worker={worker} setup={setup} readOnly={readOnly} onChanged={onChanged} onClose={onClose} />
-      )}
+                      return !!result;
+                    }}
+                  />
+                </SettingsSection>
+                {own && (
+                  <WorkerAccess
+                    worker={worker}
+                    setup={setup}
+                    readOnly={readOnly}
+                    onChanged={onChanged}
+                    onClose={onClose}
+                  />
+                )}
+              </>
+            ),
+          },
+          {
+            id: "agent-clis",
+            label: "Agent CLIs",
+            content: (
+              <>
+                <SettingsSection title="Agent CLIs" description="Nothing changes until you install or update.">
+                  <WorkerCliSettings worker={worker} readOnly={readOnly} onChanged={onChanged} />
+                </SettingsSection>
+                {threadsEnabled && own && worker.cliImport && (
+                  <Button
+                    title="Import CLI threads"
+                    disabled={!worker.online}
+                    onPress={() => openSettingsSection("import", { worker: worker.id })}
+                  />
+                )}
+              </>
+            ),
+          },
+          {
+            id: "tags",
+            label: "Tags",
+            content: (
+              <SettingsSection title="Tags">
+                <SettingsValue title="Automatic tags" value={tags?.automaticTags.join(", ")} />
+                <SettingsInput
+                  title="Manual tags"
+                  description="Groups for instruction, skill and plugin assignments. Use up to 32 tags, one per line."
+                  value={tags?.manualTags.join("\n") || ""}
+                  multiline
+                  busy={disabled || (!own && !record)}
+                  onSave={saveTags}
+                />
+              </SettingsSection>
+            ),
+          },
+        ]}
+      />
     </ResourceState>
+  );
+}
+
+function WorkerConfiguration({ worker }: { worker: ui.Worker }) {
+  const openSettingsSection = useOpenSettingsSection();
+
+  return (
+    <SettingsSection
+      title="Configuration"
+      actions={
+        <Button title="Manage providers" onPress={() => openSettingsSection("providers", { worker: worker.id })} />
+      }
+    >
+      <SettingsValue
+        title="Providers"
+        value={
+          worker.providerInstances
+            .filter((i) => i.enabled)
+            .map((i) => `${providerName(i.harness)} · ${i.label || i.id}`)
+            .join(", ") || "None"
+        }
+      />
+      <SettingsValue
+        title="Version"
+        value={`v${worker.appliedVersion}${worker.appliedVersion !== worker.configVersion ? ` · v${worker.configVersion} pending` : ""}`}
+      />
+      {worker.configIssues.map((issue, index) => (
+        <SettingsValue key={index} title={issue.path || "Configuration issue"} value={issue.message} />
+      ))}
+    </SettingsSection>
   );
 }
 

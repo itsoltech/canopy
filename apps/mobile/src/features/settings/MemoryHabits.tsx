@@ -13,20 +13,24 @@ import { MemoryHabitReview, MemoryHabitRow } from "./MemoryHabitReview";
 import { MemoryReflectionSheet } from "./MemoryReflectionSheet";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
-import { MEMORY_HABITS, useMemoryHabits } from "./memory-habits";
+import { MEMORY_HABITS, type useMemoryHabits } from "./memory-habits";
 
 const defaultSettings = create(ui.MemoryReflectionSettingsSchema, { intervalMinutes: 1440 });
 
 type HabitsSheet = { kind: "settings" } | { kind: "suggestion"; suggestion: ui.MemoryHabitSuggestion };
 
-export function MemoryHabits({ onApproved }: { onApproved: () => void }) {
+export function MemoryHabits({
+  resource,
+  onApproved,
+}: {
+  resource: ReturnType<typeof useMemoryHabits>;
+  onApproved: () => void;
+}) {
   const { client, queries } = useSession();
   const focused = useIsFocused();
   const c = useColors();
   const type = useTypography();
   const [sheet, setSheet] = useState<HabitsSheet>();
-
-  const resource = useMemoryHabits(focused);
 
   const snapshot = resource.data;
 

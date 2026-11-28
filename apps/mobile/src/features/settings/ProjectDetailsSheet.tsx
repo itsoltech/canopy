@@ -3,6 +3,7 @@ import type { ui } from "@canopy/contracts";
 import { projectAwayReason } from "@canopy/domain/linked-snapshot";
 import { useOverview } from "../../state/overview";
 import { Button, Sheet } from "../../ui/components";
+import { SettingsTopics } from "./SettingsTopics";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
@@ -29,11 +30,7 @@ export function ProjectDetailsSheet({
   resource: ProjectResource;
   onClose: () => void;
 }) {
-  const { workers, computers } = useOverview();
   const details = useProjectDetails();
-  const openSettingsSection = useOpenSettingsSection();
-  const [adding, setAdding] = useState(false);
-  const [addingWorkspace, setAddingWorkspace] = useState(false);
   const capabilities = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
   const canEditAppearance = !project.nodeId && project.kind !== "scratch";
 
@@ -49,25 +46,103 @@ export function ProjectDetailsSheet({
         }
         onChanged={resource.reload}
       />
-      <SettingsGroup title="Project" description={details.places(project)}>
-        {project.nodeId ? (
+      <SettingsTopics
+        scopeKey={`project:${project.id}`}
+        topics={[
+          {
+            id: "workspaces",
+            label: "Workspaces",
+            content: <ProjectWorkspaces project={project} places={details.places(project)} />,
+          },
+          {
+            id: "threads",
+            label: "Threads",
+            hidden: !!project.nodeId,
+            content: <ProjectDefaults project={defaultsProject} resource={resource} />,
+          },
+          {
+            id: "secrets",
+            label: "Logins and secrets",
+            hidden: !secrets,
+            content: (
+              <ProjectSecrets
+                projectId={project.id}
+                logins={!!capabilities.data?.methods.includes("PutProjectLogin")}
+              />
+            ),
+          },
+          {
+            id: "details",
+            label: "Project details",
+            hidden: !!project.nodeId,
+            content: (
+              <>
+                <SettingsGroup title="Project" description={details.places(project)}>
+                  <SettingsInput
+                    title="Project name"
+                    value={project.name}
+                    busy={resource.busy}
+                    onSave={async (name) =>
+                      !!(await resource.run((api) => api.renameProject({ projectId: project.id, name })))
+                    }
+                  />
+                  {canEditAppearance && <ProjectImageSetting project={project} resource={resource} />}
+                  {canEditAppearance && <ProjectColorSetting project={project} resource={resource} />}
+                </SettingsGroup>
+                {project.kind === "project" && (
+                  <SettingsGroup>
+                    <SettingsRow
+                      title="Archive project"
+                      description="Remove the project and its threads from Canopy. Files stay on the workers."
+                      control={
+                        <Button
+                          title="Archive project…"
+                          variant="danger"
+                          disabled={resource.busy}
+                          onPress={() =>
+                            confirmAction(
+                              "Archive project",
+                              `This archives “${project.name}” and its threads. Running turns stop and Canopy cancels the project's schedules. Files stay on the workers.`,
+                              () =>
+                                void resource
+                                  .run((api) => api.archiveProject({ projectId: project.id }, { timeoutMs: 60_000 }))
+                                  .then((result) => {
+                                    if (result) onClose();
+                                  }),
+                            )
+                          }
+                        />
+                      }
+                    />
+                  </SettingsGroup>
+                )}
+              </>
+            ),
+          },
+        ]}
+      />
+    </ResourceState>
+  );
+}
+
+function ProjectWorkspaces({ project, places }: { project: ui.Project; places: string }) {
+  const { workers, computers } = useOverview();
+  const openSettingsSection = useOpenSettingsSection();
+  const [adding, setAdding] = useState(false);
+  const [addingWorkspace, setAddingWorkspace] = useState(false);
+
+  return (
+    <>
+      {project.nodeId ? (
+        <SettingsGroup title="Project" description={places}>
           <SettingsRow
             title={project.name}
             description={
               projectAwayReason(project, workers, computers) ?? "This project is on a linked computer. Manage it there."
             }
           />
-        ) : (
-          <SettingsInput
-            title="Project name"
-            value={project.name}
-            busy={resource.busy}
-            onSave={async (name) => !!(await resource.run((api) => api.renameProject({ projectId: project.id, name })))}
-          />
-        )}
-        {canEditAppearance && <ProjectImageSetting project={project} resource={resource} />}
-        {canEditAppearance && <ProjectColorSetting project={project} resource={resource} />}
-      </SettingsGroup>
+        </SettingsGroup>
+      ) : null}
       <SettingsGroup
         title="Workspaces"
         description="New threads run in these directories on your workers."
@@ -79,46 +154,15 @@ export function ProjectDetailsSheet({
           <SettingsRow title="No workspaces yet" description="Add a directory on a worker to start threads." />
         )}
       </SettingsGroup>
-      {!project.nodeId && <ProjectDefaults project={defaultsProject} resource={resource} />}
       {!project.nodeId && (
         <ProjectWorktreeDefaults
           projectId={project.id}
           onOpen={() => openSettingsSection("worktrees", { projectId: project.id })}
         />
       )}
-      {secrets && (
-        <ProjectSecrets projectId={project.id} logins={!!capabilities.data?.methods.includes("PutProjectLogin")} />
-      )}
-      {!project.nodeId && project.kind === "project" && (
-        <SettingsGroup>
-          <SettingsRow
-            title="Archive project"
-            description="Remove the project and its threads from Canopy. Files stay on the workers."
-            control={
-              <Button
-                title="Archive project…"
-                variant="danger"
-                disabled={resource.busy}
-                onPress={() =>
-                  confirmAction(
-                    "Archive project",
-                    `This archives “${project.name}” and its threads. Running turns stop and Canopy cancels the project's schedules. Files stay on the workers.`,
-                    () =>
-                      void resource
-                        .run((api) => api.archiveProject({ projectId: project.id }, { timeoutMs: 60_000 }))
-                        .then((result) => {
-                          if (result) onClose();
-                        }),
-                  )
-                }
-              />
-            }
-          />
-        </SettingsGroup>
-      )}
       <Sheet title="Add workspace" visible={adding} scroll={false} onClose={() => !addingWorkspace && setAdding(false)}>
         {adding && <AddWorkspace project={project} onBusy={setAddingWorkspace} onSaved={() => setAdding(false)} />}
       </Sheet>
-    </ResourceState>
+    </>
   );
 }

@@ -7,9 +7,7 @@ import { useAppearance } from "../../state/appearance";
 import { Button, Notice } from "../../ui/components";
 import { ListSkeleton, SkeletonScope } from "../../ui/Skeleton";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { TurnActivitySettings } from "./TurnActivitySettings";
-import { ThreadDefaultsSettings } from "./ThreadSettings";
-import { ThreadDisplaySettings } from "./ThreadDisplaySettings";
+import { ThreadSettings } from "./ThreadSettings";
 import { TextGenerationSettings } from "./TextGenerationSettings";
 import { ProjectSettings } from "./ProjectSettings";
 import { ScheduleSettings } from "./ScheduleSettings";
@@ -19,7 +17,6 @@ import { SettingsDensity } from "../../ui/density";
 import { AgentToolsSettings } from "./AgentToolsSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
-import { ConfirmationSettings, ThreadListSettings } from "./ThreadListSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { KeybindingSettings } from "./KeybindingSettings";
 import { DiffSettings } from "./DiffSettings";
@@ -27,7 +24,6 @@ import { NetworkSettings } from "./NetworkSettings";
 import { DeviceSettings } from "./DeviceSettings";
 import { WorkerSettings } from "./WorkerSettings";
 import { ComputerSettings } from "./ComputerSettings";
-import { ThreadSyncDiagnostics } from "./ThreadSyncDiagnostics";
 import { ProxySettings } from "./ProxySettings";
 import { ConnectorSettings } from "./ConnectorSettings";
 import { GitHubSettings } from "./GitHubSettings";
@@ -111,24 +107,11 @@ export default function SettingsScreen() {
           {section === "app-updates" && <AppUpdatesSettings />}
           {section === "memory" && <MemorySettings key={session.deviceId} />}
           {section === "agent-tools" && <AgentToolsSettings />}
-          {section === "diagnostics" && (
-            <>
-              <DiagnosticsSettings />
-              {settings.threadsEnabled && <ThreadSyncDiagnostics />}
-            </>
-          )}
+          {section === "diagnostics" && <DiagnosticsSettings />}
           {section === "keybindings" && <KeybindingSettings />}
           {section === "diffs" && <DiffSettings />}
           {section === "appearance" && <AppearanceSettings />}
-          {section === "threads" && (
-            <>
-              <ThreadListSettings />
-              <ConfirmationSettings />
-              <ThreadDisplaySettings />
-              <TurnActivitySettings />
-              <ThreadDefaultsSettings settings={settings} />
-            </>
-          )}
+          {section === "threads" && <ThreadSettings settings={settings} />}
           {section === "text-generation" && <TextGenerationSettings />}
           {section === "network" && <NetworkSettings />}
           {section === "mobile" && <DeviceSettings />}

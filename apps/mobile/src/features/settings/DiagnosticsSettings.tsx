@@ -3,12 +3,18 @@ import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
 import { createSettingsViewState, useRevealSettingsView } from "./SettingsScroll";
 import { styles, useColors } from "../../ui/theme";
-import { diagnosticsRanges, diagnosticsSorts, diagnosticsKinds, DiagnosticsPages } from "@canopy/domain/diagnostics";
-import { SettingChoice, SettingsGroup, SettingsActions } from "./SettingsGroup";
+import {
+  diagnosticsRanges,
+  diagnosticsSorts,
+  diagnosticsKinds,
+  diagnosticsUnavailable,
+  DiagnosticsPages,
+} from "@canopy/domain/diagnostics";
+import { SettingChoice, SettingsGroup, SettingsRow, SettingsActions } from "./SettingsGroup";
 import { ResourceState } from "./resource";
 import { useDiagnosticsResource, diagnosticsEpochs } from "./diagnostics-resource";
 import { DiagnosticsClients } from "./DiagnosticsClients";
-import { DiagnosticsActions } from "./DiagnosticsActions";
+import { DiagnosticsCounters, DiagnosticsReports } from "./DiagnosticsActions";
 import { DiagnosticsComputer, DiagnosticsFindings } from "./DiagnosticsComputer";
 import { DiagnosticsCalls } from "./DiagnosticsCalls";
 import { DiagnosticsGrants } from "./DiagnosticsGrants";
@@ -16,7 +22,10 @@ import { DiagnosticsMetrics } from "./DiagnosticsMetrics";
 import { DiagnosticsLinks } from "./DiagnosticsLinks";
 import { DiagnosticsTracing } from "./DiagnosticsTracing";
 import { DiagnosticsStorage } from "./DiagnosticsStorage";
-import { Button } from "../../ui/components";
+import { useAppearance } from "../../state/appearance";
+import { ThreadSyncDiagnostics } from "./ThreadSyncDiagnostics";
+import { SettingsTopics } from "./SettingsTopics";
+import { Button, Notice } from "../../ui/components";
 import { MinimumTouchTarget } from "../../ui/density";
 
 const defaults = {
@@ -129,86 +138,185 @@ function useDiagnosticsPanel() {
   };
 }
 
+type Panel = ReturnType<typeof useDiagnosticsPanel>;
+
 export function DiagnosticsSettings() {
-  const { view, computer, change, overview, scope, reset, refresh, detail, page } = useDiagnosticsPanel();
-  const { data } = detail;
-  const details = useRef<ComponentRef<typeof View>>(null);
+  const panel = useDiagnosticsPanel();
+  const picker = useRef<{ selectTopic(id: string): void }>(null);
+  const top = useRef<ComponentRef<typeof View>>(null);
   const reveal = useRevealSettingsView();
-  const [expanded, setExpanded] = useFindingsExpanded();
+  const { overview, view } = panel;
 
   return (
     <MinimumTouchTarget.Provider value={48}>
+      <View ref={top} collapsable={false}>
+        <SettingsTopics
+          ref={picker}
+          topics={[
+            {
+              id: "overview",
+              label: "Overview",
+              content: (
+                <DiagnosticsOverview
+                  panel={panel}
+                  onSelect={(selected) => {
+                    panel.change({ selected });
+                    picker.current?.selectTopic("performance");
+                    reveal(top.current);
+                  }}
+                />
+              ),
+            },
+            { id: "performance", label: "Performance", content: <DiagnosticsDetails panel={panel} /> },
+            {
+              id: "calls-and-tracing",
+              label: "Calls and tracing",
+              content: <DiagnosticsDetails panel={panel} calls />,
+            },
+            {
+              id: "reports-and-logs",
+              label: "Reports and logs",
+              content: (
+                <ResourceState resource={overview}>
+                  <SettingsGroup>
+                    <RangeControl panel={panel} />
+                  </SettingsGroup>
+                  {overview.data && (
+                    <DiagnosticsReports computers={overview.data.computers} range={Number(view.range)} />
+                  )}
+                  <DiagnosticsGrants />
+                </ResourceState>
+              ),
+            },
+          ]}
+        />
+      </View>
+    </MinimumTouchTarget.Provider>
+  );
+}
+
+function RangeControl({ panel }: { panel: Panel }) {
+  return (
+    <SettingChoice
+      title="Time range"
+      value={panel.view.range}
+      options={diagnosticsRanges}
+      onChange={(range) => panel.change({ range })}
+    />
+  );
+}
+
+function DiagnosticsOverview({ panel, onSelect }: { panel: Panel; onSelect(id: string): void }) {
+  const { overview, computer } = panel;
+  const { threadsEnabled } = useAppearance();
+  const [expanded, setExpanded] = useFindingsExpanded();
+
+  return (
+    <>
       <ResourceState resource={overview}>
-        <SettingsGroup title="Diagnostics" description="Check performance and Canopy storage across your computers.">
-          <SettingChoice
-            title="Time range"
-            value={view.range}
-            options={diagnosticsRanges}
-            onChange={(value) => change({ range: value })}
-          />
+        <SettingsGroup
+          title="Computer health"
+          description="Check performance and Canopy storage across your computers."
+        >
+          <RangeControl panel={panel} />
         </SettingsGroup>
+        {overview.data?.computers.length === 0 && <Notice>No computers are reporting diagnostics.</Notice>}
         {overview.data?.computers.map((item) => (
           <DiagnosticsComputer
             key={item.computerId}
             computer={item}
             selected={item.computerId === computer}
-            onSelect={() => {
-              change({ selected: item.computerId });
-              reveal(details.current);
-            }}
+            onSelect={() => onSelect(item.computerId)}
           />
         ))}
-        {overview.data ? <DiagnosticsStorage computers={overview.data.computers} /> : null}
-        {overview.data ? (
-          <DiagnosticsFindings
-            computers={overview.data.computers}
-            expanded={expanded}
-            onExpand={() => setExpanded(!expanded)}
-          />
-        ) : null}
-        {overview.data ? (
-          <DiagnosticsActions
-            computers={overview.data.computers}
-            range={Number(view.range)}
-            computer={data}
-            onReset={reset}
-          />
-        ) : null}
-        {!!computer && (
-          <View ref={details} collapsable={false} style={{ gap: 24 }}>
-            <SettingsGroup>
-              <SettingChoice
-                title="Computer"
-                value={computer}
-                options={(overview.data?.computers ?? []).map((item) => ({ value: item.computerId, label: item.name }))}
-                onChange={(selected) => change({ selected })}
-              />
-              <SettingChoice
-                title="Sort calls"
-                value={view.sort}
-                options={diagnosticsSorts}
-                onChange={(value) => change({ sort: value })}
-              />
-              <SettingChoice
-                title="Call type"
-                value={view.kind}
-                options={diagnosticsKinds}
-                onChange={(value) => change({ kind: value })}
-              />
-            </SettingsGroup>
-            <ResourceState resource={detail}>
-              {data && <DiagnosticsTracing key={computer} computer={data} onRefresh={refresh} />}
-              {data ? <DiagnosticsMetrics computer={data} /> : null}
-              {data ? <DiagnosticsLinks computer={data} /> : null}
-              {data ? <DiagnosticsClients computer={data} /> : null}
-              {data ? <DiagnosticsCalls key={scope} calls={data.calls} computer={data} /> : null}
-              {page && <CallPages {...page} />}
-            </ResourceState>
-          </View>
+        {overview.data && (
+          <>
+            <DiagnosticsFindings
+              computers={overview.data.computers}
+              expanded={expanded}
+              onExpand={() => setExpanded(!expanded)}
+            />
+            <DiagnosticsStorage computers={overview.data.computers} />
+          </>
         )}
-        <DiagnosticsGrants />
       </ResourceState>
-    </MinimumTouchTarget.Provider>
+      {threadsEnabled && <ThreadSyncDiagnostics />}
+    </>
+  );
+}
+
+function DiagnosticsDetails({ panel, calls = false }: { panel: Panel; calls?: boolean }) {
+  const { view, computer, change, overview, scope, reset, refresh, detail, page } = panel;
+  const { data } = detail;
+
+  return (
+    <ResourceState resource={overview}>
+      <SettingsGroup>
+        <SettingChoice
+          title="Computer"
+          value={computer}
+          disabled={!computer}
+          options={(overview.data?.computers ?? []).map((item) => ({ value: item.computerId, label: item.name }))}
+          onChange={(selected) => change({ selected })}
+        />
+        <RangeControl panel={panel} />
+        {calls && (
+          <>
+            <SettingChoice
+              title="Sort calls"
+              disabled={!computer}
+              value={view.sort}
+              options={diagnosticsSorts}
+              onChange={(sort) => change({ sort })}
+            />
+            <SettingChoice
+              title="Call type"
+              disabled={!computer}
+              value={view.kind}
+              options={diagnosticsKinds}
+              onChange={(kind) => change({ kind })}
+            />
+          </>
+        )}
+      </SettingsGroup>
+      {overview.data?.computers.length === 0 && <Notice>No computers are reporting diagnostics.</Notice>}
+      {!!computer && (
+        <ResourceState resource={detail}>
+          {calls ? (
+            <>
+              {data && <DiagnosticsCalls key={scope} calls={data.calls} computer={data} />}
+              {page && <CallPages {...page} />}
+              {data && <DiagnosticsTracing key={computer} computer={data} onRefresh={refresh} />}
+            </>
+          ) : (
+            data && (
+              <>
+                {data.detailsAvailable ? (
+                  <>
+                    <DiagnosticsMetrics computer={data} />
+                    <DiagnosticsLinks computer={data} />
+                    <DiagnosticsClients computer={data} />
+                  </>
+                ) : (
+                  <SettingsGroup>
+                    <SettingsRow
+                      title={diagnosticsUnavailable(data)[0]}
+                      description={diagnosticsUnavailable(data)[1]}
+                    />
+                  </SettingsGroup>
+                )}
+                <DiagnosticsCounters
+                  key={computer}
+                  localComputerId={overview.data?.computers[0]?.computerId}
+                  computer={data}
+                  onReset={reset}
+                />
+              </>
+            )
+          )}
+        </ResourceState>
+      )}
+    </ResourceState>
   );
 }
 

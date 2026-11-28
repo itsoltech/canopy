@@ -5,6 +5,13 @@ z niepełnym kosztem i wartości w podziale Activity. W nawigacji animują się 
 pracy i nieprzeczytanych wiadomości, a w App updates procent pobrania aktualizacji.
 Systemowe ograniczenie ruchu wyłącza przejścia cyfr.
 
+Status (2026-11-28). Na iOS i Androidzie sekcje ustawień z kilkoma tematami mają
+przełącznik zakładek taki jak w pasku bocznym Threads/Bots. Zakładki mieszczą się
+w kilku wierszach na wąskim ekranie. W **Settings → Threads** domyślnie otwiera się
+**New threads**. **Thread list** zawiera ustawienia paska bocznego i potwierdzeń,
+**Conversation** grupuje ustawienia rozmowy, **Sandbox and subagents** zawiera
+profile sandboxa i uprawnienia subagentów, a **Archiving** obejmuje archiwizację i retencję.
+
 Status (2026-11-28). Wiersze projektów oraz wyboru workera i źródła mają minimum
 48 dp wysokości i rosną wraz z tekstem. Wiersze ustawień mieszczą przełącznik obok opisu.
 Pola wyboru w wierszach ustawień dopasowują szerokość do wartości i przechodzą
@@ -282,7 +289,7 @@ W **Appearance** wybór **Context display** decyduje,
 czy przy kompozytorze pokazać pierścień, wartości tokenów albo pasek. Dotknięcie
 wskaźnika pokazuje dokładny pomiar zgłoszony przez dostawcę.
 
-Settings → Threads → Archived threads zawiera przełącznik automatycznego
+Settings → Threads → Archiving → Archived threads zawiera przełącznik automatycznego
 usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy
 szkic ustawienia, a **Save** zapisuje całość do gatewaya. Retencja obejmuje
 istniejące archiwum i trwale usuwa historię, z odroczeniem dla zachowanych forków;
@@ -2157,7 +2164,7 @@ powtórzeń i „Show details”. Trwały czas oraz sekwencje itemów naprawiaj�
 powiązanie starszych komunikatów; błędy znanych tur spoza okna nie trafiają pod
 ostatnią stopkę. Reguły są wspólne z webem ([timeline-folding.md](timeline-folding.md)).
 
-Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Turn activity
+Oś czasu nadąża za web: grupę pracy otwiera i zwija Settings → Threads → Conversation → Turn activity
 („While working”, „Tool calls”, „After the turn”, z resetem), według tej samej reguły `workFoldOpen`
 z `@canopy/domain/work-fold` co web; tapnięcie decyduje dalej. Grupy narzędzi domyślnie są
 zwinięte, także pojedyncza grupa. „Tool calls: Expanded” otwiera je podczas pracy niezależnie
@@ -2291,7 +2298,7 @@ Tryb shell nadal zastępuje te kontrolki komunikatem. W czacie bota załączanie
 po lewej stronie pola, bez pigułek modelu. Okrągły przycisk
 wysyłania ma kolor `action` jak w web; puste pole podczas tury zamienia go w stop. Gdy tura trwa
 i jest wiadomość, przycisk dzieli się jak webowy `SteerSendButton`: główna część „Steer” albo
-„Queue” (według Settings → Threads → Messages) wysyła w preferowany sposób, przytrzymanie
+„Queue” (według Settings → Threads → Conversation → Messages) wysyła w preferowany sposób, przytrzymanie
 w drugi, a chevron otwiera arkusz „How to send” z „Steer into this turn” i „Queue for the next
 turn” oraz opisem każdej drogi. Przycisk ma stałą minimalną szerokość, więc zmiana etykiety
 nie przesuwa pól; pigułki paska przesuwają się na jego miejsce przez `fast` (przy ograniczeniu
@@ -2479,7 +2486,7 @@ ograniczonych animacji; zmiana nie wymaga nowego runtime natywnego.
 Snapshot strony zachowuje także itemy zadań w tle spoza okna załadowanych tur.
 „Show full output” korzysta ze wspólnego `TextViewer`, także dla wyniku zapisanego jako blob.
 
-Settings → Threads → Sidebar ma jedno pole „Group by”: „None”, „Project”
+Settings → Threads → Thread list → Sidebar ma jedno pole „Group by”: „None”, „Project”
 i „Project & worktree”. Wybór zapisuje oba istniejące pola preferencji lokalnych
 atomowo; reset przywraca „None”. Dotychczasowe `groupByProject=true` z brakującym
 polem worktree nadal oznacza „Project”. „Project order” jest nieaktywne dla „None”.
@@ -2488,7 +2495,7 @@ oraz liczbę wątków. Oba poziomy można zwinąć niezależnie; zapis należy d
 i parowania. Wyszukiwanie odsłania grupy wyników bez zmiany zapamiętanego zwinięcia.
 Wcięcia po 20 dp i pionowe linie pokazują projekt → worktree → wątki.
 
-Threads → Confirmations zapisuje na koncie preferencje potwierdzania odpinania,
+Threads → Thread list → Confirmations zapisuje na koncie preferencje potwierdzania odpinania,
 archiwizacji i usuwania. Gdy działa tylko moduł Bots, General udostępnia potwierdzenia
 odpinania i archiwizacji botów oraz rozwiązywanie konfliktów tych ustawień.
 
