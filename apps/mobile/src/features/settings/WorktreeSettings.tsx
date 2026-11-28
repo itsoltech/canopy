@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useLocalSearchParams, useRoute } from "expo-router";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
@@ -13,6 +13,7 @@ import { SettingsDisclosure } from "./SettingsDisclosure";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { splitId } from "@canopy/domain/computers";
 import { useWorkerRecordOptions } from "../computers/worker-options";
+import { SettingsTopics } from "./SettingsTopics";
 import { WorktreeList } from "./WorktreeList";
 
 import { createSettingsViewState } from "./SettingsScroll";
@@ -108,6 +109,21 @@ export function WorktreeSettings() {
           disabled={resource.busy}
           options={[{ value: "", label: "All computers" }, ...workerOptions]}
         />
+        {canRead && response && !resource.initialLoading && (
+          <Button
+            title="Restore inherited settings"
+            disabled={resource.busy}
+            onPress={() =>
+              void resource.run((api) =>
+                api.updateWorktreeSettings({
+                  ...scope,
+                  expectedVersion: response.version,
+                  settings: create(ui.WorktreeSettingsSchema),
+                }),
+              )
+            }
+          />
+        )}
       </SettingsGroup>
       {remote && !records.data && (
         <ResourceState resource={records}>
@@ -129,24 +145,13 @@ export function WorktreeSettings() {
             />
           )}
           {response && (
-            <Fragment key={`${projectId}:${workerId}`}>
-              <WorktreeCreation response={response} busy={resource.busy} save={save} />
-              <WorktreeCleanup response={response} busy={resource.busy} save={save} />
-              <Button
-                title="Restore inherited settings"
-                busy={resource.busy}
-                onPress={() =>
-                  void resource.run((api) =>
-                    api.updateWorktreeSettings({
-                      ...scope,
-                      expectedVersion: response.version,
-                      settings: create(ui.WorktreeSettingsSchema),
-                    }),
-                  )
-                }
-              />
-              {!remote && <WorktreeList scope={scope} />}
-            </Fragment>
+            <WorktreeTopics
+              key={`${projectId}:${workerId}`}
+              scope={scope}
+              response={response}
+              busy={resource.busy}
+              save={save}
+            />
           )}
         </ResourceState>
       )}
@@ -159,6 +164,23 @@ type Fields = {
   busy: boolean;
   save: (patch: Partial<ui.WorktreeSettings>) => Promise<boolean>;
 };
+
+function WorktreeTopics({ scope, ...fields }: Fields & { scope: Scope }) {
+  return (
+    <SettingsTopics
+      topics={[
+        { id: "creation", label: "New worktrees", content: <WorktreeCreation {...fields} /> },
+        { id: "cleanup", label: "Cleanup rules", content: <WorktreeCleanup {...fields} /> },
+        {
+          id: "worktrees",
+          label: "Manage worktrees",
+          hidden: !!splitId(scope.workerId).node,
+          content: <WorktreeList scope={scope} />,
+        },
+      ]}
+    />
+  );
+}
 
 function WorktreeField({
   response,

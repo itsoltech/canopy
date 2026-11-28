@@ -10,6 +10,7 @@ import { copyText } from "../viewers/useCopyText";
 import { Button, Field, IconButton, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
+import { SettingsTopics } from "./SettingsTopics";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { AttachmentSettings } from "./AttachmentSettings";
 import { AllowedNetworksSetting } from "./AllowedNetworksSetting";
@@ -39,52 +40,71 @@ export function NetworkSettings() {
 
   return (
     <ResourceState resource={resource}>
-      <Notice>
-        {capabilities?.linkedComputers
-          ? "Pair phones and link other computers over the networks this computer makes available."
-          : "Connect paired devices and remote workers over the networks this computer makes available."}
-      </Notice>
-      <SettingsGroup title="This computer">
-        <SettingToggle
-          title={
-            capabilities?.linkedComputers ? "Let phones and other computers connect" : "Let devices and workers connect"
-          }
-          description="Only devices you pair can use the connection, and it's encrypted with this computer's own certificate. Your web interface and database stay private."
-          value={status?.enabled ?? false}
-          disabled={!status || resource.busy}
-          onChange={(enabled) =>
-            enabled
-              ? void change("set_enabled", { enabled })
-              : confirmAction(
-                  "Turn off network access",
-                  "This disconnects this phone and other remote devices. Turn it back on from this computer to reconnect.",
-                  () => void change("set_enabled", { enabled }),
-                )
-          }
-        />
-        {!!status?.allowedNetworks.length && (
-          <AllowedNetworksSetting
-            value={status.allowedNetworks}
-            busy={resource.busy}
-            onApply={(allowedNetworks) => change("set_allowed_networks", { allowedNetworks })}
-          />
-        )}
-      </SettingsGroup>
-      {status && (
-        <>
-          {status.error ? <Notice error>{status.error}</Notice> : null}
-          {status.note && status.addresses.length > 0 ? <Notice>{status.note}</Notice> : null}
-          <NetworkAddresses
-            status={status}
-            linked={!!capabilities?.linkedComputers}
-            busy={resource.busy}
-            save={(hostnames) => change("set_hostnames", { hostnames })}
-          />
-          <TailscaleSettings status={status} busy={resource.busy} change={change} />
-          <NetworkAdvanced status={status} busy={resource.busy} change={change} />
-        </>
-      )}
-      <AttachmentSettings />
+      <SettingsTopics
+        topics={[
+          {
+            id: "connections",
+            label: "Connections",
+            content: (
+              <>
+                <Notice>
+                  {capabilities?.linkedComputers
+                    ? "Pair phones and link other computers over the networks this computer makes available."
+                    : "Connect paired devices and remote workers over the networks this computer makes available."}
+                </Notice>
+                <SettingsGroup title="This computer">
+                  <SettingToggle
+                    title={
+                      capabilities?.linkedComputers
+                        ? "Let phones and other computers connect"
+                        : "Let devices and workers connect"
+                    }
+                    description="Only devices you pair can use the connection, and it's encrypted with this computer's own certificate. Your web interface and database stay private."
+                    value={status?.enabled ?? false}
+                    disabled={!status || resource.busy}
+                    onChange={(enabled) =>
+                      enabled
+                        ? void change("set_enabled", { enabled })
+                        : confirmAction(
+                            "Turn off network access",
+                            "This disconnects this phone and other remote devices. Turn it back on from this computer to reconnect.",
+                            () => void change("set_enabled", { enabled }),
+                          )
+                    }
+                  />
+                  {!!status?.allowedNetworks.length && (
+                    <AllowedNetworksSetting
+                      value={status.allowedNetworks}
+                      busy={resource.busy}
+                      onApply={(allowedNetworks) => change("set_allowed_networks", { allowedNetworks })}
+                    />
+                  )}
+                </SettingsGroup>
+                {status && (
+                  <>
+                    {status.error ? <Notice error>{status.error}</Notice> : null}
+                    {status.note && status.addresses.length > 0 ? <Notice>{status.note}</Notice> : null}
+                    <NetworkAddresses
+                      status={status}
+                      linked={!!capabilities?.linkedComputers}
+                      busy={resource.busy}
+                      save={(hostnames) => change("set_hostnames", { hostnames })}
+                    />
+                    <NetworkAdvanced status={status} busy={resource.busy} change={change} />
+                  </>
+                )}
+              </>
+            ),
+          },
+          {
+            id: "tailscale",
+            label: "Tailscale",
+            hidden: !resource.data,
+            content: resource.data && <TailscaleSettings status={resource.data} busy={resource.busy} change={change} />,
+          },
+          { id: "attachments", label: "Attachments", content: <AttachmentSettings /> },
+        ]}
+      />
     </ResourceState>
   );
 }

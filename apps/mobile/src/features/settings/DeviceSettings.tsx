@@ -10,6 +10,7 @@ import { styles, useColors } from "../../ui/theme";
 import { SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsValue } from "./SettingsValue";
 import { useDateTime } from "./display";
+import { SettingsTopics } from "./SettingsTopics";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { useLiveTime } from "../../ui/time";
@@ -92,8 +93,32 @@ function useDeviceSettings() {
 }
 
 export function DeviceSettings() {
-  const openSettingsSection = useOpenSettingsSection();
   const state = useDeviceSettings();
+
+  return (
+    <ResourceState resource={state.resource}>
+      <SettingsTopics
+        topics={[
+          { id: "pairing", label: "Pairing", content: <DevicePairing state={state} /> },
+          {
+            id: "device-access",
+            label: "Device access",
+            content: (
+              <>
+                <PairedDevices state={state} />
+                <ThisPhone state={state} />
+              </>
+            ),
+          },
+        ]}
+      />
+      <PairingInvitation state={state} />
+    </ResourceState>
+  );
+}
+
+function DevicePairing({ state }: { state: ReturnType<typeof useDeviceSettings> }) {
+  const openSettingsSection = useOpenSettingsSection();
   const { resource, data, network, pair, now, format } = state;
 
   const pending = data?.pairings.filter(
@@ -104,7 +129,7 @@ export function DeviceSettings() {
   const c = useColors();
 
   return (
-    <ResourceState resource={resource}>
+    <>
       <Text style={[styles.meta, { color: c.muted }]}>
         Pair once and connect on any Wi-Fi or VPN you share with this computer.
       </Text>
@@ -159,7 +184,6 @@ export function DeviceSettings() {
           />
         </SettingsGroup>
       </ResourceState>
-      <PairedDevices state={state} />
       {!!pending?.length && (
         <SettingsGroup title="Pending pairing codes">
           {pending.map((p) => (
@@ -180,9 +204,7 @@ export function DeviceSettings() {
           ))}
         </SettingsGroup>
       )}
-      <ThisPhone state={state} />
-      <PairingInvitation state={state} />
-    </ResourceState>
+    </>
   );
 }
 

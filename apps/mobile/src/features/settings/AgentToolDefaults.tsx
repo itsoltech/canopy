@@ -100,12 +100,6 @@ export function AgentToolDefaults({ tool }: { tool: AgentTool }) {
 
   return (
     <View style={{ gap: 12 }}>
-      <Text accessibilityRole="header" style={[type.chrome, { color: c.text }]}>
-        Session defaults
-      </Text>
-      {tool !== AgentTool.DESKTOP && (
-        <Text style={[type.meta, { color: c.muted }]}>These defaults apply to new sessions across your workers.</Text>
-      )}
       <DefaultsFields tool={tool} values={values} disabled={disabled} change={change} />
       <SettingsActions>
         <Button

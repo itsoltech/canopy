@@ -9,6 +9,7 @@ import { ConfigNoticesFor } from "../settings/ConfigNoticesFor";
 import { ProviderForm } from "../settings/ProviderForm";
 import { ProviderModels } from "../settings/ProviderModels";
 import { WorkerOverrides } from "../settings/WorkerOverrides";
+import { SettingsTopics } from "../settings/SettingsTopics";
 import { SettingAccess } from "../settings/SettingAccess";
 import { SettingsGroup, SettingsSection } from "../settings/SettingsGroup";
 import { confirmAction, type SettingsApi } from "../settings/resource";
@@ -53,55 +54,85 @@ export function InstanceDetail({
         match={(n) => n.kind === "instance" && n.localId === instance.id && n.globalId.startsWith(`${harness}:`)}
         onChanged={onChanged}
       />
-      <SettingsSection title="Status">
-        <InstanceStatus instance={instance} worker={worker} workers={workers} now={now} />
-        {!worker && (
-          <SettingsGroup>
-            <SettingAccess
-              title="Workers"
-              description="The instance runs only on the chosen workers."
-              options={workerOptions}
-              all={instance.allWorkers}
-              ids={instance.workers.filter((w) => w.enabled).map((w) => w.workerId)}
-              disabled={busy}
-              onChange={(next) =>
-                void run((api) =>
-                  api.setInstanceWorkers({
-                    harness: instance.harness,
-                    id: instance.id,
-                    allWorkers: next.all,
-                    workerIds: next.all ? [] : [...next.ids],
-                  }),
-                ).then(onChanged)
-              }
-            />
-          </SettingsGroup>
-        )}
-      </SettingsSection>
-      {worker ? (
-        readOnly ? (
-          <Text style={[styles.chrome, { color: c.muted }]}>{readOnly}</Text>
-        ) : on?.enabled ? (
-          <WorkerOverrides instance={instance} worker={worker} onSaved={onChanged} />
-        ) : (
-          <Text style={[styles.chrome, { color: c.muted }]}>
-            Turn the instance on for {worker.name} to set its overrides there. Name, color and models are shared by all
-            workers.
-          </Text>
-        )
-      ) : (
-        <ProviderForm
-          key={`${instance.revision}/${formKey}`}
-          harness={instance.harness}
-          instance={instance}
-          onSaved={onChanged}
-          onDiscard={() => setFormKey((k) => k + 1)}
-        />
-      )}
-      <SettingsSection title="Models" description="What the model picker offers for this instance, on every worker.">
-        <ProviderModels instance={instance} onChanged={onChanged} />
-      </SettingsSection>
-      {!instance.builtIn && <DeleteInstance instance={instance} busy={busy} run={run} onChanged={onChanged} />}
+      <SettingsTopics
+        scopeKey={`provider:${instance.harness}:${instance.id}:${worker?.id ?? ""}`}
+        topics={[
+          {
+            id: "status",
+            label: "Status and access",
+            content: (
+              <SettingsSection title="Status">
+                <InstanceStatus instance={instance} worker={worker} workers={workers} now={now} />
+                {!worker && (
+                  <SettingsGroup>
+                    <SettingAccess
+                      title="Workers"
+                      description="The instance runs only on the chosen workers."
+                      options={workerOptions}
+                      all={instance.allWorkers}
+                      ids={instance.workers.filter((w) => w.enabled).map((w) => w.workerId)}
+                      disabled={busy}
+                      onChange={(next) =>
+                        void run((api) =>
+                          api.setInstanceWorkers({
+                            harness: instance.harness,
+                            id: instance.id,
+                            allWorkers: next.all,
+                            workerIds: next.all ? [] : [...next.ids],
+                          }),
+                        ).then(onChanged)
+                      }
+                    />
+                  </SettingsGroup>
+                )}
+              </SettingsSection>
+            ),
+          },
+          {
+            id: "configuration",
+            label: "Configuration",
+            content: (
+              <>
+                {worker ? (
+                  readOnly ? (
+                    <Text style={[styles.chrome, { color: c.muted }]}>{readOnly}</Text>
+                  ) : on?.enabled ? (
+                    <WorkerOverrides instance={instance} worker={worker} onSaved={onChanged} />
+                  ) : (
+                    <Text style={[styles.chrome, { color: c.muted }]}>
+                      Turn the instance on for {worker.name} to set its overrides there. Name, color and models are
+                      shared by all workers.
+                    </Text>
+                  )
+                ) : (
+                  <ProviderForm
+                    key={`${instance.revision}/${formKey}`}
+                    harness={instance.harness}
+                    instance={instance}
+                    onSaved={onChanged}
+                    onDiscard={() => setFormKey((k) => k + 1)}
+                  />
+                )}
+                {!instance.builtIn && (
+                  <DeleteInstance instance={instance} busy={busy} run={run} onChanged={onChanged} />
+                )}
+              </>
+            ),
+          },
+          {
+            id: "models",
+            label: "Models",
+            content: (
+              <SettingsSection
+                title="Models"
+                description="What the model picker offers for this instance, on every worker."
+              >
+                <ProviderModels instance={instance} onChanged={onChanged} />
+              </SettingsSection>
+            ),
+          },
+        ]}
+      />
     </View>
   );
 }

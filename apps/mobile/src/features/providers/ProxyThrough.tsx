@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Text } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { proxyAccountsHint, proxyAccountsSummary } from "@canopy/domain/proxy-accounts";
+import { proxyAccountsForHarness, proxyAccountsHint, proxyAccountsSummary } from "@canopy/domain/proxy-accounts";
 import { useSession } from "../../state/session";
 import { styles, useColors } from "../../ui/theme";
 import { useOpenSettingsSection } from "../settings/navigation";
@@ -38,7 +38,12 @@ export function ProxyThrough({ instance }: { instance: ui.ProviderInstance }) {
       <Text
         accessibilityRole="link"
         accessibilityHint="Opens proxy settings"
-        onPress={() => openSettingsSection("proxies")}
+        onPress={() =>
+          openSettingsSection("proxies", {
+            topic:
+              managed && proxyAccountsForHarness(proxy.accounts, instance.harness).length ? "accounts" : "connections",
+          })
+        }
         style={{ color: c.accent }}
       >
         {proxy.name}

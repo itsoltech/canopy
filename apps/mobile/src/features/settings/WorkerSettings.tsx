@@ -11,6 +11,7 @@ import { Button } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
 import { font, styles, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow, SettingsActions } from "./SettingsGroup";
+import { SettingsTopics } from "./SettingsTopics";
 import { SettingsInput } from "./SettingsInput";
 import { ResourceState, useSettingsResource } from "./resource";
 import { WorkerCliSettings } from "./WorkerCliSettings";
@@ -28,19 +29,24 @@ const useRememberedWorkers = createSettingsViewState<string[]>([]);
 const useRevealedShortcut = createSettingsViewState(false);
 
 function useWorkerExpansion() {
-  const { workerId } = useLocalSearchParams<{ workerId?: string }>();
+  const { workerId, workerTopic } = useLocalSearchParams<{ workerId?: string; workerTopic?: string }>();
   const route = useRoute();
   const entry = workerId ? route.key : undefined;
   const [expanded, setExpanded] = useRememberedWorkers(entry, workerId ? [workerId] : []);
   const [revealed, setRevealed] = useRevealedShortcut(entry);
 
-  return { expanded, setExpanded, revealId: revealed ? undefined : workerId, markRevealed: () => setRevealed(true) };
+  return {
+    expanded,
+    setExpanded,
+    entry,
+    workerId,
+    workerTopic,
+    revealId: revealed ? undefined : workerId,
+    markRevealed: () => setRevealed(true),
+  };
 }
 
-export function WorkerSettings() {
-  const overview = useOverview();
-  const openSettingsSection = useOpenSettingsSection();
-
+function useWorkerResources() {
   // Each part is a shared read: other screens reuse it and events refresh only the part that changed.
   const setup = useSettingsResource("GetWorkerSetup", (api) => api.getWorkerSetup({}));
   const environment = useSettingsResource("GetAgentEnvironment", (api) => api.getAgentEnvironment({}));
@@ -61,8 +67,15 @@ export function WorkerSettings() {
       ? { setup: setup.data, environment: environment.data, records: records.data, network: network.data }
       : undefined;
 
+  return { data, resource };
+}
+
+export function WorkerSettings() {
+  const { data, resource } = useWorkerResources();
+  const overview = useOverview();
+  const openSettingsSection = useOpenSettingsSection();
+  const expansion = useWorkerExpansion();
   const [adding, setAdding] = useState(false);
-  const { expanded, setExpanded, revealId, markRevealed } = useWorkerExpansion();
   const format = useDateTime();
 
   const groups = workerGroups(overview.workers, data?.records.records ?? [], overview.computers);
@@ -77,11 +90,109 @@ export function WorkerSettings() {
 
   return (
     <ResourceState resource={resource}>
-      <SettingsActions>
-        <Button variant="ghost" title="Open app updates" onPress={() => openSettingsSection("app-updates")} />
-        <Button variant="primary" title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
-      </SettingsActions>
-      {(data || resource.initialLoading) && <WorkerNetworkAccess network={data?.network} />}
+      <SettingsTopics
+        scopeKey={expansion.entry}
+        topics={[
+          {
+            id: "workers",
+            label: "Registered workers",
+            content: (
+              <>
+                <SettingsActions>
+                  <Button variant="ghost" title="Open app updates" onPress={() => openSettingsSection("app-updates")} />
+                  <Button variant="primary" title="Add worker" disabled={!data} onPress={() => setAdding(true)} />
+                </SettingsActions>
+                <RegisteredWorkers groups={groups} data={data} resource={resource} expansion={expansion} />
+              </>
+            ),
+          },
+          {
+            id: "connections",
+            label: "Connections",
+            content: (
+              <>
+                {(data || resource.initialLoading) && <WorkerNetworkAccess network={data?.network} />}
+                <SettingsGroup title="Install over SSH">
+                  <WorkerSsh />
+                </SettingsGroup>
+                <WorkerConnection url={data?.setup.gatewayUrl || ""} onSaved={resource.reload} />
+                {!!pending.length && (
+                  <SettingsGroup title="Pending enrollments">
+                    {pending.map((e) => (
+                      <SettingsRow
+                        key={e.id}
+                        title={e.name}
+                        description={`Waiting for enrollment · expires ${format(e.expiresAt?.seconds)}`}
+                        control={
+                          <Button
+                            title="Revoke"
+                            disabled={resource.busy}
+                            onPress={() => void resource.run((api) => api.revokeWorkerEnrollment({ id: e.id }))}
+                          />
+                        }
+                      />
+                    ))}
+                  </SettingsGroup>
+                )}
+              </>
+            ),
+          },
+          {
+            id: "agent-clis",
+            label: "Agent CLIs",
+            content: (
+              <>
+                {groups.length > 0 && (
+                  <SettingsGroup title="Agent CLIs by worker">
+                    {groups.flatMap((group) =>
+                      group.workers.map((worker) => (
+                        <SettingsRow
+                          key={worker.id}
+                          title={worker.name}
+                          description={group.name}
+                          onPress={() =>
+                            openSettingsSection("workers", { workerId: worker.id, workerTopic: "agent-clis" })
+                          }
+                        />
+                      )),
+                    )}
+                  </SettingsGroup>
+                )}
+                <SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule.">
+                  <WorkerCliSettings />
+                </SettingsGroup>
+                <AccountConfigNotices sections={["cliUpdates"]} />
+              </>
+            ),
+          },
+        ]}
+      />
+      {adding && data && (
+        <WorkerEnrollment
+          setup={data.setup}
+          onClose={() => {
+            setAdding(false);
+            void resource.reload();
+          }}
+        />
+      )}
+    </ResourceState>
+  );
+}
+
+function RegisteredWorkers({
+  groups,
+  data,
+  resource,
+  expansion,
+}: ReturnType<typeof useWorkerResources> & {
+  groups: ReturnType<typeof workerGroups>;
+  expansion: ReturnType<typeof useWorkerExpansion>;
+}) {
+  const { expanded, setExpanded, entry, workerId, workerTopic, revealId, markRevealed } = expansion;
+
+  return (
+    <>
       {resource.initialLoading && !groups.length && <SettingsSkeletonGroups titles={["This computer"]} />}
       {groups.map((group) => (
         <View key={group.id} style={{ gap: 12 }}>
@@ -102,6 +213,8 @@ export function WorkerSettings() {
               {data && (
                 <WorkerDetails
                   worker={worker}
+                  scopeKey={JSON.stringify(["worker", worker.id, worker.id === workerId ? entry : undefined])}
+                  defaultTopic={worker.id === workerId ? workerTopic : undefined}
                   setup={data.setup}
                   environment={data.environment}
                   record={data.records.records.find((r) => r.workerId === worker.id)}
@@ -118,42 +231,7 @@ export function WorkerSettings() {
           <SettingsRow title="No workers yet" description="Add a worker to run agents on a computer you control." />
         </SettingsGroup>
       )}
-      {!!pending.length && (
-        <SettingsGroup title="Pending enrollments">
-          {pending.map((e) => (
-            <SettingsRow
-              key={e.id}
-              title={e.name}
-              description={`Waiting for enrollment · expires ${format(e.expiresAt?.seconds)}`}
-              control={
-                <Button
-                  title="Revoke"
-                  disabled={resource.busy}
-                  onPress={() => void resource.run((api) => api.revokeWorkerEnrollment({ id: e.id }))}
-                />
-              }
-            />
-          ))}
-        </SettingsGroup>
-      )}
-      <SettingsGroup title="Agent CLI updates" description="Account · Workers can override this schedule.">
-        <WorkerCliSettings />
-      </SettingsGroup>
-      <AccountConfigNotices sections={["cliUpdates"]} />
-      <SettingsGroup title="Install over SSH">
-        <WorkerSsh />
-      </SettingsGroup>
-      <WorkerConnection url={data?.setup.gatewayUrl || ""} onSaved={resource.reload} />
-      {adding && data && (
-        <WorkerEnrollment
-          setup={data.setup}
-          onClose={() => {
-            setAdding(false);
-            void resource.reload();
-          }}
-        />
-      )}
-    </ResourceState>
+    </>
   );
 }
 

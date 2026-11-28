@@ -51,7 +51,8 @@ export function SettingsLayout({
     Keyboard.dismiss();
     setMenu(false);
 
-    if (next !== section || scoped) openSettingsSection(next);
+    if (next === "memory" && pendingHabits && !query.trim()) openSettingsSection(next, { topic: "habits" });
+    else if (next !== section || scoped) openSettingsSection(next);
   }
 
   const nav = (
@@ -107,7 +108,7 @@ export function SettingsLayout({
                 }
               >
                 <KeyboardViewport>
-                  <SettingsSearch query={wide ? query : ""}>{children}</SettingsSearch>
+                  <SettingsSearch query={query}>{children}</SettingsSearch>
                 </KeyboardViewport>
               </ScreenFrame>
             </View>

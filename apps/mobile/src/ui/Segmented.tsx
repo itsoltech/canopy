@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type LayoutRectangle, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { motion, smoothOut, useMotion, useReducedMotion } from "./motion";
 import { Swap } from "./MotionViews";
@@ -11,18 +11,7 @@ const GAP = 2;
 // The sidebar's 272 dp breakpoint minus its 12 dp gutters and the track padding.
 const NARROW_TRACK = 244;
 
-/**
- * Segments with a raised pill that slides to the selected one (web sliding tabs, `t-tabs-pill`: `fast`,
- * `smoothOut`; instant with reduced motion). Until the track is measured the selected segment raises itself.
- */
-export function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-  style,
-  compact = false,
-  inactiveColor,
-}: {
+interface SegmentedProps<T extends string> {
   /** `badge`: a count beside the label of a segment that is not selected (unread items there). */
   options: readonly {
     value: T;
@@ -37,53 +26,60 @@ export function Segmented<T extends string>({
   style?: StyleProp<ViewStyle>;
   compact?: boolean;
   inactiveColor?: string;
-}) {
+  wrap?: boolean;
+}
+
+/**
+ * Segments with a raised pill that slides to the selected one (web sliding tabs, `t-tabs-pill`: `fast`,
+ * `smoothOut`; instant with reduced motion). Until the track is measured the selected segment raises itself.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  style,
+  compact = false,
+  inactiveColor,
+  wrap = false,
+}: SegmentedProps<T>) {
   const c = useColors();
   const type = useTypography();
-  const reduced = useReducedMotion();
+  const { layout } = useMotion();
   const [track, setTrack] = useState(0);
+  const [bounds, setBounds] = useState<Partial<Record<T, LayoutRectangle>>>({});
+  const active = wrap ? bounds[value] : undefined;
+  const measured = wrap ? !!active : track > 0;
 
-  const index = Math.max(
-    0,
-    options.findIndex((option) => option.value === value),
-  );
-
-  const segment = track ? (track - GAP * (options.length - 1)) / options.length : 0;
-  const x = useSharedValue(0);
-  const laidOut = useRef(0);
-  const pill = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
-
-  useEffect(() => {
-    const target = index * (segment + GAP);
-    // A new width (rotation, a resized window) moves the pill at once; only a new selection slides it.
-    const resized = laidOut.current !== segment;
-    laidOut.current = segment;
-    x.set(resized || reduced ? target : withTiming(target, { duration: motion.fast, easing: smoothOut }));
-  }, [index, segment, reduced, x]);
-
-  const raised: ViewStyle = {
-    borderRadius: 6,
-    backgroundColor: c.dark ? "#ffffff1a" : "#ffffff",
-    ...(!c.dark && {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: c.ring,
-      shadowColor: "#000000",
-      shadowOpacity: 0.05,
-      shadowRadius: 1,
-      shadowOffset: { width: 0, height: 1 },
-    }),
-  };
+  const raised = pillStyle(c.dark, c.ring);
 
   return (
     <View
+      accessibilityRole="tablist"
       onLayout={(event) => setTrack(event.nativeEvent.layout.width - GAP * 2)}
-      style={[styles.row, { backgroundColor: c.recess, padding: GAP, gap: GAP, borderRadius: 8 }, style]}
+      style={[
+        styles.row,
+        { backgroundColor: c.recess, padding: GAP, gap: GAP, borderRadius: 8 },
+        wrap && { flexWrap: "wrap", alignItems: "stretch" },
+        style,
+      ]}
     >
-      {segment > 0 && (
+      {!wrap && track > 0 && (
+        <SlidingPill
+          track={track}
+          count={options.length}
+          index={options.findIndex((option) => option.value === value)}
+          raised={raised}
+        />
+      )}
+      {active && (
         // Android elevation would draw the moving pill over the tab labels.
         <Animated.View
           pointerEvents="none"
-          style={[raised, { position: "absolute", top: GAP, bottom: GAP, left: GAP, width: segment }, pill]}
+          layout={layout}
+          style={[
+            raised,
+            { position: "absolute", top: active.y, left: active.x, width: active.width, height: active.height },
+          ]}
         />
       )}
       <LayoutAnimationConfig skipEntering>
@@ -96,23 +92,31 @@ export function Segmented<T extends string>({
           return (
             <Pressable
               key={option.value}
+              onLayout={
+                wrap
+                  ? (event) => {
+                      const rect = event.nativeEvent.layout;
+                      setBounds((prev) => ({ ...prev, [option.value]: rect }));
+                    }
+                  : undefined
+              }
               accessibilityRole="tab"
               accessibilityLabel={`${option.label}${working ? `, ${working} working` : ""}${unread ? `, ${unread} unread` : attention ? ", needs you" : ""}`}
               accessibilityState={{ selected, disabled: option.disabled }}
               disabled={option.disabled}
               onPress={() => onChange(option.value)}
-              hitSlop={{ top: 6, bottom: 6 }}
+              hitSlop={wrap ? undefined : { top: 6, bottom: 6 }}
               style={[
                 {
-                  flex: 1,
-                  minHeight: compact ? 28 : 32,
+                  ...(wrap ? { flexGrow: 1, maxWidth: "100%" } : { flex: 1 }),
+                  minHeight: wrap ? 44 : compact ? 28 : 32,
                   paddingHorizontal: compact ? 8 : 12,
                   paddingVertical: compact ? 4 : 6,
                   alignItems: "center",
                   justifyContent: "center",
                   opacity: option.disabled ? 0.4 : 1,
                 },
-                selected && !segment && raised,
+                selected && !measured && raised,
               ]}
             >
               {/* The badge sits beside the label, outside its flow: the label stays put when it appears. */}
@@ -121,7 +125,11 @@ export function Segmented<T extends string>({
                 <Text
                   style={[
                     compact ? type.meta : type.small,
-                    { fontFamily: font.medium, color: selected ? c.text : (inactiveColor ?? c.muted) },
+                    {
+                      textAlign: "center",
+                      fontFamily: font.medium,
+                      color: selected ? c.text : (inactiveColor ?? c.muted),
+                    },
                   ]}
                 >
                   {option.label}
@@ -138,6 +146,54 @@ export function Segmented<T extends string>({
         })}
       </LayoutAnimationConfig>
     </View>
+  );
+}
+
+function pillStyle(dark: boolean, ring: string): ViewStyle {
+  return {
+    borderRadius: 6,
+    backgroundColor: dark ? "#ffffff1a" : "#ffffff",
+    ...(!dark && {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: ring,
+      shadowColor: "#000000",
+      shadowOpacity: 0.05,
+      shadowRadius: 1,
+      shadowOffset: { width: 0, height: 1 },
+    }),
+  };
+}
+
+/** Single-row controls use equal segments, so resizing can place the pill immediately. */
+function SlidingPill({
+  track,
+  count,
+  index,
+  raised,
+}: {
+  track: number;
+  count: number;
+  index: number;
+  raised: ViewStyle;
+}) {
+  const reduced = useReducedMotion();
+  const segment = (track - GAP * (count - 1)) / count;
+  const target = Math.max(index, 0) * (segment + GAP);
+  const x = useSharedValue(target);
+  const lastWidth = useRef(segment);
+  const pill = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
+
+  useEffect(() => {
+    const resized = lastWidth.current !== segment;
+    lastWidth.current = segment;
+    x.set(resized || reduced ? target : withTiming(target, { duration: motion.fast, easing: smoothOut }));
+  }, [target, segment, reduced, x]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[raised, { position: "absolute", top: GAP, bottom: GAP, left: GAP, width: segment }, pill]}
+    />
   );
 }
 

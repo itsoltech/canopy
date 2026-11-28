@@ -10,13 +10,59 @@ import { usePhoneUpdates } from "../updates/phone";
 import { useUpdates } from "../updates/state";
 import { UpdateFeedback, UpdateRun } from "../updates/UpdateSummary";
 import { UpdateRows } from "../updates/UpdateRows";
-import { AppUpdateStatus } from "./AppUpdateStatus";
+import { AppUpdateStatus, AppUpdateReleases } from "./AppUpdateStatus";
 import { AutoUpdateSetting } from "./AutoUpdateSetting";
 import { confirmAction } from "./resource";
 import { SettingsRowContent } from "./SettingsRow";
 import { SettingsGroup, SettingChoice } from "./SettingsGroup";
+import { SettingsTopics } from "./SettingsTopics";
 
 export function AppUpdatesSettings() {
+  const { snapshot, active, manage } = useUpdates();
+
+  return (
+    <SettingsTopics
+      topics={[
+        { id: "status", label: "Status", content: <UpdateStatus /> },
+        {
+          id: "preferences",
+          label: "Update preferences",
+          hidden: !snapshot || (snapshot.gatewayBundled && !snapshot.autoUpdateSupported),
+          content: snapshot && (
+            <>
+              <SettingsGroup title="Update preferences">
+                {snapshot.autoUpdateSupported && <AutoUpdateSetting computerName={snapshot.computerName} />}
+                {!snapshot.gatewayBundled && (
+                  <SettingChoice
+                    title="Gateway release channel"
+                    value={snapshot.channel}
+                    disabled={active || !snapshot.admin}
+                    options={[
+                      { value: "stable", label: "Stable" },
+                      { value: "beta", label: "Beta" },
+                      { value: "nightly", label: "Nightly" },
+                    ]}
+                    onChange={(channel) =>
+                      confirmAction(
+                        "Change release channel",
+                        "A channel may contain an older version. Review the available version before installing.",
+                        () => void manage({ action: "channel", channel }),
+                      )
+                    }
+                  />
+                )}
+              </SettingsGroup>
+              <UpdateFeedback />
+            </>
+          ),
+        },
+        { id: "releases", label: "Releases", content: <AppUpdateReleases /> },
+      ]}
+    />
+  );
+}
+
+function UpdateStatus() {
   const { snapshot, pending, optimistic, run, active, manage } = useUpdates();
   const phone = usePhoneUpdates();
   const c = useColors();
@@ -95,30 +141,6 @@ export function AppUpdatesSettings() {
         {snapshot && <UpdateRows snapshot={snapshot} />}
       </SettingsGroup>
       {snapshot?.run && snapshot.run.state !== "dismissed" && <UpdateRun run={snapshot.run} />}
-      {snapshot && (!snapshot.gatewayBundled || snapshot.autoUpdateSupported) && (
-        <SettingsGroup title="Update preferences">
-          {snapshot.autoUpdateSupported && <AutoUpdateSetting computerName={snapshot.computerName} />}
-          {!snapshot.gatewayBundled && (
-            <SettingChoice
-              title="Gateway release channel"
-              value={snapshot.channel}
-              disabled={active || !snapshot.admin}
-              options={[
-                { value: "stable", label: "Stable" },
-                { value: "beta", label: "Beta" },
-                { value: "nightly", label: "Nightly" },
-              ]}
-              onChange={(channel) =>
-                confirmAction(
-                  "Change release channel",
-                  "A channel may contain an older version. Review the available version before installing.",
-                  () => void manage({ action: "channel", channel }),
-                )
-              }
-            />
-          )}
-        </SettingsGroup>
-      )}
     </>
   );
 }
