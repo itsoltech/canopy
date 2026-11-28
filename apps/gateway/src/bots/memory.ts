@@ -34,7 +34,15 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
         SELECT 1 FROM bot_messages m WHERE m.turn_id=t.id AND ${ownerBotInput(sql)}
       ) AS owner_input,
       r.id IS NOT NULL AS routine,
-      t.client_request_id LIKE ('routine:' || r.id::text || ':%') AND t.hops=r.hops AS scheduled,
+      EXISTS (WITH RECURSIVE chain(id, request, hops, depth) AS (
+          SELECT t.id, t.client_request_id, t.hops, 0
+          UNION ALL
+          -- A parked continuation acts with its asking run's access: follow verified card edges to the scheduled run.
+          SELECT s.id, s.client_request_id, s.hops, c.depth + 1 FROM chain c
+          JOIN bot_approvals a ON c.request = 'parked:' || a.id::text AND a.parked AND a.bot_id = t.bot_id
+          JOIN bot_turns s ON s.id = a.turn_id AND s.bot_id = t.bot_id AND s.routine_id = t.routine_id
+          WHERE c.depth < 16)
+        SELECT 1 FROM chain c WHERE c.request LIKE ('routine:' || r.id::text || ':%') AND c.hops = r.hops) AS scheduled,
       EXISTS (SELECT 1 FROM bot_channel_inputs i JOIN bot_messages m ON m.turn_id=i.turn_id
         WHERE i.turn_id=t.id AND i.conversation_id=t.conversation_id AND i.status='applied'
           AND t.client_request_id='messenger:' || i.id::text

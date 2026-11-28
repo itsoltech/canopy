@@ -19,6 +19,7 @@ import type { BotAccess } from "./store-access.ts";
 import type { botConfig } from "./store-config.ts";
 import { chatSteerTarget } from "./store-chat-steer.ts";
 import { ownerMessagePrompt } from "./mentions.ts";
+import { keepParkedNote } from "./parked.ts";
 
 type BotTurnKey = Pick<BotTurn, "id">;
 
@@ -37,6 +38,7 @@ type EnqueueOptions = RoutineOrigin & {
   attachmentLimits?: AttachmentLimits | undefined;
   draftRevision?: bigint | undefined;
   steer?: boolean;
+  resumeApprovalId?: string;
 };
 
 /** Queues a bot turn with its message (user, bot, routine or system input). */
@@ -157,8 +159,8 @@ function botEnqueue(
           : input;
 
         const inserted =
-          yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title, conversation_id, steer_target_id)
-      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""}, ${options.conversationId ?? null}::uuid, ${target?.turnId ?? null}::uuid)
+          yield* sql`INSERT INTO bot_turns(id, bot_id, client_request_id, input, hops, reply_to_bot_id, exchange_id, routine_id, routine_title, conversation_id, steer_target_id, resume_approval_id)
+      VALUES (${turnId}::uuid, ${botId}::uuid, ${requestId}, ${storedInput}, ${options.hops ?? 0}, ${options.replyTo ?? null}::uuid, ${options.exchangeId ?? null}::uuid, ${options.routineId ?? null}::uuid, ${options.routineTitle ?? ""}, ${options.conversationId ?? null}::uuid, ${target?.turnId ?? null}::uuid, ${options.resumeApprovalId ?? null}::uuid)
       ON CONFLICT(bot_id, client_request_id) DO NOTHING RETURNING id`;
 
         if (!inserted.length)
@@ -223,7 +225,8 @@ export function botQueue(sql: SqlClient.SqlClient, access: BotAccess) {
 
         if (turn.conversation_id) yield* finishChannelTurn(sql, turn, status, text);
         yield* sql`UPDATE bot_turns SET status = ${status}, lease_token = NULL, lease_until = NULL, finished_at = now() WHERE id = ${turn.id}::uuid`;
-        yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE turn_id = ${turn.id}::uuid AND status = 'pending'`;
+        yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now() WHERE turn_id = ${turn.id}::uuid AND status = 'pending' AND NOT parked`;
+        yield* keepParkedNote(sql, turn.id, generatedText);
         yield* sql`UPDATE bots SET status_line = '', revision = revision + 1, updated_at = now() WHERE id = ${turn.bot_id}::uuid`;
 
         if (turn.routine_id) {

@@ -174,7 +174,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
             WHERE bot_tool_calls.status = 'pending'`;
           yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now()
             WHERE id IN (SELECT id FROM bot_tool_calls WHERE turn_id = ${call.turnId}::uuid AND call_key = ${call.callId})
-              AND status = 'pending'`;
+              AND status = 'pending' AND NOT parked`;
           yield* access.changed(call.botId);
         }),
       ),
@@ -277,7 +277,7 @@ export function botHarnessStore(sql: SqlClient.SqlClient, access: BotAccess) {
 
             if (end)
               yield* sql`UPDATE bot_approvals SET status = 'expired', answered_at = now()
-              WHERE turn_id = ${row.turn_id}::uuid AND status = 'pending'`;
+              WHERE turn_id = ${row.turn_id}::uuid AND status = 'pending' AND NOT parked`;
             yield* sql`UPDATE bot_harness_turns SET items = ${JSON.stringify(row.items)}::jsonb, text = ${text},
               started_journal_id = coalesce(${body.case === "turnStarted" ? journalId || null : null}, started_journal_id),
               outcome = ${end?.outcome ?? row.outcome}, finished_at=CASE WHEN ${!!end} THEN now() ELSE finished_at END,

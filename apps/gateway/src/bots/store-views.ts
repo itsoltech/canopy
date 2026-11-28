@@ -60,6 +60,8 @@ export interface ApprovalRow {
   prepared?: boolean;
   preference_change?: boolean;
   restricted_thread_id?: string | null;
+  parked?: boolean;
+  note?: string;
 }
 
 export const botConfiguration = (row: Pick<BotRow, "configuration">) =>
@@ -168,6 +170,7 @@ export const approvalView = (row: ApprovalRow) =>
     routineTitle: row.routine_title ?? "",
     ruleOptions: decodedRules(row.rule_options),
     allowedByRule: row.allowed_by_rule ? fromJson(bots.BotApprovalRuleSchema, row.allowed_by_rule) : undefined,
+    parked: row.parked === true,
   });
 
 export const uuid = () => Bun.randomUUIDv7();

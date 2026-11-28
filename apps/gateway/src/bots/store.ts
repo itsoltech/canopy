@@ -23,6 +23,7 @@ import { settleChatSteer } from "./store-chat-steer.ts";
 import { messageDelegatingBot } from "./thread-messages.ts";
 import type { CallSource } from "../store/agent-bus-types.ts";
 import { botExecutions } from "./bot-execution.ts";
+import { botParked } from "./parked.ts";
 
 export {
   botConfiguration,
@@ -81,6 +82,10 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
     ...botMcp(sql, core),
     ...botTurns(sql, core),
     ...botApprovals(sql, core),
+    ...botParked(sql, core),
+    // Scheduled background work: due routines, then parked cards whose decision window closed.
+    deliverRoutines: (user: string, now: Date) =>
+      queue.routines.deliverRoutines(user, now).pipe(Effect.andThen(botParked(sql, core).expireParked(user))),
     ...botRules(sql, core),
     ...botThreadApprovals(sql),
     ...botWakeups(sql, core),

@@ -216,6 +216,9 @@ export function routineStore(sql: SqlClient.SqlClient, hooks: Hooks) {
       if (stopped.length) yield* sql`UPDATE bot_routines SET last_outcome = 'Stopped' WHERE id = ${id}::uuid`;
       yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE status = 'pending'
       AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid AND status = 'interrupted')`;
+      // Parked cards of earlier runs would start continuations of a routine that no longer runs.
+      yield* sql`UPDATE bot_approvals SET status = 'discarded', answered_at = now() WHERE parked AND status = 'pending'
+      AND turn_id IN (SELECT id FROM bot_turns WHERE routine_id = ${id}::uuid)`;
     });
 
   const update = (user: string, botId: string, id: string, patch: RoutinePatch, now: Date) =>

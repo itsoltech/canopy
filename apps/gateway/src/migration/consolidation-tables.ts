@@ -15,6 +15,9 @@ export interface ImportTable {
 
 export const SLACK_CONTEXT_MIGRATION = 220;
 
+/** Parked bot cards: approvals and continuation turns gain columns. */
+export const BOT_PARKED_MIGRATION = 228;
+
 /** Conversations record direct messages and the outbox records sent message IDs; both copy as plain values. */
 export const MESSENGER_PROVIDERS_MIGRATION = 224;
 

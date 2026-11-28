@@ -413,19 +413,23 @@ describe.skipIf(!dockerAvailable)("bot routines: durable scheduling and hidden t
     );
     await core.bots.tick();
 
-    const waiting = await eventually(
-      () => read(id),
-      (s) => s.approvals.some((a) => a.status === "pending"),
-    );
+    // The routine's question is parked: the card stays with the owner and the run ends without blocking the bot.
+    const parked = await idle(id);
+    const card = parked.approvals.find((a) => a.status === "pending");
 
-    expect(waiting.approvals[0]?.routineTitle).toBe(r.title);
-    expect(waiting.statusLine).toContain("Waiting for you");
-    expect(waiting.statusLine).toContain(r.title);
-    expect(messages(waiting).at(-1)?.text).toBe("Visible answer");
-    expect(activity(waiting)).toEqual([`Routine “${r.title}” started`]);
-    await gw.api.answerBotApproval({ approvalId: waiting.approvals[0]!.id, approve: true, answer: "Proceed" });
+    expect(card?.routineTitle).toBe(r.title);
+    expect(card?.parked).toBe(true);
+    expect(parked.statusLine).toBe("");
+    expect(messages(parked).at(-1)?.text).toBe("Visible answer");
+    expect(activity(parked)).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” completed`]);
+    await gw.api.answerBotApproval({ approvalId: card!.id, approve: true, answer: "Proceed" });
     await core.bots.tick();
-    expect(activity(await idle(id))).toEqual([`Routine “${r.title}” started`, `Routine “${r.title}” completed`]);
+    expect(activity(await idle(id))).toEqual([
+      `Routine “${r.title}” started`,
+      `Routine “${r.title}” completed`,
+      `Follow-up for routine “${r.title}” started`,
+      `Follow-up for routine “${r.title}” completed`,
+    ]);
   });
 
   test("owner and bot scoping applies to UI toggles/deletion and routine tools", async () => {

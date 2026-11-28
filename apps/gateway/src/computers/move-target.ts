@@ -2,7 +2,7 @@ import { toBinary, type JsonValue } from "@bufbuild/protobuf";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import { Effect } from "effect";
+import { Effect, Predicate } from "effect";
 
 import { botRowsJson, insertRows, MOVE_COLUMNS, threadRowJson, type MoveRow, type Sql } from "./move-payload.ts";
 
@@ -167,6 +167,24 @@ export function discard(sql: Sql, owner: string, move: MoveRow) {
 export const discardTarget = (store: ComputerStore, move: MoveRow) =>
   transaction(store, (sql) => discard(sql, store.owner, move));
 
+/** Continuations point at their parked cards once both arrived; a card outside this bot is never linked. */
+function restoreContinuations(sql: Sql, botId: string, turns: readonly Record<string, JsonValue>[]) {
+  const links = turns.flatMap((turn) =>
+    Predicate.isString(turn["id"]) && Predicate.isString(turn["resume_approval_id"])
+      ? [{ turn: turn["id"], approval: turn["resume_approval_id"] }]
+      : [],
+  );
+
+  if (!links.length) return Effect.void;
+
+  return sql.unsafe(
+    `UPDATE bot_turns t SET resume_approval_id = r.approval FROM unnest($2::uuid[], $3::uuid[]) r(turn, approval)
+      WHERE t.id = r.turn AND t.bot_id = $1::uuid
+        AND EXISTS (SELECT 1 FROM bot_approvals a WHERE a.id = r.approval AND a.bot_id = $1::uuid)`,
+    [botId, links.map((l) => l.turn), links.map((l) => l.approval)],
+  );
+}
+
 /** Applies a staged bot in one transaction: it becomes this computer's, with its conversation, routines and reminders. */
 export async function applyBot(
   store: ComputerStore,
@@ -218,7 +236,8 @@ export async function applyBot(
 
       yield* insertRows(sql, "bot_routines", ownRows(rows.routines), { strict: true });
 
-      yield* insertRows(sql, "bot_turns", ownRows(rows.turns), { strict: true });
+      // A continuation names its parked card, which arrives with the approvals below.
+      yield* insertRows(sql, "bot_turns", ownRows(rows.turns), { omit: ["resume_approval_id"], strict: true });
       // New sequence numbers here, in the same order; the read marker follows its message.
       yield* importBotComposer(sql, owner, move.item_id, bot);
       yield* insertRows(sql, "bot_messages", rows.messages, { omit: ["seq"], order: "seq", strict: true });
@@ -230,6 +249,7 @@ export async function applyBot(
       );
       yield* insertRows(sql, "bot_tool_calls", rows.tool_calls, { strict: true });
       yield* insertRows(sql, "bot_approvals", ownRows(rows.approvals), { strict: true });
+      yield* restoreContinuations(sql, move.item_id, rows.turns);
       yield* insertRows(sql, "bot_handoff_notes", ownRows(rows.handoff_notes), { strict: true });
       yield* insertRows(sql, "bot_wakeups", ownRows(rows.wakeups), { strict: true });
       yield* redirect(sql, owner, {

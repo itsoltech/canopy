@@ -116,6 +116,8 @@ export interface QuestionView {
   at: Date;
   prompt: string;
   routineTitle?: string | undefined;
+  /** Parked by a background run: the answer starts a new run. */
+  parked?: boolean | undefined;
   options: QuestionOptionView[];
   freeText?: boolean | undefined;
   expired?: boolean | undefined;
@@ -135,6 +137,8 @@ export interface ApprovalView {
   /** What it wants to do, e.g. "Sending to Notion". */
   action: string;
   routineTitle?: string | undefined;
+  /** Parked by a background run: the decision starts a new run. */
+  parked?: boolean | undefined;
   fields: { label: string; value: string }[];
   botProposal?:
     | {
