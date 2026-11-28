@@ -130,16 +130,18 @@ async function toggleOverlay(overlay: BrowserWindow) {
   return result;
 }
 
-async function assertActivityLoops(overlay: BrowserWindow, expanded: boolean) {
+async function assertActivityLoops(overlay: BrowserWindow, expected: string[]) {
   const { reducedMotion, running } = await overlay.webContents.executeJavaScript(`({
     reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
     running: document.getAnimations()
       .filter((animation) => animation.playState === "running" && animation.effect.getTiming().iterations === Infinity)
-      .map((animation) => animation.animationName)
+      .map(({ animationName, effect }) => animationName === "spin"
+        ? "spin " + getComputedStyle(effect.target).animationTimingFunction
+        : animationName)
       .sort(),
   })`);
 
-  assert.deepEqual(running, expanded && !reducedMotion ? ["shimmer", "spin"] : []);
+  assert.deepEqual(running, reducedMotion ? [] : expected);
 }
 
 interface RenderedActivityRow {
@@ -233,7 +235,7 @@ async function mascotBodyColor(overlay: BrowserWindow, expectedImage: string): P
 async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, workingRow: ActivityNotchRow) {
   enter("rendering a project logo and preserving other statuses");
   await toggleOverlay(overlay);
-  await assertActivityLoops(overlay, true);
+  await assertActivityLoops(overlay, ["shimmer", "spin linear"]);
 
   const invalidColor = {
     path: "/threads/synthetic-malformed-mark",
@@ -296,7 +298,7 @@ async function checkProjectMarks(overlay: BrowserWindow, source: BrowserWindow, 
   await waitForRows(overlay, ["Open Restore focus, Working", approvalLabel, `Open ${renamedBot}, Completed`]);
   assert.deepEqual(await mascotBodyColor(overlay, recolored.botMascot), [250, 80, 32, 255]);
   await toggleOverlay(overlay);
-  await assertActivityLoops(overlay, false);
+  await assertActivityLoops(overlay, []);
 }
 
 async function checkPreloadRedaction(overlay: BrowserWindow) {
@@ -346,7 +348,7 @@ async function openOverlay(origin: string, source: BrowserWindow, settings: Brow
   const workingRow = { id: row.id, label: working.title, state: "working" } as const;
   assert.deepEqual(first.rows, [workingRow]);
   assert.deepEqual(await waitForRows(overlay, ["Open Restore focus, Working"]), [noMark]);
-  await assertActivityLoops(overlay, false);
+  await assertActivityLoops(overlay, ["spin linear"]);
 
   await settings.loadURL(`${origin}/settings`);
   await assert.rejects(publish(settings, []), /Untrusted activity notch request/);

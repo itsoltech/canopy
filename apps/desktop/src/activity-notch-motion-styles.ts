@@ -50,7 +50,6 @@ export const activityNotchMotionStyles = `
     opacity: 0;
     pointer-events: none;
   }
-  @keyframes spin { to { rotate: 1turn; } }
   .count {
     color: var(--ink);
     font-size: 0.75rem;
