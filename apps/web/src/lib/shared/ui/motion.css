@@ -387,13 +387,20 @@
  * panel inside (`t-panel`) stays mounted, keeps its width on the column's left edge and fades, so its text never
  * re-wraps and the shrinking column clips it instead of letting it cover the thread. A drag resizes instantly. */
 .t-panel-column {
-  transition: grid-template-columns var(--duration-slow) var(--ease-smooth-out);
+  --panel-duration: var(--duration-slow);
+  transition: grid-template-columns var(--panel-duration) var(--ease-smooth-out);
 }
 .t-panel-column[data-collapsed] {
-  transition-duration: var(--duration-medium);
+  --panel-duration: var(--duration-medium);
 }
-:root[data-resizing="x"] .t-panel-column {
-  transition: none;
+:root[data-resizing="x"] .t-panel-column,
+.t-panel-column[data-panel-restoring] {
+  --panel-duration: 0s;
+}
+/* When Files and the collapsed pill exchange space beside the feed, interpolate both
+ * reservations together so the column never gets squeezed between them. */
+[data-panel-moving] [data-chat-pill-only] {
+  --chat-settle: var(--panel-duration);
 }
 .t-panel {
   transition: opacity var(--duration-slow) var(--ease-smooth-out);
@@ -452,6 +459,13 @@
 .t-summary-pill[data-hidden] {
   opacity: 0;
   transition-delay: 0s;
+}
+/* Keep the pill in the row above the feed until its horizontal space is available.
+ * On the return trip it takes the row immediately, before Files starts moving. */
+[data-panel-moving] [data-chat-pill-only] .t-summary-pill.absolute {
+  transition:
+    opacity var(--duration-micro) var(--ease-smooth-out) var(--duration-quick),
+    position var(--chat-settle, 0s) step-end allow-discrete;
 }
 /* The chat column eases to its new place when the docked summary opens or closes: the card's space
  * (`--chat-card-space`, layout.css, its transition above with the sidebar's) eases, and the column's place follows

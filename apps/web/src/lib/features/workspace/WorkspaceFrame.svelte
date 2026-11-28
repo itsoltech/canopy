@@ -2,6 +2,7 @@
   import { tick, untrack, type Snippet } from "svelte";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import ResizeHandle from "#lib/shared/ui/ResizeHandle.svelte";
+  import { duration } from "#lib/shared/ui/motion.ts";
   import { workspaceFileDrag, type WorkspaceFileDrag } from "./file-drag.ts";
   import { useFileIntake } from "#lib/features/attachments/file-intake.svelte.ts";
 
@@ -22,6 +23,21 @@
   let root = $state<HTMLDivElement>();
   let visibility = $state(0);
   let motionThread = $state("");
+  let panelMoving = $state(false);
+  let previousPanel: { thread: string; width: number } | undefined;
+
+  $effect.pre(() => {
+    const thread = workspace.threadId();
+    const width = open ? size : 0;
+    const moving = previousPanel?.thread === thread && previousPanel.width !== width;
+    panelMoving = moving;
+    previousPanel = { thread, width };
+
+    if (!moving) return;
+    const timer = setTimeout(() => (panelMoving = false), duration(open ? "slow" : "medium") + 50);
+
+    return () => clearTimeout(timer);
+  });
 
   $effect.pre(() => {
     const id = workspace.threadId();
@@ -94,6 +110,7 @@
   style:grid-template-columns={workspace.wide ? `minmax(0,1fr) ${open ? size : 0}px` : undefined}
   data-collapsed={!open || undefined}
   data-panel-restoring={motionThread !== workspace.threadId() || undefined}
+  data-panel-moving={panelMoving || undefined}
   data-window-side-panel={open ? "shown" : undefined}
 >
   <span class="pointer-events-none invisible absolute w-[1rem]" bind:clientWidth={workspace.rem}></span>
