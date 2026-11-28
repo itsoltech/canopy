@@ -219,4 +219,58 @@ describe.skipIf(!dockerAvailable)("learned bot skills through the worker harness
 
     expect(await call(bot.id, "read_skill", { name: report.name })).toMatchObject({ ...report, revision: 1 });
   }, 30_000);
+
+  test("recovering an in-flight preview never starts a second generation", async () => {
+    const bot = await f.add(Provider.CODEX, f.workerId, "full_auto");
+    await f.query(
+      "INSERT INTO bot_skills(bot_id,name,description,instructions,revision) VALUES ($1,'recovery','Preview recovery','Summarize the sample. HOLD:preview-recovery',1)",
+      [bot.id],
+    );
+    const { turnId } = await f.tool(bot.id, "preview_skill", { name: "recovery", example_input: "Seven open items." });
+
+    const generations = () =>
+      f
+        .inputs()
+        .filter((input) =>
+          input.parts.some(
+            (part) => part.text?.includes("HOLD:preview-recovery") && part.text.includes("Seven open items."),
+          ),
+        );
+
+    try {
+      expect(
+        await eventually(
+          async () => generations().length,
+          (count) => count > 0,
+        ),
+      ).toBe(1);
+      expect(
+        await f.query("SELECT status FROM bot_tool_calls WHERE turn_id=$1 AND tool->>'name'='preview_skill'", [turnId]),
+      ).toEqual([{ status: "running" }]);
+      // Simulate loss of the executing gateway lease before its waiting command can record a result.
+      await f.query("UPDATE bot_turns SET lease_token=$2,lease_until=now()-interval '1 second' WHERE id=$1", [
+        turnId,
+        crypto.randomUUID(),
+      ]);
+      await f.restartGateway();
+      await f.reconnect();
+      f.gw.core.bots.start();
+      await f.release("preview-recovery");
+
+      const terminal = await eventually(
+        () =>
+          f.query<{ status: string }>(
+            "SELECT status FROM bot_tool_calls WHERE turn_id=$1 AND tool->>'name'='preview_skill'",
+            [turnId],
+          ),
+        (rows) => rows[0]?.status === "interrupted",
+      );
+
+      expect(terminal).toEqual([{ status: "interrupted" }]);
+      await answer(turnId);
+      expect(generations()).toHaveLength(1);
+    } finally {
+      await f.release("preview-recovery");
+    }
+  }, 30_000);
 });

@@ -29,6 +29,9 @@ export async function previewSkill(c: ToolContext) {
   const sample = c.string("example_input", 16_000);
   const { userId: owner, runtime } = c.options;
 
+  // Commit the in-flight marker before a worker can start a billable generation.
+  await c.core.bots.run((s) => s.remoteStarted(c.turn, c.call));
+
   const sent = await runtime.runPromise(
     SqlClient.SqlClient.use((sql) =>
       sql.withTransaction(
