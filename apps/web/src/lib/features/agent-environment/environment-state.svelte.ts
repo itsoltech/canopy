@@ -37,6 +37,10 @@ export class EnvironmentState {
     return libraryWorkers(this.snapshot.workers, this.records());
   }
 
+  get linkedWorkers(): readonly ui.WorkerRecord[] {
+    return this.records();
+  }
+
   /** The newest revision known: the shared read, or a route's initial value until it arrives. */
   get snapshot(): ui.AgentEnvironmentSnapshot {
     const shared = this.shared.data;
@@ -117,18 +121,41 @@ export class EnvironmentState {
   resolveSkill(
     workerId: string,
     file: EnvironmentSkillStatus,
-    action: "archive" | "keep" | "overwrite" | "import",
+    action: "archive" | "keep" | "overwrite" | "import" | "keep-local-and-remove",
     expectedRevision: bigint,
   ) {
     const body = create(ui.ResolveSkillDriftRequestSchema, {
       workerId,
       targetId: file.targetId,
+      skillId: file.skillId,
       action,
       observedChecksum: action === "archive" ? file.archiveToken : file.observedChecksum,
       expectedRevision,
     });
 
     return this.mutate("POST", "/skills/resolve", encode(ui.ResolveSkillDriftRequestSchema, body));
+  }
+
+  excludeSkill(skill: ui.LibrarySkill, workerIds: readonly string[], expectedRevision: bigint) {
+    const request = create(ui.SaveLibrarySkillRequestSchema, {
+      expectedRevision,
+      skill: {
+        ...skill,
+        artifact: undefined,
+        overrides: [
+          ...skill.overrides.filter((override) => !workerIds.includes(override.workerId)),
+          ...workerIds.map((workerId) =>
+            create(ui.SkillMachineOverrideSchema, {
+              workerId,
+              disabled: true,
+              version: skill.overrides.find((override) => override.workerId === workerId)?.version ?? 0n,
+            }),
+          ),
+        ],
+      },
+    });
+
+    return this.mutate("POST", "/skills", encode(ui.SaveLibrarySkillRequestSchema, request));
   }
 
   async mutate(

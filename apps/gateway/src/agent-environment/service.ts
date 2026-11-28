@@ -1,4 +1,5 @@
 import {
+  AGENT_CONFLICT_SKILL_IMPORT_CAPABILITY,
   AGENT_LOCAL_SKILL_IMPORT_CAPABILITY,
   ANTIGRAVITY_ACP_CAPABILITY,
   SKILL_INSTALLER_CAPABILITY,
@@ -45,6 +46,7 @@ function compatibleSkills(skills: ui.LibrarySkill[], capabilities: readonly stri
 
 /** Local copy tokens from the last report a live connection stored. */
 export interface AcceptedSkillReport {
+  readonly id: string;
   readonly revision: bigint;
   readonly tokens: ReadonlyMap<string, string>;
 }
@@ -118,8 +120,19 @@ export class AgentEnvironment {
         connection?.isOpen && connection.hello.capabilities.includes(SKILL_INSTALLER_CAPABILITY),
       );
 
-      if (worker.report && (!connection?.isOpen || !this.skillReports.has(connection))) {
-        for (const skill of worker.report.skills) skill.archiveToken = "";
+      const accepted = connection?.isOpen && this.skillReports.get(connection);
+
+      if (!accepted || accepted.id !== worker.skillReportId) {
+        worker.skillReportId = "";
+
+        for (const skill of worker.report?.skills ?? []) {
+          if (
+            !accepted ||
+            accepted.revision !== worker.report?.revision ||
+            accepted.tokens.get(skill.targetId) !== skill.archiveToken
+          )
+            skill.archiveToken = "";
+        }
       }
 
       worker.supported = connection?.isOpen
@@ -129,6 +142,9 @@ export class AgentEnvironment {
       worker.skillsSupported = connection?.isOpen
         ? connection.hello.capabilities.includes("agent_skills_v1")
         : worker.skillsSupported;
+      worker.conflictSkillImportSupported = Boolean(
+        connection?.isOpen && connection.hello.capabilities.includes(AGENT_CONFLICT_SKILL_IMPORT_CAPABILITY),
+      );
       worker.localSkillImportSupported = Boolean(
         connection?.isOpen && connection.hello.capabilities.includes(AGENT_LOCAL_SKILL_IMPORT_CAPABILITY),
       );
@@ -267,6 +283,7 @@ export class AgentEnvironment {
 
     return create(AgentEnvironmentDesiredSchema, {
       revision: snapshot.revision,
+      platformSkillArchives: true,
       instructions: worker.preview,
       resolutions: pending.resolutions,
       skills: connection.hello.capabilities.includes("agent_skills_v1")
@@ -365,14 +382,16 @@ export class AgentEnvironment {
 
             if (report.revision > current) return;
 
-            const rows = yield* sql`UPDATE worker_environments e SET report = ${json}::jsonb, reported_at = now(),
+            const rows = yield* sql<{
+              id: string;
+            }>`UPDATE worker_environments e SET report = ${json}::jsonb, reported_at = greatest(clock_timestamp(), e.reported_at + interval '1 microsecond'),
           resolutions = CASE WHEN ${report.revision} = ${current} THEN '{}'::jsonb ELSE resolutions END
           FROM workers w JOIN worker_connections c ON c.worker_id=w.id
           WHERE w.id = e.worker_id AND w.id = ${workerId}::uuid AND w.owner_user_id = ${owner}::uuid
           AND w.revoked_at IS NULL AND w.archived_at IS NULL AND c.epoch = ${registrationEpoch}
-          AND COALESCE((e.report->>'revision')::bigint, 0) <= ${report.revision} RETURNING e.worker_id`;
+          AND COALESCE((e.report->>'revision')::bigint, 0) <= ${report.revision} RETURNING e.reported_at::text AS id`;
 
-            return rows.length > 0;
+            return rows[0]?.id;
           }),
         );
       }),
@@ -381,7 +400,7 @@ export class AgentEnvironment {
     const tokens = new Map(report.skills.filter((s) => s.archiveToken).map((s) => [s.targetId, s.archiveToken]));
 
     // The previous acceptance stays valid while this report is stored, so a repeated identical report never interrupts a read.
-    if (stored && tokens.size) this.skillReports.set(connection, { revision: report.revision, tokens });
+    if (stored) this.skillReports.set(connection, { id: stored, revision: report.revision, tokens });
     else this.skillReports.delete(connection);
     this.options.changed();
   }

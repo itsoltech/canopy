@@ -5,6 +5,7 @@ import { mobileIdentity } from "../core/mobile-devices.ts";
 import { runSkillInstaller } from "../agent-environment/skill-installer.ts";
 import { serviceIdentity } from "./auth.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { useLibrarySkillVersion } from "../agent-environment/skill-archive.ts";
 import { previewWorkerSkill } from "../agent-environment/local-skill-preview.ts";
 import {
   archiveWorkerSkill,
@@ -25,6 +26,7 @@ export function agentEnvironmentHandlers(
   | "saveLibrarySkill"
   | "runSkillInstaller"
   | "deleteLibrarySkill"
+  | "useLibrarySkillVersion"
   | "resolveSkillDrift"
   | "previewSkillSource"
   | "addSkillSource"
@@ -65,6 +67,7 @@ export function agentEnvironmentHandlers(
       return workerGuard(() => runSkillInstaller(core, r));
     },
     deleteLibrarySkill: (r) => workerGuard(() => core.environment.skills.remove(r)),
+    useLibrarySkillVersion: (r) => workerGuard(() => useLibrarySkillVersion(core.environment, r)),
     resolveSkillDrift: (r) => workerGuard(() => core.environment.skills.resolve(r)),
     previewSkillSource: (r) => workerGuard(() => core.environment.sources.preview(r)),
     addSkillSource: (r) => workerGuard(() => core.environment.sources.add(r)),

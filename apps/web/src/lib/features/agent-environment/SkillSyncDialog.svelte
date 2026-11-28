@@ -1,58 +1,124 @@
 <script lang="ts">
   import { tick } from "svelte";
   import type { EnvironmentSkillStatus, ui } from "@canopy/contracts";
-  import {
-    assignedWorkers,
-    canKeepBlockedSkill,
-    isLocalSkillConflict,
-    skillSyncReports,
-  } from "@canopy/domain/environment-library";
+  import { assignedWorkers, canRemoveSkillConflict, isLocalSkillConflict } from "@canopy/domain/environment-library";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
-  import CopyButton from "#lib/shared/ui/CopyButton.svelte";
+  import SkillConflictImport, { conflictImportSources } from "./SkillConflictImport.svelte";
+  import SkillExcludeReview from "./SkillExcludeReview.svelte";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
-  import ComputerSkillLocation from "./ComputerSkillLocation.svelte";
-  import { archiveLocation, awaitingArchive, canArchive, needsAttention, skillLocation } from "./computer-skills.ts";
+  import Disclosure from "#lib/shared/ui/Disclosure.svelte";
+  import Icon from "#lib/shared/ui/Icon.svelte";
+  import type { IconName } from "#lib/shared/ui/icons.ts";
+  import { awaitingArchive } from "./computer-skills.ts";
+  import SkillArchiveReview from "./SkillArchiveReview.svelte";
   import type { EnvironmentState } from "./environment-state.svelte.ts";
+  import SkillArchiveStatus from "./SkillArchiveStatus.svelte";
+  import SkillSyncLocations from "./SkillSyncLocations.svelte";
+  import {
+    archiveGroups,
+    currentReport,
+    sameArchiveGroup,
+    recordArchives,
+    skillIssues,
+    useLibraryVersion,
+    type SyncComputer,
+  } from "./skill-sync.ts";
 
   let { environment, oncomputer }: { environment: EnvironmentState; oncomputer: (id: string) => void } = $props();
 
-  type Location = { workerId: string; file: EnvironmentSkillStatus };
+  const reviewTitles = {
+    use: "Use the Canopy version?",
+    import: "Use a local copy in Canopy",
+    remove: "Remove from Canopy?",
+    exclude: "Exclude computers from sync",
+  };
 
-  type Archive = Location & { revision: bigint; computer: string };
+  type Action = keyof typeof reviewTitles;
+
+  type Witness = { workerId: string; file: EnvironmentSkillStatus };
+
+  type Review = { revision: bigint } & (
+    | { action: "import"; sources: SyncComputer[]; skill: ui.LibrarySkill }
+    | { action: "use"; groups: SyncComputer[]; remaining: number }
+    | { action: "remove"; witness: Witness }
+    | { action: "exclude"; computers: ui.EnvironmentWorker[]; skill: ui.LibrarySkill }
+  );
 
   let open = $state(false);
   let skillId = $state("");
   let skillName = $state("");
-  let decision = $state.raw<Archive>();
-  let lastArchive = $state.raw<Archive>();
+  let review = $state.raw<Review>();
+  let selected = $state<string[]>([]);
+  let submitted = $state.raw<SyncComputer[]>([]);
+  let showResult = $state(false);
   let saving = $state(false);
-  let error = $state("");
-  let confirmActions = $state<HTMLDivElement>();
-  let details = $state<HTMLDivElement>();
+  let failure = $state("");
+  let failureDetail = $state("");
+  let body = $state<HTMLDivElement>();
 
+  const revision = $derived(environment.snapshot.revision);
   const skill = $derived(environment.snapshot.skills.find((s) => s.id === skillId));
 
-  const workers = $derived(
-    skill
-      ? assignedWorkers(environment.workers, skill.selector, skill.overrides)
-          .map((worker) => ({
-            worker,
-            files: skillSyncReports(worker, skillId).filter((f) => needsAttention(f) || f.status === "kept"),
-          }))
-          .filter(({ files }) => files.length)
-      : [],
+  const assigned = $derived(
+    skill ? assignedWorkers(environment.snapshot.workers, skill.selector, skill.overrides) : [],
+  );
+
+  const issues = $derived(skillIssues(assigned, skillId));
+  const archives = $derived(archiveGroups(issues, revision));
+  const sources = $derived(conflictImportSources(issues, revision));
+  const localConflicts = $derived(issues.filter(({ files }) => files.some(isLocalSkillConflict)));
+
+  const witness = $derived.by(() => {
+    for (const { worker, files } of issues) {
+      const file = files.find(canRemoveSkillConflict);
+
+      if (file && currentReport(worker, revision)) return { workerId: worker.workerId, file };
+    }
+  });
+
+  const remainingIssues = $derived(
+    issues.some(({ worker, files }) => {
+      const previous = submitted.find((group) => group.worker.workerId === worker.workerId);
+
+      return files.some((file) => !previous?.files.some((requested) => awaitingArchive(file, requested)));
+    }),
   );
 
   const busy = $derived(saving || environment.busy);
-  const stale = $derived(decision && !canConfirm(decision));
-  const outcome = $derived(lastArchive && archiveOutcome(lastArchive));
+  const stale = $derived(!!review && (!skill || review.revision !== revision || !stillValid(review)));
+  const kept = $derived(issues.length > 0 && issues.every(({ files }) => files.every((f) => f.status === "kept")));
+
+  const title = $derived(review ? reviewTitles[review.action] : `Sync “${skillName}”`);
+
+  function stillValid(choice: Review) {
+    if (choice.action === "use")
+      return choice.groups
+        .filter(({ worker }) => selected.includes(worker.workerId))
+        .every((group) => sameArchiveGroup(group, archives));
+
+    if (choice.action !== "remove") return true;
+    const source = choice.witness;
+    const group = issues.find(({ worker }) => worker.workerId === source.workerId);
+    const file = group?.files.find((f) => f.targetId === source.file.targetId);
+
+    return (
+      !!group &&
+      currentReport(group.worker, revision) &&
+      !!file &&
+      canRemoveSkillConflict(file) &&
+      file.observedChecksum === source.file.observedChecksum &&
+      file.desiredChecksum === source.file.desiredChecksum
+    );
+  }
 
   function restoreFocus() {
-    // The review button goes away once the last issue is resolved.
     requestAnimationFrame(() => {
       if (open || document.activeElement !== document.body) return;
-      document.getElementById(`environment-item-${skillId}`)?.querySelector<HTMLElement>("[data-item-focus]")?.focus();
+      (
+        document.getElementById(`environment-item-${skillId}`)?.querySelector<HTMLElement>("[data-item-focus]") ??
+        document.getElementById("environment-add-skill")
+      )?.focus();
     });
   }
 
@@ -61,232 +127,251 @@
 
     if (!item) return;
 
-    if (skillId !== id) lastArchive = undefined;
+    if (skillId !== id) submitted = [];
+    showResult = false;
     skillId = id;
     skillName = item.name;
-    decision = undefined;
-    error = "";
+    review = undefined;
+    failure = "";
     open = true;
   }
 
-  function current(worker: ui.EnvironmentWorker | undefined) {
-    return (
-      worker?.online &&
-      worker.supported &&
-      worker.skillsSupported &&
-      !worker.compositionError &&
-      worker.report?.revision === worker.desiredRevision
-    );
+  function focusBody() {
+    void tick().then(() => body?.focus());
   }
 
-  function canConfirm(archive: Archive) {
-    if (archive.revision !== environment.snapshot.revision) return false;
-    const item = workers.find(({ worker }) => worker.workerId === archive.workerId);
-    const file = item?.files.find((entry) => entry.targetId === archive.file.targetId);
+  function choose(action: Action) {
+    if (busy || !skill) return;
+    failure = "";
 
-    return (
-      current(item?.worker) &&
-      file &&
-      canArchive(file) &&
-      file.archiveToken === archive.file.archiveToken &&
-      file.desiredChecksum === archive.file.desiredChecksum &&
-      file.path === archive.file.path
-    );
+    if (action === "use") {
+      review = {
+        action,
+        revision,
+        groups: archives,
+        remaining: issues.reduce((n, g) => n + g.files.length, 0) - archives.reduce((n, g) => n + g.files.length, 0),
+      };
+      selected = archives.map(({ worker }) => worker.workerId);
+    } else if (action === "import") {
+      review = { action, revision, sources, skill };
+    } else if (action === "exclude") {
+      review = { action, revision, computers: assigned, skill };
+    } else if (witness) review = { action, revision, witness };
+    focusBody();
   }
 
-  function archiveOutcome(archive: Archive) {
-    const worker = environment.snapshot.workers.find((w) => w.workerId === archive.workerId);
-    const file = worker?.report?.skills.find((f) => f.targetId === archive.file.targetId);
-
-    if (!current(worker) || (file && awaitingArchive(file, archive.file))) return "pending";
-
-    if (file?.status === "applied" && file.owned) return "installed";
-
-    if (file?.status === "removed" || (!file && worker?.report?.skillInventoryScanned)) return "archived";
-
-    return "unconfirmed";
+  function back() {
+    const action = review?.action;
+    review = undefined;
+    failure = "";
+    void tick().then(() => (body?.querySelector<HTMLButtonElement>(`[data-choice="${action}"]`) ?? body)?.focus());
   }
 
-  function waitingForArchive(workerId: string, file: EnvironmentSkillStatus) {
-    return lastArchive?.workerId === workerId && awaitingArchive(file, lastArchive.file);
-  }
+  async function confirm() {
+    const choice = review;
 
-  async function reviewArchive(worker: ui.EnvironmentWorker, file: EnvironmentSkillStatus) {
-    decision = { workerId: worker.workerId, computer: worker.name, file, revision: environment.snapshot.revision };
-    error = "";
-    await tick();
-    confirmActions?.querySelector("button")?.focus();
-  }
-
-  async function back() {
-    decision = undefined;
-    error = "";
-    await tick();
-    details?.focus();
-  }
-
-  function localCopyIssue(file: EnvironmentSkillStatus) {
-    return isLocalSkillConflict(file) || (file.status === "kept" && !file.owned);
-  }
-
-  async function resolve(location: Location, action: "keep" | "archive") {
-    if (busy || (action === "archive" && (!decision || stale))) return;
-    const archive = decision;
+    if (
+      !choice ||
+      (choice.action !== "use" && choice.action !== "remove") ||
+      busy ||
+      stale ||
+      (choice.action === "use" && !selected.length)
+    )
+      return;
     saving = true;
-    error = "";
+    failure = "";
 
-    const saved = await environment.resolveSkill(
-      location.workerId,
-      location.file,
-      action,
-      archive?.revision ?? environment.snapshot.revision,
-    );
+    try {
+      if (choice.action === "use") {
+        const failed: string[] = [];
 
-    if (!saved) error = environment.error || "Canopy couldn’t save your choice. Refresh the status and try again.";
-    else if (action === "archive" && archive) {
-      lastArchive = archive;
-      decision = undefined;
+        for (const group of choice.groups.filter(({ worker }) => selected.includes(worker.workerId))) {
+          if (await useLibraryVersion(environment, skillId, group, choice.revision)) {
+            submitted = recordArchives(submitted, group);
+          } else {
+            failed.push(group.worker.name);
+            failureDetail = environment.error;
+          }
+        }
+
+        review = undefined;
+        showResult = submitted.length > 0;
+
+        if (failed.length)
+          failure = `Couldn’t request installation on ${failed.join(", ")}. Review the latest status and try again.`;
+        focusBody();
+      } else {
+        const saved = await environment.resolveSkill(
+          choice.witness.workerId,
+          choice.witness.file,
+          "keep-local-and-remove",
+          choice.revision,
+        );
+
+        if (saved) {
+          environment.notice = `Removed “${skillName}” from the shared library.`;
+          open = false;
+        } else {
+          failure = "Couldn’t save this choice. Go back to review the latest status.";
+          failureDetail = environment.error;
+        }
+      }
+    } finally {
+      saving = false;
     }
+  }
 
-    saving = false;
-
-    if (saved) {
-      await tick();
-      details?.focus();
-    }
+  function openComputer(id: string) {
+    open = false;
+    oncomputer(id);
   }
 </script>
 
-<Dialog
-  bind:open
-  title={decision ? "Use library version?" : `Sync details for “${skillName}”`}
-  dismissible={!busy}
-  onexited={restoreFocus}
-  stickyHeader
->
-  <div class="grid min-w-0 gap-4 text-base sm:text-sm">
-    {#if error}<Alert tone="error">{error}</Alert>{/if}
-    {#if decision}
-      <div class="grid gap-1">
+<Dialog bind:open {title} dismissible={!busy} onexited={restoreFocus} stickyHeader>
+  <div bind:this={body} tabindex="-1" class="grid min-w-0 gap-4 text-base/6 outline-none sm:text-sm/5">
+    {#if failure}
+      <Alert tone="error">{failure}</Alert>
+      {#if failureDetail}<Disclosure
+          >{#snippet summary()}Show details{/snippet}
+          <p class="pt-2 select-text">{failureDetail}</p></Disclosure
+        >{/if}
+    {/if}
+    {#if review?.action === "import"}
+      <SkillConflictImport
+        {environment}
+        skill={review.skill}
+        revision={review.revision}
+        sources={review.sources}
+        onback={back}
+        onsubmitted={(group) => {
+          submitted = recordArchives(submitted, group);
+          review = undefined;
+          showResult = true;
+          focusBody();
+        }}
+      />
+    {:else if review?.action === "exclude"}
+      <SkillExcludeReview
+        {environment}
+        skill={review.skill}
+        computers={review.computers}
+        revision={review.revision}
+        bind:saving
+        onback={back}
+        ondone={() => (open = false)}
+        oncomputer={openComputer}
+      />
+    {:else if review}
+      {#if review.action === "use"}
+        <SkillArchiveReview {skillName} groups={review.groups} remaining={review.remaining} {busy} bind:selected />
+      {:else}
         <p>
-          Canopy moves this {decision.file.localLink ? "link" : "directory"} to an archive on {decision.computer}. It
-          then installs the library version in its place.
+          Remove “{skillName}” from the shared library. Folders and links you installed yourself stay on your computers.
         </p>
-        <p class="font-mono text-sm wrap-anywhere select-text">{decision.file.path}</p>
-        {#if decision.file.localLink}<p>The linked directory stays where it is.</p>
-        {:else}<p>Links to this directory may stop working.</p>{/if}
-      </div>
-      {@render recovery(decision.file)}
-      {#if stale && !saving}<Alert>The copy or its assignment changed. Go back to review the latest status.</Alert>{/if}
-      <div class="flex flex-wrap justify-end gap-2" bind:this={confirmActions}>
-        <Button disabled={saving} onclick={back}>Back</Button>
+        <p>Canopy uninstalls its unedited copies from all assigned computers when they next sync.</p>
+      {/if}
+      {#if stale && !saving}<Alert>The skill or computer changed. Go back to review the latest status.</Alert>{/if}
+      <div class="flex flex-wrap justify-end gap-2">
+        <Button disabled={busy} onclick={back}>Back</Button>
         <Button
-          variant="primary"
+          variant={review.action === "remove" ? "danger" : "primary"}
           loading={saving}
-          disabled={busy || stale}
-          onclick={() => decision && resolve(decision, "archive")}>Use library version</Button
+          disabled={busy || stale || (review.action !== "remove" && !selected.length)}
+          onclick={confirm}
         >
+          {review.action === "use" ? "Use Canopy version" : "Remove from Canopy"}
+        </Button>
+      </div>
+    {:else if showResult}
+      <SkillArchiveStatus groups={submitted} workers={environment.snapshot.workers} />
+      <div class="flex flex-wrap justify-end gap-2">
+        {#if remainingIssues}
+          <Button
+            onclick={() => {
+              showResult = false;
+              focusBody();
+            }}>Review remaining copies</Button
+          >
+        {/if}
+        <Button onclick={() => (open = false)}>Done</Button>
       </div>
     {:else}
-      <div class="grid min-w-0 gap-4" tabindex="-1" bind:this={details}>
-        {#if lastArchive}
-          <div class="grid gap-2">
-            <p role="status">
-              {outcome === "installed"
-                ? `Installed the library version on ${lastArchive.computer}.`
-                : outcome === "archived"
-                  ? `Archived the local copy on ${lastArchive.computer}.`
-                  : outcome === "unconfirmed"
-                    ? `Canopy couldn’t confirm the archive on ${lastArchive.computer}. Check the recovery location on that computer.`
-                    : `Archiving the local copy on ${lastArchive.computer}…`}
-            </p>
-            {#if outcome !== "pending"}{@render recovery(lastArchive.file)}{/if}
-          </div>
+      {#if issues.length}
+        <p class="text-muted">
+          {#if localConflicts.length === 1}Local copies on {localConflicts[0]!.worker.name} block this skill from syncing.
+          {:else if localConflicts.length}Local copies on {localConflicts.length} computers block this skill from syncing.
+          {:else if kept}Your computers are using local copies of this skill.
+          {:else}This skill needs attention on {issues.length === 1
+              ? issues[0]!.worker.name
+              : `${issues.length} computers`}.{/if}
+        </p>
+        <div class="grid divide-y divide-divider overflow-hidden rounded-xl border border-divider">
+          {#if archives.length}
+            {@render option(
+              "use",
+              "arrow-path",
+              "Use the Canopy version",
+              "Back up local copies before installing the library version.",
+            )}
+          {/if}
+          {#if sources.length}
+            {@render option(
+              "import",
+              "folder-plus",
+              "Use a local copy in Canopy",
+              "Choose which local copy to save as the library version.",
+            )}
+          {/if}
+          {#if witness}
+            {@render option("remove", "folder", "Keep local copies", "Remove the skill from your shared library.")}
+          {/if}
+          {@render option(
+            "exclude",
+            "computer-desktop",
+            "Exclude computers from sync",
+            "Stop syncing this skill on selected computers.",
+          )}
+        </div>
+        {#if !archives.length && !witness && issues.some(({ worker }) => !currentReport(worker, revision))}
+          <p class="text-muted">Reconnect affected computers and refresh their status to review local copies.</p>
+          <div><Button size="sm" disabled={busy} onclick={() => environment.refresh()}>Refresh status</Button></div>
         {/if}
-        {#each workers as { worker, files } (worker.workerId)}
-          <section class="grid min-w-0 gap-2">
-            <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <h3 class="font-semibold wrap-anywhere">{worker.name}</h3>
-              {#if worker.online && !current(worker)}
-                <Button size="sm" variant="ghost" disabled={busy} onclick={() => environment.refresh()}
-                  >Refresh status</Button
-                >
-              {/if}
+        {#if !localConflicts.length && !kept}
+          {#each issues as { worker } (worker.workerId)}
+            <div>
+              <Button size="sm" disabled={busy} onclick={() => openComputer(worker.workerId)}
+                >Review on {worker.name}</Button
+              >
             </div>
-            {#if !worker.online}<p class="text-muted">Reconnect this computer to make changes.</p>
-            {:else if !current(worker)}<p class="text-muted">
-                Canopy needs a current sync report to make changes.
-              </p>{/if}
-            <div class="grid min-w-0 gap-3">
-              {#each files as file (file.targetId)}
-                {#if localCopyIssue(file)}
-                  {@const waiting = waitingForArchive(worker.workerId, file)}
-                  <div class="grid min-w-0 gap-1">
-                    <p class="font-medium">{skillLocation(file)}</p>
-                    <p class="font-mono text-sm wrap-anywhere text-muted select-text">{file.path}</p>
-                    {#if !waiting}
-                      <p role={file.status === "kept" ? "status" : undefined}>
-                        {file.status === "kept"
-                          ? "Canopy is keeping this local copy."
-                          : `A local ${file.localLink ? "link" : "directory"} blocks the library version.`}
-                      </p>
-                      <div class="flex flex-wrap gap-2">
-                        {#if (file.status === "drift" && file.observedChecksum) || canKeepBlockedSkill(file)}
-                          <Button
-                            size="sm"
-                            disabled={busy || !current(worker)}
-                            onclick={() => resolve({ workerId: worker.workerId, file }, "keep")}>Keep local copy</Button
-                          >
-                        {/if}
-                        {#if canArchive(file)}
-                          <Button
-                            size="sm"
-                            disabled={busy || !current(worker)}
-                            onclick={() => reviewArchive(worker, file)}>Use library version</Button
-                          >
-                        {/if}
-                      </div>
-                      {#if !canArchive(file)}
-                        <p class="text-muted">
-                          Move this {file.localLink ? "link" : "directory"} out of the skills directory to use the library
-                          version.
-                        </p>
-                      {/if}
-                    {/if}
-                  </div>
-                {:else}
-                  <ComputerSkillLocation {file} {busy} />
-                {/if}
-              {/each}
-            </div>
-            {#if files.some((file) => !localCopyIssue(file))}
-              <div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onclick={() => {
-                    open = false;
-                    oncomputer(worker.workerId);
-                  }}>Review on computer</Button
-                >
-              </div>
-            {/if}
-          </section>
-        {:else}
-          {#if !lastArchive}<p>No sync issues reported.</p>{/if}
-        {/each}
-      </div>
+          {/each}
+        {/if}
+        <SkillSyncLocations groups={issues} {busy} oncomputer={openComputer} />
+      {:else}<p role="status">
+          {skill ? "No sync issues reported." : "This skill is no longer in your library."}
+        </p>{/if}
+      {#if submitted.length}
+        <Disclosure
+          >{#snippet summary()}Previous installation{/snippet}
+          <div class="pt-2"><SkillArchiveStatus groups={submitted} workers={environment.snapshot.workers} /></div>
+        </Disclosure>
+      {/if}
     {/if}
   </div>
 </Dialog>
 
-{#snippet recovery(file: EnvironmentSkillStatus)}
-  <div class="grid min-w-0 gap-1">
-    <p class="font-medium">Recovery location</p>
-    <div class="flex min-w-0 items-start gap-2">
-      <p class="min-w-0 flex-1 font-mono text-sm wrap-anywhere select-text">{archiveLocation(file)}</p>
-      <CopyButton text={archiveLocation(file)} label="Copy recovery location" />
-    </div>
-  </div>
+{#snippet option(action: Action, icon: IconName, label: string, detail: string)}
+  <button
+    type="button"
+    data-choice={action}
+    disabled={busy}
+    onclick={() => choose(action)}
+    class="flex min-w-0 items-center gap-3 px-3.5 py-3 text-left focus-ring hover:bg-zinc-950/3 focus-visible:-outline-offset-2 dark:hover:bg-white/5"
+  >
+    <Icon name={icon} />
+    <span class="grid min-w-0 flex-1 gap-0.5">
+      <span class="font-medium">{label}</span>
+      <span class="text-pretty text-muted">{detail}</span>
+    </span>
+    <Icon name="chevron-right" size="sm" />
+  </button>
 {/snippet}

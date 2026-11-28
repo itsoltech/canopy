@@ -4,7 +4,12 @@ import { environmentDigest } from "@canopy/domain/agent-environment";
 import { copyStatus, localCopy } from "./local-skill.ts";
 import type { InventoryBudget } from "./skill-archive.ts";
 import { withSkillDirectory, type SkillDirectory } from "./skill-directory.ts";
-import { deviceSkillInventoryRoots, skillTargets, type SkillTarget } from "./skill-targets.ts";
+import {
+  deviceSkillInventoryRoots,
+  platformSkillArchiveHomes,
+  skillTargets,
+  type SkillTarget,
+} from "./skill-targets.ts";
 import { reconcileSkill } from "./skill-reconcile.ts";
 import type { EnvironmentHomes } from "./targets.ts";
 import type { SkillLedger } from "./skill-ledger.ts";
@@ -29,16 +34,16 @@ function withSkillRoot<T>(path: string, run: (home: SkillDirectory, root: SkillD
 function reconcileTarget(
   target: SkillTarget,
   ledger: SkillLedger,
-  roots: ReadonlyMap<string, string>,
+  archiveHome: string | undefined,
   action: EnvironmentResolution | undefined,
   budget: InventoryBudget,
 ) {
   const rootPath = dirname(target.path);
   const owned = ledger.entries.get(target.targetId)?.owned;
 
-  if (!owned && target.scope === "device" && (roots.has(rootPath) || !target.desired)) {
+  if (!owned && !ledger.problem && !target.problem && (!target.desired || archiveHome)) {
     try {
-      if (!target.desired && !ledger.problem) {
+      if (!target.desired) {
         const pending = withSkillRoot(rootPath, (_home, root) => root.entry(journalName(target)));
 
         if (!pending) {
@@ -47,11 +52,14 @@ function reconcileTarget(
           return;
         }
       } else {
-        const status = withSkillRoot(rootPath, (home, root) => {
+        const status = withSkillRoot(rootPath, (parent, root) => {
           // A pending swap may have installed a library copy before committing its ownership.
           if (root.entry(journalName(target))) return;
 
-          return localCopy(target, ledger, action, home, root, budget);
+          if (archiveHome && archiveHome !== parent.path)
+            return withSkillDirectory(archiveHome, (home) => localCopy(target, ledger, action, home, root, budget));
+
+          return localCopy(target, ledger, action, parent, root, budget);
         });
 
         if (status) return status;
@@ -80,13 +88,23 @@ export function inventorySkills(
 ) {
   const targets = skillTargets(desired, homes, ledger);
   const roots = deviceSkillInventoryRoots(homes);
+  const platform = desired.platformSkillArchives ? platformSkillArchiveHomes(homes, targets, ledger) : undefined;
   const budget = { remaining: 8192 };
   const actions = new Map(desired.skillResolutions.map((action) => [action.targetId, action]));
   const skills: EnvironmentSkillStatus[] = [];
   let scanned = true;
 
   for (const target of targets) {
-    const status = reconcileTarget(target, ledger, roots, actions.get(target.targetId), budget);
+    const root = dirname(target.path);
+
+    const archiveHome =
+      target.scope === "device" && roots.has(root)
+        ? dirname(root)
+        : target.privateHome && platform?.has(target.privateHome)
+          ? target.privateHome
+          : undefined;
+
+    const status = reconcileTarget(target, ledger, archiveHome, actions.get(target.targetId), budget);
 
     if (status) skills.push(status);
   }

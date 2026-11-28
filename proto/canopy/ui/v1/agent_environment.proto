@@ -52,6 +52,8 @@ message EnvironmentWorker {
   repeated string plugin_ids = 14;
   bool local_skill_import_supported = 15;
   bool skill_installer_supported = 16;
+  string skill_report_id = 17; // live worker report that authorizes local copy moves
+  bool conflict_skill_import_supported = 18; // preview an assigned, unmanaged device skill
 }
 
 message AgentEnvironmentRequest {
@@ -80,11 +82,23 @@ message ArchiveWorkerSkillRequest {
   string archive_token = 3;
   uint64 expected_revision = 4;
 }
+message ReviewedSkillCopy {
+  string target_id = 1;
+  string archive_token = 2;
+}
+message UseLibrarySkillVersionRequest {
+  string worker_id = 1;
+  string skill_id = 2;
+  uint64 expected_revision = 3;
+  string report_id = 4;
+  repeated ReviewedSkillCopy targets = 5;
+}
 message PreviewWorkerSkillRequest {
   string worker_id = 1;
   string target_id = 2;
   string archive_token = 3; // inventory precondition for this exact copy
   uint64 expected_revision = 4;
+  string skill_id = 5; // required for a folder blocking this assignment, empty for an unassigned copy
 }
 message PreviewWorkerSkillResponse {
   canopy.worker.v1.SkillArtifact artifact = 1;
@@ -247,9 +261,10 @@ message DeleteLibrarySkillRequest {
 message ResolveSkillDriftRequest {
   string worker_id = 1;
   string target_id = 2;
-  string action = 3; // keep | overwrite | import | archive (uses archive_token as observed_checksum)
+  string action = 3; // keep | overwrite | import | archive (uses archive_token as observed_checksum) | keep-local-and-remove
   string observed_checksum = 4;
   uint64 expected_revision = 5;
+  string skill_id = 6; // required for keep-local-and-remove: the library entry the owner chose
 }
 message SaveInstructionDocumentRequest {
   InstructionDocument document = 1;

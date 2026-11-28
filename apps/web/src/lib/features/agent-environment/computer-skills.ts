@@ -166,7 +166,11 @@ export function archiveLocation(file: EnvironmentSkillStatus) {
   const root = file.path.slice(0, file.path.lastIndexOf(separator));
   const parent = root.slice(0, root.lastIndexOf(separator));
 
-  return [parent, ".canopy-skill-archive", file.archiveToken, file.localName].join(separator);
+  // Claude loads the entire private plugin directory, so its archive sits outside it.
+  const archiveParent =
+    file.scope === "platform" && file.harness === "claude" ? parent.slice(0, parent.lastIndexOf(separator)) : parent;
+
+  return [archiveParent, ".canopy-skill-archive", file.archiveToken, file.localName].join(separator);
 }
 
 export function fileState(file: EnvironmentSkillStatus) {

@@ -1,5 +1,7 @@
 # Protokół gateway ↔ worker
 
+Aktualizacja (2026-11-28): synchronizacja skilli obsługuje grupowe odkładanie lokalnych kopii do archiwum w prywatnych domach Canopy.
+
 Aktualizacja (2026-11-28): raport użycia Codexa może zawierać zweryfikowany
 odczyt konta na potrzeby alertów o odnowieniu limitu.
 
@@ -1441,11 +1443,21 @@ i związane z checksumem całego katalogu. Worker bez tej capability nadal dosta
 instrukcje, bez skilli. Szczegóły limitów, katalogów, wersji i odzyskiwania swapu:
 [protokół etapu 2](agent-environment.md#umiejętności--konkretny-protokół-etapu-2).
 
+Pole `AgentEnvironmentDesired.platform_skill_archives` (8) pozwala workerowi
+zgłaszać tokeny blokujących kopii w wygenerowanych domach agentów. Starszy
+gateway dostaje dotychczasowy format raportu. Jedno polecenie może zawierać
+kilka przejrzanych lokalizacji skilla na tym samym workerze. Worker rozlicza
+każdą z nich we własnym raporcie. Szczegóły archiwizacji i odzyskiwania:
+[lokalne kopie skilli](agent-environment.md#lokalne-kopie-skilli).
+
 Capability `agent_local_skill_import_v1` udostępnia nietrwałą komendę
 `PreviewLocalSkill` (239) i wynik `CommandResult.local_skill_preview` (241).
 Komenda wskazuje cel z raportu, jego token i rewizję, bez podawania ścieżki.
 Pliki przechodzą wyłącznie w odpowiedzi na żądanie podglądu. Komenda i wynik
 nie trafiają do outboxa ani journala. Starsze workery nadal raportują inwentaryzację.
+Capability `agent_conflict_skill_import_v1` rozszerza podgląd o kolidujący
+folder w katalogu CLI. Żądanie podaje również `skill_id`, a gateway i worker
+weryfikują powiązanie folderu z przypisanym skillem.
 
 Etap 4 negocjuje `agent_plugins_v1`: `AgentEnvironmentDesired.plugins=6`,
 `plugin_resolutions=7`, `AgentEnvironmentReport.plugins=4`. Reużywa koperty

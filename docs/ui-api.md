@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-28). Web i desktop wybierają sposób rozwiązania konfliktu skilla w bibliotece. [Środowisko agentów](#agent-environment)
+
 Status (2026-11-28). Web, desktop i telefon zarządzają dostępem projektów i botów
 do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
 
@@ -3460,6 +3462,9 @@ Settings → Agent environment korzysta z `GetAgentEnvironment`,
 `CheckSkillSource` i `ApplySkillSource`. BFF udostępnia
 `/api/agent-environment` (GET/POST/DELETE), `/tags`, `/preview`, `/resolve` (POST).
 Skille: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
+POST `/api/agent-environment/skills/use-version` (`UseLibrarySkillVersion`) zleca
+archiwizację wskazanych kopii skilla na jednym komputerze i instalację przypisanej wersji.
+Żądanie zawiera rewizję, identyfikator raportu i token każdej kopii.
 Źródła: `/api/agent-environment/skills/source/{preview,add,check,apply}` (POST).
 Aktualizacja (2026-11-26): POST `/api/agent-environment/skills/installer`
 (`RunSkillInstaller`) obsługuje interaktywny instalator w web/desktop. Sparowany
@@ -3478,7 +3483,9 @@ POST `/api/workers/:id/environment/skills/archive` (`ArchiveWorkerSkill`) przyjm
 wynik operacji.
 POST `/api/workers/:id/environment/skills/preview` (`PreviewWorkerSkill`)
 przyjmuje te same pola z raportu wskazanej lokalnej kopii i zwraca jej artefakt
-do przeglądu. Zapis przejrzanych plików korzysta z `SaveLibrarySkill`.
+do przeglądu. Dla folderu blokującego instalację podgląd zawiera w żądaniu również
+`skill_id` z raportu i wymaga obsługi importu konfliktów przez workera.
+Zapis przejrzanych plików korzysta z `SaveLibrarySkill`.
 `WorkerEnvironmentOverride.item` jest globalnym kluczem biblioteki; `version_hash` skilla wskazuje
 treść niezależnie od lokalnych numerów wersji. Plugin nie obsługuje przypinania wersji per worker.
 Żądanie wymaga rewizji odczytanej z domu, a gateway po obu stronach sprawdza łącze i właściciela workera.

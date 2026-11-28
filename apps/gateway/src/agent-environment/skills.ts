@@ -1,18 +1,29 @@
 import { clone, create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import { AgentEnvironmentDesiredSchema, ui } from "@canopy/contracts";
-import { canKeepBlockedSkill } from "@canopy/domain/environment-library";
+import { canKeepBlockedSkill, canRemoveSkillConflict } from "@canopy/domain/environment-library";
 import { validateSkillFiles } from "@canopy/domain/skill-artifact";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { audit, workers } from "./database.ts";
 import { checked } from "./mutations.ts";
-import { foreignWorkers } from "./composition.ts";
+import { foreignWorkers, uuid } from "./composition.ts";
 import { checkSkillAssignment, desiredSkills } from "./skill-assignment.ts";
 import { addSkillVersion, saveSkillDefinition, skills, skillVersion } from "./skill-database.ts";
 import { skillZip } from "./skill-zip.ts";
 import { archiveSkill } from "./skill-archive.ts";
 import type { AgentEnvironment } from "./service.ts";
+
+function deleteLibrarySkill(sql: SqlClient.SqlClient, owner: string, id: string) {
+  return Effect.gen(function* () {
+    const deleted = uuid(id)
+      ? yield* sql`DELETE FROM agent_skills WHERE id = ${id}::uuid AND owner_user_id = ${owner}::uuid RETURNING id`
+      : [];
+
+    if (!deleted.length) return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
+    yield* audit(sql, owner, "environment.skill.delete", id);
+  });
+}
 
 export class EnvironmentSkills {
   constructor(readonly environment: AgentEnvironment) {}
@@ -91,15 +102,7 @@ export class EnvironmentSkills {
     const owner = this.environment.options.userId;
     await this.environment.db.mutate(
       request.expectedRevision,
-      (sql) =>
-        Effect.gen(function* () {
-          const library = yield* skills(sql, owner);
-
-          if (!library.some((s) => s.id === request.id))
-            return yield* Effect.fail(new ConnectError("Skill not found.", Code.NotFound));
-          yield* sql`DELETE FROM agent_skills WHERE id = ${request.id}::uuid AND owner_user_id = ${owner}::uuid`;
-          yield* audit(sql, owner, "environment.skill.delete", request.id);
-        }),
+      (sql) => deleteLibrarySkill(sql, owner, request.id),
       receipt,
     );
 
@@ -148,23 +151,35 @@ export class EnvironmentSkills {
 
         if (!machine) return yield* Effect.fail(new ConnectError("Worker not found.", Code.NotFound));
         const file = machine.report?.skills.find((s) => s.targetId === request.targetId);
+        const stale = new ConnectError("The skill changed. Refresh before resolving.", Code.FailedPrecondition);
 
-        if (
-          !file ||
-          file.observedChecksum !== request.observedChecksum ||
-          (!["drift", "kept"].includes(file.status) && !(request.action === "keep" && canKeepBlockedSkill(file)))
-        )
-          return yield* Effect.fail(
-            new ConnectError("The skill changed. Refresh before resolving.", Code.FailedPrecondition),
-          );
-
-        if (!["keep", "overwrite", "import"].includes(request.action))
-          return yield* Effect.fail(new ConnectError("Choose keep, overwrite or import.", Code.InvalidArgument));
+        if (!file || file.observedChecksum !== request.observedChecksum) return yield* Effect.fail(stale);
         const library = yield* skills(sql, owner);
         const skill = library.find((s) => s.id === file.skillId);
 
         const effective = (yield* desiredSkills(sql, owner, library, machine)).find((s) => s.id === file.skillId);
         let expected = effective?.artifact?.checksum ?? "";
+
+        if (request.action === "keep-local-and-remove") {
+          if (
+            machine.report?.revision !== request.expectedRevision ||
+            request.skillId !== file.skillId ||
+            !canRemoveSkillConflict(file) ||
+            !effective?.harnesses.includes(file.harness) ||
+            !(file.scope === "device" ? effective.deviceHome : file.scope === "platform" && effective.platformHome) ||
+            file.version !== effective.version ||
+            file.desiredChecksum !== expected
+          )
+            return yield* Effect.fail(stale);
+
+          return yield* deleteLibrarySkill(sql, owner, request.skillId);
+        }
+
+        if (!["drift", "kept"].includes(file.status) && !(request.action === "keep" && canKeepBlockedSkill(file)))
+          return yield* Effect.fail(stale);
+
+        if (!["keep", "overwrite", "import"].includes(request.action))
+          return yield* Effect.fail(new ConnectError("Unknown skill resolution.", Code.InvalidArgument));
 
         if (request.action === "import") {
           if (!file.importable || !skill)

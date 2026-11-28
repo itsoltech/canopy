@@ -91,13 +91,17 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     );
   }
 
-  async function reconnect() {
+  async function reconnect(peer: "running" | "stopped" = "running") {
     await la.options.network.update(
       create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
     );
-    await lb.options.network.update(
-      create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
-    );
+
+    // A replacement dials on start. Its first attempt needs A's listener, or the peer enters reconnect backoff.
+    if (peer === "stopped") await lb.start();
+    else
+      await lb.options.network.update(
+        create(ui.UpdateNetworkAccessRequestSchema, { action: "set_enabled", enabled: true }),
+      );
     await online();
     await caughtUp();
   }
@@ -216,8 +220,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
       lb = newB();
       b.core.computers = lb;
       b.core.network = lb.options.network;
-      await lb.start();
-      await reconnect();
+      await reconnect("stopped");
     }
   }, 30_000);
 
@@ -824,8 +827,7 @@ describe.skipIf(!dockerAvailable)("durable read-only thread mirrors across two g
     lb = newB();
     b.core.computers = lb;
     b.core.network = lb.options.network;
-    await lb.start();
-    await reconnect();
+    await reconnect("stopped");
   }, 45_000);
 
   test("unlink purges the mirror, cursor and staged generations on both sides", async () => {

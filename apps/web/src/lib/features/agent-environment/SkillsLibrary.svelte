@@ -90,7 +90,7 @@
           onclick={() => (installing = notInstalled.map((s) => s.id))}>Install unassigned skills…</Button
         >
       {/if}
-      <Button size="sm" onclick={() => (choose = true)}>Add skill</Button>
+      <Button id="environment-add-skill" size="sm" onclick={() => (choose = true)}>Add skill</Button>
     </div>
   </div>
   {#if environment.snapshot.skills.length}

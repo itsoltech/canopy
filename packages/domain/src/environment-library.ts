@@ -18,7 +18,7 @@ export function skillSyncReports(worker: ui.EnvironmentWorker, skillId: string) 
 export function canKeepBlockedSkill(file: EnvironmentSkillStatus) {
   return (
     file.status === "error" &&
-    file.scope === "device" &&
+    (file.scope === "device" || file.scope === "platform") &&
     !file.owned &&
     Boolean(file.skillId && file.desiredChecksum && file.archiveToken && file.archiveToken === file.observedChecksum)
   );
@@ -29,6 +29,23 @@ export function isLocalSkillConflict(file: EnvironmentSkillStatus) {
     !file.owned &&
     Boolean(file.skillId && file.desiredChecksum && file.path) &&
     (file.status === "drift" || canKeepBlockedSkill(file) || (file.status === "error" && file.localLink))
+  );
+}
+
+export function canPreviewSkillConflict(file: EnvironmentSkillStatus) {
+  return (
+    file.scope === "device" &&
+    !file.localLink &&
+    Boolean(file.archiveToken && file.archiveToken === file.observedChecksum) &&
+    canRemoveSkillConflict(file)
+  );
+}
+
+export function canRemoveSkillConflict(file: EnvironmentSkillStatus) {
+  return (
+    !file.owned &&
+    Boolean(file.skillId && file.desiredChecksum && file.observedChecksum && file.path) &&
+    (file.status === "kept" || isLocalSkillConflict(file))
   );
 }
 
