@@ -632,6 +632,7 @@
             style:--chat-pill-space={summary.docked ? `calc(${summary.pillWidth}px + 2rem)` : undefined}
             data-chat-placement
             data-chat-card={summary.card || (summary.docked && showMiniPreview) || undefined}
+            data-chat-pill-only={(device.view.threadPanelCollapsed && !showMiniPreview) || undefined}
             data-chat-settling={(summary.settling && !showMiniPreview) || undefined}
           >
             <span

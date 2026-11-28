@@ -5,6 +5,9 @@ Status (2026-11-28). Sekcja **Artifacts** w Thread details na webie i desktopie 
 Status (2026-11-28). Przy otwieraniu i zamykaniu panelu Files w web i desktopie
 animacja Thread details podąża za prawą krawędzią obszaru wątku. Zwijana karta
 zaczyna ruch na wysokości, na której była widoczna przed otwarciem Files.
+Przy zwiniętych Thread details miejsce na pigułkę zmienia się w tym samym tempie
+co szerokość Files. Jeśli kolumna rozmowy mieści się w obu położeniach, tekst
+i composer zachowują szerokość i pozycję poziomą przez cały ruch.
 
 Status (2026-11-28). W web i desktop nagłówek terminala zadania w tle ma to samo
 tło co aktywna zakładka, również w jasnym motywie.
@@ -472,7 +475,9 @@ podsumowania (`--chat-card-space`). Rezerwa uwzględnia stałą szerokość kart
 mini Preview albo zmierzoną szerokość pigułki. Położenie wynika z tych wartości
 w CSS, więc kolumna rusza się w tej samej klatce co sidebar i prawy panel.
 Sidebar i panel zmieniają tylko dostępną przestrzeń. Kolumna pozostaje na środku,
-gdy się tam mieści. Otwarcie lub zwinięcie zadokowanej karty płynnie zmienia
+gdy się tam mieści. Gdy zamknięcie Files przenosi zwiniętą pigułkę z wiersza
+nad osią obok rozmowy, pigułka zachowuje swój wiersz do końca ruchu panelu.
+Otwarcie lub zwinięcie zadokowanej karty płynnie zmienia
 rezerwę (`--duration-slow`, `--ease-smooth-out`). Przy widocznym mini Preview
 cała rezerwa pojawia się w chwili zadokowania. Przy reduced motion wszystkie te
 zmiany są natychmiastowe.
