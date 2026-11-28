@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import type { ui } from "@canopy/contracts";
-import { turnOrigin } from "@canopy/domain/turn-origin";
+import { openingAgentMessage, turnOrigin, type TurnOrigin } from "@canopy/domain/turn-origin";
 import type { Tone } from "@canopy/domain/status-look";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "../../ui/Icon";
@@ -75,10 +75,35 @@ const VERBS = new Map([
  * schedule, a bot, or the platform's note about ended background tasks.
  */
 export function TurnInput({ turn }: { turn: ui.Turn }) {
+  const origin = turnOrigin(turn);
+
+  if (origin.kind === "background_task" || origin.kind === "pr_checks") return <PlatformNoteRow origin={origin} />;
+
+  if (origin.kind === "user") return <UserTurnInput turn={turn} />;
+
+  const hops = turn.hops > 0 ? `${turn.hops} ${turn.hops === 1 ? "hop" : "hops"}` : undefined;
+  const opening = openingAgentMessage(turn, origin);
+
+  if (opening)
+    return (
+      <UserMessageView
+        opening={{ label: hops ? `${opening} · ${hops}` : opening, botId: turn.botId }}
+        sender={turn.sender}
+        sourceThreadId={turn.sourceThreadId}
+        text={turn.messageText}
+        attachments={turn.attachments}
+        mentions={turn.mentions}
+        quotes={turn.quotes}
+      />
+    );
+
+  return <SourcedTurnInput turn={turn} origin={origin} hops={hops} />;
+}
+
+function SourcedTurnInput({ turn, origin, hops }: { turn: ui.Turn; origin: TurnOrigin; hops: string | undefined }) {
   const c = useColors();
   const type = useTypography();
   const directory = useTimelineDirectory();
-  const origin = turnOrigin(turn);
 
   const fromAgent =
     ["task", "message", "report"].includes(origin.kind) ||
@@ -87,12 +112,6 @@ export function TurnInput({ turn }: { turn: ui.Turn }) {
   const tone: Tone = origin.kind === "question" ? "amber" : origin.kind === "schedule" ? "sky" : "violet";
   const look = useTone(tone);
   const actions = useMessageActions(turn.messageText, "agent_message", fromAgent);
-
-  if (origin.kind === "background_task" || origin.kind === "pr_checks") return <PlatformNoteRow origin={origin} />;
-
-  if (origin.kind === "user") return <UserTurnInput turn={turn} />;
-
-  const hops = turn.hops > 0 ? `${turn.hops} ${turn.hops === 1 ? "hop" : "hops"}` : undefined;
   const icon = <Icon name={ICONS.get(origin.kind) ?? "sparkles"} size={14} color={look.text} />;
 
   const line = (children: React.ReactNode) => (

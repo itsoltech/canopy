@@ -7,12 +7,13 @@
   import type { IconName } from "#lib/shared/ui/icons.ts";
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { useThreadDirectory } from "../thread-directory.ts";
-  import { turnOrigin } from "@canopy/domain/turn-origin";
+  import { openingAgentMessage, turnOrigin } from "@canopy/domain/turn-origin";
   import BackgroundNoteRow from "./BackgroundNoteRow.svelte";
   import ChecksNoteRow from "./ChecksNoteRow.svelte";
   import ThreadLink from "./items/ThreadLink.svelte";
   import UserMessageView from "./items/UserMessageView.svelte";
   import ReceivedAgentMessage from "./items/ReceivedAgentMessage.svelte";
+  import CompactAgentMessage from "./items/CompactAgentMessage.svelte";
   import AgentSenderLabel from "./AgentSenderLabel.svelte";
   import ShellMessage from "./ShellMessage.svelte";
   import MessageAttachments from "#lib/features/attachments/MessageAttachments.svelte";
@@ -29,6 +30,7 @@
 
   const directory = useThreadDirectory();
   const origin = $derived(turnOrigin(turn));
+  const opener = $derived(openingAgentMessage(turn, origin));
 
   const senderLine = $derived(
     origin.kind === "task" ||
@@ -74,6 +76,19 @@
 {:else if origin.kind === "pr_checks"}
   <!-- The platform's note about a linked pull request's CI checks: a system line, not a message. -->
   <ChecksNoteRow notes={origin.notes} />
+{:else if opener}
+  <CompactAgentMessage
+    sender={turn.sender}
+    botId={turn.botId}
+    threadId={turn.sourceThreadId}
+    note={{ icon: "arrow-turn-down-right", text: opener }}
+    text={parts.message}
+    previewFallback={turn.attachments[0]?.name}
+    metadata={turn.hops > 0 ? hops : undefined}
+  >
+    {#if turn.attachments.length > 0}<MessageAttachments attachments={turn.attachments} />{/if}
+    <Markdown text={parts.message} breaks class="text-inherit dark:text-inherit" />
+  </CompactAgentMessage>
 {:else if origin.kind === "user"}
   <!-- With attachments, mentions or quotes the agent got a platform note (file paths, threads, the quoted passages) or a
        reordered command: the message shows as written, with its files, chips and quotes, and the full text folds. -->

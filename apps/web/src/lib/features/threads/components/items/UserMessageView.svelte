@@ -26,7 +26,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import AgentSenderLabel from "../AgentSenderLabel.svelte";
-  import CompactSteer from "./CompactSteer.svelte";
+  import CompactAgentMessage from "./CompactAgentMessage.svelte";
   import ReceivedAgentMessage from "./ReceivedAgentMessage.svelte";
 
   /**
@@ -90,20 +90,18 @@
 </script>
 
 {#if fromAgent && note}
-  <div class="flex justify-end">
-    <CompactSteer
-      {sender}
-      threadId={sender?.threadId || message.authorAgentId}
-      {note}
-      {pending}
-      text={body || quotes[0]?.text || ""}
-      previewFallback={loose[0]?.name}
-    >
-      {#if loose.length > 0}<MessageAttachments attachments={loose} />{/if}
-      {@render content()}
-      {@render attachmentCount()}
-    </CompactSteer>
-  </div>
+  <CompactAgentMessage
+    {sender}
+    threadId={message.authorAgentId}
+    {note}
+    {pending}
+    text={body || quotes[0]?.text || ""}
+    previewFallback={loose[0]?.name}
+  >
+    {#if loose.length > 0}<MessageAttachments attachments={loose} />{/if}
+    {@render content()}
+    {@render attachmentCount()}
+  </CompactAgentMessage>
 {:else}
   <div class="flex flex-col items-end gap-1">
     {#if fromAgent || note}

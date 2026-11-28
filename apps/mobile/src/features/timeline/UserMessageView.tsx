@@ -49,7 +49,8 @@ export function UserMessageView({
   mentions = [],
   fromAgent = false,
   sender,
-  steerSourceId,
+  sourceThreadId,
+  opening,
   onEdit,
 }: {
   text: string;
@@ -61,26 +62,27 @@ export function UserMessageView({
   mentions?: readonly Mention[];
   fromAgent?: boolean;
   sender?: ui.AgentSender | undefined;
-  steerSourceId?: string | undefined;
+  sourceThreadId?: string | undefined;
+  /** First task or message, with its origin and hop count in the expanded header. */
+  opening?: { label: string; botId: string };
   onEdit?: (() => void) | undefined;
 }) {
   const c = useColors();
   const [selected, setSelected] = useState<ui.Attachment>();
   const violet = useTone("violet").text;
   const amber = useTone("amber").text;
-  const agentSteer = Boolean(sender || steerSourceId);
-  const agent = fromAgent || agentSteer;
+  const agent = Boolean(fromAgent || sender || sourceThreadId || opening);
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
   const loose = attachments.filter((a) => !placed.has(a.id) || storedAttachmentKind(a) === "image");
-  const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
+  const body = !opening && !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
   const actions = useMessageActions(body, agent ? "agent_message" : undefined, !pending, onEdit);
   const color = note?.tone === "amber" ? amber : agent ? violet : c.muted;
 
   const icon =
     note?.icon === "spinner" ? (
       <Spinner color={color} />
-    ) : note || !sender?.botId ? (
-      <Icon name={note?.icon ?? "sparkles"} size={14} color={color} />
+    ) : opening || note || !sender?.botId ? (
+      <Icon name={opening ? "arrow-turn-down-right" : (note?.icon ?? "sparkles")} size={14} color={color} />
     ) : null;
 
   const onAttachment = (id: string) => setSelected(attachments.find((file) => file.id === id));
@@ -97,14 +99,17 @@ export function UserMessageView({
     </>
   );
 
-  if (agentSteer && note) {
+  const status = opening?.label ?? note?.text;
+
+  if (agent && status) {
     return (
       <>
         <AgentSteer
-          sourceId={sender?.threadId || steerSourceId || ""}
+          sourceId={sender?.threadId || sourceThreadId || ""}
           sender={sender}
+          botId={opening?.botId}
           text={body.trim() || quotes[0]?.text || attachments[0]?.name || ""}
-          status={note.text}
+          status={status}
           pending={pending}
           icon={icon}
           actions={actions.trigger}

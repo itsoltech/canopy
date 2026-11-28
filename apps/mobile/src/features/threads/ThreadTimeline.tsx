@@ -326,7 +326,7 @@ function TimelineTail({
             attachments={s.attachments}
             note={steeringNote(s)}
             sender={s.sender}
-            steerSourceId={s.sourceThreadId}
+            sourceThreadId={s.sourceThreadId}
             quotes={s.quotes}
             pending
           />

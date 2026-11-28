@@ -49,6 +49,17 @@ export function turnOrigin(turn: ui.Turn): TurnOrigin {
   }
 }
 
+/** A task or message that another agent or bot used to start this thread. */
+export function openingAgentMessage(turn: ui.Turn, origin: TurnOrigin): "Task" | "Message" | undefined {
+  if (turn.ordinal !== 1) return undefined;
+
+  if (origin.kind === "task") return "Task";
+
+  if (origin.kind === "message" || (origin.kind === "other" && origin.trigger === "bot")) return "Message";
+
+  return undefined;
+}
+
 /** Label of a turn started without input (provider wake-up, recovery, goal); undefined otherwise. */
 export function silentTriggerLabel(turn: ui.Turn): string | undefined {
   if (turn.inputText) return undefined;

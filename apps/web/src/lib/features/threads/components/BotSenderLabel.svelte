@@ -10,7 +10,11 @@
    * "Message from ‹avatar› ‹Bot›" over input a bot sent into a thread (trigger bot): its mascot and name, linking to
    * its chat. A linked sender's snapshot supplies its name and avatar while the bot list is unavailable.
    */
-  let { botId, verb = "Message from", sender }: { botId: string; verb?: string; sender?: ui.AgentSender } = $props();
+  let {
+    botId,
+    verb = "Message from",
+    sender,
+  }: { botId: string; verb?: string; sender?: ui.AgentSender | undefined } = $props();
 
   const settings = useSettings();
 
