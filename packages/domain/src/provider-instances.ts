@@ -65,6 +65,8 @@ function signInStatus(on: ui.InstanceOnWorker): InstanceStatus | undefined {
   if (on.account?.state === "expired") return { label: "Sign-in expired", tone: "amber" };
 
   if (on.account?.state === "signed_out") return { label: "Not signed in", tone: "amber" };
+
+  return undefined;
 }
 
 /** One line for an instance on a worker, as the list and the detail show it (e.g. "Authenticated · ChatGPT"). */
