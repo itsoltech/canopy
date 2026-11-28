@@ -68,3 +68,10 @@ export function useKeyboardFrame() {
 
   return frame;
 }
+
+/** Distance the keyboard lifts content that already reserves the bottom safe area. */
+export function keyboardLift(frame: KeyboardFrame, bottom: number) {
+  "worklet";
+
+  return Math.max(0, -frame.height.get() - bottom * frame.progress.get());
+}

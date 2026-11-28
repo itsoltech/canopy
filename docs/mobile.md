@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). W wątku na Androidzie ostatnia wiadomość podąża za kompozytorem
+podczas otwierania i chowania klawiatury. Oba widoki korzystają z bieżącej wysokości klawiatury.
+
 Status (2026-11-28). Czat bota pobiera starszą stronę, gdy na ekranie widać
 granicę wczytanych wiadomości, także wewnątrz zwiniętej grupy zdarzeń.
 Dzięki temu przewinięcie do wiadomości sprzed ostatniej strony nie wymaga
@@ -1896,8 +1899,12 @@ zamykaniu. Moduł wymaga nowego development buildu; sam bundle JS/OTA nie wystar
 `KeyboardWindow` zbiera `onMove`, `onInteractive` i `onEnd` z `useKeyboardHandler` do wspólnych
 wartości `useKeyboardFrame`. Nie bierze pozycji z `onStart`, bo na iOS jest to cel animacji.
 `FloatingComposer` przesuwa nakładkę na wątku UI według tych klatek, bez własnej krzywej ani
-czasu animacji. Feed zachowuje pełny viewport: `TimelineList` używa na Androidzie
-`KeyboardChatScrollView` z odwróconą listą, `keyboardLiftBehavior="always"` i dolnym insetem.
+czasu animacji. Feed zachowuje pełny viewport. W wątku na Androidzie odwrócona `TimelineList`
+rezerwuje miejsce pod najnowszą wiadomością w zwykłym wierszu układu. Podczas ruchu
+klawiatury wiersz rośnie i maleje o to samo przesunięcie co nakładka kompozytora.
+Przy śledzeniu końca lista pozwala ostatniej wiadomości przesuwać się razem z tym wierszem.
+Podczas czytania historii natywna kotwica utrzymuje wiadomość na ekranie.
+W czacie bota `KeyboardChatScrollView` podnosi treść także podczas czytania starszych wiadomości.
 Na iOS `IOSChatScrollView` uzgadnia inset i offset w każdej natywnej klatce, zachowując
 odległość od końca listy; interaktywny gest i jego końcowe domknięcie zostawiają offset UIKit.
 Inset safe area jest oddzielony od pomiaru kompozytora; pod klawiaturą zastępuje go IME.
@@ -1982,11 +1989,10 @@ obramowaniem i cieniem w jasnym motywie oraz krótkim wygaszeniem tła.
 `features/composer/FloatingComposer.tsx` ma osobny pas gradientu od **16 dp** w kompakcie do **32 dp** po rozwinięciu
 nad górną krawędzią pola; gradient nie rozciąga się na pełną wysokość kontenera.
 `ComposerCoverage` mierzy cały widoczny stos na wątku UI: pole, toolbar, dolny wiersz,
-zawinięte cytaty, załączniki, podsumowania w kompakcie, zasobnik i statusy. Natywny inset
-listy udostępnia dokładnie ten obszar do przewinięcia; safe area jest dodawana tylko raz
-przez scroll view, razem z bieżącą klawiaturą. Nie ma stałej rezerwy w nagłówku listy.
-Przy końcu iOS zatwierdza inset i offset razem, a Android korzysta z `extraContentPadding`
-i `whenAtEnd`; historia nie przesuwa się podczas czytania powyżej końca. Pomiar nie
+zawinięte cytaty, załączniki, podsumowania w kompakcie, zasobnik i statusy. Na iOS
+pomiar powiększa natywny inset listy, a na Androidzie wysokość wiersza pod ostatnią
+wiadomością. Obie platformy uwzględniają dolny bezpieczny margines tylko raz.
+Przy końcu iOS zatwierdza inset i offset razem. Pomiar nie
 przechodzi przez React na każdej klatce i zatrzymuje się po opuszczeniu ekranu.
 Nagłe zmiany naturalnej wysokości (np. dodanie cytatów) animuje zewnętrzny klip na
 wątku UI; fold zachowuje własną krzywą. Sugestie pozostają poza klipem i pomiarem.
@@ -3153,9 +3159,8 @@ Natywne kotwiczenie wątku nie ma progu autoscroll do zera.
 Android uzgadnia końcową wysokość IME również przez zdarzenia `Keyboard` React Native,
 w tym zmianę wysokości bez zamykania klawiatury. Natywne klatki nadal prowadzą animację;
 zdarzenia końcowe zabezpieczają brakującą aktualizację. Wysokość uwzględnia pasek nawigacji
-okna edge-to-edge. Lista dodaje tylko różnicę względem insetu już obsługiwanego przez
-`KeyboardChatScrollView`, bez podwójnej rezerwy klawiatury ani zmiany rezerwy composera.
-iOS zachowuje dotychczasowy strumień i adapter przewijania.
+okna edge-to-edge. W wątku ta sama korekta trafia do kompozytora i do wiersza pod wiadomościami.
+W czacie bota korekta uzupełnia inset obsługiwany przez `KeyboardChatScrollView`.
 
 W Androidzie każdy `KeyboardWindow` ma jeden `GestureHandlerRootView`, obejmujący
 zarówno listę pionową, jak i poziome scrolle tabel, kodu oraz diffów. Bloki nie tworzą

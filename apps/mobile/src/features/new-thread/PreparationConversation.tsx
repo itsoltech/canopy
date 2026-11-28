@@ -25,6 +25,7 @@ export function PreparationConversation({ job }: { job: ThreadCreation }) {
       <TimelineList
         {...following.listProps}
         composerInset={following.composerInset}
+        followingEnd={following.atBottom}
         onScroll={anchor.onScroll}
         onLayout={anchor.onLayout}
         onContentSizeChange={anchor.onContentSizeChange}

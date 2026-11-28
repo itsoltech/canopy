@@ -236,6 +236,7 @@ export function ThreadTimeline({
                 onScrollToIndexFailed={memory.onScrollToIndexFailed}
                 onViewableItemsChanged={memory.onViewableItemsChanged}
                 composerInset={following.composerInset}
+                followingEnd={following.atBottom}
                 onLayout={(event) => {
                   preparation.onLayout(event);
                   memory.restore();

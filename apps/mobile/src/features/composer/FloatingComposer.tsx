@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import Animated, { useAnimatedStyle, type SharedValue } from "react-native-reanimated";
-import { useKeyboardFrame } from "../../ui/KeyboardWindow";
+import { keyboardLift, useKeyboardFrame } from "../../ui/KeyboardWindow";
 import { useMotion } from "../../ui/motion";
 import { useColors } from "../../ui/theme";
 import { IconButton } from "../../ui/components";
@@ -49,10 +49,11 @@ export function FloatingComposer({
 
   // Keep the overlay's top below the fixed header as its bottom follows the keyboard. The safe-area padding
   // sits outside the measured composer; its proportional sticky offset cancels it without resizing the reserve.
-  const bounds = useAnimatedStyle(() => ({
-    top: insets.top - keyboard.height.get() - insets.bottom * keyboard.progress.get(),
-    transform: [{ translateY: keyboard.height.get() + insets.bottom * keyboard.progress.get() }],
-  }));
+  const bounds = useAnimatedStyle(() => {
+    const lift = keyboardLift(keyboard, insets.bottom);
+
+    return { top: insets.top + lift, transform: [{ translateY: -lift }] };
+  });
 
   return (
     <ComposerMotionContext.Provider value={motion}>
