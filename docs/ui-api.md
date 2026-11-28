@@ -2179,8 +2179,8 @@ Nieudany shell steer pozostaje widoczny. Szczegóły wykonania i trwałości: [p
 
 ### Kompaktowy kompozytor podczas czytania historii
 
-Status (2026-11-28): zaimplementowane w web/desktop, w tym płynna zmiana kierunku
-przewijania i wyrównanie paska narzędzi do głównej akcji podczas zwijania.
+Status (2026-11-28): zaimplementowane w web/desktop, w tym wyhamowanie ruchu po szybkim przewinięciu
+i wygaszanie kontrolek podczas zwijania pola.
 Dostępność w kanałach określają wydania.
 
 Na końcu rozmowy edytor i pasek narzędzi są rozwinięte także przy pustym szkicu
@@ -2191,8 +2191,9 @@ są wyśrodkowane w pionie w jednym wierszu.
 Kompozytor wątku zwija się po celowym przewinięciu w górę o co najmniej 96 px, gdy od końca dzieli co najmniej 192 px. Histereza utrzymuje wąski widok aż do powrotu na dół (wspólny próg feedu: 8 px) albo interakcji z kompozytorem. Nowy fokus, kliknięcie edytora, pisanie, upuszczenie lub wklejenie pliku i otwarcie kontrolek rozwijają pole. Przycisk „Jump to latest” przywraca układ właściwy dla końca rozmowy. Celowe przewijanie ma pierwszeństwo przed istniejącym fokusem. Edytor pozostaje zamontowany i zachowuje fokus również na telefonie.
 
 Małe ruchy przewijania bezpośrednio sterują wysokością pola. Przy szybkim ruchu lub zmianie
-kierunku kompozytor przechodzi do nowej pozycji od ostatniej wyświetlonej klatki.
-Pasek narzędzi i podpowiedzi edytora znikają wewnątrz zwijanego obszaru. Po zatrzymaniu
+kierunku kompozytor rusza z ostatniej wyświetlonej pozycji i zwalnia przy celu.
+Pasek narzędzi i podpowiedzi zanikają z lekkim rozmyciem przed przycięciem wiersza.
+Przy rozwijaniu wyostrzają się, gdy mają już miejsce. Edytor i główna akcja pozostają ostre. Po zatrzymaniu
 przewijania kompozytor domyka się do bliższego stanu także w ostatnich 192 px rozmowy.
 
 Sterowanie postępem, kończenie i cofanie zwijania obejmuje tylko oczekujące przejścia
