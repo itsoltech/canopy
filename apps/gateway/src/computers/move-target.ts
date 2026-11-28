@@ -234,6 +234,7 @@ export async function applyBot(
       const ownRows = (records: readonly Record<string, JsonValue>[]) =>
         records.map((record) => ({ ...record, bot_id: move.item_id }));
 
+      yield* insertRows(sql, "bot_skills", ownRows(rows.skills ?? []), { strict: true });
       yield* insertRows(sql, "bot_routines", ownRows(rows.routines), { strict: true });
       // Event triggers name resources of the source computer: they arrive off, until the owner points them here.
       yield* sql.unsafe(

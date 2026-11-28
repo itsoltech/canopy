@@ -1,5 +1,6 @@
 <script lang="ts">
   import { applicationName } from "#lib/application-name.ts";
+  import { tick } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Dialog from "#lib/shared/ui/Dialog.svelte";
@@ -16,7 +17,7 @@
   import BotDetailsLayout from "#lib/features/bots/details/BotDetailsLayout.svelte";
   import BotDetailsPanel from "#lib/features/bots/details/BotDetailsPanel.svelte";
   import { botConversation, botEntries, botParticipant, botWizardInstances } from "#lib/features/bots/live.ts";
-  import type { ChatEntry } from "@canopy/domain/bot-chat";
+  import { learnFromConversation, type ChatEntry } from "@canopy/domain/bot-chat";
   import ChangeModelDialog, { type BotModelChoice } from "#lib/features/bots/wizard/ChangeModelDialog.svelte";
   import { useSettings } from "#lib/features/settings/settings-state.svelte.ts";
   import { botComposerDraft } from "#lib/features/bots/composer-draft.svelte.ts";
@@ -101,6 +102,16 @@
   function closeDetails() {
     detailsLayout?.close();
     detailsToggle?.focus();
+  }
+
+  function learn() {
+    const { prompt } = learnFromConversation;
+
+    if (!composerDraft.text.endsWith(prompt)) {
+      composerDraft.text += composerDraft.text ? `\n\n${prompt}` : prompt;
+    }
+
+    void tick().then(() => chatView?.focusComposer());
   }
 
   let observedBotId: string | undefined;
@@ -509,8 +520,17 @@
               detailsLayout?.toggle();
             }}
           />
-          <DropdownMenu label="Bot actions" placement="bottom-end">
+          <DropdownMenu label="Bot actions" placement="bottom-end" class="w-max max-w-[calc(100vw-1rem)]">
             {#snippet trigger(props)}<IconButton icon="ellipsis-horizontal" label="Bot actions" {...props} />{/snippet}
+            {#if !bot.archived && snapshot.messages.length}
+              <MenuItem
+                icon="light-bulb"
+                disabled={!canAct || !composerDraft.loaded || composerDraft.sending || sending}
+                onselect={learn}
+              >
+                {learnFromConversation.label}
+              </MenuItem>
+            {/if}
             <MenuItem icon="pencil-square" disabled={Boolean(home.reason)} onselect={() => openBotSettings(bot.id)}
               >Edit bot…</MenuItem
             >

@@ -298,6 +298,8 @@ export async function exportBot(store: ComputerStore, botId: string, sourceName:
       'tool_calls', coalesce((SELECT json_agg(c) FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE t.bot_id = $1::uuid AND t.conversation_id IS NULL), '[]'),
       'approvals', coalesce((SELECT json_agg(a) FROM bot_approvals a JOIN bot_turns t ON t.id=a.turn_id WHERE a.bot_id=$1::uuid AND t.bot_id=a.bot_id AND t.conversation_id IS NULL), '[]'),
       'handoff_notes', coalesce((SELECT json_agg(n) FROM bot_handoff_notes n JOIN bot_turns t ON t.id=n.turn_id WHERE n.bot_id=$1::uuid AND t.bot_id=n.bot_id AND t.conversation_id IS NULL), '[]'),
+      'skills', coalesce((SELECT json_agg(s ORDER BY s.name) FROM bot_skills s JOIN bots b ON b.id=s.bot_id
+        WHERE s.bot_id=$1::uuid AND b.owner_user_id=$2::uuid), '[]'),
       'routines', coalesce((SELECT json_agg(r) FROM bot_routines r WHERE r.bot_id = $1::uuid), '[]'),
       'wakeups', coalesce((SELECT json_agg(w) FROM bot_wakeups w JOIN bot_tool_calls c ON c.id=w.id JOIN bot_turns t ON t.id=c.turn_id WHERE w.bot_id=$1::uuid AND t.bot_id=w.bot_id AND t.conversation_id IS NULL), '[]'),
       'grants', coalesce((SELECT json_agg(json_build_object('connector_type', a.connector_type, 'name', a.name)) FROM connector_accounts a

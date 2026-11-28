@@ -181,6 +181,8 @@ async function seedRows(source: Fixture, target: Fixture, operationId: string) {
 
   await s`INSERT INTO bots(id,owner_user_id,client_request_id,configuration,provider,provider_instance)
     VALUES(${bot},${localOwner},'bot',jsonb_build_object('workerId',${worker}::text),'codex','native')`;
+  await s`INSERT INTO bot_skills(bot_id,name,description,instructions,revision) VALUES
+    (${bot},'handover','Shift handover','Check the on-call notes.',4),(${bot},'retired',NULL,NULL,2)`;
   await s`INSERT INTO bot_turns(id,bot_id,client_request_id,input,status) VALUES(${botTurn},${bot},'msg','fixture','completed')`;
   await s`INSERT INTO bot_tool_calls(id,turn_id,call_key,tool,arguments,status)
     VALUES(${botApproval},${botTurn},'send','{"source":"platform","name":"send_message"}',
@@ -421,6 +423,13 @@ async function checkResult(target: Fixture, source: Fixture, f: FixtureRows, ope
   const [message] =
     await sql`SELECT last_read_seq,seq,reactions FROM bots b JOIN bot_messages m ON m.bot_id=b.id WHERE b.id=${f.bot}`;
 
+  expect(
+    await sql`SELECT s.name,s.description,s.instructions,s.revision FROM bot_skills s
+    JOIN bots b ON b.id=s.bot_id WHERE b.owner_user_id=${target.ownerUserId} AND b.id=${f.bot} ORDER BY s.name`,
+  ).toEqual([
+    { name: "handover", description: "Shift handover", instructions: "Check the on-call notes.", revision: 4 },
+    { name: "retired", description: null, instructions: null, revision: 2 },
+  ]);
   expect(message?.last_read_seq).toBe(message?.seq);
   expect(message?.reactions).toEqual(["❤️"]);
   expect(await sql`SELECT input FROM bot_turns WHERE bot_id=${f.bot} AND reaction_input`).toEqual([

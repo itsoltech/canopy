@@ -8,6 +8,9 @@ import { computerLink as link } from "@canopy/contracts";
 
 import { qualifyId } from "@canopy/domain/computers";
 
+import { skillName } from "@canopy/domain/skill-artifact";
+import { MAX_BOT_SKILLS, MAX_SKILL_DESCRIPTION, MAX_SKILL_INSTRUCTIONS, validSkillText } from "../bots/skills.ts";
+
 import { readMovePayload } from "./move-files.ts";
 
 import type { ComputerStore } from "./store.ts";
@@ -65,6 +68,26 @@ export function threadRowJson(json: string): ThreadRowJson {
 
 export const JsonRow = Schema.Record(Schema.String, Schema.MutableJson);
 
+const movedSkillText = (max: number) =>
+  Schema.NullOr(Schema.String.check(Schema.makeFilter((s) => validSkillText(s, max))));
+
+const movedSkills = Schema.Array(
+  Schema.Struct({
+    bot_id: Schema.String,
+    name: Schema.String.check(Schema.makeFilter(skillName)),
+    description: movedSkillText(MAX_SKILL_DESCRIPTION),
+    instructions: movedSkillText(MAX_SKILL_INSTRUCTIONS),
+    revision: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 2_147_483_647 })),
+  }),
+).check(
+  Schema.makeFilter(
+    (rows) =>
+      new Set(rows.map((row) => row.name)).size === rows.length &&
+      rows.every((row) => (row.description === null) === (row.instructions === null)) &&
+      rows.filter((row) => row.instructions !== null).length <= MAX_BOT_SKILLS,
+  ),
+);
+
 export const BotRowsSchema = Schema.Struct({
   bot: Schema.StructWithRest(
     Schema.Struct({
@@ -86,6 +109,7 @@ export const BotRowsSchema = Schema.Struct({
   approvals: Schema.Array(JsonRow),
   handoff_notes: Schema.Array(JsonRow),
   routines: Schema.Array(JsonRow),
+  skills: Schema.optionalKey(movedSkills),
   wakeups: Schema.Array(JsonRow),
   grants: Schema.Array(
     Schema.StructWithRest(Schema.Struct({ connector_type: Schema.String, name: Schema.String }), [JsonRow]),

@@ -21,6 +21,25 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
 
   afterAll(stopSchemaDb);
 
+  test("bot skills have unique names per bot and their revision records follow bot deletion", async () => {
+    const { user } = await world();
+    const bot = id();
+    const other = id();
+    await query(
+      `INSERT INTO bots(id,owner_user_id,client_request_id,configuration,provider,provider_instance)
+       VALUES ($1,$3,'first','{}','codex','test'),($2,$3,'second','{}','codex','test')`,
+      [bot, other, user],
+    );
+    const insert = "INSERT INTO bot_skills(bot_id,name,description,instructions,revision) VALUES ($1,'triage',$2,$3,1)";
+    await query(insert, [bot, null, null]);
+    await query(insert, [other, "Triage an issue", "Read the issue."]);
+    expect(await failure(insert, [bot, "Duplicate", "Read it."])).toContain("bot_skills_pkey");
+    await query("DELETE FROM bots WHERE id=$1", [bot]);
+    expect(await query("SELECT bot_id FROM bot_skills WHERE bot_id IN ($1,$2)", [bot, other])).toEqual([
+      { bot_id: other },
+    ]);
+  });
+
   test("push enqueue honors snoozed parents and expired snooze deadlines", async () => {
     const w = await world();
     const root = await mainThread(w);

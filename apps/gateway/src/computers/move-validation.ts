@@ -80,6 +80,7 @@ function checkBotGraph(prepare: link.MovePrepare, rows: BotRows) {
 
   if (
     rows.bot.id !== bot ||
+    rows.skills?.some((skill) => skill.bot_id !== bot) ||
     [...rows.turns, ...rows.routines, ...rows.messages, ...rows.approvals, ...rows.handoff_notes, ...rows.wakeups].some(
       (row) => row["bot_id"] !== bot,
     ) ||

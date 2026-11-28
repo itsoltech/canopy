@@ -55,6 +55,14 @@ function startRemoteCall(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn,
   );
 }
 
+/** A remote effect or paid generation may already have happened before a crash. */
+function interruptRemoteCalls(sql: SqlClient.SqlClient, turnId: string) {
+  return sql`UPDATE bot_tool_calls SET status='interrupted',
+    result='{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb
+    WHERE turn_id=${turnId}::uuid AND status='running'
+      AND (tool->>'source'='mcp' OR linked_remote OR tool @> '{"source":"platform","name":"preview_skill"}'::jsonb)`;
+}
+
 type WorkerStatus = "Waiting for a worker" | "Typing…";
 
 function turnStatus(sql: SqlClient.SqlClient, core: BotCore, turn: BotTurn, text: string, background?: WorkerStatus) {
@@ -129,8 +137,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
           if (!turn) return yield* Effect.as(changed(id), undefined);
 
           yield* routineActivity(sql, turn, "started");
-          // A remote side effect may already have happened. Never repeat it after a crash.
-          yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;
+          yield* interruptRemoteCalls(sql, turn.id);
           yield* sql`UPDATE bots SET status_line = ${turn.reaction_input || turn.routine_id || turn.handoff_configuration || turn.conversation_id ? "" : "Typing…"}, revision = revision + 1 WHERE id = ${id}::uuid`;
 
           return turn;

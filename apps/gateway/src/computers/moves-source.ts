@@ -4,7 +4,14 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
-import { MOVE_BOT_TRIGGERS, nodeRef, qualifyId, splitId, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
+import {
+  MOVE_BOT_SKILLS,
+  MOVE_BOT_TRIGGERS,
+  nodeRef,
+  qualifyId,
+  splitId,
+  REMOTE_BOT_COMPOSER,
+} from "@canopy/domain/computers";
 
 import {
   commitSource,
@@ -113,6 +120,17 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
 
       if ((prepare.bot?.draft || prepare.bot?.files.length) && !peer?.capabilities.includes(REMOTE_BOT_COMPOSER))
         throw new MoveRefused("Update the other computer to move this bot's draft and images.");
+
+      if (
+        prepare.bot &&
+        !peer?.capabilities.includes(MOVE_BOT_SKILLS) &&
+        (
+          await hostContext[movesState].store.query("SELECT 1 FROM bot_skills WHERE bot_id=$1::uuid LIMIT 1", [
+            move.item_id,
+          ])
+        ).length
+      )
+        throw new MoveRefused("Update the other computer to move this bot's learned skills.");
 
       // Deleted triggers travel with the bot too: an older target cannot store any of them.
       if (

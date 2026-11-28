@@ -1,5 +1,28 @@
+import { create } from "@bufbuild/protobuf";
+import { bots, Provider } from "@canopy/contracts";
 import sharp from "sharp";
 import type { TestGateway } from "./gateway.ts";
+
+export async function botForMove(
+  gateway: TestGateway,
+  name: string,
+  permissions: Pick<bots.BotConfiguration, "approvalPolicy"> & Partial<Pick<bots.BotConfiguration, "threadPermission">>,
+) {
+  const created = await gateway.api.createBot({
+    configuration: create(bots.BotConfigurationSchema, {
+      name,
+      shape: "round",
+      color: "#22aaff",
+      provider: Provider.CODEX,
+      providerInstance: "bot-fixture",
+      model: "gpt-6.1-sol",
+      ...permissions,
+    }),
+    clientRequestId: crypto.randomUUID(),
+  });
+
+  return created.bot!.id;
+}
 
 /** Both sent and unsent images must follow a bot to its new home. */
 export async function botComposerForMove(gateway: TestGateway, botId: string) {

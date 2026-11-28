@@ -1,5 +1,7 @@
 # Boty
 
+Status (2026-11-28): bot może uczyć się procedur w prywatnej rozmowie, poprawiać je po uwagach właściciela i stosować w kolejnych zadaniach. Opis działania znajduje się w sekcji [Umiejętności bota](#umiejętności-bota). Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-28): boty mają wyzwalacze zdarzeń wątków, CI PR-ów, harmonogramów,
 limitów dostawców i sugestii nawyków. Bot subskrybuje typ zdarzenia
 z jawnym zakresem i warunkami, a pasujące zdarzenia uruchamiają przebieg w tle.
@@ -994,6 +996,17 @@ Weryfikacja: `tests/integration/bot-handoff.test.ts` obejmuje kolejkę, starą/n
 konfigurację, niewidoczność, fallback, termin, usuniętą instancję, restart, łańcuch
 i `update_self`. `bot-handoff.live.test.ts` przez CLIProxyAPI uczy bota Codex faktu,
 przełącza go na Groka i sprawdza pamięć oraz aktualną tożsamość.
+
+## Umiejętności bota
+
+Każdy bot ma własną bibliotekę procedur. Po wspólnej pracy nad powtarzalnym zadaniem bot może sam zapisać sposób wykonania, a po korekcie właściciela poprawić istniejącą procedurę. Może też zrobić to na prośbę w prywatnym czacie. Akcja **Learn from this conversation** wstawia do kompozytora prośbę o wyciągnięcie kroków, poprawek, zmiennych danych wejściowych i przykładu oczekiwanego wyniku. Właściciel może ją uzupełnić przed wysłaniem.
+
+Na przykład właściciel przygotowuje z botem raport wydania i prosi o pominięcie wycofanych zmian. Bot zapisuje tę regułę w procedurze raportu. Przy następnym wydaniu rozpoznaje zadanie po opisie i pobiera aktualne kroki. Właściciel może też wskazać procedurę po nazwie w instrukcji rutyny albo wyzwalacza.
+
+- `list_skills` zwraca nazwy, krótkie opisy i rewizje. `read_skill` pobiera pełną treść wybranej procedury. Model używa jej z narzędziami i zgodami dostępnymi w bieżącej turze.
+- `save_skill` tworzy procedurę lub zastępuje jej opis i instrukcje. Aktualizacja i `delete_skill` wymagają bieżącej rewizji. Bot może zachować do 64 procedur. Zmiana modelu bota zachowuje tę samą bibliotekę.
+- Na prośbę właściciela `preview_skill` przekazuje zapisaną procedurę i przykładowe dane do osobnej generacji tekstu bez narzędzi. Bot może zestawić otrzymany wynik ze wzorcem w rozmowie. Kroki wymagające zewnętrznego źródła danych można w ten sposób sprawdzić na dostarczonym przykładzie.
+- Tworzenie, zmiana, usuwanie i próba są dostępne w prywatnej rozmowie z właścicielem. Rutyna lub wyzwalacz z potwierdzonym pochodzeniem może odczytać procedurę. Gateway sprawdza pochodzenie także przy wykonaniu narzędzia. Rozmowy z komunikatorów i wiadomości od innych botów nie mają dostępu do biblioteki.
 
 ## Rutyny — cron działający w tle
 

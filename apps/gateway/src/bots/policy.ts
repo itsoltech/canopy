@@ -3,6 +3,7 @@ import { botMemoryTools, type BotMemoryAccess } from "./memory.ts";
 import { DEFAULT_BUS_LIMITS, type JsonObject, type JsonValue } from "@canopy/domain";
 import { botThreadConnectionEnabled } from "../store/module-access.ts";
 import type { BotRuntimeOptions } from "./runtime.ts";
+import { skillToolAvailable } from "./tools/skills.ts";
 import { threadToolNames } from "./thread-tools.ts";
 import { Predicate } from "effect";
 import type { BotTurn, ToolSpec } from "./types.ts";
@@ -76,6 +77,7 @@ export async function currentBotTools(
     (tool) =>
       (!turn.conversation_id || EXTERNAL_WORK_TOOLS.has(tool.name)) &&
       (tool.name !== SKIP_SLACK_REPLY || !!turn.conversation_id) &&
+      skillToolAvailable(tool.name, memory.skillAccess) &&
       (!ownerInputTools.has(tool.name) || memory.ownerInput) &&
       (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&

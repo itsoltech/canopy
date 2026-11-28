@@ -5,7 +5,8 @@ import type { BotTurn } from "./types.ts";
 
 /** The t turn and its m input message must both belong to this private owner conversation. */
 export function ownerBotInput(sql: SqlClient.SqlClient) {
-  return sql`t.conversation_id IS NULL AND t.routine_id IS NULL AND t.handoff_configuration IS NULL
+  return sql`t.conversation_id IS NULL AND t.slack_context_epoch IS NULL AND t.routine_id IS NULL
+    AND t.handoff_configuration IS NULL AND NOT t.reaction_input
     AND t.reply_to_bot_id IS NULL AND t.exchange_id IS NULL AND t.remote_recipient_ref IS NULL AND t.hops=0
     AND m.bot_id=t.bot_id AND m.recipient_id=t.bot_id::text AND m.message_key='input'
     AND m.sender_id='user' AND m.kind='message' AND m.exchange_id IS NULL`;

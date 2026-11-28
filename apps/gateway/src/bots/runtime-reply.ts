@@ -3,6 +3,7 @@ import { botApprovalContext } from "./approval-context.ts";
 import type { BotModel, BotTurn, ModelInput } from "./types.ts";
 import type { BotRuntimeOptions, BotsRuntime } from "./runtime.ts";
 import { botMemoryGuidance, botMemoryQuery, isolatedBotCheckpoint } from "./memory.ts";
+import { skillGuidance } from "./tools/skills.ts";
 import { memoryContext } from "../memory/tools.ts";
 import { currentBotTools } from "./policy.ts";
 import { botConfiguration } from "./store.ts";
@@ -29,8 +30,11 @@ export async function botModelContext(
 
   const access = await runtime.run((s) => s.memoryAccess(options.userId, turn));
   const tools = await currentBotTools(options, config, turn, access);
-  // A trigger run reads only its own input: event data, not the owner's private conversation.
-  const isolatedInput = !turn.conversation_id && (!access.scopes.length || !!access.trigger) && !turn.reaction_input;
+
+  // Rebuild agent messages and unverified continuations without any private history or saved native tool results.
+  // Triggers get their verified skill tools but only their event batch as conversation history.
+  const isolatedInput =
+    !turn.conversation_id && (access.skillAccess === "none" || !!access.trigger) && !turn.reaction_input;
 
   const channel = await runtime.run((s) =>
     s.slackTurnContext(options.userId, turn, Boolean(options.model || !options.harness)),
@@ -41,7 +45,7 @@ export async function botModelContext(
     (await memoryContext(options.runtime, options.userId, access.scopes, botMemoryQuery(access, turn)));
 
   const slackContextKey = channel.enabled ? turn.id : (turn.slack_context_epoch?.toString() ?? "");
-  const guidance = botMemoryGuidance(access, turn);
+  const guidance = [botMemoryGuidance(access, turn), skillGuidance(access.skillAccess)].filter(Boolean).join("\n\n");
 
   const saved = isolatedInput ? isolatedBotCheckpoint(turn.checkpoint) : turn.checkpoint;
 

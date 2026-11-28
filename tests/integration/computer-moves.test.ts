@@ -1,14 +1,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { bots, computerLink as link, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
+import { computerLink as link, Provider, ProviderProfileKind, ui } from "@canopy/contracts";
 import { qualifyId } from "@canopy/domain/computers";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
 import { LinkedComputers } from "../../apps/gateway/src/computers/runtime.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
-import { botComposerForMove, sendRemoteBotImage } from "./support/bot-composer-move.ts";
+import { botComposerForMove, botForMove, sendRemoteBotImage } from "./support/bot-composer-move.ts";
 import { MoveCrash, type MoveHost } from "../../apps/gateway/src/computers/moves.ts";
 import type { BotModel, ModelInput } from "../../apps/gateway/src/bots/types.ts";
 import { eventually, failure, startTestGateway, type TestGateway } from "./support/gateway.ts";
@@ -432,21 +432,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
   }, 30_000);
 
   test("a bot moves with its conversation, routines and reminders: nothing fires twice or is lost; accounts are flagged", async () => {
-    const bot = (
-      await a.api.createBot({
-        configuration: create(bots.BotConfigurationSchema, {
-          name: "Helper",
-          shape: "round",
-          color: "#22aaff",
-          provider: Provider.CODEX,
-          providerInstance: "bot-fixture",
-          model: "gpt-6.1-sol",
-          approvalPolicy: "full_auto",
-          threadPermission: "full_access",
-        }),
-        clientRequestId: id(),
-      })
-    ).bot!.id;
+    const bot = await botForMove(a, "Helper", { approvalPolicy: "full_auto", threadPermission: "full_access" });
 
     const { image, pending, draft } = await botComposerForMove(a, bot);
     await eventually(
@@ -461,6 +447,12 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       [account, a.userId],
     );
     await sql(a, "INSERT INTO connector_bot_grants (account_id, bot_id) VALUES ($1::uuid,$2::uuid)", [account, bot]);
+    await sql(
+      a,
+      `INSERT INTO bot_skills(bot_id,name,description,instructions,revision) VALUES
+      ($1,'triage','Report triage','Check known incidents first.',3), ($1,'old',NULL,NULL,5)`,
+      [bot],
+    );
     // A routine and a reminder that are due while the bot moves: exactly one home runs each, once.
     const [routine, reminder, trigger] = [id(), id(), id()];
     await a.core.bots.stop();
@@ -515,6 +507,14 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
         10000,
       ),
     ).toBe(true);
+    expect(
+      await sql(c, "SELECT name,description,instructions,revision FROM bot_skills WHERE bot_id=$1 ORDER BY name", [
+        bot,
+      ]),
+    ).toEqual([
+      { name: "old", description: null, instructions: null, revision: 5 },
+      { name: "triage", description: "Report triage", instructions: "Check known incidents first.", revision: 3 },
+    ]);
     expect(await sql(c, "SELECT enabled FROM bot_routines WHERE id=$1", [trigger])).toEqual([{ enabled: false }]);
     expect(await sql(c, "SELECT resume_approval_id AS r FROM bot_turns WHERE id=$1", [continuation])).toEqual([
       { r: card },
@@ -850,20 +850,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
   test("move everything: every thread and bot goes to the new laptop; shared and local-only configuration are listed", async () => {
     const t = await thread(a, aProject, aWorkspace, "Last one", "six");
 
-    const bot = (
-      await a.api.createBot({
-        configuration: create(bots.BotConfigurationSchema, {
-          name: "Last bot",
-          shape: "round",
-          color: "#22aaff",
-          provider: Provider.CODEX,
-          providerInstance: "bot-fixture",
-          model: "gpt-6.1-sol",
-          approvalPolicy: "safe",
-        }),
-        clientRequestId: id(),
-      })
-    ).bot!.id;
+    const bot = await botForMove(a, "Last bot", { approvalPolicy: "safe" });
 
     const preview = await a.api.previewMove({ nodeId: cNode, everything: true });
     expect(preview.items.map((i) => i.id)).toEqual(expect.arrayContaining([t, bot]));
