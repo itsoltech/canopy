@@ -2,6 +2,8 @@
 
 Status (2026-11-28). Web i desktop wybierają sposób rozwiązania konfliktu skilla w bibliotece. [Środowisko agentów](#agent-environment)
 
+Status (2026-11-28). W kompozytorze web i desktopu kliknięcie cytatu od razu zastępuje podgląd edytorem.
+
 Status (2026-11-28). Web, desktop i telefon zarządzają dostępem projektów i botów
 do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
 
@@ -3189,10 +3191,11 @@ miejscu kursora w kompozytorze, a bez zapamiętanego kursora — na końcu. Foku
 za token. Nie ma zasobnika cytatów nad polem.
 
 Token ma ikonę cytatu i krótki, skrócony fragment; etykieta dostępności to
-„Citation: ‹fragment›”. Hover lub fokus pokazuje pełny tekst i źródło (rodzaj,
-autor, czas). Kliknięcie lub Enter otwiera „Edit citation”: edycja fragmentu,
-opcjonalnego komentarza i „Jump to source”. Backspace/Delete usuwa cały token;
-Undo/Redo i kopiowanie/wklejanie wewnątrz kompozytora zachowują jego dane.
+„Citation: ‹fragment›”. Najechanie lub fokus z klawiatury pokazuje pełny tekst i źródło
+(rodzaj, autor, czas). Kliknięcie, dotknięcie, Enter lub spacja otwiera „Edit citation”
+i od razu ukrywa podgląd. W edytorze można zmienić fragment, dodać komentarz lub wybrać
+„Jump to source”. Backspace/Delete usuwa cały token. Undo/Redo i kopiowanie/wklejanie
+wewnątrz kompozytora zachowują jego dane.
 `MentionEditor` serializuje cytaty razem z tekstem i wzmiankami, w kolejności tekstu.
 Wiadomość z samym cytatem też można wysłać. Wysłana bańka renderuje takie same
 tokeny w tych samych miejscach, z pełną treścią po hoverze lub fokusie. Cytaty
