@@ -170,7 +170,8 @@ test.skipIf(!live)(
     // Quotes and a backslash: JSON request bodies escape them.
     const password = `pw-"\\/é-${crypto.randomUUID()}`;
     const { site, foreign, leaked } = servers(password);
-    const origin = site.url.origin;
+    const origin = `http://pr-1090.app.localhost:${site.port}`;
+    const websites = [`http://pr-*.app.localhost:${site.port}`];
     const requestId = crypto.randomUUID();
     // Browser logins stay in worker memory: they do not wait for the harness's output filter.
     store.beginProjectTurn(threadId, turnId);
@@ -187,7 +188,7 @@ test.skipIf(!live)(
           username: "abc@example.test",
           password,
           one_time_code_setup: setup,
-          websites: [origin],
+          websites,
           hide_username: false,
         }),
         expiresAt: timestampFromDate(new Date(Date.now() + 120_000)),
@@ -237,7 +238,7 @@ test.skipIf(!live)(
       expect(tools).toContain("agent_browser_fill_login");
       expect(tools).toContain("agent_browser_fill_one_time_code");
 
-      expect((await call("open", { url: site.url.href })).isError).toBeFalsy();
+      expect((await call("open", { url: origin })).isError).toBeFalsy();
       const filled = await call("fill_login", { login: "STAGING_ADMIN", username: "#user", password: "#pass" });
       expect(text(filled)).toContain("Entered the username and password");
       expect(leases).toEqual([`STAGING_ADMIN ${origin}`]);
@@ -275,7 +276,7 @@ test.skipIf(!live)(
       expect(text(await call("get_title"))).toContain("own sent");
 
       const basic = await call("open_with_basic_auth", {
-        url: new URL("/locked", site.url).href,
+        url: new URL("/locked", origin).href,
         login: "STAGING_ADMIN",
       });
 
@@ -283,7 +284,7 @@ test.skipIf(!live)(
       expect(text(await call("get_title"))).toContain("Protected");
 
       // A frame from another website inside an allowed page never receives the login.
-      expect((await call("open", { url: site.url.href })).isError).toBeFalsy();
+      expect((await call("open", { url: origin })).isError).toBeFalsy();
       const framed = await call("fill_login", { login: "STAGING_ADMIN", password: "#frame" });
       const session = manager.localMcpServers([AgentTool.BROWSER], threadId)[0]!.scope!.session;
       const logins = sessionLogins(session, () => Promise.resolve(undefined));
@@ -304,7 +305,7 @@ test.skipIf(!live)(
         create(AgentPreviewLoginSchema, {
           name: "STAGING_ADMIN",
           text,
-          websites: [origin],
+          websites,
           masked: true,
           field: "password",
         });

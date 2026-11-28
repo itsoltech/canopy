@@ -7,7 +7,8 @@ użytkownika, hasło, opcjonalny kod jednorazowy (TOTP) i tryb zgody.
 
 Status (2026-11-28): właściciel może zapisać sekret w projekcie i przydzielać
 go na żądanie poszczególnych wątków. Każdy przydział wygasa wraz z turą lub
-po 15 minutach. Loginy projektu dla Agent Browser są zaimplementowane. Dostępność
+po 15 minutach. Loginy projektu w Agent Browser obsługują także adresy środowisk PR
+ze wzorcem `pr-*` w nazwie hosta. Dostępność
 w wydaniach opisują [zasady promocji](release.md).
 
 ## Sekret zapisany w projekcie
@@ -58,7 +59,12 @@ klucz usuwa kod jednorazowy. API nigdy nie zwraca hasła ani klucza. Każda zmia
 cofa jego przydziały i zgody w trwających turach.
 
 Strona to origin (schemat, host, port, najwyżej 300 znaków). Wklejony adres strony zostaje
-skrócony do originu. `https://*.example.com` pasuje do subdomen, ale nie do samej domeny.
+skrócony do originu. `https://*.example.com` obejmuje subdomeny na dowolnej głębokości.
+Sama domena `example.com` wymaga osobnego wpisu. We wzorcu z prefiksem,
+np. `https://pr-*.app.example.com`, gwiazdka zastępuje co najmniej jeden znak w pierwszej
+części nazwy hosta, do najbliższej kropki. Ten wpis obejmuje `pr-1090.app.example.com`.
+Dla `pr-1090.api.example.com` potrzebny jest wpis z domeną API. Schemat i port muszą się
+zgadzać w każdym przypadku. Zapisane wcześniej wzorce działają bez ponownej edycji.
 Wspólne reguły są w `@canopy/domain/project-logins`; kody TOTP (RFC 6238, SHA-1/256/512,
 6–8 cyfr, okres 10–300 s) liczy `@canopy/domain/one-time-codes` przez Web Crypto.
 
