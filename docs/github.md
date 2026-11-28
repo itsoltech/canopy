@@ -4,6 +4,11 @@ Status (2026-11-28): kompozytor nowego i istniejącego wątku wyszukuje pod `#`
 zgłoszenia i pull requesty przez konto GitHub wybrane dla repozytorium workspace’u.
 Wpisanie numeru, np. `#1386`, obejmuje także zamknięte zgłoszenia i scalone PR.
 
+Aktualizacja (2026-11-28): w ustawieniach GitHub na webie i desktopie lista repozytoriów
+płynnie zmienia wysokość podczas rozwijania organizacji, wczytywania wyników i zwijania.
+Lista rozwija się po otrzymaniu danych. Przy pobieraniu dłuższym niż 300 ms wskaźnik
+pojawia się w nagłówku organizacji. Przy ograniczonym ruchu zmiana wysokości jest natychmiastowa.
+
 Aktualizacja (2026-11-27): odświeżenie listy w tle może zapisać podsumowanie tylko
 z odpowiedzi, która nadal znajduje się w cache bieżącej rewizji dostępu (§3). Jawne odświeżenie
 strony PR przyjmuje wypełnienie cache zapisane po jego pierwszym odczycie zamiast pobierać ponownie.

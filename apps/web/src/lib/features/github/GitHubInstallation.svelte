@@ -4,6 +4,7 @@
   import DropdownMenu from "#lib/shared/ui/DropdownMenu.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
+  import Spinner from "#lib/shared/ui/Spinner.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import GitHubRepositories from "./GitHubRepositories.svelte";
 
@@ -14,7 +15,8 @@
     class: className,
   }: { accountId: string; installation: github.GitHubInstallation; installUrl: string; class?: string } = $props();
 
-  let open = $state(false);
+  let showLoading = $state(false);
+  const bodySpacing = "pt-2 pr-2 pb-3 pl-8";
 
   const openGitHub = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -23,7 +25,7 @@
 
 <div class={["relative min-w-0", className]}>
   <Disclosure
-    bind:open
+    resizeToContent
     align="center"
     summaryClass="min-h-11 py-2 pr-12 pl-2 hover:bg-zinc-950/3 focus-visible:bg-zinc-950/3 dark:hover:bg-white/5 dark:focus-visible:bg-white/5"
   >
@@ -31,13 +33,24 @@
         <TruncatedText text={installation.login} />{#if installation.suspended}<span
             class="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">Suspended</span
           >{/if}
+        <span
+          role="status"
+          class="invisible ml-auto size-4 shrink-0 text-zinc-500 group-open/disclosure:visible dark:text-zinc-400"
+        >
+          {#if showLoading}<Spinner /><span class="sr-only">Loading repositories…</span>{/if}
+        </span>
       </div>{/snippet}
-    <div class="min-w-0 pt-2 pr-2 pb-3 pl-8">
-      {#if installation.suspended}<p class="py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
+    {#if installation.suspended}<div class={bodySpacing}>
+        <p class="py-2 text-sm/5 text-zinc-500 dark:text-zinc-400">
           This installation is suspended. Ask its administrator to restore access.
         </p>
-      {:else}<GitHubRepositories {accountId} installationId={installation.installationId} />{/if}
-    </div>
+      </div>
+    {:else}<GitHubRepositories
+        {accountId}
+        installationId={installation.installationId}
+        bind:showLoading
+        class={bodySpacing}
+      />{/if}
   </Disclosure>
   <div class="absolute top-1.5 right-2">
     <DropdownMenu label={`Actions for ${installation.login}`} placement="bottom-end" sheet>
