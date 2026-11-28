@@ -15,6 +15,7 @@
     output,
     running,
     exitLine,
+    embedded = false,
     status,
     actions,
     footer,
@@ -25,6 +26,7 @@
     command: string;
     output: string;
     running: boolean;
+    embedded?: boolean;
     exitLine?: string | undefined;
     status?: Snippet;
     actions?: Snippet;
@@ -39,14 +41,15 @@
   }
 </script>
 
-<section
-  aria-label={title}
-  class={[
-    "terminal-surface dark flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-zinc-950 text-zinc-200 scheme-only-dark",
-    className,
-  ]}
->
-  <header class="flex min-w-0 shrink-0 flex-col gap-2 border-b border-white/10 bg-zinc-900 px-4 py-3">
+<section aria-label={title} class={["flex h-full min-h-0 min-w-0 flex-col overflow-hidden", className]}>
+  <header
+    class={[
+      "flex min-w-0 shrink-0 flex-col gap-2 border-b px-4 py-3",
+      embedded
+        ? "border-divider bg-surface text-ink"
+        : "dark border-white/10 bg-zinc-900 text-zinc-200 scheme-only-dark",
+    ]}
+  >
     <div class="flex min-w-0 items-center justify-between gap-3">
       <h3 class="truncate font-mono text-sm font-medium" {title}>{title}</h3>
       <div class="flex shrink-0 items-center gap-2">
@@ -56,13 +59,22 @@
       </div>
     </div>
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <p class="min-w-0 truncate font-mono text-sm/5 text-zinc-400" title={cwd}>{terminalCwd(cwd)}</p>
+      <p
+        class="min-w-0 truncate font-mono text-sm/5"
+        class:text-muted={embedded}
+        class:text-zinc-400={!embedded}
+        title={cwd}
+      >
+        {terminalCwd(cwd)}
+      </p>
       {@render status?.()}
     </div>
   </header>
-  {#if command}<TerminalPrompt {command} {cwd} />{/if}
-  <TerminalOutput bind:this={outputView} {output} {running} {exitLine} />
-  {#if footer}<div class="shrink-0 border-t border-white/10 px-4 py-2 text-sm/5 wrap-anywhere text-zinc-400">
-      {@render footer()}
-    </div>{/if}
+  <div class="terminal-surface dark flex min-h-0 flex-1 flex-col bg-zinc-950 text-zinc-200 scheme-only-dark">
+    {#if command}<TerminalPrompt {command} {cwd} />{/if}
+    <TerminalOutput bind:this={outputView} {output} {running} {exitLine} />
+    {#if footer}<div class="shrink-0 border-t border-white/10 px-4 py-2 text-sm/5 wrap-anywhere text-zinc-400">
+        {@render footer()}
+      </div>{/if}
+  </div>
 </section>

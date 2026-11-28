@@ -1,5 +1,8 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
+Status (2026-11-28). W web i desktop nagłówek terminala zadania w tle ma to samo
+tło co aktywna zakładka, również w jasnym motywie.
+
 Status (2026-11-27): rozwijanie i zwijanie Thread details naciśnięciem
 to morph pigułki w kartę, jak w zakotwiczonych popoverach. W web i desktop
 docelowe szerokości paneli wyznaczają zadokowanie podsumowania od początku
