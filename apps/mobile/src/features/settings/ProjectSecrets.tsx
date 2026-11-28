@@ -23,7 +23,7 @@ export function ProjectSecrets({ projectId, logins = false }: { projectId: strin
   const { active } = useSession();
   const [open, setOpen] = useState<Open>();
   const [saving, setSaving] = useState(false);
-  const all = (resource.data?.secrets ?? []).toSorted((a, b) => a.name.localeCompare(b.name));
+  const all = [...(resource.data?.secrets ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const names = all.map((secret) => secret.name);
   const secrets = all.filter((secret) => secret.kind !== "login");
   const close = () => !saving && setOpen(undefined);
