@@ -1,3 +1,4 @@
+import { AgentEnvironment } from "../agent-environment/service.ts";
 import { ConnectorsRuntime } from "../connectors/runtime.ts";
 import { allowFullAccessPermission } from "./live-turn-permissions.ts";
 import { create, fromJson } from "@bufbuild/protobuf";
@@ -46,6 +47,20 @@ export function createCoreConnectors(core: GatewayCore, options: GatewayCoreOpti
     ...(options.messengerTransport && { messengerTransport: options.messengerTransport }),
     interaction: (interaction) =>
       corePublishInteraction(core, interaction).then(() => allowFullAccessPermission(core, interaction)),
+  });
+}
+
+export function createCoreEnvironment(core: GatewayCore, options: GatewayCoreOptions) {
+  return new AgentEnvironment({
+    github: core.github,
+    ...(options.skillSources && { sources: options.skillSources }),
+    runtime: options.runtime,
+    userId: options.userId,
+    link: core.link,
+    changed: () =>
+      core.hub.publishOverview(
+        create(ui.OverviewUpdateSchema, { change: { case: "agentEnvironmentChanged", value: true } }),
+      ),
   });
 }
 

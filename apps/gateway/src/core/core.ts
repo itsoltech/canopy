@@ -12,6 +12,7 @@ import {
   createCoreBus,
   createCoreCheckWatches,
   createCoreConnectors,
+  createCoreEnvironment,
   createCoreScheduler,
   createCoreUpdates,
 } from "./core-composition.ts";
@@ -50,7 +51,7 @@ import { AgentPreviews } from "./agent-previews.ts";
 import { ProviderAccounts } from "./provider-accounts.ts";
 import { ProviderUsage } from "./provider-usage.ts";
 import { ProxyAccountsMonitor } from "./proxy-accounts.ts";
-import { AgentEnvironment } from "../agent-environment/service.ts";
+import type { AgentEnvironment } from "../agent-environment/service.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import type { NetworkAccess } from "../network/network.ts";
 import { LinkedAgents } from "../computers/agents.ts";
@@ -340,18 +341,7 @@ export class GatewayCore {
     });
     this.agentTools = createCoreAgentTools(this, options);
     this.agentPreviews = new AgentPreviews(this);
-    this.environment = new AgentEnvironment({
-      ...(options.skillSources && { sources: options.skillSources }),
-      runtime: options.runtime,
-      userId: options.userId,
-      link: this.link,
-      changed: () =>
-        this.hub.publishOverview(
-          create(ui.OverviewUpdateSchema, {
-            change: { case: "agentEnvironmentChanged", value: true },
-          }),
-        ),
-    });
+    this.environment = createCoreEnvironment(this, options);
     this.workerSsh = new WorkerSsh({
       runtime: options.runtime,
       userId: options.userId,

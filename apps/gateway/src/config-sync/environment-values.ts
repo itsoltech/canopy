@@ -1,6 +1,9 @@
 import { type JsonValue } from "@bufbuild/protobuf";
+import { sourceGitHubAccount } from "@canopy/domain/source-access";
+import type { SqlClient } from "effect/sql";
+import { connectorId } from "./connector-apply.ts";
 import { normalizeGitOrigin } from "@canopy/domain/projects";
-import { Predicate, Schema } from "effect";
+import { Effect, Predicate, Schema } from "effect";
 import type { Values } from "./provider-values.ts";
 
 /**
@@ -41,6 +44,10 @@ export const Source = Schema.Struct({
 });
 
 export const isSource = Schema.is(Source);
+
+/** The GitHub user and repository IDs travel as-is. Each home authenticates the account independently. */
+export const sourceAccountId = (sql: SqlClient.SqlClient, owner: string, id: string, global = false) =>
+  sourceGitHubAccount(id) ? Effect.succeed(id) : connectorId(sql, owner, id, global);
 
 /** A received source as plain fields; undefined when the value is not a source. */
 export const sourceOf = (value: JsonValue | undefined) =>

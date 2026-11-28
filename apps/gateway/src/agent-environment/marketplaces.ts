@@ -38,13 +38,14 @@ export class EnvironmentMarketplaces {
       const source = current?.source ?? marketplaceReference(request.command);
 
       if (!current) source.credentialAccountId = request.credentialAccountId;
-      const authorization = await this.environment.sources.db.authorization(source);
+      const signal = AbortSignal.any([this.#abort.signal, AbortSignal.timeout(120_000)]);
+      const authorization = await this.environment.sources.db.access(source, signal);
       let marketplace;
 
       try {
         marketplace = await discoverMarketplace(source, authorization, {
           ...this.environment.options.sources,
-          signal: AbortSignal.any([this.#abort.signal, AbortSignal.timeout(120_000)]),
+          signal,
         });
       } catch {
         throw new ConnectError(
@@ -103,7 +104,7 @@ export class EnvironmentMarketplaces {
     );
 
     const marketplace = preview.marketplace!;
-    await environment.sources.db.authorization(marketplace.source!);
+    await environment.sources.db.confirm(marketplace.source!, this.#abort.signal);
     await environment.db.mutate(
       request.expectedRevision,
       (sql) =>

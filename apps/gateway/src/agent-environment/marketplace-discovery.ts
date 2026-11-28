@@ -5,7 +5,7 @@ import { validatePluginFiles } from "@canopy/domain/plugin-artifact";
 import { pluginHarnesses } from "@canopy/domain/plugin-components";
 import { Option, Schema } from "effect";
 import { sourceInvalid } from "./source-command.ts";
-import { gitFile, readGitSource, type SourceTransport } from "./source-git.ts";
+import { gitFile, readGitSource, type SourceAccess, type SourceTransport } from "./source-git.ts";
 
 const Catalog = Schema.Struct({
   name: Schema.String,
@@ -24,7 +24,11 @@ export function installReference(command: string) {
   return { name: match[1]!, marketplace: match[2] ?? "" };
 }
 
-export async function discoverMarketplace(source: ui.SkillSource, authorization: string, options: SourceTransport) {
+export async function discoverMarketplace(
+  source: ui.SkillSource,
+  authorization: SourceAccess,
+  options: SourceTransport,
+) {
   return readGitSource(source, authorization, options, async (commit, entries, blobs) => {
     for (const entry of entries) checkSkillPath(entry.path);
 

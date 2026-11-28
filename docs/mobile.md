@@ -273,6 +273,7 @@ kadrowanie 1:1. Zatwierdzenie kadru zapisuje zdjęcie. Po usunięciu zdjęcia
 Canopy pokazuje inicjały projektu. Pole **Project color** ustala ich kolor jako
 wartość szesnastkową, a reset przywraca **Automatic**.
 W bibliotece skilli i marketplace’ów wybór konta zależy od adresu źródła.
+Dla GitHuba lista obejmuje konta z Settings → GitHub oraz pasujące konta connectorów.
 Dostępność w wydaniach zależy od kanału.
 
 Natywna aplikacja Expo/React Native działa na iOS i Androidzie. Obsługuje wątki,
@@ -1564,6 +1565,7 @@ Przy dodawaniu źródła skilla lub marketplace’u aplikacja pokazuje wybór ko
 gdy dla wpisanego repozytorium jest dostępne pasujące połączenie. Użytkownik może też wybrać
 dostęp publiczny. Zmiana źródła lub konta wymaga podglądu zgodnego z bieżącym wyborem.
 Przy sprawdzaniu zapisanego źródła gateway korzysta z przypisanego mu konta.
+Dla połączenia z **Settings → GitHub** sprawdza także numeryczne ID repozytorium.
 Przy imporcie skilla z publicznej witryny HTTPS telefon korzysta z tej samej ścieżki
 podglądu i potwierdzenia co web. Podgląd pokazuje adres witryny i pobrane pliki do zatwierdzenia.
 

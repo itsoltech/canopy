@@ -9,9 +9,8 @@ import { equalValue, type ConfigRow } from "./persistence.ts";
 import { alive } from "./provider-records.ts";
 import { canonicalId, recordOf } from "./provider-apply.ts";
 import { valuesOf } from "./provider-values.ts";
-import { isCatalog, sourceOf } from "./environment-values.ts";
+import { isCatalog, sourceOf, sourceAccountId } from "./environment-values.ts";
 import { localBlob, verifiedCatalog, type Blobs } from "./environment-blobs.ts";
-import { connectorId } from "./connector-apply.ts";
 import {
   attempt,
   bumpEnvironment,
@@ -49,7 +48,7 @@ export function applyMarketplace(sql: SqlClient.SqlClient, owner: string, row: C
     const catalog = v["catalog"];
     const source = sourceOf(v["source"]);
 
-    if (source) source.credentialAccountId = yield* connectorId(sql, owner, source.credentialAccountId);
+    if (source) source.credentialAccountId = yield* sourceAccountId(sql, owner, source.credentialAccountId);
 
     if (!isCatalog(catalog) || !source || !Predicate.isString(v["name"]) || !v["name"]) return refuse(row);
 

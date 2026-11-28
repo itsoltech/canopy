@@ -3,10 +3,9 @@ import { ui } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { configLock, type ConfigRow } from "./persistence.ts";
-import { environmentManaged } from "./environment-values.ts";
+import { environmentManaged, sourceAccountId } from "./environment-values.ts";
 import { projectWriter } from "./project-writer.ts";
 import type { Values } from "./provider-values.ts";
-import { connectorId } from "./connector-apply.ts";
 
 type Stamped = { id: string; updated_at: Date };
 
@@ -120,7 +119,7 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
                 ref: source.ref,
                 path: source.path,
                 ...(source.wellKnown && { wellKnown: true }),
-                credentialAccountId: yield* connectorId(sql, owner, source.credentialAccountId, true),
+                credentialAccountId: yield* sourceAccountId(sql, owner, source.credentialAccountId, true),
               }
             : null,
           autoUpdate: source?.autoUpdate ?? false,
@@ -143,7 +142,7 @@ function recordOwner(sql: SqlClient.SqlClient, owner: string, node: string) {
                 url: source.url,
                 ref: source.ref,
                 path: source.path,
-                credentialAccountId: yield* connectorId(sql, owner, source.credentialAccountId, true),
+                credentialAccountId: yield* sourceAccountId(sql, owner, source.credentialAccountId, true),
               }
             : null,
           catalog: { hash: row.hash, commit: source?.commit ?? "" },

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { connectors } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import type { PluginState } from "./plugin-state.svelte.ts";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -15,7 +14,7 @@
   }: { state: PluginState; open?: boolean; step?: number; class?: ClassValue } = $props();
 
   let command = $state("");
-  let account = $state.raw<connectors.ConnectorAccount>();
+  let accountId = $state("");
 </script>
 
 <EnvironmentSheet
@@ -38,7 +37,7 @@
       if (controller.draft) open = false;
       return false;
     }
-    await controller.resolve(command, account?.id ?? "");
+    await controller.resolve(command, accountId);
     return Boolean(controller.preview);
   }}
   onsave={async () => {
@@ -64,7 +63,7 @@
       <SourceCredentialPicker
         kind="marketplace"
         {command}
-        bind:account
+        bind:accountId
         onchange={() => (controller.preview = undefined)}
       />
     {:else if controller.preview?.marketplace}

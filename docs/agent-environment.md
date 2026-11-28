@@ -1,5 +1,8 @@
 # Środowisko agentów
 
+Aktualizacja (2026-11-28): prywatne skille i marketplace można importować przez konto
+z **Settings → GitHub** na webie, desktopie i telefonie.
+
 Status: zaimplementowane (2026-11-21), w tym import skilli z publicznych witryn HTTPS,
 diff zmian skilla przed aktualizacją w web/desktop i na mobile, dobór kont do źródła
 przy imporcie skilli i marketplace, odczyt dużych artefaktów i raportów z PostgreSQL,
@@ -555,18 +558,34 @@ w podglądzie. Brak katalogu przy nowym imporcie pozwala spróbować zwykłego G
 Zapisany rodzaj źródła przechodzi do połączonych komputerów. Zamiast commitu
 wersję skilla z witryny identyfikuje suma kontrolna jego plików.
 
-Przy imporcie skilli i marketplace pole **Source access** pojawia się, gdy do
-repozytorium z podanego adresu lub polecenia pasuje połączone konto właściciela
-z OAuth lub nagłówkiem Authorization. Publiczne repozytorium można wczytać bez
-konta. Zmiana źródła usuwa wybór konta, które już do niego nie pasuje. Własny konektor
-musi mieć ten sam origin co repo; oficjalny konektor GitHub z dokładnym endpointem
-`https://api.githubcopilot.com/mcp/` może autoryzować wyłącznie `https://github.com`.
-Gateway odszyfrowuje tylko Authorization/access token; Bearer GitHub zamienia na
-Basic `x-access-token`. Nagłówek dostaje wyłącznie proces fetch przez środowiskową,
-URL-scoped konfigurację Git; nie trafia do argv, pliku config, registry, logów,
-artefaktu ani workera. Preview przechowuje ID konta, nie sekret. Add/apply ponownie
-sprawdza właściciela, połączenie i host, więc odłączenie konta unieważnia zgodę
-starego preview. Błędy Git są zastępowane stałymi komunikatami bez stderr.
+Przy imporcie skilli i marketplace pole **Source access** pozwala wybrać konto
+pasujące do źródła. Dla GitHuba lista pokazuje połączone konta z **Settings → GitHub**,
+w tym wybrany tam PAT. Domyślny dostęp publiczny nie używa konta. Zmiana źródła
+usuwa wybór konta, które już do niego nie pasuje.
+
+Dla konta GitHub gateway sprawdza kanoniczną nazwę repozytorium. Przy device flow
+odświeża katalog instalacji i wymaga aktywnej instalacji z dostępem do zawartości
+tego repozytorium. Dla PAT sprawdza prawo odczytu repozytorium i rewizję
+poświadczenia. Odczytuje ref, drzewo i wybrane bloby przez HTTPS do `api.github.com`,
+pod ustalonym numerycznym ID repozytorium. Odrzuca przekierowania, ucięte drzewa,
+symlinki i submoduły oraz sprawdza rozmiary i sumy Git pobranych blobów.
+Gateway wysyła token do API GitHuba bezpośrednio z pamięci procesu.
+Preview i zapisane źródło wskazują parę `github:<GitHub user ID>:<repository ID>`.
+Zapis potwierdza też bieżący dostęp do zawartości przez odczyt metadanych zamrożonego
+commitu pod tym ID. Kolejne sprawdzenia weryfikują tę samą parę. Na połączonym komputerze
+aktualizacja wymaga lokalnego połączenia tego samego konta w **Settings → GitHub**.
+Zatwierdzone pliki nadal synchronizują się jako część biblioteki.
+
+Na liście pozostają dotychczasowe konta connectorów z OAuth lub nagłówkiem
+Authorization. Własny connector musi mieć ten sam origin co repo. Oficjalny
+connector GitHub z dokładnym endpointem `https://api.githubcopilot.com/mcp/` może
+autoryzować wyłącznie `https://github.com`. Gateway odszyfrowuje tylko
+Authorization/access token. Bearer GitHub zamienia na Basic `x-access-token`.
+Nagłówek dostaje wyłącznie proces fetch przez środowiskową konfigurację Git
+ograniczoną do URL repozytorium. W preview i źródle pozostaje ID konta.
+Add/apply sprawdza właściciela, stan połączenia i host. Błędy Git są zastępowane
+stałymi komunikatami bez stderr. Granty repozytoriów dla agentów i botów nie
+służą do pobierania źródeł biblioteki.
 
 Migracja `0059_agent_skill_sources` dodaje commit do niezmiennych wersji i trwałe,
 owner-scoped preview. Addytywne UI RPC i BFF POST

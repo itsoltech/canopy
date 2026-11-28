@@ -1,16 +1,33 @@
 import { useState } from "react";
 import type { ui } from "@canopy/contracts";
-import { eligibleSourceAccounts, type SourceKind } from "@canopy/domain/source-access";
-import { Field } from "../../ui/components";
+import {
+  eligibleSourceAccounts,
+  sourceGitHubRepository,
+  sourceUrl,
+  type SourceKind,
+} from "@canopy/domain/source-access";
+import { Field, Notice } from "../../ui/components";
 import { SettingChoice } from "./SettingsGroup";
 import { useSettingsResource } from "./resource";
 
 export function useSourcePreview<T>(kind: SourceKind, existing?: ui.LibrarySkill | ui.EnvironmentMarketplace) {
   const resource = useSettingsResource("ListConnectors", (api) => api.listConnectors({}));
   const [command, setCommand] = useState(existing?.source?.url ?? "");
+  const repository = sourceGitHubRepository(sourceUrl(command, kind));
+
+  const github = useSettingsResource(
+    "ListGitHubAccounts:",
+    (api) => api.listGitHubAccounts({}),
+    !!repository && !existing,
+  );
+
   const [accountId, setAccountId] = useState("");
   const [review, setReview] = useState<{ command: string; credentialAccountId: string; result: T }>();
-  const accounts = existing ? [] : eligibleSourceAccounts(command, kind, resource.data?.accounts ?? []);
+
+  const accounts = existing
+    ? []
+    : eligibleSourceAccounts(command, kind, resource.data?.accounts ?? [], github.data?.accounts ?? []);
+
   const credentialAccountId = accounts.find((account) => account.id === accountId)?.id ?? "";
 
   if (credentialAccountId !== accountId) setAccountId(credentialAccountId);
@@ -48,10 +65,13 @@ export function useSourcePreview<T>(kind: SourceKind, existing?: ui.LibrarySkill
             onChange={setAccountId}
             options={[
               { value: "", label: kind === "skill" ? "Public source" : "Public repository" },
-              ...accounts.map((account) => ({ value: account.id, label: account.name })),
+              ...accounts.map((account) => ({ value: account.id, label: account.label })),
             ]}
           />
         )}
+        {!existing && repository && github.error ? (
+          <Notice error>Couldn’t load GitHub accounts. Check the connection and reopen this panel.</Notice>
+        ) : null}
       </>
     ),
   };

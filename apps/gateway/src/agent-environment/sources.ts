@@ -2,6 +2,7 @@ import { clone, create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
+import { sourceGitHubAccount } from "@canopy/domain/source-access";
 import { canAutoUpdate } from "@canopy/domain/skill-source";
 import { audit, workers } from "./database.ts";
 import { checked } from "./mutations.ts";
@@ -50,7 +51,7 @@ export class EnvironmentSources {
 
       const result = await discoverSource(
         parsed,
-        await this.db.authorization(parsed.source),
+        await this.db.access(parsed.source, signal),
         { ...this.options, signal },
         command,
       );
@@ -99,7 +100,7 @@ export class EnvironmentSources {
       request.paths.some((p) => !preview.skills.some((s) => s.path === p))
     )
       throw new ConnectError("Select skills from an import preview and choose their assignment.", Code.InvalidArgument);
-    await this.db.authorization(preview.source); // A deleted/disconnected credential cannot authorize an old preview.
+    await this.db.confirm(preview.source, this.#abort.signal); // A deleted/disconnected credential cannot authorize an old preview.
     const selected = preview.skills.filter((s) => request.paths.includes(s.path));
     const owner = this.environment.options.userId;
     const source = preview.source;
@@ -176,6 +177,16 @@ export class EnvironmentSources {
     } catch (error) {
       if (this.#abort.signal.aborted || (error instanceof ConnectError && error.code === Code.ResourceExhausted))
         throw new ConnectError("Source check interrupted. Retry after the current operation.", Code.Canceled);
+
+      if (
+        sourceGitHubAccount(skill.source.credentialAccountId) &&
+        error instanceof ConnectError &&
+        [Code.FailedPrecondition, Code.PermissionDenied].includes(error.code)
+      ) {
+        await this.recordCheck(skill.id, snapshot.revision, undefined, error.rawMessage);
+        throw error;
+      }
+
       await this.recordCheck(skill.id, snapshot.revision, undefined);
       throw new ConnectError(
         "Couldn't check upstream. The installed version is unchanged. Check source access and retry.",
@@ -191,7 +202,7 @@ export class EnvironmentSources {
     return preview;
   }
 
-  private async recordCheck(id: string, revision: bigint, preview: ui.SkillSourcePreview | undefined) {
+  private async recordCheck(id: string, revision: bigint, preview: ui.SkillSourcePreview | undefined, detail = "") {
     const owner = this.environment.options.userId;
     await this.environment.db.mutate(revision, (sql) =>
       Effect.gen(function* () {
@@ -199,7 +210,7 @@ export class EnvironmentSources {
 
         if (!skill?.source) return yield* Effect.fail(new ConnectError("Source skill not found.", Code.NotFound));
         skill.source.checkedAt = new Date().toISOString();
-        skill.source.error = preview ? "" : "Upstream check failed. The installed version is unchanged.";
+        skill.source.error = preview ? "" : detail || "Upstream check failed. The installed version is unchanged.";
         const changed = preview?.source?.commit !== skill.source.commit;
         skill.source.availableCommit = preview && changed ? (preview.source?.commit ?? "") : "";
         skill.source.updatePreviewId = preview && changed ? preview.id : "";
@@ -215,7 +226,7 @@ export class EnvironmentSources {
 
     if (preview.skillId !== request.id || !preview.source || preview.skills.length !== 1 || !candidate?.artifact)
       throw new ConnectError("Choose an update preview for this skill.", Code.InvalidArgument);
-    await this.db.authorization(preview.source);
+    await this.db.confirm(preview.source, this.#abort.signal);
     const source = preview.source;
     const artifact = candidate.artifact;
     const owner = this.environment.options.userId;

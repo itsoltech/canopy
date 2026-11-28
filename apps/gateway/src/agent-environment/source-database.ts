@@ -1,9 +1,10 @@
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
-import { matchesSourceOrigin } from "@canopy/domain/source-access";
+import { matchesSourceOrigin, sourceGitHubAccount } from "@canopy/domain/source-access";
 import { ui } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
+import { openGitHubSource, GitHubSource } from "./source-github.ts";
 import { GatewayStore } from "../store/store.ts";
 import type { AgentEnvironment } from "./service.ts";
 import { uuid } from "./composition.ts";
@@ -11,6 +12,30 @@ import { connectorId } from "../config-sync/connector-apply.ts";
 
 export class SourceDatabase {
   constructor(readonly environment: AgentEnvironment) {}
+
+  access(source: ui.SkillSource, signal?: AbortSignal) {
+    const account = sourceGitHubAccount(source.credentialAccountId);
+
+    if (account) {
+      const { github, userId } = this.environment.options;
+
+      if (!github || github.owner !== userId)
+        throw new ConnectError(
+          "Connect the source account in Settings → GitHub on this computer.",
+          Code.PermissionDenied,
+        );
+
+      return openGitHubSource(github, account, source, signal);
+    }
+
+    return this.authorization(source);
+  }
+
+  async confirm(source: ui.SkillSource, signal: AbortSignal) {
+    const access = await this.access(source, signal);
+
+    if (access instanceof GitHubSource) await access.confirm(source.commit, signal);
+  }
 
   async authorization(source: ui.SkillSource): Promise<string> {
     if (!source.credentialAccountId) return "";

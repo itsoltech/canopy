@@ -9,10 +9,9 @@ import { saveSkillDefinition } from "../agent-environment/skill-database.ts";
 import { equalValue, type ConfigRow } from "./persistence.ts";
 import { alive } from "./provider-records.ts";
 import { valuesOf } from "./provider-values.ts";
-import { sourceOf } from "./environment-values.ts";
+import { sourceOf, sourceAccountId } from "./environment-values.ts";
 import type { Blobs } from "./environment-blobs.ts";
 import { applyMarketplace, applyPlugin } from "./environment-apply-plugins.ts";
-import { connectorId } from "./connector-apply.ts";
 import {
   attempt,
   bumpEnvironment,
@@ -129,7 +128,7 @@ function applySkill(sql: SqlClient.SqlClient, owner: string, row: ConfigRow, blo
     const versions = local.map((l) => BigInt(l.version)).sort((a, b) => (a < b ? -1 : 1));
     const source = sourceOf(v["source"]);
 
-    if (source) source.credentialAccountId = yield* connectorId(sql, owner, source.credentialAccountId);
+    if (source) source.credentialAccountId = yield* sourceAccountId(sql, owner, source.credentialAccountId);
 
     const workers = yield* localWorkers(sql, owner);
 
