@@ -13,7 +13,8 @@ import { UpdateRows } from "../updates/UpdateRows";
 import { AppUpdateStatus } from "./AppUpdateStatus";
 import { AutoUpdateSetting } from "./AutoUpdateSetting";
 import { confirmAction } from "./resource";
-import { SettingsActions, SettingsGroup, SettingChoice } from "./SettingsGroup";
+import { SettingsRowContent } from "./SettingsRow";
+import { SettingsGroup, SettingChoice } from "./SettingsGroup";
 
 export function AppUpdatesSettings() {
   const { snapshot, pending, optimistic, run, active, manage } = useUpdates();
@@ -40,52 +41,50 @@ export function AppUpdatesSettings() {
       <SettingsGroup
         title="Canopy versions"
         actions={
-          <SettingsActions>
-            <Button
-              title="Check for updates"
-              size="sm"
-              disabled={!canCheckPhone && !canCheckGateway}
-              busy={(checkingPhone || gatewayChecking) && !canCheckPhone && !canCheckGateway}
-              onPress={() => {
-                if (canCheckPhone) void phone.check();
+          <Button
+            title="Check for updates"
+            size="sm"
+            disabled={!canCheckPhone && !canCheckGateway}
+            busy={(checkingPhone || gatewayChecking) && !canCheckPhone && !canCheckGateway}
+            onPress={() => {
+              if (canCheckPhone) void phone.check();
 
-                if (canCheckGateway) void manage({ action: "check" });
-              }}
-            />
-            {stopped ? (
-              <Button
-                title="Retry failed"
-                size="sm"
-                variant="primary"
-                disabled={active}
-                onPress={() => void manage({ action: "retry_failed", desktopRequestId: run.id })}
-              />
-            ) : (
-              snapshot &&
-              bulkUpdatesAvailable(snapshot) && (
-                <Button
-                  title="Update all"
-                  size="sm"
-                  variant="primary"
-                  disabled={active}
-                  onPress={() => void manage({ action: "update_all" })}
-                />
-              )
-            )}
-          </SettingsActions>
+              if (canCheckGateway) void manage({ action: "check" });
+            }}
+          />
         }
       >
         <View style={{ gap: 6 }}>
           {!!headline.text && (
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[
-                styles.workMeta,
-                { color: headline.tone === "rose" ? c.danger : headline.tone === "ink" ? c.text : c.muted },
-              ]}
-            >
-              {headline.text}
-            </Text>
+            <SettingsRowContent
+              inlineControl="wrap"
+              copy={
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={[
+                    styles.workMeta,
+                    { color: headline.tone === "rose" ? c.danger : headline.tone === "ink" ? c.text : c.muted },
+                  ]}
+                >
+                  {headline.text}
+                </Text>
+              }
+              control={
+                (stopped || (snapshot && bulkUpdatesAvailable(snapshot))) && (
+                  <Button
+                    title={stopped ? "Retry failed" : "Update all"}
+                    size="sm"
+                    variant="primary"
+                    disabled={active}
+                    onPress={() =>
+                      void manage(
+                        stopped ? { action: "retry_failed", desktopRequestId: run.id } : { action: "update_all" },
+                      )
+                    }
+                  />
+                )
+              }
+            />
           )}
           {headline.progress !== undefined && (
             <ProgressBar done={BigInt(Math.round(headline.progress))} total={100n} label="Update progress" />

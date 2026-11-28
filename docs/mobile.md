@@ -6,6 +6,9 @@ Pola wyboru w wierszach ustawień dopasowują szerokość do wartości i przecho
 pod opis, kiedy brakuje miejsca. Obramowanie ma minimum 32 dp wysokości,
 tekst domyślnie 14 dp, a pole dotyku co najmniej 48 × 48 dp.
 Ekran parowania pokazuje ikonę i nazwę aplikacji w jednym wierszu.
+W App updates przycisk „Check for updates” pozostaje w nagłówku „Canopy versions”.
+„Update all” i „Retry failed” pojawiają się przy podsumowaniu aktualizacji. Gdy brakuje
+szerokości, przycisk przechodzi pod podsumowanie.
 
 Status (2026-11-26): Skills w Agent environment obsługuje interaktywne instalatory na workerze i przegląd wykrytego skilla.
 
