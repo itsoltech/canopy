@@ -16,6 +16,13 @@
   let busy = $state(false);
   const name = $derived(secret.projectSecret || secret.label || "Secret");
 
+  // A login is allowed for the rest of the turn.
+  const turnHint = $derived(
+    secret.access === "file"
+      ? "The agent’s commands can read this login as a file during this turn. Kept out of chat."
+      : `Agent Browser can enter this login on ${secret.origin.replace(/^https:\/\//, "") || "its websites"} during this turn. The agent never sees the password.`,
+  );
+
   const until = (time: string) =>
     secret.projectSecret
       ? `The agent's commands can read this project secret until ${time}. Kept out of chat.`
@@ -36,11 +43,14 @@
   }
 </script>
 
-<PanelRow icon="lock-closed">
+<PanelRow icon={secret.kind === "login" ? "user" : "lock-closed"}>
   <TruncatedText text={name} class={secret.projectSecret ? "font-mono" : undefined} />
   {#snippet aside()}
     <span class="flex shrink-0 items-center gap-1">
-      {#if secret.expiresAt}<span
+      {#if secret.kind === "login"}<span
+          class="text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400"
+          {@attach tooltip(turnHint)}>this turn</span
+        >{:else if secret.expiresAt}<span
           class="text-sm/5 text-zinc-500 tabular-nums sm:text-xs/5 dark:text-zinc-400"
           {@attach tooltip(until(formatDateTime(secret.expiresAt)))}>until {formatTime(secret.expiresAt)}</span
         >{/if}

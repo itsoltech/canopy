@@ -9,6 +9,7 @@ import { coreState } from "./core-context.ts";
 import { AGENT_WORKER_ID } from "./agent-tools-validation.ts";
 import { agentPreviewScope, validatePreviewInputs, validPreviewEvent } from "./agent-preview-validation.ts";
 import { AgentPreviewMailbox } from "./agent-preview-mailbox.ts";
+import { resolvePreviewLogins } from "./agent-preview-logins.ts";
 import type { GatewayCore } from "./core.ts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 
@@ -195,6 +196,10 @@ export class AgentPreviews {
     if (request.inputs.length > preview.inputTokens)
       throw new ConnectError("Preview input is arriving too quickly", Code.ResourceExhausted);
     preview.inputTokens -= request.inputs.length;
+    const inputs = await resolvePreviewLogins(this.core, preview, request.inputs);
+
+    if (preview.stopped || preview.terminal || this.#sessions.get(preview.id) !== preview)
+      throw new ConnectError("Preview unavailable; reopen it", Code.NotFound);
     preview.worker.send({
       case: "agentPreview",
       value: {
@@ -202,7 +207,7 @@ export class AgentPreviews {
           case: "input",
           value: {
             previewId: preview.id,
-            inputs: request.inputs,
+            inputs,
           },
         },
       },

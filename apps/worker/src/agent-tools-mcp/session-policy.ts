@@ -7,6 +7,14 @@ export type AutomationScope = Readonly<{ tool: AgentTool; session: string; defau
 
 export type AutomationCall = z.infer<typeof ToolCall>;
 
+export type LoginLease = { ok: true; requestId: string; turnId: string } | { ok: false; message: string };
+
+/** What a managed tool may ask of its thread's current turn. */
+export interface AutomationContext {
+  /** Lease a project login for one website. The value then reaches only this worker's memory. */
+  leaseLogin?(name: string, origin: string, signal: AbortSignal): Promise<LoginLease>;
+}
+
 const sessionArgument = z.object({ session: z.string().optional() });
 
 export const SESSION_INSTRUCTIONS =

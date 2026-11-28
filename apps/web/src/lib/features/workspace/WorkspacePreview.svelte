@@ -4,6 +4,7 @@
   import type { ClassValue } from "svelte/elements";
   import type { ThreadWorkspace } from "./thread-workspace.svelte.ts";
   import AgentPreviewPanel from "#lib/features/preview/AgentPreviewPanel.svelte";
+  import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
 
   let {
     state,
@@ -20,6 +21,12 @@
     offline?: string;
     class?: ClassValue;
   } = $props();
+
+  const overview = useOverview();
+  const thread = $derived(overview?.threads.get(state.threadId()));
+
+  // A linked computer's project and its logins stay on the gateway that owns them.
+  const projectId = $derived(thread && !thread.nodeId ? thread.projectId : undefined);
 
   $effect.pre(() => {
     const choice = state.previewChoice;
@@ -41,6 +48,7 @@
   {#key `${state.threadId()}:${worker?.id ?? ""}`}
     <AgentPreviewPanel
       threadId={state.threadId()}
+      {projectId}
       {worker}
       {offline}
       {location}

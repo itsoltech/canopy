@@ -2,6 +2,7 @@
   import type { ui } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
   import { rise } from "#lib/shared/ui/motion.ts";
+  import ThreadLoginApproval from "./ThreadLoginApproval.svelte";
   import ThreadSecretCard from "./ThreadSecretCard.svelte";
 
   let {
@@ -20,6 +21,11 @@
   aria-label="Thread secrets"
 >
   {#each secrets as secret (secret.requestId)}
-    <div in:rise><ThreadSecretCard {secret} {onchange} /></div>
+    <div in:rise>
+      {#if secret.kind === "login"}<ThreadLoginApproval {secret} {onchange} />{:else}<ThreadSecretCard
+          {secret}
+          {onchange}
+        />{/if}
+    </div>
   {/each}
 </div>

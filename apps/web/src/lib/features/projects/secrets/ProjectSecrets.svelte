@@ -8,15 +8,19 @@
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
   import { listProjectSecrets } from "./api.ts";
   import ProjectSecretDialog from "./ProjectSecretDialog.svelte";
+  import ProjectLoginDialog from "./ProjectLoginDialog.svelte";
+  import ProjectLoginRow from "./ProjectLoginRow.svelte";
 
   /**
-   * Project settings → Secrets: names and update times only. Values are write only (docs/ui-api.md); the list is
-   * held in this component, never in a shared cache.
+   * Project settings → Logins and Secrets: names, login details and update times only. Passwords and values are
+   * write only (docs/ui-api.md); the list is held in this component, never in a shared cache.
    */
-  let { projectId }: { projectId: string } = $props();
+  let { projectId, logins: loginsSupported = true }: { projectId: string; logins?: boolean } = $props();
 
   const addButtonId = $props.id();
+  const addLoginId = `${addButtonId}-login`;
   let dialog: ReturnType<typeof ProjectSecretDialog>;
+  let loginDialog: ReturnType<typeof ProjectLoginDialog>;
   let secrets = $state.raw<ui.ProjectSecret[]>();
   let failed = $state(false);
   let loading = $state(false);
@@ -47,10 +51,53 @@
   }
 
   function deleted(name: string) {
+    const login = secrets?.find((item) => item.name === name)?.kind === "login";
     secrets = (secrets ?? []).filter((item) => item.name !== name);
-    document.getElementById(addButtonId)?.focus();
+    document.getElementById(login ? addLoginId : addButtonId)?.focus();
   }
+
+  const names = $derived((secrets ?? []).map((item) => item.name));
+  const logins = $derived(secrets?.filter((item) => item.kind === "login"));
+  const values = $derived(secrets?.filter((item) => item.kind !== "login"));
 </script>
+
+{#if loginsSupported}<SettingsGroup
+    title="Logins"
+    description="Agents sign in with these in Agent Browser without seeing the password."
+  >
+    {#snippet actions()}
+      <Button
+        id={addLoginId}
+        size="sm"
+        icon="plus"
+        disabled={!secrets}
+        onclick={() => loginDialog.show({ mode: "add", names })}>Add login</Button
+      >
+    {/snippet}
+    {#if failed}
+      <div class="p-4">
+        <Alert tone="error" title="Could not load logins">
+          Check your connection, then retry.
+          {#snippet actions()}<Button size="sm" {loading} onclick={() => void load()}>Retry</Button>{/snippet}
+        </Alert>
+      </div>
+    {:else if !logins}
+      <div class="p-4" role="status" aria-label="Loading logins"><Skeleton class="h-10 w-full" /></div>
+    {:else}
+      {#each logins as login (login.name)}
+        <ProjectLoginRow
+          secret={login}
+          onedit={() => loginDialog.show({ mode: "edit", secret: login })}
+          ondelete={() => loginDialog.show({ mode: "delete", name: login.name })}
+        />
+      {:else}
+        <SettingsRow
+          title="No logins yet"
+          description="Add a test account so agents can sign in to your app, for example on staging."
+        />
+      {/each}
+    {/if}
+  </SettingsGroup>{/if}
 
 <SettingsGroup title="Secrets" description="Agents in this project's threads can ask for these by name.">
   {#snippet actions()}
@@ -59,7 +106,7 @@
       size="sm"
       icon="plus"
       disabled={!secrets}
-      onclick={() => dialog.show({ mode: "add", names: (secrets ?? []).map((item) => item.name) })}>Add secret</Button
+      onclick={() => dialog.show({ mode: "add", names })}>Add secret</Button
     >
   {/snippet}
   {#if failed}
@@ -69,10 +116,10 @@
         {#snippet actions()}<Button size="sm" {loading} onclick={() => void load()}>Retry</Button>{/snippet}
       </Alert>
     </div>
-  {:else if !secrets}
+  {:else if !values}
     <div class="p-4" role="status" aria-label="Loading secrets"><Skeleton class="h-10 w-full" /></div>
   {:else}
-    {#each secrets as secret (secret.name)}
+    {#each values as secret (secret.name)}
       <div class="settings-row flex flex-col items-start gap-3 px-4 py-3.5 sm:flex-row sm:items-center">
         <div class="settings-row-copy min-w-0 flex-1">
           <p class="font-mono text-base/6 font-medium wrap-anywhere text-zinc-950 sm:text-sm/6 dark:text-white">
@@ -103,3 +150,4 @@
 </SettingsGroup>
 
 <ProjectSecretDialog bind:this={dialog} {projectId} onsaved={saved} ondeleted={deleted} />
+<ProjectLoginDialog bind:this={loginDialog} {projectId} onsaved={saved} ondeleted={deleted} />

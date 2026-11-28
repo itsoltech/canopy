@@ -11,7 +11,7 @@ import {
 import { abortable, MAX_BYTES, requestDeadline, STDIO_TIMEOUT_MS } from "./protocol.ts";
 import { desktopDefaultApp } from "./desktop-policy.ts";
 import { automationCatalog } from "./policy.ts";
-import type { AutomationCall, AutomationScope } from "./session-policy.ts";
+import type { AutomationCall, AutomationContext, AutomationScope } from "./session-policy.ts";
 
 export interface LocalAutomationServer {
   name: string;
@@ -29,6 +29,7 @@ export interface LocalAutomationServer {
       params: AutomationCall,
       signal: AbortSignal,
       next: (params: AutomationCall, signal: AbortSignal) => Promise<CallToolResult | undefined>,
+      context?: AutomationContext,
     ): Promise<CallToolResult | undefined>;
   };
 }
@@ -167,14 +168,21 @@ export class AutomationStdio {
     return tool ? desktopDefaultApp(params, tool, this.scope.defaults.desktop.app) : params;
   }
 
-  async call(params: AutomationCall, signal: AbortSignal): Promise<CallToolResult | undefined> {
+  async call(
+    params: AutomationCall,
+    signal: AbortSignal,
+    context?: AutomationContext,
+  ): Promise<CallToolResult | undefined> {
     const requestSignal = AbortSignal.any([signal, this.stopped.signal]);
     requestSignal.throwIfAborted();
 
     if (this.managed)
       return abortable(
-        this.managed.call(params, requestSignal, (nextParams, nextSignal) =>
-          this.callUpstream(nextParams, AbortSignal.any([requestSignal, nextSignal])),
+        this.managed.call(
+          params,
+          requestSignal,
+          (nextParams, nextSignal) => this.callUpstream(nextParams, AbortSignal.any([requestSignal, nextSignal])),
+          context,
         ),
         requestSignal,
       );

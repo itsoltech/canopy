@@ -39,6 +39,9 @@ test("Claude redacts nested tool output keys and keeps both values when redacted
   try {
     const safe = { content: [{ metadata: { status: "ok" } }] };
     expect(redactToolOutput(safe, projectSecretGuard(threadId).redact)).toBe(safe);
+    // An all-digit secret returned as a JSON number is masked too.
+    const digits = (text: string) => text.replaceAll("482913", "[REDACTED]");
+    expect(redactToolOutput({ result: 482913, other: 7 }, digits)).toEqual({ result: "[REDACTED]", other: 7 });
     const postToolUse = session.hooks.PostToolUse[0]!.hooks[0]!;
 
     const result = await postToolUse(

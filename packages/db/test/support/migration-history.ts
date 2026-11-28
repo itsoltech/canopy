@@ -220,4 +220,5 @@ export const expectedSchemaMigrations = [
   "223_worker_heartbeat_changes",
   "224_messenger_providers",
   "225_messenger_outbound_files",
+  "226_project_logins",
 ];

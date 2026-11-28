@@ -28,6 +28,8 @@ export const localOnlyTables = [
   "worker_secret_replays",
   "project_secrets",
   "project_secret_leases",
+  "project_logins",
+  "project_login_decisions",
   "worker_preview_uploads",
   "computer_identity",
   "computer_peers",

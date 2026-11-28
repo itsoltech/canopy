@@ -3,6 +3,7 @@ import { threadMemoryCall } from "./thread-memory.ts";
 import type { AgentToolCall } from "@canopy/contracts";
 import type { WorkerConnection } from "../worker-link/index.ts";
 import { authorizeLocalAutomation } from "./automation-permissions.ts";
+import { LEASE_PROJECT_LOGIN, leaseProjectLogin } from "./project-login-call.ts";
 import { coreLog } from "./core-broadcast.ts";
 import { coreState, describeError } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
@@ -15,6 +16,8 @@ async function callTool(core: GatewayCore, connection: WorkerConnection, call: A
   if (isMemoryTool(call.toolName)) return threadMemoryCall(core, call, connection);
 
   if (call.toolName === "authorize_local_automation") return authorizeLocalAutomation(core, call, connection);
+
+  if (call.toolName === LEASE_PROJECT_LOGIN) return leaseProjectLogin(core, call, connection);
 
   if (!call.cancelled && call.connectorAccountId) return core.connectors.handle(call, workerId);
 

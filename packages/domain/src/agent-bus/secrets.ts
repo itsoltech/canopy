@@ -18,7 +18,10 @@ export const RequestSecret = Schema.Struct({
 export const SECRET_TOOLS = {
   list_project_secrets: {
     name: "list_project_secrets",
-    description: "List the names of secrets the owner has configured in this thread's project. Returns names only.",
+    description:
+      "List the secrets and logins the owner has configured in this thread's project. Returns secret names, and for logins " +
+      "their websites, username (unless hidden), notes and whether they have a one-time code. Never returns values. " +
+      "Sign in to a login's website with agent_browser_fill_login and agent_browser_fill_one_time_code.",
     args: ListProjectSecrets,
     mutates: false,
   },
@@ -26,6 +29,7 @@ export const SECRET_TOOLS = {
     name: "request_secret",
     description:
       "Use project_secret with a name from list_project_secrets to request a file through the end of this turn, for at most 15 minutes. " +
+      "A login marked outside_browser gives a JSON file with username, password and one_time_code_setup; other logins work only in Agent Browser. " +
       "For a manual request, provide label and description to ask the user in a private card. Never ask for secrets in chat. " +
       "Returns only a private file path on this thread's worker, never the value. Read it inside a command, e.g. " +
       "TOKEN=\"$(cat '<file>')\" program; never print, echo, log or read the value into model context. " +

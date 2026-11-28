@@ -1,23 +1,6 @@
 import type { JsonValue } from "@canopy/domain";
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { browserBasicAuth } from "../agent-tools-mcp/browser-policy.ts";
 import type { BrowserCdp } from "./browser-cdp.ts";
-
-export const browserAuthTool: Tool = {
-  name: browserBasicAuth,
-  description:
-    'Open an HTTP or HTTPS URL that requires Basic Auth. Use request_secret to ask for a private thread secret. Name the destination in the request and ask the user to enter JSON in the form {"username":"…","password":"…"}. Pass its request_id as requestId. The browser supplies credentials only to a Basic Auth challenge from the URL’s origin.',
-  inputSchema: {
-    type: "object",
-    properties: {
-      url: { type: "string", description: "The protected URL, without credentials in the URL." },
-      requestId: { type: "string", description: "The request_id of the saved private thread secret." },
-    },
-    required: ["url", "requestId"],
-    additionalProperties: false,
-  },
-};
 
 const credentials = z.object({
   username: z

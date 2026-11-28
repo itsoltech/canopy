@@ -1,7 +1,7 @@
 import { LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from "@modelcontextprotocol/sdk/types.js";
 import { AutomationStdio, type LocalAutomationServer } from "./stdio.ts";
 import { bindAutomationCall } from "./policy.ts";
-import type { AutomationScope } from "./session-policy.ts";
+import type { AutomationContext, AutomationScope } from "./session-policy.ts";
 import {
   abortable,
   Cancellation,
@@ -24,8 +24,19 @@ export interface LocalAutomationMcpOptions {
   servers: readonly LocalAutomationServer[];
   env: Record<string, string>;
   toolsListed?: McpToolsListed;
-  /** Reject unless this tool is enabled and the thread has a current, permitted active turn. */
-  authorize(name: string, toolName: string, argsJson: string, signal: AbortSignal): Promise<void | (() => void)>;
+  /**
+   * Reject unless this tool is enabled and the thread has a current, permitted active turn. `authorization`
+   * identifies this admission; the call's context can refer to it.
+   */
+  authorize(
+    name: string,
+    toolName: string,
+    argsJson: string,
+    signal: AbortSignal,
+    authorization: string,
+  ): Promise<void | (() => void)>;
+  /** What one admitted call may ask of its turn, bound to that call's authorization. */
+  context?: (authorization: string) => AutomationContext;
 }
 
 export interface LocalAutomationMcp {
@@ -165,6 +176,7 @@ async function handle(
     const params = ToolCall.safeParse(rpc.params);
 
     if (!params.success) return failure(rpc.id, -32602, "Invalid tool arguments");
+    const authorization = Bun.randomUUIDv7();
     let effective: ReturnType<typeof bindAutomationCall>;
 
     try {
@@ -175,7 +187,14 @@ async function handle(
     }
 
     try {
-      const grant = options.authorize(endpoint.name, effective.name, JSON.stringify(effective.arguments), signal);
+      const grant = options.authorize(
+        endpoint.name,
+        effective.name,
+        JSON.stringify(effective.arguments),
+        signal,
+        authorization,
+      );
+
       await abortable(
         grant.then((complete) => {
           // A grant can arrive after a cancelled HTTP request has already returned.
@@ -191,7 +210,7 @@ async function handle(
       return failure(rpc.id, -32001, signal.aborted ? "Local automation request cancelled" : "Local automation denied");
     }
 
-    const result = await endpoint.stdio.call(effective, signal);
+    const result = await endpoint.stdio.call(effective, signal, options.context?.(authorization));
 
     return result ? reply(rpc.id, result) : failure(rpc.id, -32601, "Unknown tool");
   } catch {

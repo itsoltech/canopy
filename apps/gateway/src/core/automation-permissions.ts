@@ -28,6 +28,16 @@ const Arguments = Schema.fromJsonString(
 );
 
 const inputOf = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.JsonObject));
+
+type JsonObject = ReturnType<typeof inputOf>;
+
+// Browser tools that enter a project login named by their `login` argument.
+const LOGIN_TOOLS = new Set([
+  "agent_browser_fill_login",
+  "agent_browser_fill_one_time_code",
+  "agent_browser_open_with_basic_auth",
+]);
+
 const MAX_LEASE_MS = 310_000;
 
 const TOOLS = new Map([
@@ -40,8 +50,12 @@ interface Authorization {
   readonly signature: string;
   readonly expires: number;
   readonly connection: WorkerConnection;
+  readonly threadId: string;
+  readonly turnId: string;
   cancelled: boolean;
   finished: boolean;
+  /** The admitted Agent Browser call that may lease project logins (see loginAuthorized). */
+  admitted?: { tool: AgentTool; name: string; input: JsonObject };
   permissionId?: string;
   activity?: { threadId: string; value: ui.ThreadAutomationActivity; expires: number };
 }
@@ -204,6 +218,7 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
     await core.agentTools.authorizePreview(workerId, args.tool);
     ensureLive(core, lease);
     allowed = true;
+    lease.admitted = { tool: args.tool, name: args.name, input };
     const activity = automationActivity(request, workerId, args.tool, args.name, input);
 
     if (activity) {
@@ -234,6 +249,9 @@ async function execute(core: GatewayCore, request: AgentToolCall, lease: Authori
 /** A finish can retire only the activity admitted on this live connection. */
 export function finishLocalAutomation(core: GatewayCore, connection: WorkerConnection, callId: string): void {
   const lease = leases.get(connection)?.get(callId);
+
+  // A completed call can no longer lease a login.
+  if (lease) delete lease.admitted;
 
   if (!lease?.activity || !connection.isOpen || core.link.connections.get(connection.workerId) !== connection) return;
   const { threadId, value, expires } = lease.activity;
@@ -298,11 +316,51 @@ export async function authorizeLocalAutomation(
     }
 
     if (request.cancelled || current.size >= 1024) return refusal(request.callId);
-    const lease: Authorization = { signature, expires, connection, cancelled: false, finished: false };
+
+    const lease: Authorization = {
+      signature,
+      expires,
+      connection,
+      threadId: request.threadId,
+      turnId: request.turnId,
+      cancelled: false,
+      finished: false,
+    };
+
     current.set(request.callId, lease);
 
     return execute(core, request, lease).catch(() => refusal(request.callId));
   } catch {
     return refusal(request.callId);
   }
+}
+
+/**
+ * A login lease needs the live, admitted Agent Browser call on this connection that names the login. The
+ * worker cannot lease a login outside a browser action the owner's permissions allowed.
+ */
+export function loginAuthorized(
+  core: GatewayCore,
+  connection: WorkerConnection,
+  request: { threadId: string; turnId: string },
+  authorization: string,
+  login: string,
+): boolean {
+  const lease = leases.get(connection)?.get(authorization);
+
+  if (!lease?.admitted || lease.connection !== connection) return false;
+
+  try {
+    ensureLive(core, lease);
+  } catch {
+    return false;
+  }
+
+  return (
+    lease.threadId === request.threadId &&
+    lease.turnId === request.turnId &&
+    lease.admitted.tool === AgentTool.BROWSER &&
+    LOGIN_TOOLS.has(lease.admitted.name) &&
+    lease.admitted.input["login"] === login
+  );
 }

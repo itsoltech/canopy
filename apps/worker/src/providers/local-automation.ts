@@ -10,6 +10,7 @@ import {
 import { createLocalAutomationMcp, type McpToolsListed } from "../agent-tools-mcp/index.ts";
 import { toolEnvironment } from "../agent-tools/paths.ts";
 import type { LocalAgentToolMcpServer } from "../agent-tools/index.ts";
+import { loginLeaser } from "./login-lease.ts";
 
 export interface AutomationMcpOptions {
   localMcpServers?(
@@ -46,12 +47,14 @@ export function automationMcp(
     servers,
     ...(toolsListed && { toolsListed }),
     env: toolEnvironment(process.env),
-    authorize: async (name, toolName, argsJson, signal) => {
+    context: (authorization) => ({ leaseLogin: loginLeaser(options.callTool, spec.threadId, turnId, authorization) }),
+    authorize: async (name, toolName, argsJson, signal, authorization) => {
       const tool = toolIds.get(name);
       const turn = turnId();
 
       if (!tool || !turn) throw new Error("Automation requires an active turn");
-      const callId = Bun.randomUUIDv7();
+      // The gateway lets a login lease refer to this admission by its call ID.
+      const callId = authorization;
       let finish: (() => void) | undefined;
 
       const result = await options.callTool(

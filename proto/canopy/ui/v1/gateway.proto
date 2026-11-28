@@ -263,6 +263,8 @@ service GatewayService {
   rpc ListProjectSecrets(ListProjectSecretsRequest) returns (ListProjectSecretsResponse);
   rpc PutProjectSecret(PutProjectSecretRequest) returns (PutProjectSecretResponse);
   rpc DeleteProjectSecret(DeleteProjectSecretRequest) returns (google.protobuf.Empty);
+  // Login for Agent Browser (docs/secrets.md#loginy-projektu). The password and setup key are write only.
+  rpc PutProjectLogin(PutProjectLoginRequest) returns (PutProjectSecretResponse);
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
   // Katalog na workerze (istniejący, nowy z git init albo klon) jako workspace: dołącza do projektu
   // o tym samym git origin albo tworzy nowy projekt. Trasowane do domu workera.
@@ -1366,6 +1368,32 @@ message ArchiveProjectResponse {}
 message ProjectSecret {
   string name = 1;
   google.protobuf.Timestamp updated_at = 2;
+  // value | login
+  string kind = 3;
+  // Set for kind login; never carries the password or the one-time code setup key.
+  ProjectLogin login = 4;
+}
+
+message ProjectLogin {
+  // Origins such as https://staging.example.com or https://*.example.com.
+  repeated string websites = 1;
+  string username = 2;
+  bool show_username = 3;
+  string notes = 4;
+  bool ask_each_time = 5;
+  bool outside_browser = 6;
+  bool one_time_code = 7;
+}
+
+message PutProjectLoginRequest {
+  string project_id = 1;
+  string name = 2;
+  // one_time_code is ignored here; the setup key below decides it.
+  ProjectLogin login = 3;
+  // Write only. Unset keeps the saved password of an existing login.
+  optional string password = 4;
+  // Write only: a base32 setup key or an otpauth:// URI. Unset keeps it; empty removes it.
+  optional string one_time_code_setup = 5;
 }
 
 message ListProjectSecretsRequest { string project_id = 1; }
@@ -1866,6 +1894,12 @@ message ThreadSecret {
   string status = 7;
   google.protobuf.Timestamp expires_at = 8;
   string project_secret = 9;
+  // value | login (project secrets only)
+  string kind = 10;
+  // Website origin where Agent Browser used the login.
+  string origin = 11;
+  // browser | file: how the agent uses a project login in this turn (kind login only).
+  string access = 12;
 }
 message AnswerThreadSecretRequest {
   string request_id = 1;

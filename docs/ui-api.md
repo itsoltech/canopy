@@ -1640,12 +1640,35 @@ Przekazuje wyłącznie odpowiedź gatewaya bez przyczyny transportu
 Lista żyje w komponencie, bez wspólnego cache `queries`. Wartości nie trafiają do overview,
 diagnostyki ani logów BFF.
 
+Zakładka ma etykietę **Logins and secrets**. Nad grupą Secrets jest grupa **Logins**
+(`ProjectLoginRow`, `ProjectLoginDialog`), widoczna, gdy gateway obsługuje `PutProjectLogin`.
+Wiersz pokazuje nazwę, odznakę trybu (Automatic / Ask each time), nazwę użytkownika
+(z dopiskiem, gdy jest ukryta przed agentami), strony, kod jednorazowy i zgodę na użycie
+poza przeglądarką. Dialog **Add login** / **Edit NAZWA** ma pola: nazwa (tylko przy dodaniu),
+strony (jedna na wiersz), nazwa użytkownika, przełącznik **Show username to agents**,
+hasło (przy edycji puste pole zachowuje zapisane), klucz konfiguracji kodu jednorazowego,
+notatka, wybór **Agent use** i przełącznik **Allow outside the browser**. Przy edycji
+zapisany kod ma akcje **Replace setup key** i **Remove**. Hasło i klucz korzystają z
+`SecretValueInput` i podlegają tym samym zasadom co wartość sekretu. Podgląd **Current code**
+liczy kod lokalnie w przeglądarce z wpisanego klucza, żeby właściciel mógł go porównać
+z aplikacją. BFF: `PUT api/projects/[id]/logins/[name]` z `{websites, username, showUsername,
+notes, askEachTime, outsideBrowser, password?, oneTimeCodeSetup?}` → `PutProjectLogin`,
+z tą samą obsługą błędów co zapis sekretu; usunięcie używa `DELETE …/secrets/[name]`.
+
 Panel wątku pokazuje przydział sekretu projektu jak zwykły aktywny sekret.
 `ThreadSecret.project_secret` (9) niesie nazwę i jest pusty przy ręcznej prośbie.
 Wiersz pokazuje nazwę czcionką o stałej szerokości. Przycisk cofania ma etykietę
 „Revoke NAZWA in this thread” i kończy tylko dostęp tego wątku przez `RevokeThreadSecret`.
-Usunięcie z projektu jest osobną akcją w ustawieniach. Przydział projektu nigdy
-nie tworzy karty prośby nad kompozytorem.
+Usunięcie z projektu jest osobną akcją w ustawieniach. Przydział sekretu projektu
+nie tworzy karty prośby nad kompozytorem. Wyjątkiem jest login w trybie Ask each time:
+decyzja `pending` z `ThreadSecret.kind = "login"` pokazuje nad kompozytorem kartę
+`ThreadLoginApproval` z **Allow for this turn** i **Decline**. Dla przeglądarki karta pyta
+„Use login …?” z originem z `ThreadSecret.origin`, dla pliku (`ThreadSecret.access = "file"`)
+„Give login … to the agent’s commands?”. Login w panelu to decyzja na turę: wiersz ma ikonę
+osoby i etykietę „this turn” z podpowiedzią, gdzie agent może go użyć, a Revoke cofa go
+do końca tury. Nagłówek grupy brzmi „Logins” albo „Logins and secrets”. Pasek Browser Preview ma menu **Fill login**
+(`PreviewLoginMenu`) z loginami pasującymi do originu strony. Wybór pola wysyła wejście
+`login`; wartość dodaje dopiero gateway, a worker wpisuje ją w pole z fokusem.
 
 ## Bots
 

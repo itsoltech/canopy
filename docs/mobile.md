@@ -67,6 +67,9 @@ Status (2026-11-24): powiadomienie po aktualizacji pokazuje numer wersji i akcj�
 Status (2026-11-24): szczegóły projektu pozwalają wybrać, wykadrować i usunąć zdjęcie
 projektu w natywnym kliencie iOS i Android.
 
+Status (2026-11-28): szczegóły projektu mają grupę Logins do dodawania, edycji i usuwania
+loginów projektu. Arkusz wątku pozwala zezwolić na login w trybie Ask each time albo odmówić.
+
 Status (2026-11-24): szczegóły projektu mają grupę Secrets do dodawania, podmiany
 i usuwania sekretów projektu. Wartości nie da się odczytać. Szczegóły wątku oznaczają
 przydział sekretu projektu i cofają go tylko w tym wątku.
@@ -1547,6 +1550,16 @@ pod polem kieruje wartości wielowierszowe do Paste.
 `PutProjectSecret` i `DeleteProjectSecret` cofają przydziały tej nazwy w wątkach
 ([secrets.md](secrets.md)). Aktywny grant z niepustym `ThreadSecret.project_secret`
 pokazuje nazwę i etykietę „Project secret”, a Revoke kończy dostęp tylko w tym wątku.
+
+Nad Secrets jest grupa **Logins** (`ProjectLogins`, `ProjectLoginForm`), gdy
+`GetClientCapabilities.methods` zawiera `PutProjectLogin`. Arkusz ma te same pola co web
+([ui-api.md](ui-api.md#sekrety-projektu)). Hasło i klucz kodu jednorazowego są w refach
+i polach `ProjectSecretValueField`, nigdy w stanie React. Zapisany kod można zastąpić nowym
+kluczem albo usunąć przełącznikiem **Remove one-time code**. Usunięcie loginu potwierdza
+okno „Delete login”. Prośba o login w trybie Ask each time otwiera ten sam arkusz „Thread
+secrets” przyciskiem **Review login request** z akcjami **Allow for this turn** i **Decline**.
+Prośba o plik loginu pyta „Give login … to the agent’s commands?”. Aktywna zgoda na login
+ma etykietę „Project login · strona for this turn” albo „Project login · file for this turn”.
 
 Prośby o sekret otwierają osobny arkusz „Thread secrets”. Pole jest zawsze zamaskowane,
 bez autofill, korekty i sugestii; wysłanie, zamknięcie lub przejście aplikacji w tło

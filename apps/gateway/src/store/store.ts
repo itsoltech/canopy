@@ -4,6 +4,7 @@ import { threadLifecycle, type ThreadLifecycle } from "./thread-lifecycle.ts";
 import { threadSecretsStore, type ThreadSecretsStore } from "./thread-secrets.ts";
 import { projectSecretsStore } from "./project-secrets.ts";
 import { projectSecretLeasesStore } from "./project-secret-leases.ts";
+import { projectLoginLeasesStore } from "./project-login-leases.ts";
 import { connectorStore } from "../connectors/store.ts";
 import { githubStore } from "../github/store.ts";
 import { workerStore, type WorkerStore } from "./workers-store.ts";
@@ -45,7 +46,8 @@ export class GatewayStore extends Context.Service<
   GatewayStore,
   ThreadSecretsStore &
     ReturnType<typeof projectSecretsStore> &
-    ReturnType<typeof projectSecretLeasesStore> & {
+    ReturnType<typeof projectSecretLeasesStore> &
+    ReturnType<typeof projectLoginLeasesStore> & {
       connectors: ReturnType<typeof connectorStore>;
       github: ReturnType<typeof githubStore>;
     } & WorkerStore &
@@ -75,6 +77,7 @@ export class GatewayStore extends Context.Service<
           ...queryMethods("secrets.store", threadSecretsStore(sql, secretsKey)),
           ...queryMethods("secrets.store", projectSecretsStore(sql, secretsKey)),
           ...queryMethods("secrets.store", projectSecretLeasesStore(sql, secretsKey)),
+          ...queryMethods("secrets.store", projectLoginLeasesStore(sql)),
           ...queryMethods(
             "threads.lifecycle",
             threadLifecycle(sql, (input) => store.enqueueCommand(input)),

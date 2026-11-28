@@ -82,7 +82,7 @@
       { id: "threads", label: "Threads", content: threadSettings },
       {
         id: "secrets",
-        label: "Secrets",
+        label: "Logins and secrets",
         content: secrets,
         // Project secrets stay on the gateway that owns the project; a linked computer's project is managed there.
         hidden: !!project.nodeId || capabilities?.supportsMethod("ListProjectSecrets") === false,
@@ -124,7 +124,10 @@
     <GitHubThreadNotifications projectId={project.id} />
   {/snippet}
   {#snippet secrets()}
-    {#key project.id}<ProjectSecrets projectId={project.id} />{/key}
+    {#key project.id}<ProjectSecrets
+        projectId={project.id}
+        logins={capabilities?.supportsMethod("PutProjectLogin") !== false}
+      />{/key}
   {/snippet}
   {#snippet details()}
     <SettingsGroup>

@@ -31,6 +31,41 @@ export async function putProjectSecret(projectId: string, name: string, value: s
   }
 }
 
+export const LOGIN_SAVE_RETRY = "Could not save the login. Enter the password again to retry.";
+
+export type LoginInput = {
+  websites: string[];
+  username: string;
+  showUsername: boolean;
+  notes: string;
+  askEachTime: boolean;
+  outsideBrowser: boolean;
+  /** Omitted: keep the saved password. */
+  password?: string;
+  /** Omitted: keep it; empty: remove it. */
+  oneTimeCodeSetup?: string;
+};
+
+/** Write only, like putProjectSecret: the password and setup key are never stored or echoed in the client. */
+export async function putProjectLogin(projectId: string, name: string, login: LoginInput): Promise<ui.ProjectSecret> {
+  try {
+    const secret = decode(
+      ui.PutProjectSecretResponseSchema,
+      await requestJson(
+        "PUT",
+        `/api/projects/${encodeURIComponent(projectId)}/logins/${encodeURIComponent(name)}`,
+        login,
+      ),
+    ).secret;
+
+    if (!secret) throw new Error("missing login");
+
+    return secret;
+  } catch (cause) {
+    throw new Error(cause instanceof HttpError && cause.status < 500 ? cause.message : LOGIN_SAVE_RETRY);
+  }
+}
+
 export async function deleteProjectSecret(projectId: string, name: string): Promise<void> {
   await requestJson("DELETE", path(projectId, name));
 }

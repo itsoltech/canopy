@@ -119,6 +119,27 @@ async function closeSessions(spec: AgentToolSpec, requested: Set<string>, probe:
   return failures;
 }
 
+/**
+ * Close one browser session and confirm it is gone: a browser that may hold project login values must not
+ * survive unnoticed. Throws when Agent Browser cannot confirm it.
+ */
+export async function closeBrowserSession(probe: AgentToolProbe, session: string): Promise<void> {
+  const spec = AGENT_TOOL_SPECS.find((candidate) => candidate.tool === AgentTool.BROWSER);
+  const command = spec && (await cleanupCommand(spec, probe));
+
+  if (!spec || !command) throw new Error("Agent Browser is unavailable, so its sessions cannot be closed.");
+
+  const running = async () =>
+    [...(await activeSessions(AgentTool.BROWSER, command, new Set([session])))].includes(session);
+
+  await serializeAgentTool("operations", async () => {
+    if (await running())
+      z.object({ closed: z.literal(true) }).parse(await command(["--json", "--session", session, "close"]));
+  });
+
+  if (await running()) throw new Error("Agent Browser did not close the session.");
+}
+
 /** Each tool gets one inventory per batch. Requests that drain later start a fresh inventory. */
 export class AgentToolCleanup {
   readonly #queued = new Map<AgentTool, { sessions: Set<string>; result: Promise<Map<string, Error>> }>();

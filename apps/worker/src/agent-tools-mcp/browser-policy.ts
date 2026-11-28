@@ -1,3 +1,4 @@
+import { PROJECT_SECRET_NAME_PATTERN } from "@canopy/domain";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ToolCall } from "./protocol.ts";
@@ -13,12 +14,20 @@ export const browserDialogStatus = "agent_browser_dialog_status";
 export const browserDialogAccept = "agent_browser_dialog_accept";
 export const browserDialogDismiss = "agent_browser_dialog_dismiss";
 export const browserBasicAuth = "agent_browser_open_with_basic_auth";
+export const browserFillLogin = "agent_browser_fill_login";
+export const browserFillOneTimeCode = "agent_browser_fill_one_time_code";
 
-const basicAuthArguments = z.strictObject({
-  url: z.string().max(8192),
-  requestId: z.uuid(),
-  session: z.string(),
-});
+const loginName = z.string().regex(PROJECT_SECRET_NAME_PATTERN);
+const element = z.string().min(1).max(4096);
+
+const basicAuthArguments = z
+  .strictObject({
+    url: z.string().max(8192),
+    requestId: z.uuid().optional(),
+    login: loginName.optional(),
+    session: z.string(),
+  })
+  .refine((args) => Boolean(args.requestId) !== Boolean(args.login));
 
 export function basicAuthRequest(args: z.infer<typeof ToolCall>["arguments"]) {
   const parsed = basicAuthArguments.safeParse(args);
@@ -28,7 +37,40 @@ export function basicAuthRequest(args: z.infer<typeof ToolCall>["arguments"]) {
 
   if (!url || !["http:", "https:"].includes(url.protocol) || url.username || url.password) return;
 
-  return { url, requestId: parsed.data.requestId };
+  return parsed.data.login
+    ? { url, login: parsed.data.login }
+    : parsed.data.requestId
+      ? { url, requestId: parsed.data.requestId }
+      : undefined;
+}
+
+const fillLoginArguments = z
+  .strictObject({
+    login: loginName,
+    username: element.optional(),
+    password: element.optional(),
+    submit: z.boolean().optional(),
+    session: z.string(),
+  })
+  .refine((args) => Boolean(args.username || args.password));
+
+const fillCodeArguments = z.strictObject({
+  login: loginName,
+  field: element,
+  submit: z.boolean().optional(),
+  session: z.string(),
+});
+
+export function fillLoginRequest(args: z.infer<typeof ToolCall>["arguments"]) {
+  const parsed = fillLoginArguments.safeParse(args);
+
+  return parsed.success ? parsed.data : undefined;
+}
+
+export function fillCodeRequest(args: z.infer<typeof ToolCall>["arguments"]) {
+  const parsed = fillCodeArguments.safeParse(args);
+
+  return parsed.success ? parsed.data : undefined;
 }
 
 const headedTools = new Set(["agent_browser_open", "agent_browser_doctor"]);
@@ -41,7 +83,23 @@ const POLICY_INSTRUCTIONS =
 export function bindBrowserCall(params: z.infer<typeof ToolCall>): z.infer<typeof ToolCall> {
   if (params.name === browserBasicAuth) {
     if (!basicAuthRequest(params.arguments))
-      throw new Error("Provide an HTTP or HTTPS URL without credentials and a private secret requestId.");
+      throw new Error(
+        "Provide an HTTP or HTTPS URL without credentials and either a project login or a private secret requestId.",
+      );
+
+    return params;
+  }
+
+  if (params.name === browserFillLogin) {
+    if (!fillLoginRequest(params.arguments))
+      throw new Error("Provide a project login name and the username or password field from a snapshot.");
+
+    return params;
+  }
+
+  if (params.name === browserFillOneTimeCode) {
+    if (!fillCodeRequest(params.arguments))
+      throw new Error("Provide a project login name and the one-time code field from a snapshot.");
 
     return params;
   }

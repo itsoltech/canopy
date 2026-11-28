@@ -2,6 +2,9 @@ import type { AgentPreviewInput } from "@canopy/contracts";
 import { z } from "zod";
 import { Match } from "effect";
 import { jpegFrame } from "./frames.ts";
+import { previewLoginText, retireOrphanedPreview } from "./browser-login-input.ts";
+import { browserSessionQueue } from "../agent-tools/browser-session.ts";
+import { serializeAgentTool } from "../agent-tools/queue.ts";
 import type { PreviewBackend, PreviewContext, PreviewUpdate } from "./types.ts";
 import type { JsonValue } from "./runtime.ts";
 import {
@@ -51,6 +54,7 @@ class BrowserPreview implements PreviewBackend {
     if (context.runtime.scope.target) throw new Error("Browser previews use the session tabs");
     context.signal.throwIfAborted();
     context.emit({ state: "connecting", mode: "stream" });
+    await retireOrphanedPreview(context.runtime, context.signal);
     this.#lease = await acquireBrowserStream(context.runtime);
 
     if (this.#closed || context.signal.aborted) {
@@ -224,10 +228,17 @@ class BrowserPreview implements PreviewBackend {
         case "key-up":
           this.#key(input, owner, this.#lease);
           break;
-        case "text":
+        case "text": {
           if (!this.#socket) throw new Error("Browser stream is unavailable");
           await sendBrowserText(this.#socket, input.text, this.#context.signal, (message) => this.#send(message));
           break;
+        }
+
+        case "login-text":
+          if (!input.login) throw new Error("Choose a project login field");
+          await previewLoginText(input.login, this.#context.runtime, this.#context.signal);
+          break;
+
         case "release":
           await this.release(owner);
           break;
@@ -238,7 +249,10 @@ class BrowserPreview implements PreviewBackend {
         case "reload":
         case "resize":
         case "tab":
-          await this.#command(input);
+          // Ordered with the agent's browser calls: a capture must not see a page change mid-way.
+          await serializeAgentTool(browserSessionQueue(this.#context.runtime.scope.session), () =>
+            this.#command(input),
+          );
           break;
         default:
           throw new Error("Unsupported browser preview input");

@@ -134,12 +134,13 @@ export class WorkerHost {
     this.#ctx.state.agentTools = new AgentTools({
       dataDir: options.dataDir,
       readManualSecret: (threadId, requestId) => this.#ctx.state.secrets.readManualSecret(threadId, requestId),
+      projectLogins: () => this.#ctx.state.secrets,
       ...(options.cliEnv && { env: options.cliEnv }),
       send: (report) => this.#ctx.ops.send({ case: "agentToolsReport", value: report }),
       progress: (progress) => this.#ctx.ops.send({ case: "agentToolProgress", value: progress }),
     });
     void this.#ctx.state.agentTools
-      .recoverDevices()
+      .recover()
       .catch(() => this.#ctx.ops.log("Managed device cleanup is pending; it will retry before device automation"));
     this.previews = new HostPreviews(
       this.#ctx.state.agentTools,

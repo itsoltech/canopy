@@ -19,15 +19,20 @@ import { executablePaths, resolveLauncher, toolArgv, toolEnvironment, type ToolE
 import { agentToolOperationArgs, validateAgentToolCommand } from "./argv.ts";
 import { installAgentTool } from "./install.ts";
 import { agentToolSession } from "./scope.ts";
+import { forgetSessionLogins, sessionMarked } from "./browser-logins.ts";
+import { closeLoginBrowsers, configureBrowserLogins, loginAccess } from "./browser-login-sessions.ts";
 import { AgentToolDiscoveryCache } from "./cache.ts";
 import { AgentToolLifecycle } from "./lifecycle.ts";
-import { AgentToolCleanup } from "./cleanup.ts";
+import { AgentToolCleanup, closeBrowserSession } from "./cleanup.ts";
 import { DeviceAutomation } from "./device-automation.ts";
 import { DesktopCursors, type DesktopPresentation } from "./desktop-cursor.ts";
 import { DesktopPointerPresentation } from "./desktop-pointer.ts";
 import type { DesktopTarget } from "./desktop-window.ts";
 import { browserDefaultsInitializer } from "./browser-defaults.ts";
 import { BrowserMcp } from "./browser-mcp.ts";
+
+import type { ProjectLoginStore } from "./browser-login-sessions.ts";
+
 import type { LocalAutomationServer } from "../agent-tools-mcp/stdio.ts";
 
 type ReportInit = MessageInitShape<typeof AgentToolsReportSchema>;
@@ -49,6 +54,8 @@ export interface AgentToolsOptions {
   readonly env?: ToolEnv;
   readonly desktopPointer?: DesktopPresentation;
   readManualSecret?(threadId: string, requestId: string): string | undefined;
+  /** Project logins leased to a thread's turn for Agent Browser, held only in worker memory. */
+  projectLogins?(): ProjectLoginStore;
   send(report: ReportInit): void | Promise<void>;
   progress(progress: ProgressInit): void | Promise<void>;
 }
@@ -83,6 +90,7 @@ export class AgentTools {
       options.desktopPointer ?? new DesktopPointerPresentation(options.dataDir),
     );
     this.#devices = new DeviceAutomation(options.dataDir, () => this.#probeOptions());
+    configureBrowserLogins(options.dataDir, options.projectLogins);
   }
 
   get last(): ReportInit | undefined {
@@ -153,6 +161,7 @@ export class AgentTools {
         );
 
         const readSecret = this.#options.readManualSecret;
+        const logins = threadId ? loginAccess(this.#options.projectLogins, threadId) : undefined;
 
         return command
           ? [
@@ -179,6 +188,7 @@ export class AgentTools {
                         nativeEnv,
                         session,
                         readSecret && ((id) => readSecret(threadId, id)),
+                        logins,
                       ),
                     }),
                   }),
@@ -307,6 +317,10 @@ export class AgentTools {
         this.#desktopCursors.end(session);
       } finally {
         await this.#cleanup.close(session);
+
+        // A browser that held login values must be confirmed closed before its masking state goes.
+        if (sessionMarked(session)) await closeBrowserSession(this.#probeOptions(), session);
+        forgetSessionLogins(session);
         await this.#devices.release(threadId);
       }
     });
@@ -358,14 +372,26 @@ export class AgentTools {
     }
   }
 
-  recoverDevices(): Promise<void> {
-    return this.#devices.recover();
+  /** Startup cleanup: managed devices, and browsers a crashed worker left holding login values. */
+  async recover(): Promise<void> {
+    const results = await Promise.allSettled([
+      this.#devices.recover(),
+      closeLoginBrowsers((session) => closeBrowserSession(this.#probeOptions(), session), true),
+    ]);
+
+    const failed = results.find((result) => result.status === "rejected");
+
+    if (failed) throw failed.reason;
   }
 
-  close(): Promise<void> {
+  async close(): Promise<void> {
     this.#desktopCursors.close();
 
-    return this.#devices.close();
+    try {
+      await closeLoginBrowsers((session) => closeBrowserSession(this.#probeOptions(), session), false);
+    } finally {
+      await this.#devices.close();
+    }
   }
 
   /** Preview backends resolve once, then retain this pinned runtime until their lease ends. */

@@ -1,8 +1,14 @@
 # Sekrety projektów i wątków
 
-Status (2026-11-24): właściciel może zapisać sekret w projekcie i przydzielać
+Aktualizacja (2026-11-28): projekt może przechowywać **loginy** (konta testowe), którymi
+agent loguje się w Agent Browser bez poznania hasła. Login ma listę stron, nazwę
+użytkownika, hasło, opcjonalny kod jednorazowy (TOTP) i tryb zgody.
+[Loginy projektu](#loginy-projektu)
+
+Status (2026-11-28): właściciel może zapisać sekret w projekcie i przydzielać
 go na żądanie poszczególnych wątków. Każdy przydział wygasa wraz z turą lub
-po 15 minutach. Dostępność w wydaniach opisują [zasady promocji](release.md).
+po 15 minutach. Loginy projektu dla Agent Browser są zaimplementowane. Dostępność
+w wydaniach opisują [zasady promocji](release.md).
 
 ## Sekret zapisany w projekcie
 
@@ -36,6 +42,210 @@ Konta używają tego samego klucza AES-256-GCM gateway, ale ich tokeny/nagłówk
 nie korzystają z dostarczania plików sekretów na worker. Worker i model dostają
 wyłącznie katalog oraz zredagowane wyniki proxy. Migracja dawnych bot MCP
 zachowuje istniejące odwołania do zaszyfrowanych sekretów nagłówków.
+
+## Loginy projektu
+
+Login projektu ma własną tabelę `project_logins` (migracja `0226_project_logins`). Gateway
+sprzed loginów czyta tylko `project_secrets`, więc nie może loginu wypisać, przydzielić,
+dostarczyć ani nadpisać. Loginy i sekrety mają wspólną przestrzeń nazw w projekcie. Pilnują
+jej wyzwalacze `BEFORE INSERT/UPDATE OF name` na obu tabelach, z blokadą doradczą na nazwę,
+także wobec starszego gatewaya. Kolumna `login` (jsonb) przechowuje dane, które agent
+może poznać: strony (`websites`), nazwę użytkownika, flagę `show_username`, notatkę, tryb
+`ask_each_time`, zgodę `outside_browser` i informację, czy login ma kod jednorazowy. Hasło
+i klucz konfiguracji TOTP są w szyfrogramie (AES-256-GCM, `CANOPY_SECRETS_KEY`) jako JSON.
+Zapis przez `PutProjectLogin` bez hasła albo klucza zachowuje zapisane wartości; pusty
+klucz usuwa kod jednorazowy. API nigdy nie zwraca hasła ani klucza. Każda zmiana loginu
+cofa jego przydziały i zgody w trwających turach.
+
+Strona to origin (schemat, host, port, najwyżej 300 znaków). Wklejony adres strony zostaje
+skrócony do originu. `https://*.example.com` pasuje do subdomen, ale nie do samej domeny.
+Wspólne reguły są w `@canopy/domain/project-logins`; kody TOTP (RFC 6238, SHA-1/256/512,
+6–8 cyfr, okres 10–300 s) liczy `@canopy/domain/one-time-codes` przez Web Crypto.
+
+### Użycie przez agenta
+
+`list_project_secrets` zwraca nazwy zwykłych sekretów oraz listę `logins` z danymi
+z kolumny `login`. Ukryta nazwa użytkownika ma wartość `hidden`. Agent loguje się
+narzędziami Agent Browser:
+
+- `agent_browser_fill_login({login, username?, password?, submit?})`: pola to refy
+  ze snapshotu albo selektory CSS;
+- `agent_browser_fill_one_time_code({login, field, submit?})`: wpisuje bieżący kod,
+  a gdy do końca okresu zostały mniej niż 3 sekundy, najpierw czeka na następny;
+- `agent_browser_open_with_basic_auth({url, login})`: Basic Auth z loginu zamiast
+  ręcznego sekretu.
+
+Narzędzia nie przyjmują ani nie zwracają wartości. Bridge na workerze sam prosi gateway
+o przydział wewnętrznym wywołaniem `lease_project_login` (poza katalogiem narzędzi
+harnessu). Wywołanie podaje identyfikator autoryzacji bieżącego wywołania narzędzia
+(`authorize_local_automation`). Gateway przyjmuje je tylko wtedy, gdy ta autoryzacja
+jest żywa na tym samym połączeniu workera, należy do tego wątku i tury i dotyczy jednego
+z trzech narzędzi powyżej z argumentem `login` o tej samej nazwie. Zakończenie wywołania
+narzędzia ją unieważnia. Gateway sprawdza też właściciela, projekt wątku, aktywną turę
+i origin strony, a potem tworzy przydział `memory_only`. Wartość trafia do workera prywatnym
+`ThreadSecretDelivery` z `memory_only` i zostaje w jego pamięci: worker nie tworzy pliku,
+więc shell agenta nie ma czego przeczytać. Przydział trwa najwyżej do końca tury
+(i 15 minut); kolejne wywołanie w turze otwiera nowy, więc agent niczego nie odnawia.
+Przydział w pamięci nie czeka na filtr wyników harnessu, bo wartość nie trafia do jego
+plików ani środowiska. Wymaga tylko aktywnej, nieodgrodzonej tury. Jeśli wywołanie
+narzędzia skończy się, zanim właściciel odpowie, gateway nie otwiera przydziału
+(wynik `expired`); zgoda zostaje dla następnego wywołania w tej turze. Przydział pamięta
+też swoją autoryzację (`project_secret_leases.admission`). Gateway sprawdza ją jeszcze raz,
+gdy wyjmuje wartość z kolejki dostaw, a jeśli wywołanie już się skończyło, cofa przydział
+bez wysyłania wartości.
+
+Bez zgody `outside_browser` `request_secret` odmawia loginu. Ze zgodą zwraca plik JSON
+z `username`, `password`, `websites`, `hide_username` i opcjonalnym `one_time_code_setup`.
+Dostawa takiego pliku ma flagę `login`, więc worker przed potwierdzeniem rejestruje
+w filtrach także hasło, jego postacie po kodowaniu, ukrytą nazwę użytkownika i klucz TOTP,
+a nie tylko cały JSON. Worker bez `project_logins_v1` nie dostanie pliku loginu.
+
+Przed wpisaniem bridge liczy wartość (kod TOTP najpierw), klika pole przez agent-browser,
+a potem przez CDP znajduje aktywny element. Ramki śledzi worker, nie skrypt strony: ramkę
+w tym samym procesie przez `DOM.describeNode` (`contentDocument`) i `DOM.resolveNode`,
+ramkę z innego procesu przez `Target.attachToTarget` z jej `frameId`. Origin pola to
+`securityOrigin` jego ramki z `Page.getFrameTree`, czyli wartość z przeglądarki, której
+strona nie zmieni. Pole musi być edytowalne, a origin musi należeć do stron loginu.
+Wartość trafia wtedy do tego konkretnego elementu przez `Runtime.callFunctionOn` (natywny
+setter `value` oraz zdarzenia `input` i `change`; dla `contenteditable` `insertText`).
+Nie zależy od tego, gdzie jest fokus w chwili zapisu. Jeśli element opuścił dokument albo
+ramka przeszła na inną stronę, zapis się nie udaje i agent dostaje prośbę o nowy snapshot.
+Wartość nie przechodzi przez argumenty MCP, linię poleceń ani proces agent-browser.
+
+### Zgoda właściciela
+
+Gateway zapisuje decyzję w `project_login_decisions`: jedna na turę, login i rodzaj dostępu
+(`browser` albo `file`, unikalne `(turn_id, name, access)`), więc równoległe prośby dzielą
+jedno pytanie. Login bez trybu **Ask each time** dostaje od razu `allowed`, a z trybem
+czeka jako `pending`. Wątek pokazuje kartę „Use login …?” albo, dla pliku, „Give login …
+to the agent’s commands?” z przyciskami **Allow for this turn** i **Decline** (web i mobile;
+`AnswerThreadSecret` z `decline`; `ThreadSecret.access`). Zgoda na plik nie obejmuje
+przeglądarki i odwrotnie. Przydziały powstają dopiero po zgodzie, więc nic nie trafia do
+workera wcześniej. Decyzja trwa do końca tury, niezależnie od 15-minutowych przydziałów
+i ponownych połączeń workera. Koniec tury, zmiana loginu, archiwizacja wątku albo projektu
+ją wygaszają. Panel wątku pokazuje decyzję jako login „this turn”; cofnięcie
+(`revoke`) cofa też przydziały tej tury.
+
+Przy przeglądarce gateway czeka na odpowiedź do 45 sekund, krócej niż limit wywołania
+narzędzia MCP w harnessach. Przy pliku czeka w ramach 8-sekundowego limitu
+`request_secret`. Potem narzędzie odpowiada agentowi, że czeka na właściciela, a ponowne
+wywołanie dołącza do tej samej decyzji. Odmowa zostaje do końca tury.
+
+### Maskowanie i strażnik sieci
+
+Po wpisaniu wartość zostaje w DOM strony, więc agent może ją odczytać przez `eval`,
+snapshot albo tekst strony. Canopy nie blokuje tych narzędzi. Maskuje wartości we
+wszystkich tekstowych wynikach Agent Browser tej sesji, w dzienniku i w filtrach harnessów
+(`[REDACTED]`). Maskowane są: hasło, jego postacie po kodowaniu URL i base64, base64 pary
+`username:password`, klucz TOTP i ukryta nazwa użytkownika. Maskowanie wpisanych wartości
+trwa po zakończeniu przydziału, bo strona może je nadal przechowywać. Wartości z przeglądarki
+worker trzyma osobno dla wątku (nie w globalnej liście ręcznych sekretów), więc maskowanie
+i wstrzymywanie strumienia nie dotyka innych wątków. Zamknięcie sesji przeglądarki albo
+wątku przenosi je do osobnego zbioru, który znika po 30 sekundach, gdy dojdą już wyniki
+w drodze. Nowa sesja tego wątku ma własny zbiór i tego terminu nie przesuwa.
+
+Wynik strukturalny maskuje także liczbę JSON, której zapis zawiera wartość (hasło z samych
+cyfr).
+
+Przed zrzutem ekranu lub PDF (`agent_browser_screenshot`, `agent_browser_pdf`) bridge
+ukrywa (`-webkit-text-security: disc`) pola zawierające wpisaną wartość. Robi to we
+wszystkich kartach sesji (zrzut obejmuje aktywną, która może się zmienić), w każdej
+ramce, w jej izolowanym świecie, także w ramkach z innego procesu (przez ich własne
+cele, `Target.setAutoAttach`). Treści pól czyta partiami, a porównuje worker, więc wartości
+nie trafiają do strony. Strona z ponad 20 000 pól albo błąd w którejkolwiek ramce sprawia,
+że zrzut nie powstaje, a agent dostaje prośbę o ponowienie. Przed ukryciem bridge zapisuje
+dokumenty ramek karty (`frameId:loaderId`). Jeśli po zrzucie są inne (nawigacja, przeładowanie,
+nowa ramka), odrzuca wynik i prosi o nowy zrzut. Pole, które strona doda w trakcie (np. ponownie
+zamontowany formularz bez nawigacji, także w otwartym shadow root komponentu), obserwator
+mutacji w izolowanym świecie ukrywa przed najbliższym odświeżeniem obrazu. Pole
+`contenteditable` jest ukrywane razem z elementami w środku, bo to one rysują tekst i mogą
+mieć własny styl. Sprawdzenie po zrzucie ma limit 10 s; zrzut, którego nie da się sprawdzić,
+jest odrzucany. Po zrzucie bridge sprawdza każde pole ramki i każde dodane:
+pole z wpisaną wartością bez kropek odrzuca zrzut. Plik zrzutu powstaje najpierw w prywatnym katalogu tymczasowym (`path` narzędzia
+wskazuje tam), a do ścieżki wybranej przez agenta, `screenshotDir` albo domyślnego katalogu
+trafia dopiero po tych sprawdzeniach. Odrzucony zrzut jest usuwany. Każda ramka rejestruje przywrócenie,
+zanim zmieni pola, a po przekroczeniu 10 s ukrywanie się zatrzymuje. Styl wraca po zrzucie,
+także gdy wywołanie zostało przerwane. Wpisanie i nawigacja z Preview (adres, wstecz, dalej,
+przeładowanie, karta) czekają w tej samej kolejce sesji co narzędzia agenta
+(`browserSessionQueue`), a stan sesji Preview odczytuje dopiero w tej kolejce. Tekst poza polami nie jest
+ukrywany.
+
+Strażnik sieci (`BrowserLeakGuard`) łączy się z Chrome sesji wątku i automatycznie dołącza
+do każdej strony, ramki i workera. Na każdym z nich włącza `Fetch`. Wpisanie czeka, aż
+przechwytywanie działa na karcie i na ramce pola. Jeśli nie działa, nic nie zostaje
+wpisane, a agent dostaje prośbę o ponowienie. Basic Auth z loginu najpierw uruchamia
+Chrome, potem czeka na strażnika, a dopiero potem przekazuje dane. Strażnik wstrzymuje
+żądania (`Fetch.requestPaused`) i sprawdza URL, nagłówki oraz treść. Żądanie zawierające
+wartość loginu do originu spoza jego stron jest odrzucane (`BlockedByClient`). Kolejny wynik
+narzędzia informuje o tym agenta, z zamaskowanym adresem. Pozostałe żądania przechodzą bez
+zmian. Strażnik pamięta każdą wpisaną wartość do końca sesji przeglądarki, także po zmianie
+hasła albo kolejnym wpisaniu. Kody jednorazowe pilnuje do minuty po ich wygaśnięciu.
+Treść JSON do 1 MiB dekoduje i sprawdza każdy ciąg, więc wartość nie ukryje się za
+żadnym sposobem escapowania; dodatkowo zna postacie ciągu JSON z `\/` i `\uXXXX`. Zerwanie połączenia wznawia wstrzymane żądania, a strażnik ponawia
+połączenie z rosnącą przerwą (do 10 s), dopóki Chrome sesji działa. Adres Chrome bierze
+z poleceń agent-browser tej sesji, niezależnych od podglądu czy bridge'a. Zamknięcie sesji
+(`agent_browser_close`, zamknięcie wątku) czyści stan strażnika i maskowania sesji. Przy
+zamknięciu wątku sesja ze znacznikiem musi mieć potwierdzone zamknięcie przeglądarki
+(`closeBrowserSession`); inaczej stan i znacznik zostają. Bridge
+i Preview za każdym razem odczytują bieżący stan sesji, więc po zamknięciu i ponownym
+otwarciu przeglądarki dzielą ten sam stan.
+
+Chrome sesji może przeżyć restart workera, a stan maskowania nie. Dlatego przy pierwszym
+zabezpieczeniu wartości worker zapisuje znacznik sesji (skrót nazwy, bez wartości)
+w `browser-logins/` w katalogu danych. Gdy po restarcie bridge albo Preview pierwszy raz
+sięga po sesję ze znacznikiem, a worker nie ma jej stanu, najpierw zamyka jej przeglądarkę.
+Znacznik znika dopiero wtedy, gdy agent-browser potwierdzi, że sesja nie ma przeglądarki;
+inaczej wywołanie kończy się błędem. Znacznik zawiera nazwę sesji (identyfikator wątku),
+więc przy zwykłym zamknięciu worker zamyka wszystkie takie przeglądarki, póki strażnik
+jeszcze działa, a przy starcie po awarii zamyka te, których stanu nie ma. Każdą sesję zamyka
+osobno, w kolejce tej sesji, tej samej co wywołania agenta i Preview (`closeBrowserSession`): agent-browser musi potwierdzić `closed: true`, a lista sesji
+nie może jej już zawierać. Bez dostępnego agent-browser albo bez potwierdzenia znacznik
+zostaje do następnej próby, a pozostałe sesje i tak są zamykane. Preview, które otwiera sesję przed bridge'em, dostaje
+maskowanie wątku od razu (sesja nosi identyfikator wątku). Strażnik nie widzi ruchu WebSocket ani dużych treści żądań, których
+Chrome nie przekazuje w zdarzeniu. Nie rozpozna też wartości zaszyfrowanej albo przesłanej
+w częściach przez skrypt strony. Program, który odczyta wartość ze strony, może zachować
+własną kopię.
+
+### Wpisanie przez właściciela w Preview
+
+Browser Preview ma menu **Fill login** z loginami, które pasują do originu otwartej strony.
+Klient wysyła wejście `login` (nazwa i pole: `username`, `password`, `one_time_code`),
+najwyżej jedno w partii. Gateway sprawdza, czy login należy do projektu wątku, i zastępuje
+je wejściem `login-text` z polem `AgentPreviewInput.login` (`AgentPreviewLogin`: nazwa,
+wartość, strony, `masked`, pole i czas wygaśnięcia kodu). Wartość idzie tylko po linku
+workera, bez dziennika. Worker ogranicza ją limitami loginu (`LOGIN_PREVIEW_TEXT_MAX_BYTES`, 20 stron po 300 znaków),
+a nie limitem tekstu klawiatury. Wpisuje ją tak samo jak agent: do pola z fokusem, gdy
+`securityOrigin` jego ramki należy do stron loginu, przez CDP i z działającym strażnikiem.
+Ukrytą wartość rejestruje w maskowaniu i strażniku sesji, widocznej nazwy użytkownika nie
+rejestruje, a kod jednorazowy pilnuje do jego wygaśnięcia i minutę dłużej. Kod, który wygasł
+(albo wygasa w ciągu sekundy), zanim wpisanie doczekało się w kolejce, nie jest wpisywany:
+właściciel dostaje prośbę o ponowny wybór z menu.
+Tryb zgody nie dotyczy tej akcji, bo wykonuje ją właściciel. Projekt połączonego komputera
+nie ma tego menu.
+
+### Weryfikacja loginów
+
+- `tests/integration/project-logins.test.ts`: zapis tylko do odczytu i zachowanie hasła
+  przy edycji, szyfrogram w `project_logins`, konflikt nazw (także zapis z pominięciem
+  gatewaya), lista dla agenta bez wartości, przydział tylko dla stron loginu i tylko
+  z żywą autoryzacją narzędzia nazywającego ten login, dostawa `memory_only`, odmowa
+  `request_secret`, jedno pytanie dla równoległych prób, zgoda i odmowa na całą turę oraz
+  osobna zgoda na plik loginu z `ask_each_time` i `outside_browser`, a także zgoda, która
+  przyszła po zakończeniu wywołania narzędzia.
+- `tests/integration/project-login-preview.test.ts`: wpisanie w Preview zastępuje nazwę
+  wartością tylko dla loginu z projektu wątku, najdłuższe hasło przechodzi walidator
+  workera, dwa loginy w jednej partii są odrzucane.
+- `apps/worker/src/runtime/project-login-memory.test.ts`: przydział bez pliku i bez filtra
+  harnessu, odczyt tylko w swojej turze, maskowanie wariantów i po zakończeniu tury,
+  maskowanie części pliku loginu.
+- `browser-logins.live.test.ts` (`CANOPY_LIVE=1`, `CANOPY_LIVE_BROWSER`): prawdziwy
+  agent-browser wpisuje login i kod, maskuje wynik `eval`, blokuje wysłanie hasła do obcego
+  serwera (w adresie i w treści JSON) i przepuszcza żądanie do własnej strony. Odrzuca login
+  na obcej stronie i w ramce innej witryny (osobny proces), także przy wpisaniu w Preview,
+  ukrywa wpisane wartości przed zrzutem w stronie i w tej ramce, zamyka po „restarcie”
+  przeglądarkę sesji ze znacznikiem i wykonuje Basic Auth z loginu. Hasło zawiera cudzysłów,
+  ukośniki i znak spoza ASCII, a żądanie JSON z escapowaniem `\/` i `\uXXXX` nie dociera
+  do obcego serwera.
 
 ## Jednorazowa prośba do użytkownika
 

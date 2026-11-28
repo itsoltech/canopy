@@ -53,6 +53,21 @@ sprzątania; kolejne użycie wymaga świeżego przydziału.
 Stare workery zachowują obsługę ręcznych próśb o sekret. Szczegóły cyklu
 życia i ochrony wyjścia narzędzi opisują [sekrety](secrets.md).
 
+Status (2026-11-28): worker ogłaszający `project_logins_v1` przyjmuje loginy projektu.
+`ThreadSecretDelivery.memory_only` (9) oznacza przydział dla Agent Browser: worker trzyma
+wartość w pamięci i potwierdza ją `ThreadSecretReceipt` z pustym `file`.
+`ThreadSecretDelivery.login` (10) oznacza wartość loginu (JSON), której części worker maskuje
+osobno. Bridge prosi o przydział wewnętrznym `AgentToolCall` `lease_project_login`
+(`{name, origin, authorization}`), gdzie `authorization` to `call_id` żywej autoryzacji
+`authorize_local_automation` narzędzia logowania tego loginu. Gateway obsługuje go przed
+agent busem i nie ma go w katalogach harnessów. Preview przyjmuje od klienta wejście `login`
+(`text` = nazwa, `key` = pole, jedno w partii), a do workera wysyła `login-text` z polem
+`AgentPreviewInput.login` (14, `AgentPreviewLogin`: nazwa, wartość, strony, `masked`, pole
+i `expires_at_ms` kodu); gateway nie wysyła go workerowi bez
+`project_logins_v1`. `ThreadSecret.access` (12) mówi, czy decyzja o loginie dotyczy
+przeglądarki (`browser`), czy pliku (`file`).
+[Loginy projektu](secrets.md#loginy-projektu)
+
 ## Profile Sandbox
 
 Status (2026-11-22): worker ogłasza addytywną capability `sandbox_profiles_v1`

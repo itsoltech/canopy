@@ -6,6 +6,8 @@
   "exports": {
     "./agent-tool-settings": "./src/agent-tool-settings.ts",
     "./memory-tools": "./src/memory-tools.ts",
+    "./project-logins": "./src/project-logins.ts",
+    "./one-time-codes": "./src/one-time-codes.ts",
     "./reflection-models": "./src/reflection-models.ts",
     "./memory-scopes": "./src/memory-scopes.ts",
     "./reply-suggestions": "./src/reply-suggestions.ts",

@@ -82,7 +82,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "folder",
     group: "Workspace",
     keywords:
-      "project workspace directory threads workspaces project details secrets api keys tokens thread defaults notify agent pull requests",
+      "project workspace directory threads workspaces project details secrets logins credentials test account password one-time code api keys tokens thread defaults notify agent pull requests",
   },
   {
     href: "/settings/worktrees",

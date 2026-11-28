@@ -21,6 +21,7 @@ import {
   SKILL_INSTALLER_CAPABILITY,
 } from "@canopy/domain/release/protocol";
 import { PROJECT_SECRET_LEASES } from "@canopy/domain";
+import { PROJECT_LOGINS } from "@canopy/domain/project-logins";
 import { WORKTREE_CHECKOUT_DEADLINE } from "@canopy/domain/worktree-timing";
 import { SANDBOX_PROFILES_CAPABILITY } from "@canopy/domain/sandbox-profiles";
 
@@ -76,6 +77,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     "bot_files_v1",
     "thread_secrets",
     PROJECT_SECRET_LEASES,
+    PROJECT_LOGINS,
     "cli_install",
     CLI_INSTALL_UPGRADE_ONLY_CAPABILITY,
     // agent_tools_v1: owner-scoped Canopy control of the three local automation binaries.

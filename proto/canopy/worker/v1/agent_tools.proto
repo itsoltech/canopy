@@ -151,6 +151,21 @@ message AgentPreviewInput {
   uint32 modifiers = 11; // alt=1, control=2, meta=4, shift=8
   uint32 width = 12;
   uint32 height = 13;
+  // Set by the gateway for kind login-text only: the project login field the owner chose.
+  AgentPreviewLogin login = 14;
+}
+
+// One project login value the worker enters for the owner in Browser Preview (project_logins_v1).
+message AgentPreviewLogin {
+  string name = 1;
+  string text = 2;
+  repeated string websites = 3;
+  // Keep the value masked in Agent Browser output after entering it.
+  bool masked = 4;
+  // username | password | one_time_code
+  string field = 5;
+  // A one-time code's expiry (Unix milliseconds); the worker guards it until then and a grace period.
+  int64 expires_at_ms = 6;
 }
 
 message AgentPreviewInputBatch {
