@@ -25,7 +25,7 @@ export function BotSender({
 
   return (
     <View style={[styles.row, { gap: 6, flexShrink: 1 }]}>
-      <Text style={[styles.meta, { color }]}>{verb}</Text>
+      {verb ? <Text style={[styles.meta, { color }]}>{verb}</Text> : null}
       {name ? (
         <Pressable
           disabled={!botsEnabled}
@@ -69,12 +69,6 @@ export function SenderLabel({
   leading?: ReactNode;
   trailing?: string;
 }) {
-  const c = useColors();
-
-  const quiet = [sender?.botId ? "" : sender?.model, sender?.computerName && `on ${sender.computerName}`, trailing]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
     <View
       style={[styles.row, { flexWrap: "wrap", justifyContent: "flex-end", columnGap: 6, rowGap: 4, maxWidth: "100%" }]}
@@ -91,16 +85,37 @@ export function SenderLabel({
           <ThreadLink threadId={threadId} fallback={sender?.title || fallback} />
         </View>
       )}
-      {quiet || (sender && !sender.botId) ? (
-        <View style={[styles.row, { gap: 4, flexShrink: 1 }]}>
-          {sender && !sender.botId ? <ProviderIcon provider={sender.provider} /> : null}
-          {quiet ? (
-            <Text numberOfLines={1} style={[styles.meta, { flexShrink: 1, color: c.muted }]}>
-              {sender?.botId && !sender.computerName ? "· " : ""}
-              {quiet}
-            </Text>
-          ) : null}
-        </View>
+      <SenderDetails sender={sender} trailing={trailing} />
+    </View>
+  );
+}
+
+/** Provider, model and computer of a sender, followed by delivery details when supplied. */
+export function SenderDetails({
+  sender,
+  trailing,
+  wrap = false,
+}: {
+  sender?: ui.AgentSender | undefined;
+  trailing?: string | undefined;
+  wrap?: boolean;
+}) {
+  const c = useColors();
+
+  const quiet = [sender?.botId ? "" : sender?.model, sender?.computerName && `on ${sender.computerName}`, trailing]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (!quiet && (!sender || sender.botId)) return null;
+
+  return (
+    <View style={[styles.row, { gap: 4, flexShrink: 1 }]}>
+      {sender && !sender.botId ? <ProviderIcon provider={sender.provider} /> : null}
+      {quiet ? (
+        <Text numberOfLines={wrap ? undefined : 1} style={[styles.meta, { flexShrink: 1, color: c.muted }]}>
+          {!wrap && sender?.botId && !sender.computerName ? "· " : ""}
+          {quiet}
+        </Text>
       ) : null}
     </View>
   );

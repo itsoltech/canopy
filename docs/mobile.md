@@ -1,5 +1,12 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Dostarczony steer od agenta zajmuje na telefonie dwa wiersze.
+Nazwa nadawcy otwiera wątek lub czat bota. Dotknięcie podglądu albo strzałki
+rozwija treść, informacje o modelu i dostarczeniu, załączniki oraz akcje wiadomości.
+Podczas wysyłania i po przyjęciu przez dostawcę stan jest widoczny także w zwiniętym
+wierszu. Panel i strzałka używają ruchu sekcji osi czasu, a przy ograniczeniu ruchu
+przełączają się od razu.
+
 Status (2026-11-28). Wiersze projektów oraz wyboru workera i źródła mają minimum
 48 dp wysokości i rosną wraz z tekstem. Wiersze ustawień mieszczą przełącznik obok opisu.
 Pola wyboru w wierszach ustawień dopasowują szerokość do wartości i przechodzą

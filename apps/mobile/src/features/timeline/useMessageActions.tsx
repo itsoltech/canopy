@@ -42,6 +42,7 @@ export function useMessageActions(text: string, kind?: string, enabled = true, o
 
   return {
     trigger,
+    openMenu,
     available,
     menu: (
       <>

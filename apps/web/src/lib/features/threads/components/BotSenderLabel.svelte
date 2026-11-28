@@ -35,7 +35,7 @@
   );
 </script>
 
-<span class="shrink-0 whitespace-nowrap">{verb}</span>
+{#if verb}<span class="shrink-0 whitespace-nowrap">{verb}</span>{/if}
 {#if participant && settings.moduleEnabled("bots")}
   <a
     href="/bots/{botId}"

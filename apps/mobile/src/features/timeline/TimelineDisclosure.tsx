@@ -51,6 +51,7 @@ export function TimelineDisclosure({
   );
 
   useLayoutEffect(() => {
+    if (!mounted) return;
     scheduleOnUI(() => {
       expanded.set(open);
       const box = measure(body);
@@ -58,7 +59,7 @@ export function TimelineDisclosure({
       // The first lazy mount is measured by onLayout; subsequent toggles measure synchronously on UI.
       if (box) animate(open, box.height);
     });
-  }, [open, body, expanded, animate]);
+  }, [mounted, open, body, expanded, animate]);
 
   const animated = useAnimatedStyle(() => ({ height: natural.get() ? "auto" : height.get() }));
 

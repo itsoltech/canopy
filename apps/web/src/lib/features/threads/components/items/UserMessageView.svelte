@@ -26,6 +26,7 @@
   import Spinner from "#lib/shared/ui/Spinner.svelte";
   import { swap } from "#lib/shared/ui/motion.ts";
   import AgentSenderLabel from "../AgentSenderLabel.svelte";
+  import CompactSteer from "./CompactSteer.svelte";
   import ReceivedAgentMessage from "./ReceivedAgentMessage.svelte";
 
   /**
@@ -88,66 +89,86 @@
   );
 </script>
 
-<div class="flex flex-col items-end gap-1">
-  {#if fromAgent || note}
-    <p
-      class={[
-        "flex max-w-full flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-sm/5 sm:text-xs/5",
-        note?.tone === "amber"
-          ? "text-amber-700 dark:text-amber-400"
-          : fromAgent
-            ? "text-violet-700 dark:text-violet-400"
-            : "text-zinc-500 dark:text-zinc-400",
-      ]}
-    >
-      <!-- A steer's note changes as it travels (sending, accepted, delivered): each state swaps in. -->
-      {#key note?.text}
-        <span class="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1" in:swap>
-          {#if sender}
-            <AgentSenderLabel
-              verb="Message from"
-              threadId={sender.threadId}
-              {sender}
-              leading={note || !sender.botId ? noteIcon : undefined}
-              trailing={note ? deliveryNote : undefined}
-            />
-          {:else}
-            {@render noteIcon()}
-            <span class="min-w-0">{[fromAgent && "From an agent", note?.text].filter(Boolean).join(" · ")}</span>
-          {/if}
-        </span>
-      {/key}
-    </p>
-  {/if}
-  {#if loose.length > 0}
-    <MessageAttachments attachments={loose} class={[pending && "opacity-70"]} />
-  {/if}
-  {#if fromAgent && (message.text.trim() || details || quotes.length > 0)}
-    <ReceivedAgentMessage
-      text={body || quotes[0]?.text || ""}
-      rich={quotes.length > 0 || Boolean(details)}
+{#if fromAgent && note}
+  <div class="flex justify-end">
+    <CompactSteer
+      {sender}
+      threadId={sender?.threadId || message.authorAgentId}
+      {note}
       {pending}
-      class={[pending && "opacity-70"]}
+      text={body || quotes[0]?.text || ""}
+      previewFallback={loose[0]?.name}
     >
+      {#if loose.length > 0}<MessageAttachments attachments={loose} />{/if}
       {@render content()}
-    </ReceivedAgentMessage>
-  {:else if message.text.trim() || details || quotes.length > 0}
-    <div
-      class={[
-        "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-zinc-100 theme-message-padding text-base/6 break-words text-zinc-950 sm:text-sm/6 dark:bg-white/10 dark:text-white",
-        pending && "opacity-70",
-      ]}
-    >
-      {@render content()}
-    </div>
-  {/if}
+      {@render attachmentCount()}
+    </CompactSteer>
+  </div>
+{:else}
+  <div class="flex flex-col items-end gap-1">
+    {#if fromAgent || note}
+      <p
+        class={[
+          "flex max-w-full flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-sm/5 sm:text-xs/5",
+          note?.tone === "amber"
+            ? "text-amber-700 dark:text-amber-400"
+            : fromAgent
+              ? "text-violet-700 dark:text-violet-400"
+              : "text-zinc-500 dark:text-zinc-400",
+        ]}
+      >
+        <!-- A steer's note changes as it travels (sending, accepted, delivered): each state swaps in. -->
+        {#key note?.text}
+          <span class="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1" in:swap>
+            {#if sender}
+              <AgentSenderLabel
+                verb="Message from"
+                threadId={sender.threadId}
+                {sender}
+                leading={sender.botId ? undefined : noteIcon}
+              />
+            {:else}
+              {@render noteIcon()}
+              <span class="min-w-0">{[fromAgent && "From an agent", note?.text].filter(Boolean).join(" · ")}</span>
+            {/if}
+          </span>
+        {/key}
+      </p>
+    {/if}
+    {#if loose.length > 0}
+      <MessageAttachments attachments={loose} class={[pending && "opacity-70"]} />
+    {/if}
+    {#if fromAgent && (message.text.trim() || details || quotes.length > 0)}
+      <ReceivedAgentMessage
+        text={body || quotes[0]?.text || ""}
+        rich={quotes.length > 0 || Boolean(details)}
+        {pending}
+        class={[pending && "opacity-70"]}
+      >
+        {@render content()}
+      </ReceivedAgentMessage>
+    {:else if message.text.trim() || details || quotes.length > 0}
+      <div
+        class={[
+          "max-w-[min(85%,42rem)] rounded-2xl rounded-br-md bg-zinc-100 theme-message-padding text-base/6 break-words text-zinc-950 sm:text-sm/6 dark:bg-white/10 dark:text-white",
+          pending && "opacity-70",
+        ]}
+      >
+        {@render content()}
+      </div>
+    {/if}
+    {@render attachmentCount()}
+  </div>
+{/if}
+
+{#snippet attachmentCount()}
   {#if files.length === 0 && message.attachments.length > 0}
     <p class="flex items-center gap-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
       <Icon name="photo" class="size-3.5" />{message.attachments.length}
       {message.attachments.length === 1 ? "attachment" : "attachments"}
     </p>
   {/if}
-</div>
+{/snippet}
 
 {#snippet content()}
   {#if looseQuotes.length > 0}<MessageQuotes quotes={looseQuotes} class={[message.text.trim() && "mb-2"]} />{/if}
@@ -167,10 +188,6 @@
       name={note?.icon ?? "sparkles"}
       class="size-3.5 shrink-0"
     />{/if}
-{/snippet}
-
-{#snippet deliveryNote()}
-  <span class="min-w-0 truncate whitespace-nowrap" title={note?.text}>· {note?.text}</span>
 {/snippet}
 
 {#snippet chip(index: number)}
