@@ -162,46 +162,45 @@ export function WorkGroup({
             : "";
 
   return (
-    <Animated.View ref={header} collapsable={false}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${state ? `${label}, ${statusCount} ${state}` : label}${running && !open ? `, ${hint}` : ""}`}
-        accessibilityState={{ expanded: open }}
-        onPress={() => toggle(onToggle)}
-        style={({ pressed }) => [
-          styles.row,
-          activityHeader.row,
-          open && activityHeader.open,
-          { alignItems: "flex-start" },
-          pressed && { backgroundColor: c.pressed },
-        ]}
-      >
-        <View style={{ height: 24, justifyContent: "center" }}>
-          <Chevron open={open} color={c.faint} />
-        </View>
-        <View style={{ height: 24, justifyContent: "center" }}>
-          <Icon name={icon} color={c.icon} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0, flexDirection: "row", gap: 8 }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${state ? `${label}, ${statusCount} ${state}` : label}${running && !open ? `, ${hint}` : ""}`}
+      accessibilityState={{ expanded: open }}
+      onPress={() => toggle(onToggle)}
+      style={activityHeader.groupTarget}
+    >
+      {({ pressed }) => (
+        <Animated.View
+          ref={header}
+          collapsable={false}
+          style={[
+            styles.row,
+            activityHeader.groupRow,
+            open && activityHeader.open,
+            pressed && { backgroundColor: c.pressed },
+          ]}
+        >
+          <Chevron open={open} size={14} color={c.faint} />
+          <Icon name={icon} size={14} color={c.icon} />
           {running ? (
-            <LiveText containerStyle={{ flex: 1, minWidth: 0 }} style={styles.work}>
+            <LiveText containerStyle={{ flex: 1, minWidth: 0 }} style={styles.workMeta}>
               {label}
             </LiveText>
           ) : (
-            <Text numberOfLines={1} style={[styles.work, { flex: 1, minWidth: 0, color: c.soft }]}>
+            <Text numberOfLines={1} style={[styles.workMeta, { flex: 1, minWidth: 0, color: c.soft }]}>
               {label}
             </Text>
           )}
           {running && !open && (
-            <Text numberOfLines={1} style={[styles.work, { flex: 1, minWidth: 0, color: c.faint }]}>
+            <Text numberOfLines={1} style={[styles.workMeta, { flex: 1, minWidth: 0, color: c.faint }]}>
               {hint}
             </Text>
           )}
-        </View>
-        <View style={{ height: 24, width: 40, justifyContent: "center", alignItems: "flex-end", flexShrink: 0 }}>
-          <ItemStatusIcon status={status} count={statusCount} />
-        </View>
-      </Pressable>
-    </Animated.View>
+          <View style={{ width: 40, alignItems: "flex-end", flexShrink: 0 }}>
+            <ItemStatusIcon status={status} count={statusCount} />
+          </View>
+        </Animated.View>
+      )}
+    </Pressable>
   );
 }

@@ -41,7 +41,8 @@ const ToolGroup = memo(function ToolGroup({
   const open = choices.open(row.key, !ended, expanded);
 
   return (
-    <View style={[activityHeader.shell, activitySurface(c)]}>
+    <View style={activityHeader.group}>
+      <View pointerEvents="none" style={[activityHeader.groupSurface, activityHeader.shell, activitySurface(c)]} />
       <WorkGroup
         label={row.label}
         open={open}
