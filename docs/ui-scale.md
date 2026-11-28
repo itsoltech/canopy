@@ -9,8 +9,8 @@ Karta zużycia kontekstu composera używa skali nakładek (15 / 13). Zakotwiczon
 Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
 Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
 Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
-Aktualizacja (2026-11-28): podczas przewijania w web/desktop pasek narzędzi pozostaje
-wyrównany do przycisku wysyłania, a szybka zmiana kierunku odwraca trwające zwijanie.
+Aktualizacja (2026-11-28): podczas przewijania w web/desktop pasek narzędzi zanika przy przycisku
+wysyłania, a composer wyhamowuje po szybkim przewinięciu i przy domykaniu.
 Aktualizacja (2026-11-26): listy sidebara web/desktop mają mniejszy odstęp po prawej
 i zachowują szerokość po pojawieniu się paska przewijania.
 Aktualizacja (2026-11-28): zakładki tematów ustawień mają na desktopie 28 px zamiast 32 px.
@@ -230,7 +230,10 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   rozwija się w takt powrotu. Przejścia CSS composera są wstrzymywane raz przy
   rozpoczęciu ruchu sterowanego przewijaniem. Kolejne klatki ustawiają tylko
   wspólny postęp na podstawie przewinięcia. Małe ruchy od razu przesuwają pole,
-  a przy dużym skoku pełne przejście zajmuje co najmniej `duration.quick`.
+  a większe zmiany wyhamowują według `smoothOut`. Czas zależy od pozostałego dystansu.
+  Pełne zwinięcie trwa `duration.medium`, rozwinięcie `duration.slow`.
+  Zanikające kontrolki i podpowiedzi przechodzą od ostrości do `blur.small` (2 px)
+  wraz ze spadkiem krycia. Przy zmianie kierunku wracają po tej samej krzywej.
   Po zatrzymaniu (240 ms) composer domyka się do bliższego stanu. Jeśli zwinął się
   w ostatnich 192 px, rozwijanie zaczyna się od miejsca zatrzymania. Fokus i pisanie rozwijają pole.
   Przy `prefers-reduced-motion` stan przełącza się tylko na krańcach, bez animacji. Fade nad stopką tylko imituje cień composera:

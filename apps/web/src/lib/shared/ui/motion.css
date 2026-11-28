@@ -542,6 +542,13 @@
 .t-composer-slot .t-composer-fold > * {
   min-width: 0;
   overflow: visible;
+  transition-property: opacity, filter;
+}
+:where(html[data-motion="full"]) .t-composer-slot {
+  .t-composer-fold:not([data-open]) > *,
+  .t-composer-placeholder[data-single-line] .t-composer-hint {
+    filter: blur(var(--blur-small));
+  }
 }
 /* Clip the moving rows, leaving room for popovers and focus rings once open. */
 [data-composer-moving] .t-composer-fold,
@@ -569,7 +576,8 @@
   opacity: 1;
   transition:
     grid-template-rows var(--duration-slow) var(--ease-smooth-out),
-    opacity var(--duration-slow) var(--ease-smooth-out);
+    opacity var(--duration-slow) var(--ease-smooth-out),
+    filter var(--duration-slow) var(--ease-smooth-out);
 }
 .t-composer-hint > * {
   min-height: 0;

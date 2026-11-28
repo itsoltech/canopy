@@ -1,4 +1,4 @@
-import { duration } from "#lib/shared/ui/motion.ts";
+import { duration, smoothOut } from "#lib/shared/ui/motion.ts";
 import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { flushSync } from "svelte";
 import type { FooterFold } from "../../../shared/ui/virtual/footer-reserve.ts";
@@ -8,6 +8,7 @@ type Publish = (compact: boolean, fold: FooterFold) => void;
 interface HeldTransition {
   animation: CSSTransition;
   end: number;
+  fading: boolean;
 }
 
 /** Decorative animations in the subtree keep their own playback, including infinite spinners. */
@@ -26,7 +27,14 @@ function holdTransition(animation: CSSTransition): HeldTransition {
   if (effect && effect.getTiming().easing !== "linear") effect.updateTiming({ easing: "linear" });
   animation.pause();
 
-  return { animation, end: Number(effect?.getComputedTiming().endTime ?? 0) };
+  const fades = animation.transitionProperty === "opacity" || animation.transitionProperty === "filter";
+
+  return {
+    animation,
+    end: Number(effect?.getComputedTiming().endTime ?? 0),
+    fading:
+      fades && effect instanceof KeyframeEffect && !!effect.target?.matches(".t-composer-fold > *, .t-composer-hint"),
+  };
 }
 
 /** One displayed progress for the whole fold, including reversals and interrupted settles. */
@@ -35,6 +43,8 @@ export class ComposerMorph {
   readonly #publish: Publish;
   #progress = 0;
   #target = 0;
+  #from = 0;
+  #started = 0;
   #toward: boolean | undefined;
   #held: HeldTransition[] = [];
   #frame = 0;
@@ -46,6 +56,7 @@ export class ComposerMorph {
   }
 
   follow(progress: number) {
+    const sameTarget = this.#target === progress;
     this.#target = progress;
 
     if (motionPreferences.reduced) {
@@ -54,9 +65,14 @@ export class ComposerMorph {
       return;
     }
 
-    if (this.#frame || this.#progress === progress) return;
-    this.#lastFrame = performance.now();
-    this.#frame = requestAnimationFrame(this.#advance);
+    if (sameTarget && (this.#frame || progress === this.#progress)) return;
+    this.#from = this.#progress;
+
+    // While scrolling, several targets can arrive between paints. Give the latest one the time
+    // since the last frame, even when its scroll event arrived just before this frame's callback.
+    if (!this.#frame) this.#lastFrame = performance.now();
+    this.#started = this.#lastFrame;
+    this.#frame ||= requestAnimationFrame(this.#advance);
   }
 
   settle(compact: boolean) {
@@ -81,25 +97,27 @@ export class ComposerMorph {
 
   #advance = (now: number) => {
     this.#frame = 0;
-    const delta = this.#target - this.#progress;
+    const delta = this.#target - this.#from;
 
     if (!delta && this.#toward === undefined) return;
 
     if (motionPreferences.reduced) return this.set(this.#target >= 0.5);
 
-    // Small scroll deltas track the reader directly. A wheel notch or a jump across the entire
-    // end zone travels from the last painted position, at most one full fold per quick transition.
-    const step = Math.max(0, now - this.#lastFrame) / duration("quick");
+    // A small gesture takes a fraction of a frame. Longer travel eases into the endpoint.
+    const ms = Math.abs(delta) * duration(delta > 0 ? "medium" : "slow");
+    const t = ms > 0 ? Math.min(1, Math.max(0, now - this.#started) / ms) : 1;
     this.#lastFrame = now;
 
     if (this.#toward === undefined) this.#start(this.#progress === 0);
-    this.#progress = Math.abs(delta) <= step ? this.#target : this.#progress + Math.sign(delta) * step;
-
+    this.#progress = t === 1 ? this.#target : this.#from + delta * smoothOut(t);
     const fraction = this.#toward ? this.#progress : 1 - this.#progress;
+    // Fade the controls before their row clips the labels. Reopening retraces the same dissolve.
+    const dissolved = smoothOut(this.#progress);
+    const fade = this.#toward ? dissolved : 1 - dissolved;
 
-    for (const { animation, end } of this.#held) animation.currentTime = fraction * end;
+    for (const { animation, end, fading } of this.#held) animation.currentTime = (fading ? fade : fraction) * end;
 
-    if (this.#progress !== this.#target) this.#frame = requestAnimationFrame(this.#advance);
+    if (t < 1) this.#frame = requestAnimationFrame(this.#advance);
     else if (fraction === 0 || fraction === 1) this.#end(this.#progress === 1);
   };
 
