@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount } from "svelte";
   import type { Item } from "@canopy/contracts";
   import Disclosure from "#lib/shared/ui/Disclosure.svelte";
   import SearchField from "#lib/shared/ui/SearchField.svelte";
@@ -19,7 +19,6 @@
   let all = $state(false);
   let query = $state("");
   let preview = $state<{ itemId: string }>();
-  let searchBox = $state<HTMLDivElement>();
   const term = $derived(query.trim().toLocaleLowerCase());
 
   const matches = $derived(
@@ -35,14 +34,9 @@
     if (read.snapshot.loaded) void read.reload().catch(() => {});
   });
 
-  async function toggleAll() {
+  function toggleAll() {
     all = !all;
     query = "";
-
-    if (all) {
-      await tick();
-      searchBox?.querySelector("input")?.focus({ preventScroll: true });
-    }
   }
 </script>
 
@@ -62,9 +56,7 @@
       <div class="t-resize-height" {@attach resizeHeightToContent}>
         <div>
           {#if all}
-            <div class="px-1 py-1" bind:this={searchBox}>
-              <SearchField bind:value={query} label="Search artifacts" placeholder="Search artifacts" />
-            </div>
+            <SearchField variant="inline" bind:value={query} label="Search artifacts" placeholder="Search artifacts" />
           {/if}
           <ul {id} role="list" class={["min-w-0", all && "max-h-56 overflow-y-auto overscroll-contain"]}>
             {#each shown as item (item.itemId)}
