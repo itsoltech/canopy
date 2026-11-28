@@ -184,6 +184,7 @@ export class BotsRuntime {
         this,
         this.#options,
         turn,
+        abort,
       );
 
       const step = { options: this.#options, run: this.run.bind(this) };

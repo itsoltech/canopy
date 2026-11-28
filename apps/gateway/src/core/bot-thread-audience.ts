@@ -48,18 +48,51 @@ export async function botThreadAudience(core: GatewayCore, turn: BotTurn): Promi
   return `turn:${turn.bot_id}:${turn.id}`;
 }
 
-/** An empty list means an owner-wide read. Continuing a delegation can include prior wakeup turns. */
+/**
+ * The private turns a parked continuation continues, newest first: each `parked:` request names a parked card of
+ * this bot, whose turn asked it. Only private, verified edges are followed.
+ */
+function parkedOrigins(sql: SqlClient.SqlClient, turn: BotTurn) {
+  return sql<BotTurn>`WITH RECURSIVE chain(id, depth) AS (
+    SELECT ${turn.id}::uuid, 0
+    UNION ALL
+    SELECT a.turn_id, c.depth + 1 FROM chain c
+    JOIN bot_turns t ON t.id = c.id
+    JOIN bot_approvals a ON t.client_request_id = 'parked:' || a.id::text AND a.parked AND a.bot_id = ${turn.bot_id}::uuid
+    JOIN bot_turns src ON src.id = a.turn_id AND src.bot_id = a.bot_id AND src.conversation_id IS NULL
+      AND src.routine_id IS NULL AND src.reply_to_bot_id IS NULL
+    WHERE c.depth < 16
+  ) SELECT t.* FROM chain c JOIN bot_turns t ON t.id = c.id WHERE c.depth > 0 ORDER BY c.depth`;
+}
+
+/**
+ * An empty list means an owner-wide read. Continuing a delegation can include prior wakeup turns, also through
+ * parked continuations of a wakeup.
+ */
 export async function botThreadAudiences(core: GatewayCore, turn: BotTurn, includePriorWakeups: boolean) {
   const current = await botThreadAudience(core, turn);
 
   if (!current) return [];
 
-  if (!includePriorWakeups || !current.startsWith("turn:") || !turn.client_request_id.startsWith("wakeup:"))
-    return [current];
+  if (!includePriorWakeups || !current.startsWith("turn:")) return [current];
   const { actions } = core[coreState];
-  const ancestors = await actions.run(SqlClient.SqlClient.use((sql) => priorWakeupTurns(sql, turn)));
 
-  return [current, ...ancestors.map(({ turn_id }) => `turn:${turn.bot_id}:${turn_id}`)];
+  const origins = turn.client_request_id.startsWith("parked:")
+    ? await actions.run(SqlClient.SqlClient.use((sql) => parkedOrigins(sql, turn)))
+    : [];
+
+  const root = origins.at(-1) ?? turn;
+
+  const ancestors = root.client_request_id.startsWith("wakeup:")
+    ? await actions.run(SqlClient.SqlClient.use((sql) => priorWakeupTurns(sql, root)))
+    : [];
+
+  return [
+    current,
+    ...[...origins.map((t) => t.id), ...ancestors.map(({ turn_id }) => turn_id)].map(
+      (id) => `turn:${turn.bot_id}:${id}`,
+    ),
+  ];
 }
 
 export async function requireThreadAudience(

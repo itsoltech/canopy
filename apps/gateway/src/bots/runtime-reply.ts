@@ -6,8 +6,16 @@ import { botMemoryGuidance, botMemoryQuery, isolatedBotCheckpoint } from "./memo
 import { memoryContext } from "../memory/tools.ts";
 import { currentBotTools } from "./policy.ts";
 import { botConfiguration } from "./store.ts";
+import { runParkedApproval } from "./parked-resume.ts";
 
-export async function botModelContext(runtime: BotsRuntime, options: BotRuntimeOptions, turn: BotTurn) {
+export async function botModelContext(
+  runtime: BotsRuntime,
+  options: BotRuntimeOptions,
+  turn: BotTurn,
+  abort: AbortController,
+) {
+  // A continuation of an approved parked card runs that call before the model reads its input.
+  turn.input = await runParkedApproval(runtime, options, turn, abort);
   const row = await runtime.run((s) => s.owned(options.userId, turn.bot_id));
   const config = botConfiguration(row);
 

@@ -17,6 +17,7 @@ import { lockedOwnerModule } from "../store/module-access.ts";
 import { authorizeThreadAction } from "./thread-access.ts";
 import { activeChannelTurn, lockChannelAccount } from "../messengers/conversation-access.ts";
 import { canonicalJson } from "../store/instance-config.ts";
+import { continueParked, PARKED_TTL_MS, parkedRow, parksInteractions, parksTool, withParkedNote } from "./parked.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
   return Effect.gen(function* () {
@@ -110,7 +111,7 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
               steer_target_id = NULL
         WHERE id = ${rows[0].next_turn_id}::uuid RETURNING *`;
 
-          const turn = turns[0]!;
+          const turn = yield* withParkedNote(sql, turns[0]!);
           yield* routineActivity(sql, turn, "started");
           // A remote side effect may already have happened. Never repeat it after a crash.
           yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;
@@ -291,10 +292,16 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
             ? { options: [], matched: undefined }
             : yield* rules.matchingRule(bot.owner_user_id, turn.bot_id, call, phrase);
 
-          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at, rule_options, allowed_by_rule, status, restricted_thread_id)
-            VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb, ${expiresAt ?? null},
+          // A background run leaves its card with the owner and ends; the decision starts its continuation.
+          const parked = !matched && parksTool(call.tool.name) && (yield* parksInteractions(sql, turn));
+
+          yield* sql`INSERT INTO bot_approvals(id, bot_id, turn_id, kind, prompt, proposed_bot, expires_at, rule_options, allowed_by_rule, status, restricted_thread_id, parked)
+            VALUES (${call.id}::uuid, ${turn.bot_id}::uuid, ${turn.id}::uuid, ${question ? "question" : "approval"}, ${prompt}, ${JSON.stringify(proposal)}::jsonb,
+              CASE WHEN ${parked} THEN now() + ${PARKED_TTL_MS} * interval '1 millisecond' ELSE ${expiresAt ?? null}::timestamptz END,
               ${JSON.stringify(options.map((o) => toJson(bots.BotApprovalRuleSchema, o)))}::jsonb,
-              ${matched ? JSON.stringify(toJson(bots.BotApprovalRuleSchema, matched)) : null}::jsonb, ${matched ? "approved" : "pending"}, ${restrictedThreadId ?? null}::uuid) ON CONFLICT(id) DO NOTHING`;
+              ${matched ? JSON.stringify(toJson(bots.BotApprovalRuleSchema, matched)) : null}::jsonb, ${matched ? "approved" : "pending"}, ${restrictedThreadId ?? null}::uuid, ${parked}) ON CONFLICT(id) DO NOTHING`;
+
+          if (parked) yield* changed(turn.bot_id);
 
           if (matched) yield* changed(turn.bot_id);
 
@@ -340,13 +347,14 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
           if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now())
             return yield* Effect.fail(new RequestExpired());
 
-          if (!["running", "waiting", "queued"].includes(turns[0]!.status))
+          // A parked run already ended: its decision starts a continuation instead of resuming it.
+          if (!row.parked && !["running", "waiting", "queued"].includes(turns[0]!.status))
             return yield* Effect.fail(new RequestExpired());
 
           const ended =
             yield* sql`SELECT turn_id FROM bot_harness_turns WHERE turn_id = ${row.turn_id}::uuid AND outcome IS NOT NULL`;
 
-          if (ended.length) return yield* Effect.fail(new RequestExpired());
+          if (!row.parked && ended.length) return yield* Effect.fail(new RequestExpired());
 
           if (request.answer.length > 32_000) return yield* Effect.fail(new Invalid("answer too long"));
 
@@ -359,7 +367,16 @@ export function botApprovals(sql: SqlClient.SqlClient, core: BotCore) {
           const updated =
             (yield* sql<ApprovalRow>`UPDATE bot_approvals SET status = ${request.approve ? "approved" : "discarded"}, answer = ${request.answer}, answered_at = now() WHERE id = ${row.id}::uuid RETURNING *`)[0]!;
 
-          yield* sql`UPDATE bot_turns SET status = 'queued' WHERE id = ${row.turn_id}::uuid AND status = 'waiting'`;
+          if (row.parked)
+            yield* continueParked(
+              sql,
+              core.enqueue,
+              user,
+              (yield* parkedRow(sql, row.id))!,
+              request.approve ? "approved" : "discarded",
+            );
+          else
+            yield* sql`UPDATE bot_turns SET status = 'queued' WHERE id = ${row.turn_id}::uuid AND status = 'waiting'`;
           yield* changed(row.bot_id);
 
           return approvalView(updated);

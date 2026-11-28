@@ -45,6 +45,9 @@ export function botModuleTransition(sql: SqlClient.SqlClient, owner: string, ena
 
     yield* sql`UPDATE bot_harness_turns h SET outcome=${TurnOutcome.INTERRUPTED}, reason=${reason}, finished_at=now()
       FROM bots b WHERE h.bot_id=b.id AND b.owner_user_id=${owner}::uuid AND h.outcome IS NULL`;
+    // Parked cards expire with the module, without continuations.
+    yield* sql`UPDATE bot_approvals SET status='expired', answered_at=now()
+      WHERE bot_id=ANY(${ids}::uuid[]) AND parked AND status='pending'`;
 
     if (!turns.length) return;
     yield* stoppedRoutineActivity(sql, turns);

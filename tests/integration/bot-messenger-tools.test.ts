@@ -489,16 +489,24 @@ describe.skipIf(!dockerAvailable)("external bot tools use ordinary owner grants"
     expect(await f.query("SELECT routine_id,client_request_id FROM bot_turns WHERE id=$1", [scheduled.turnId])).toEqual(
       [{ routine_id: routine.id, client_request_id: expect.stringContaining(`routine:${routine.id}:`) }],
     );
+    // A routine card is parked: the routine run ends, and the approved call runs once in its continuation.
     const approved = await api.answerBotApproval({ approvalId: scheduled.id, approve: true });
     expect(approved.approval?.status).toBe("approved");
     await finished(scheduled.turnId);
+
+    const delivered = await eventually(
+      () => targetTurns(approvedText),
+      (rows) => rows[0]?.status === "completed",
+      10_000,
+    );
+
+    expect(delivered).toHaveLength(1);
     expect(
-      await eventually(
-        () => targetTurns(approvedText),
-        (rows) => rows[0]?.status === "completed",
-        10_000,
+      await f.query(
+        `SELECT t.resume_approval_id FROM bot_tool_calls c JOIN bot_turns t ON t.id = c.turn_id WHERE c.id = $1`,
+        [delivered[0]!.bot_call_id],
       ),
-    ).toEqual([{ status: "completed", bot_call_id: scheduled.id }]);
+    ).toEqual([{ resume_approval_id: scheduled.id }]);
     expect(f.inputs().some((input) => input.parts.some((part) => part.text === approvedText))).toBe(true);
 
     const declinedText = "Please reopen the release checklist.";

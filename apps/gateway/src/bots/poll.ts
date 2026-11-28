@@ -23,6 +23,8 @@ export function botPoll(sql: SqlClient.SqlClient, owner: string, now: Date) {
       WHERE NOT w.delivered AND th.owner_user_id=${owner}::uuid
         AND t.status IN ('completed','failed','interrupted','cancelled') AND ${watchNeedsCheck(sql)})
     OR EXISTS(SELECT 1 ${pendingThreadQuestions(sql)} AND b.id IN (SELECT id FROM owned))
+    OR EXISTS(SELECT 1 FROM bot_approvals a JOIN owned b ON b.id=a.bot_id
+      WHERE a.parked AND a.status='pending' AND a.expires_at<=now())
     OR EXISTS(SELECT 1 FROM bot_thread_watches w JOIN owned b ON b.id=w.bot_id
       JOIN turn_steers s ON s.id=w.target_steer_id
       WHERE NOT w.delivered AND w.target_turn_id IS NULL AND s.status IN ('delivered','queued')) AS ready`.pipe(

@@ -471,15 +471,15 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
       [routine, bot],
     );
     const turn = (await sql<{ id: string }>(a, "SELECT id FROM bot_turns WHERE bot_id=$1::uuid LIMIT 1", [bot]))[0]!.id;
+    // With a finished continuation of an approved parked card: it names a card that arrives after the turns.
+    const [card, continuation] = [id(), id()];
     await sql(
       a,
-      "INSERT INTO bot_tool_calls (id, turn_id, call_key, tool, arguments, status) VALUES ($1::uuid,$2::uuid,'remind','{}','{}','completed')",
-      [reminder, turn],
-    );
-    await sql(
-      a,
-      "INSERT INTO bot_wakeups (id, bot_id, prompt, run_at, hops) VALUES ($1::uuid,$2::uuid,'Water the plants',now() - interval '1 minute',1)",
-      [reminder, bot],
+      `WITH c AS (INSERT INTO bot_tool_calls (id, turn_id, call_key, tool, arguments, status) VALUES ($1::uuid,$3::uuid,'remind','{}','{}','completed'), ($4::uuid,$3::uuid,'parked','{}','{}','completed')),
+       w AS (INSERT INTO bot_wakeups (id, bot_id, prompt, run_at, hops) VALUES ($1::uuid,$2::uuid,'Water the plants',now() - interval '1 minute',1)),
+       p AS (INSERT INTO bot_approvals (id, bot_id, turn_id, kind, prompt, status, parked) VALUES ($4::uuid,$2::uuid,$3::uuid,'approval','Run it','approved',true))
+       INSERT INTO bot_turns (id, bot_id, client_request_id, input, status, resume_approval_id) VALUES ($5::uuid,$2::uuid,'parked:'||$4,'Continue','completed',$4::uuid)`,
+      [reminder, bot, turn, card, continuation],
     );
 
     const preview = await a.api.previewMove({ nodeId: cNode, items: [{ kind: "bot", id: bot }] });
@@ -514,6 +514,9 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
         10000,
       ),
     ).toBe(true);
+    expect(await sql(c, "SELECT resume_approval_id AS r FROM bot_turns WHERE id=$1", [continuation])).toEqual([
+      { r: card },
+    ]);
     expect((await c.api.getBot({ botId: bot })).bot?.configuration).toMatchObject({
       approvalPolicy: "safe",
       threadPermission: "user_default",

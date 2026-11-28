@@ -136,6 +136,7 @@ function questionView(a: bots.BotApproval): QuestionView {
     freeText: true,
     expired: a.status === "expired",
     routineTitle: a.routineTitle || undefined,
+    parked: a.parked || undefined,
     ...(!["pending", "expired"].includes(a.status) && {
       answer: {
         optionId: chosen?.id ?? "",
@@ -187,6 +188,7 @@ export function approvalView(a: bots.BotApproval): ApprovalView {
     fields: a.fields.length ? a.fields : fields,
     status,
     routineTitle: a.routineTitle || undefined,
+    parked: a.parked || undefined,
     botProposal: proposal
       ? {
           name: proposal.name,

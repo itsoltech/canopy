@@ -106,6 +106,8 @@ export interface BotTurn {
   remote_recipient_ref?: string | null;
   routine_id: string | null;
   routine_title: string;
+  /** A continuation that first runs the approved call of this parked approval. */
+  resume_approval_id?: string | null;
   /** jsonb: the BotConfiguration in its protobuf JSON form. */
   handoff_configuration: ProtoJson | null;
   handoff_instance_label: string | null;

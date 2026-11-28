@@ -74,7 +74,7 @@ function checkBotGraph(prepare: link.MovePrepare, rows: BotRows) {
   const routines = indexedRows(rows.routines);
   const calls = indexedRows(rows.tool_calls);
   indexedRows(rows.messages);
-  indexedRows(rows.approvals);
+  const approvals = indexedRows(rows.approvals);
   indexedRows(rows.handoff_notes, "turn_id");
   indexedRows(rows.wakeups);
 
@@ -88,7 +88,8 @@ function checkBotGraph(prepare: link.MovePrepare, rows: BotRows) {
         !terminalTurns.has(String(turn["status"])) ||
         !absent(turn["conversation_id"]) ||
         (!absent(turn["routine_id"]) && !contains(routines, turn["routine_id"])) ||
-        (!absent(turn["steer_target_id"]) && !contains(turns, turn["steer_target_id"])),
+        (!absent(turn["steer_target_id"]) && !contains(turns, turn["steer_target_id"])) ||
+        (!absent(turn["resume_approval_id"]) && !contains(approvals, turn["resume_approval_id"])),
     ) ||
     [...rows.messages, ...rows.tool_calls, ...rows.approvals, ...rows.handoff_notes].some(
       (row) => !contains(turns, row["turn_id"]),

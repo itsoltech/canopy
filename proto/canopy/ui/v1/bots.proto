@@ -110,6 +110,8 @@ message BotApproval {
   // A projection of the existing thread interaction, not a second approval.
   string thread_id = 1003;
   string request_id = 1004;
+  // Parked by a background run: the run already ended, and the decision starts a new run of the same origin.
+  bool parked = 1113;
 }
 message BotApprovalRule {
   string id = 1;

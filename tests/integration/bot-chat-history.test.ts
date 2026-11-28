@@ -59,6 +59,8 @@ describe.skipIf(!dockerAvailable)("bot latest messages through the gateway and s
   });
 
   test("cached deltas, later user and bot messages, and older pages keep the same latest reply", async () => {
+    // The test writes the bot's reply itself: a runtime claiming the turn would change it between deltas.
+    await gateway.core.bots.stop();
     let state = await open();
 
     const sent = await gateway.api.sendBotMessage({

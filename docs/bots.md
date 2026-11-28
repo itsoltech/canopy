@@ -1,5 +1,10 @@
 # Boty
 
+Status (2026-11-27): pytania i zgody w przebiegach rutyn są parkowane. Rutyna nie
+blokuje kolejki bota, a decyzja właściciela uruchamia kontynuację. Szczegóły w sekcji
+[Parkowane pytania i zgody rutyn](#parkowane-pytania-i-zgody-rutyn). Dostępność
+w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-27): boty odbierają pliki z wiadomości Telegrama i Discorda tak jak ze
 Slacka. Szczegóły w sekcji [Pliki od uczestników](#pliki-od-uczestników). Dostępność
 w kanałach określa [promocja wydań](release.md).
@@ -1033,10 +1038,40 @@ już wyszedł przed wyłączeniem, nie można cofnąć.
 
 Rutyna jest zwykłą pozycją w trwałej kolejce `bot_turns`: jedna tura na bota,
 FIFO względem wiadomości użytkownika, bez przeplatania narzędzi z drugą turą.
-Zgoda lub pytanie w rutynie zatrzymuje kolejkę i jest widoczne z oznaczeniem
+Zgoda lub pytanie w rutynie nie zatrzymuje kolejki: są
+[parkowane](#parkowane-pytania-i-zgody-rutyn) i widoczne z oznaczeniem
 **From routine ‹title›**. Zaplanowane wystąpienie rutyny korzysta z ustawionych
 grantów i bieżącej polityki zgód bota, w tym z jednorazowej zgody na wysyłkę do
 lokalnego wątku o odrębnym zakresie.
+
+### Parkowane pytania i zgody rutyn
+
+Pytanie `ask_user` albo narzędzie wymagające karty w przebiegu rutyny, także
+w jej kontynuacjach i odpowiedziach wracających do niej, tworzy kartę oznaczoną
+jako zaparkowana (`bot_approvals.parked`, `BotApproval.parked`). Model od razu
+dostaje wynik `status: parked`, kończy przebieg i w odpowiedzi końcowej zapisuje,
+co robił. Gateway dołącza tę odpowiedź do karty jako notatkę (do 4000 znaków).
+Kolejka bota jest wolna, więc prywatna wiadomość właściciela nie czeka na decyzję.
+Prywatna rozmowa właściciela nadal czeka na swoje karty jak dotąd.
+
+Karta pokazuje **From routine ‹title› · Your answer starts a new run** albo
+**· Your decision starts a new run**. Decyzja właściciela zapisuje się w tej samej
+transakcji co tura-kontynuacja z pochodzeniem rutyny i kluczem `parked:<id karty>`.
+Ponowienie decyzji zwraca zapisany wynik i nie tworzy drugiej kontynuacji.
+Kontynuacja dostaje pytanie lub proponowane działanie, decyzję i notatkę.
+
+Zatwierdzone działanie wykonuje się wyłącznie w kontynuacji, przed modelem, zwykłą
+ścieżką narzędzi z lease tej tury, bieżącymi grantami i polityką
+(`bots/parked-resume.ts`). Wywołanie i jego zatwierdzenie zapisują się w kontynuacji,
+więc restart nie powtarza efektu. Wynik trafia do wejścia tury raz. Powtórka
+zaparkowanego przebiegu po restarcie zwraca wynik `parked` i nie wykonuje działania,
+nawet gdy decyzja już zapadła. Odrzucenie albo edycja na karcie niczego nie wykonuje,
+a kontynuacja dostaje decyzję lub poprawioną wersję jako niezaufany tekst.
+
+Zaparkowana karta wygasa po 24 godzinach według czasu bazy. Pętla kolejki oznacza ją
+jako wygasłą i tworzy jedną kontynuację z tą informacją. Wyłączenie lub usunięcie
+rutyny odrzuca jej zaparkowane karty bez kontynuacji, a wyłączenie modułu Bots je
+wygasza. Archiwizacja i usunięcie bota wygaszają je jak pozostałe karty.
 
 ### Ukryty transkrypt i celowe efekty
 
