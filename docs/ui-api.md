@@ -2,6 +2,13 @@
 
 Status (2026-11-28). Web i desktop wybierają sposób rozwiązania konfliktu skilla w bibliotece. [Środowisko agentów](#agent-environment)
 
+Status (2026-11-28). W kompozytorze web i desktopu kliknięcie cytatu od razu zastępuje podgląd edytorem.
+
+Status (2026-11-28). Web, desktop i telefon zarządzają dostępem projektów i botów
+do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
+
+Status (2026-11-28). Załączniki HEIC/HEIF mają podgląd w wątku. Gateway zachowuje oryginał zdjęcia.
+
 Status (2026-11-28). BFF udostępnia pełną listę opublikowanych materiałów wątku przez
 `GET /api/threads/[threadId]/artifacts`. Gateway sprawdza właściciela, wybiera manifesty
 z widocznych zakończonych tur tego wątku, pomija odziedziczone tury forka i przesyła
@@ -9,11 +16,6 @@ wyniki od najnowszego w partiach gRPC `ListThreadArtifacts`. BFF zwraca jedną
 listę `items`. Zaimportowane obrazy Markdown
 zachowują identyfikator wiadomości. Dla połączonego komputera odczyt działa także
 z zatwierdzonego lustra po utracie połączenia.
-
-Status (2026-11-28). Web, desktop i telefon zarządzają dostępem projektów i botów
-do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
-
-Status (2026-11-28). Załączniki HEIC/HEIF mają podgląd w wątku. Gateway zachowuje oryginał zdjęcia.
 
 Aktualizacja (2026-11-27): modal i podgląd Usage w web i desktopie odświeżają
 dane w tle i animują cyfry w podsumowaniu.
@@ -3197,10 +3199,11 @@ miejscu kursora w kompozytorze, a bez zapamiętanego kursora — na końcu. Foku
 za token. Nie ma zasobnika cytatów nad polem.
 
 Token ma ikonę cytatu i krótki, skrócony fragment; etykieta dostępności to
-„Citation: ‹fragment›”. Hover lub fokus pokazuje pełny tekst i źródło (rodzaj,
-autor, czas). Kliknięcie lub Enter otwiera „Edit citation”: edycja fragmentu,
-opcjonalnego komentarza i „Jump to source”. Backspace/Delete usuwa cały token;
-Undo/Redo i kopiowanie/wklejanie wewnątrz kompozytora zachowują jego dane.
+„Citation: ‹fragment›”. Najechanie lub fokus z klawiatury pokazuje pełny tekst i źródło
+(rodzaj, autor, czas). Kliknięcie, dotknięcie, Enter lub spacja otwiera „Edit citation”
+i od razu ukrywa podgląd. W edytorze można zmienić fragment, dodać komentarz lub wybrać
+„Jump to source”. Backspace/Delete usuwa cały token. Undo/Redo i kopiowanie/wklejanie
+wewnątrz kompozytora zachowują jego dane.
 `MentionEditor` serializuje cytaty razem z tekstem i wzmiankami, w kolejności tekstu.
 Wiadomość z samym cytatem też można wysłać. Wysłana bańka renderuje takie same
 tokeny w tych samych miejscach, z pełną treścią po hoverze lub fokusie. Cytaty

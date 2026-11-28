@@ -5,14 +5,18 @@
   import type { QuoteDraft } from "./quote.ts";
   import CitationPreview from "./CitationPreview.svelte";
 
-  let { editor, disabled = false }: { editor: EditorControls | undefined; disabled?: boolean } = $props();
+  let { editor }: { editor: EditorControls | undefined } = $props();
   let preview = $state<{ quote: QuoteDraft; anchor: HTMLElement }>();
   let open = $state(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const id = $props.id();
 
   $effect(() => {
-    if (disabled) open = false;
+    if (!open || !preview) return;
+    const chip = preview.anchor;
+    chip.setAttribute("aria-describedby", id);
+
+    return () => chip.removeAttribute("aria-describedby");
   });
 
   function close() {
@@ -26,46 +30,41 @@
     if (!root) return;
 
     const show = (event: Event) => {
-      if (disabled) return;
+      if (event instanceof PointerEvent && (event.pointerType === "touch" || event.buttons !== 0)) return;
 
       const chip =
         event.target instanceof Element ? event.target.closest<HTMLElement>('[data-element="citation"]') : null;
 
-      const quote = chip && quoteOf(chip);
+      if (!chip || (event.type === "focusin" && !chip.matches(":focus-visible"))) return;
+      const quote = quoteOf(chip);
 
-      if (!chip || !quote) return;
+      if (!quote) return;
       chip.removeAttribute("title");
       clearTimeout(timer);
       timer = setTimeout(
         () => {
-          preview?.anchor.removeAttribute("aria-describedby");
           preview = { quote, anchor: chip };
-          chip.setAttribute("aria-describedby", id);
           open = true;
         },
         event.type === "focusin" ? 0 : 400,
       );
     };
 
-    const hide = () => {
-      clearTimeout(timer);
-      open = false;
-    };
+    const cancelPending = () => clearTimeout(timer);
 
     root.addEventListener("pointerover", show);
     root.addEventListener("pointerout", close);
     root.addEventListener("focusin", show);
     root.addEventListener("focusout", close);
-    root.addEventListener("click", hide);
+    root.addEventListener("pointerdown", cancelPending);
 
     return () => {
       clearTimeout(timer);
-      preview?.anchor.removeAttribute("aria-describedby");
       root.removeEventListener("pointerover", show);
       root.removeEventListener("pointerout", close);
       root.removeEventListener("focusin", show);
       root.removeEventListener("focusout", close);
-      root.removeEventListener("click", hide);
+      root.removeEventListener("pointerdown", cancelPending);
     };
   });
 </script>
@@ -76,6 +75,7 @@
   anchor={preview?.anchor}
   placement="top-start"
   focusOnOpen={false}
+  morph={false}
   class="w-max max-w-[min(20rem,calc(100vw-1rem))]"
 >
   <div

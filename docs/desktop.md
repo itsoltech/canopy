@@ -48,6 +48,9 @@ sprawdzić i edytować również podczas awarii połączenia.
 Status (2026-11-24): desktop zapisuje lokalne zdarzenia aktualizatora i etap zamykania aplikacji.
 Na Windows kolejne pobranie różnicowe korzysta z pliku odpowiadającego poprzedniej mapie bloków.
 
+Status (2026-11-28): Windows potwierdza zakres instalacji per-user przed cichym
+restartem. Stan błędu aplikacji udostępnia osobną akcję ponowienia lub ręcznej instalacji.
+
 Status (2026-11-24): przeciągnięcie odsyłacza w oknie aplikacji nie wyświetla jego adresu.
 Kliknięcie logo w nagłówku paska bocznego pozostawia bieżący widok otwarty.
 
@@ -1589,11 +1592,11 @@ Zachowanie platform wynika ze źródeł przypiętej biblioteki:
   w cache electron-updater, nie zakończoną walidację/staging Squirrel. Nie włączamy
   automatycznej instalacji przy zamknięciu ani nie zmieniamy flag Squirrel.
 - **Windows / NSIS:** `BaseUpdater.install` i `NsisUpdater.doInstall` używają pliku
-  aktualnego `DownloadedUpdateHelper`. Kolejny udany download zastępuje instalator;
-  `quitAndInstall(true, true)` uruchamia najnowszy zaakceptowany plik z argumentami
-  `--updated /S --force-run`. Aktualizacja nie otwiera kreatora, a po instalacji
-  automatycznie uruchamia Canopy. Lokalny Restart to update i żądania z gatewaya
-  lub połączonego komputera mają tę samą ścieżkę.
+  aktualnego `DownloadedUpdateHelper`. Canopy korzysta z tego samego zaakceptowanego
+  pliku, uruchamiając go bezpośrednio z `--updated /S --force-run /currentuser`
+  po potwierdzeniu instalacji per-user. Aktualizacja nie otwiera kreatora, a po
+  instalacji automatycznie uruchamia Canopy. Lokalny Restart to update i żądania
+  z gatewaya lub połączonego komputera mają tę samą ścieżkę.
 - **Linux / AppImage:** ten sam helper wskazuje gotowy AppImage; `doInstall` przenosi
   go na miejsce uruchomionego obrazu. Kolejny udany download może zastąpić poprzedni.
 - **Linux / deb:** biblioteka ma `DebUpdater`, ale Canopy wyłącza updater bez `APPIMAGE`.
@@ -1642,24 +1645,25 @@ Instalacja dla bieżącego użytkownika nie wymaga UAC. Po wymianie plików
 `installSection.nsh` uruchamia aplikację także dla instalatora assisted, gdy otrzyma
 `/S --force-run`; aplikacja odtwarza usługi i połączenia.
 
-Istniejąca instalacja dla wszystkich użytkowników może wymagać UAC:
-`isAdminRightsRequired` pobranej paczki uruchamia `elevate.exe`, a assisted NSIS
-sam podnosi uprawnienia przy maszynowym `InstallLocation`, również w trybie silent.
-Metadane paczki per-user nie wystarczają więc do wykrycia tego przypadku.
-Przed restartem sprawdzamy także maszynowy wpis NSIS w 64-bitowym rejestrze oraz
-możliwość utworzenia i usunięcia katalogu w katalogu aplikacji. Wykrycie potrzeby
-administratora blokuje instalację: lokalny komunikat oraz zdalny wynik `failed`
-polecają zamknąć Canopy, uruchomić pobrany instalator jako administrator,
-a potem otworzyć aplikację bez uprawnień administratora. Usługi nadal działają; nie zostawiamy
-ukrytego instalatora oczekującego na zgodę. Aktualizację takiej instalacji wykonaj
-ręcznie z uprawnieniami administratora albo zastąp ją instalacją dla bieżącego użytkownika.
-Lokalny Restart to update otwiera wtedy natywny dialog „Update manually” z instrukcją
-krok po kroku oraz „Show installer”. Przycisk zaznacza już pobrany, zaakceptowany
-instalator w Eksploratorze; użytkownik zamyka Canopy, uruchamia ten plik przez
-„Run as administrator” i po aktualizacji otwiera aplikację bez podniesionych uprawnień.
-Nie musi wyszukiwać wydania ani ponownie pobierać pliku. Anulowanie dialogu zachowuje
-działającą aplikację. Main wybiera plik z gotowego updatera, bez ścieżki z renderera.
-Zdalna aktualizacja nadal kończy się `failed`, bez otwierania lokalnego dialogu.
+Przed restartem Canopy porównuje katalog uruchomionej aplikacji z wpisami NSIS
+`InstallLocation` w HKCU i HKLM w 64-bitowym widoku rejestru oraz sprawdza zapis
+w tym katalogu. Potwierdzony wpis HKCU pozwala na cichą instalację per-user,
+także gdy wpis HKLM wskazuje inny katalog. Parametr NSIS `/currentuser` jawnie
+wybiera wtedy właściwą instalację. Wpis HKLM dla bieżącego katalogu, brak zapisu,
+`isAdminRightsRequired` lub brak potwierdzonego wpisu użytkownika blokują
+automatyczny restart. Aplikacja ponawia kontrolę bezpośrednio przed startem
+instalatora i kończy pracę po potwierdzeniu utworzenia jego procesu. Błąd startu
+powoduje powrót do bieżącej wersji, bez próby uruchomienia przez `elevate.exe`.
+
+Lokalnie **Update manually** otwiera natywny dialog z instrukcją i akcją
+**Show installer**. Przycisk zaznacza w Eksploratorze pobrany, zaakceptowany plik
+wybrany przez main. Instrukcja wskazuje **Run as administrator** przy potwierdzonej
+potrzebie podniesienia uprawnień. Po odmowie przez preflight usługi nadal działają,
+a żądanie zdalne zgłasza `failed` bez dialogu. Po nieudanym lokalnym starcie
+instalatora dialog jest dostępny przed ponownym uruchomieniem bieżącej wersji.
+Szczegóły błędu w **App updates** udostępniają **Retry app update**, gdy instalator
+nie jest gotowy. Akcja sprawdza wydanie i pobiera brakujący plik. **Dismiss**
+potwierdza komunikat o nieudanym żądaniu.
 
 NSIS `CHECK_APP_RUNNING` daje procesom czas na wyjście przy `--updated`, potem
 próbuje je zamknąć; w silent ewentualne pytania mają domyślne odpowiedzi.
@@ -1693,10 +1697,14 @@ Zgłoszenie upstream: [electron-builder #10454](https://github.com/electron-user
 Na Windows sprawdź lokalny Restart to update i osobno aktualizację z gatewaya
 oraz połączonego komputera podczas nieobecności użytkownika. W każdym przypadku
 niestandardowy katalog ma pozostać bez zmian, bez kreatora i UAC dla instalacji
-per-user; Canopy ma samoczynnie wrócić z nową wersją oraz działającymi usługami.
+per-user, również przy osobnym wpisie HKLM. Canopy ma samoczynnie wrócić z nową
+wersją oraz działającymi usługami. Po zablokowaniu startu instalatora sprawdź powrót
+do bieżącej wersji i lokalną akcję **Show installer**.
 Zdalny journal ma zgłosić `succeeded` i nową wersję po reconnect. Osobno sprawdź
 instalację per-machine: czytelny błąd lokalnie/zdalnie, brak UAC i restartu usług.
-Testy na Linuxie nie potwierdzają działania instalatora, UAC ani restartu Windows.
+Testy na Linuxie sprawdzają decyzję o zakresie i obsługę wyniku uruchomienia procesu.
+Workflow pakowania Windows sprawdza podpis i instalację paczki. Przejście z podpisanej
+starszej wersji przez aktualizator, UAC i restart wymagają osobnej weryfikacji na Windows.
 Poprawka działa od wersji, która ją zawiera: starszy desktop nadal uruchamia
 instalator według poprzednich reguł podczas pierwszego przejścia na tę wersję.
 

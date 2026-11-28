@@ -1,7 +1,7 @@
 import { app, dialog, Notification, powerMonitor, shell, type MenuItemConstructorOptions } from "electron";
 import { canShowNotifications } from "./notification-permission.ts";
-import { appUpdateInstaller, checkAppUpdateInstall, createAppUpdater } from "./app-updater.ts";
-import { installAppUpdate, WindowsUpdateAdminError } from "./update-install.ts";
+import { appUpdateInstaller, checkAppUpdateInstall, createAppUpdater, launchWindowsAppUpdate } from "./app-updater.ts";
+import { installAppUpdate, WindowsManualUpdateError, WindowsUpdateAdminError } from "./update-install.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -56,9 +56,9 @@ export class DesktopUpdates {
     private readonly logs: Logs,
   ) {}
 
-  private installOnQuit = false;
+  private installOnQuit: "local" | "remote" | undefined;
   get installing() {
-    return this.installOnQuit;
+    return !!this.installOnQuit;
   }
   private readonly log = (message: string) => {
     try {
@@ -165,11 +165,19 @@ export class DesktopUpdates {
     return this.status();
   }
   async restartIfReady() {
+    const status = this.status();
+
+    if (status.phase === "downloaded" && status.manualInstall) {
+      await this.showManualUpdate(status.manualInstall === "administrator");
+
+      return;
+    }
+
     try {
-      if (await this.prepareRestart()) this.restartPrepared();
+      if (await this.prepareRestart()) this.restartPrepared("local");
     } catch (error) {
-      if (error instanceof WindowsUpdateAdminError) {
-        await this.showManualUpdate();
+      if (error instanceof WindowsManualUpdateError) {
+        await this.showManualUpdate(error instanceof WindowsUpdateAdminError);
 
         return;
       }
@@ -180,13 +188,27 @@ export class DesktopUpdates {
       );
     }
   }
-  private async showManualUpdate() {
+  private async showManualUpdate(needsAdmin: boolean, launchFailed = false) {
+    const installer = appUpdateInstaller(this.stagedUpdater);
+
+    if (!installer || !existsSync(installer)) {
+      this.control.installerMissing();
+      dialog.showErrorBox("Installer is unavailable", "Check for updates to download the installer again.");
+
+      return;
+    }
+
     const { response } = await dialog.showMessageBox({
       type: "info",
       title: "Update manually",
-      message: "This installation needs administrator approval.",
-      detail:
-        "1. Choose Show installer to find the downloaded file.\n2. Close Canopy.\n3. Right-click the file and choose “Run as administrator”.\n4. After updating, open Canopy without administrator rights.",
+      message: needsAdmin
+        ? "This installation needs administrator approval."
+        : launchFailed
+          ? "Canopy could not start the installer."
+          : "Canopy could not confirm the installation scope.",
+      detail: needsAdmin
+        ? "1. Choose Show installer to find the downloaded file.\n2. Close Canopy.\n3. Right-click the file and choose “Run as administrator”.\n4. After updating, open Canopy without administrator rights."
+        : "1. Choose Show installer to find the downloaded file.\n2. Close Canopy.\n3. Open the file and follow the installer.\n4. Open Canopy after the update.",
       buttons: ["Cancel", "Show installer"],
       defaultId: 1,
       cancelId: 0,
@@ -194,17 +216,17 @@ export class DesktopUpdates {
     });
 
     if (response !== 1) return;
-    const installer = appUpdateInstaller(this.stagedUpdater);
 
-    if (installer && existsSync(installer)) shell.showItemInFolder(installer);
-    else dialog.showErrorBox("Installer is unavailable", "Check for updates to download the installer again.");
+    if (installer === appUpdateInstaller(this.stagedUpdater) && existsSync(installer))
+      shell.showItemInFolder(installer);
+    else dialog.showErrorBox("Installer changed", "Open App updates to view the current installer.");
   }
   async prepareRestart() {
     return (await this.control.prepareInstall()) ? this.status() : undefined;
   }
-  restartPrepared() {
+  restartPrepared(source: "local" | "remote") {
     if (this.status().phase !== "downloaded" || this.status().changingChannel) return;
-    this.installOnQuit = true;
+    this.installOnQuit = source;
     this.requestQuit("updater");
   }
 
@@ -212,7 +234,11 @@ export class DesktopUpdates {
     const state = this.status();
 
     return {
-      label: state.stagedVersion ? "Restart to update" : state.message,
+      label: state.stagedVersion
+        ? state.phase === "downloaded" && state.manualInstall
+          ? "Update manually"
+          : "Restart to update"
+        : state.message,
       enabled:
         (!!state.stagedVersion || !["disabled", "checking", "downloading"].includes(state.phase)) &&
         !state.changingChannel,
@@ -278,6 +304,14 @@ export class DesktopUpdates {
   install() {
     if (this.status().phase !== "downloaded") return;
 
+    const windows = launchWindowsAppUpdate(this.stagedUpdater);
+
+    if (windows) {
+      void this.finishWindowsInstall(windows);
+
+      return;
+    }
+
     // Squirrel validates and stages the macOS ZIP after this call. Services have
     // already stopped; recover to the current version if that final step fails.
     const failed = (error?: Error) => {
@@ -298,6 +332,27 @@ export class DesktopUpdates {
       this.stagedUpdater.removeListener("error", failed);
       failed(error instanceof Error ? error : undefined);
     }
+  }
+
+  private async finishWindowsInstall(launch: Promise<void>) {
+    try {
+      await launch;
+    } catch (error) {
+      this.log(`install failed code=${updateErrorCode(error instanceof Error ? error : undefined)}`);
+
+      try {
+        if (this.installOnQuit === "local") await this.showManualUpdate(error instanceof WindowsUpdateAdminError, true);
+      } catch {
+        this.log("could not show manual update instructions");
+      } finally {
+        app.relaunch();
+        app.quit();
+      }
+
+      return;
+    }
+
+    app.quit();
   }
 
   private async prepare(channel: DesktopChannel, signal: AbortSignal, refresh: boolean) {
