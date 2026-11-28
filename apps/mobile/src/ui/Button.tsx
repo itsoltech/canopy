@@ -59,6 +59,7 @@ export function Button({
   label,
   hint,
   multiline = false,
+  reserveTouchTarget = false,
 }: {
   title: string;
   onPress: () => void;
@@ -72,6 +73,8 @@ export function Button({
   label?: string;
   hint?: string;
   multiline?: boolean;
+  /** Reserve a 48 dp pressable area around the visible button in the layout. */
+  reserveTouchTarget?: boolean;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -82,7 +85,7 @@ export function Button({
   const s = sizes[size];
   const l = look(variant, c);
   const lead = Boolean(icon || busy);
-  const compactSetting = settings && size === "sm";
+  const touchSize = reserveTouchTarget || (settings && size === "sm") ? 48 : undefined;
   const alignSelf = StyleSheet.flatten(style)?.alignSelf;
   const labelType = size === "md" ? type.body : type.small;
 
@@ -99,8 +102,8 @@ export function Button({
         style={{
           alignSelf: alignSelf ?? (variant === "text" ? "flex-start" : undefined),
           justifyContent: "center",
-          minHeight: compactSetting ? 48 : undefined,
-          minWidth: compactSetting ? 48 : undefined,
+          minHeight: touchSize,
+          minWidth: touchSize,
         }}
       >
         {({ pressed }) => (
