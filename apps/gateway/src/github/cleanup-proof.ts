@@ -2,8 +2,9 @@ import { Schema } from "effect";
 import type { GitHubAccounts } from "./service.ts";
 import { DiscoveredPull } from "./discovery.ts";
 import { repositoryName } from "./repository-accounts.ts";
+import { cleanupAccess } from "./cleanup-access.ts";
 
-/** A selected PAT must have project access to supply cleanup proof. */
+/** Only a repository account granted to this project can supply merge evidence. */
 export async function githubCleanupProof(
   accounts: GitHubAccounts,
   owner: string,
@@ -17,21 +18,24 @@ export async function githubCleanupProof(
 
   try {
     repositoryName(name);
-    const { mapping, row } = await accounts.prs.repositories.selected(name);
-    const { connector_account_id: connectorId, connector_revision: revision } = row;
+    const access = await cleanupAccess(accounts, projectId, name);
 
-    if (row.auth_kind !== "pat" || !connectorId || revision === null) return false;
-
-    const granted = () => accounts.run((s) => s.detectionCleanupGrant(owner, connectorId, projectId, revision));
-
-    if (!(await granted()).length) return false;
+    if (!access) return false;
     const params = new URLSearchParams({ state: "closed", head: `${name.split("/")[0]}:${branch}`, per_page: "100" });
+    const path = `/repositories/${access.repositoryId}/pulls`;
+
+    const matches = (pull: DiscoveredPull) =>
+      pull.head.ref === branch &&
+      pull.head.sha === head &&
+      String(pull.head.repo?.id) === access.repositoryId &&
+      String(pull.base.repo.id) === access.repositoryId &&
+      pull.base.repo.full_name.toLowerCase() === name.toLowerCase();
 
     const result = await accounts.prs.client.read(
-      row.id,
+      access.accountId,
       {
-        key: `cleanup:${mapping.repository_id}:${branch}:${head}`,
-        path: `/repos/${name}/pulls?${params}`,
+        key: `cleanup:${access.repositoryId}:${branch}:${head}`,
+        path: `${path}?${params}`,
         ...(signal && { signal }),
       },
       true,
@@ -42,20 +46,13 @@ export async function githubCleanupProof(
     ).items;
 
     for (const pull of pulls) {
-      if (
-        !pull.merged_at ||
-        pull.head.ref !== branch ||
-        pull.head.sha !== head ||
-        String(pull.head.repo?.id) !== mapping.repository_id ||
-        String(pull.base.repo.id) !== mapping.repository_id
-      )
-        continue;
+      if (!pull.merged_at || !matches(pull)) continue;
 
       const detail = await accounts.prs.client.read(
-        row.id,
+        access.accountId,
         {
-          key: `cleanup-pr:${mapping.repository_id}:${pull.number}:${head}`,
-          path: `/repos/${name}/pulls/${pull.number}`,
+          key: `cleanup-pr:${access.repositoryId}:${pull.number}:${head}`,
+          path: `${path}/${pull.number}`,
           ...(signal && { signal }),
         },
         true,
@@ -65,19 +62,7 @@ export async function githubCleanupProof(
         detail.payload,
       );
 
-      const current = await accounts.prs.repositories.selected(name);
-
-      if (
-        verified.merged &&
-        verified.head.ref === branch &&
-        verified.head.sha === head &&
-        String(verified.head.repo?.id) === mapping.repository_id &&
-        String(verified.base.repo.id) === mapping.repository_id &&
-        current.row.id === row.id &&
-        current.row.revision === row.revision &&
-        current.mapping.revision === mapping.revision &&
-        (await granted()).length
-      )
+      if (verified.merged && verified.number === pull.number && matches(verified) && (await access.isCurrent()))
         return true;
     }
   } catch {

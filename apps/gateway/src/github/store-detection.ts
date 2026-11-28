@@ -25,6 +25,14 @@ export interface ContextRow {
 /** Durable scheduling and watermarks are separate from ingest and its ACK transaction. */
 export function githubDetectionStore(sql: SqlClient.SqlClient) {
   return {
+    cleanupRepositoryGrants: (owner: string, project: string, name: string) => sql<{ id: string; revision: string }>`
+      SELECT a.id,a.revision::text FROM connector_accounts a
+      WHERE a.owner_user_id=${owner}::uuid AND a.connector_type='github_repository' AND a.status='connected'
+        AND (lower(a.github_repository_name)=lower(${name}) OR EXISTS (
+          SELECT 1 FROM github_installation_repositories r WHERE r.owner_user_id=a.owner_user_id
+            AND r.account_id=a.github_account_id AND r.repository_id=a.github_repository_id AND lower(r.full_name)=lower(${name})))
+        AND ${projectConnectorAccess(sql, owner, project, { id: sql`a.id`, allProjects: false })}
+      ORDER BY a.id`,
     detectionCleanupGrant: (owner: string, account: string, projectId: string, revision: bigint) => sql`
       SELECT a.id FROM connector_accounts a WHERE a.owner_user_id=${owner}::uuid AND a.id=${account}::uuid
       AND a.connector_type='github' AND a.status='connected' AND a.revision=${revision}::bigint

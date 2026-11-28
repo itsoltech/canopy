@@ -1,3 +1,4 @@
+import { availableConnector } from "../github/installed-repositories.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { fail, type AccountRow, type ExecutionSource } from "./records.ts";
@@ -12,12 +13,20 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
   const owned = (user: string, id: string, lock = false) =>
     Effect.flatMap(connectorId(sql, user, id), (local) =>
-      sql
-        .unsafe<AccountRow>(
-          `SELECT * FROM connector_accounts WHERE id=$1::uuid AND owner_user_id=$2::uuid${lock ? " FOR UPDATE" : ""}`,
-          [local, user],
-        )
-        .pipe(Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : fail("Connector account not found")))),
+      sql<AccountRow>`SELECT * FROM connector_accounts WHERE owner_user_id=${user}::uuid AND
+        ((id=${local}::uuid AND connector_type<>'github_repository') OR (id=${id}::uuid AND connector_type='github_repository'))
+        ORDER BY (connector_type='github_repository') DESC LIMIT 1 ${lock ? sql`FOR UPDATE` : sql``}`.pipe(
+        Effect.flatMap((r) => (r[0] ? Effect.succeed(r[0]) : fail("Connector account not found"))),
+      ),
+    );
+
+  const editable = (user: string, id: string) =>
+    owned(user, id, true).pipe(
+      Effect.flatMap((row) =>
+        row.connector_type === "github_repository"
+          ? fail("Manage agent access in Settings → GitHub")
+          : Effect.succeed(row),
+      ),
     );
 
   const authorize = (source: ExecutionSource, connected = true) =>
@@ -81,9 +90,13 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
 
       const rows =
         yield* sql<AccountRow>`SELECT a.id,a.owner_user_id,a.connector_type,a.name,a.namespace,a.url,a.transport,
-      a.auth_kind,a.credentials,a.legacy_headers,a.status,a.error,a.all_projects,a.no_project,a.all_bots,a.revision,a.last_used_at,
+      a.auth_kind,a.github_allow_writes,
+      (SELECT g.revision FROM github_accounts g WHERE g.id=a.github_account_id AND g.owner_user_id=a.owner_user_id) AS github_account_revision,
+      a.credentials,a.legacy_headers,a.status,a.error,a.all_projects,a.no_project,a.all_bots,a.revision,a.last_used_at,
       ${metadataOnly ? sql`'[]'::jsonb` : sql`a.tools`} AS tools
       FROM connector_accounts a WHERE owner_user_id=${user}::uuid
+      AND ${availableConnector(sql, user, "a")}
+      AND (${!metadataOnly || !!scope.threadId || !!scope.botId} OR a.connector_type<>'github_repository')
       AND (${scope.connectorType ?? null}::text IS NULL OR a.connector_type=${scope.connectorType ?? null})
       AND ${
         projectId
@@ -108,7 +121,7 @@ export function connectorAccounts(sql: SqlClient.SqlClient, sealing: ReturnType<
   ) => sql`INSERT INTO connector_audit(account_id,owner_user_id,worker_id,thread_id,bot_id,tool,outcome)
     VALUES (${source.accountId}::uuid,${source.userId}::uuid,${source.workerId ?? null}::uuid,${source.threadId ?? null}::uuid,${source.botId ?? null}::uuid,${tool.slice(0, 128)},${outcome})`;
 
-  return { owned, view, views, authorize, list, audit };
+  return { owned, editable, view, views, authorize, list, audit };
 }
 
 export type ConnectorBase = ReturnType<typeof connectorSealing> & ReturnType<typeof connectorAccounts>;

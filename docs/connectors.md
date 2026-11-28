@@ -1,5 +1,10 @@
 # Konektory Canopy
 
+Status (2026-11-28): GitHub w formularzu dodawania konta prowadzi do Settings → GitHub.
+Tam właściciel łączy konto i przydziela dostęp przy repozytorium. Opcje zaawansowane
+udostępniają również serwer GitHub MCP z PAT lub własną aplikacją OAuth.
+Istniejące konta MCP można nadal edytować w Connectors. [Zakres narzędzi GitHub](github.md#dostęp-projektu-i-bota-do-repozytorium)
+
 Aktualizacja (2026-11-28): pod `#` kompozytor uwzględnia też konto GitHub z dostępem do repozytorium workspace’u.
 
 Aktualizacja (2026-11-26): bot może obsłużyć turę Slacka bez odpowiedzi lub
@@ -61,8 +66,8 @@ Dostępność kanałów według [release.md](release.md).
 
 Jeśli repozytorium workspace’u jest dostępne przez Settings → GitHub, jego
 zgłoszenia i pull requesty pojawiają się w kompozytorze bez dodatkowego konektora.
-W Settings → Connectors możesz podłączyć konto Atlassian, Linear albo GitHub i włączyć
-dostęp dla projektu. Dla wątku poza projektem włącz No project. Wpisz `#` w kompozytorze,
+W Settings → Connectors możesz podłączyć Atlassian lub Linear albo przyznać projektowi
+dostęp do istniejącego konta MCP. Dla wątku poza projektem włącz No project. Wpisz `#` w kompozytorze,
 a następnie klucz, numer lub fragment tytułu. Wyniki są pogrupowane jako
 **Issues**, **Pull requests** i **Threads**. Możesz wybrać kilka pozycji
 w jednej wiadomości. Agent otrzyma rodzaj, klucz, tytuł, link oraz dostępne
@@ -78,7 +83,7 @@ Gateway korzysta z API GitHub dla repozytorium workspace’u i z narzędzi odczy
 dla kont właściciela z grantem w wybranym zakresie. Gdy oba źródła zwracają ten sam
 link GitHub, kompozytor pokazuje go raz. Przy wysyłce gateway ponownie sprawdza
 dostęp do repozytorium lub grant konektora użytego przy wyborze. Ewentualną zmianę zgłoszenia agent wykonuje osobnym
-wywołaniem konektora w ramach uprawnień wątku.
+wywołaniem narzędzia przyznanego projektowi, zgodnie z uprawnieniami wątku.
 
 ## Decyzje
 

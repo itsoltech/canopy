@@ -271,7 +271,7 @@ function exportTable(sql: Database, table: SelectedTable, owner: string, writer:
         LEFT JOIN public.config_items c ON c.owner_user_id=p.owner_user_id AND c.kind='project'
           AND c.local_id=p.id::text AND c.unsupported=''
         LEFT JOIN public.config_aliases l ON l.owner_user_id=p.owner_user_id AND l.kind='project' AND l.alias_id=g.project_id::text
-        WHERE a.owner_user_id=$1::uuid AND COALESCE(l.global_id,g.project_id::text)=COALESCE(c.global_id,p.id::text)
+        WHERE a.owner_user_id=$1::uuid AND a.connector_type<>'github_repository' AND COALESCE(l.global_id,g.project_id::text)=COALESCE(c.global_id,p.id::text)
         ORDER BY g.account_id,p.id) r`,
         [owner],
         name,

@@ -13,7 +13,7 @@ import type { JsonObject, JsonValue as ReadonlyJsonValue } from "@canopy/domain"
 import { Effect } from "effect";
 import { GatewayStore } from "../store/store.ts";
 import type { CoreRuntime } from "../core/core.ts";
-import { connectorType } from "./catalog.ts";
+import { connectorLabel } from "./catalog.ts";
 import { ConnectorFailure, type ConnectorStore, type ExecutionSource } from "./store.ts";
 import { redactConnector } from "./oauth.ts";
 import { allowThreadConnector } from "../bots/thread-connector-rules.ts";
@@ -22,6 +22,7 @@ import { SLACK_POST_ACTION } from "./slack-post-tool.ts";
 import { slackDownloadAttachments } from "./slack-download-tool.ts";
 import { digest } from "./records.ts";
 import { canonicalJson } from "../store/instance-config.ts";
+import { GitHubToolFailure } from "./github-repository-tools.ts";
 import { OAuthNetworkFailure } from "./oauth-network.ts";
 
 /** MCP tool results report failure in-band. */
@@ -45,6 +46,7 @@ export async function connectorPermission(
   tool: ConnectorTool,
   args: JsonObject,
   signal: AbortSignal,
+  repositoryFingerprint?: string,
 ): Promise<string | undefined> {
   const facts = await connectorTurn(context.runtime, source);
 
@@ -62,13 +64,22 @@ export async function connectorPermission(
   );
 
   const binding = digest(
-    canonicalJson([source.userId, source.threadId!, facts.turnId, tool.accountId, tool.name, tool.remoteName, args]),
+    canonicalJson([
+      source.userId,
+      source.threadId!,
+      facts.turnId,
+      tool.accountId,
+      tool.name,
+      tool.remoteName,
+      args,
+      ...(repositoryFingerprint ? [repositoryFingerprint] : []),
+    ]),
   );
 
   const post = tool.remoteName === SLACK_POST_ACTION;
 
   const request = JSON.stringify({
-    tool_name: `${connectorType(tool.connectorType)?.name} · ${tool.accountName} · ${post ? "Post as Canopy" : tool.remoteName}`,
+    tool_name: `${connectorLabel(tool.connectorType)} · ${tool.accountName} · ${post ? "Post as Canopy" : tool.remoteName}`,
     description: post ? "Post this message in Slack?" : "Allow this connector action?",
     connector_account_id: tool.accountId,
     input: args,
@@ -168,9 +179,12 @@ export async function handleConnectorCall(
 
     if (network) context.log?.(`connectors: oauth refresh failed network ${error.code}`);
 
-    const message = network
-      ? "Could not reach the OAuth server to refresh this connection. Check your network connection and reconnect the account."
-      : "Connector call refused or failed. Check account access, connection status, permission mode and approval. No automatic write retry.";
+    const message =
+      error instanceof GitHubToolFailure
+        ? error.message
+        : network
+          ? "Could not reach the OAuth server to refresh this connection. Check your network connection and reconnect the account."
+          : "Connector call refused or failed. Check account access, connection status, permission mode and approval. No automatic write retry.";
 
     return create(AgentToolResultSchema, {
       callId: request.callId,

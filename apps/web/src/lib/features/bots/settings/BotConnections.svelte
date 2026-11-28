@@ -25,5 +25,10 @@
     {/each}
   </ul>
   {#if catalog.error}<Alert tone="error">{catalog.error}</Alert>{/if}
-  <div><a href="/settings/connectors" class="font-medium underline underline-offset-4">Manage connector access</a></div>
+  <div class="flex flex-wrap gap-x-4 gap-y-2">
+    {#if catalog.accounts.some((account) => account.connectorType === "github_repository")}
+      <a href="/settings/github" class="font-medium underline underline-offset-4">Manage GitHub access</a>
+    {/if}
+    <a href="/settings/connectors" class="font-medium underline underline-offset-4">Manage connector access</a>
+  </div>
 </div>

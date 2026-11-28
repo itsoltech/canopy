@@ -19,6 +19,7 @@ export const SLACK_CONTEXT_MIGRATION = 220;
 export const BOT_PARKED_MIGRATION = 228;
 
 export const BOT_SKILLS_MIGRATION = 232;
+export const GITHUB_AGENT_ACCESS_MIGRATION = 233;
 
 /** Event triggers: routines gain trigger columns and the scopes table. */
 export const BOT_TRIGGERS_MIGRATION = 229;
@@ -51,7 +52,7 @@ const schedule = `EXISTS (SELECT 1 FROM public.schedules a JOIN public.projects 
   WHERE a.id=s.schedule_id AND p.owner_user_id=$1::uuid AND (a.thread_id IS NULL OR EXISTS (
     SELECT 1 FROM public.threads t WHERE t.id=a.thread_id AND t.owner_user_id=p.owner_user_id AND t.moved_to IS NULL)))`;
 
-const connector = `EXISTS (SELECT 1 FROM public.connector_accounts a WHERE a.id=s.account_id AND a.owner_user_id=$1::uuid)`;
+const connector = `EXISTS (SELECT 1 FROM public.connector_accounts a WHERE a.id=s.account_id AND a.owner_user_id=$1::uuid AND a.connector_type<>'github_repository')`;
 const attachment = `${owned} AND (s.thread_id IS NULL OR ${thread()}) AND (s.bot_id IS NULL OR ${bot()})`;
 
 const sameOwner = "d.owner_user_id=$2::uuid";
@@ -130,7 +131,7 @@ const rootTables: ImportTable[] = [
   },
   {
     name: "connector_accounts",
-    filter: owned,
+    filter: `${owned} AND s.connector_type<>'github_repository'`,
     secret: "credentials",
     idKind: "connector",
     merge: {
@@ -314,7 +315,7 @@ export const importTables: readonly ImportTable[] = [
   { name: "connector_bot_grants", filter: `${connector} AND ${bot()}` },
   {
     name: "connector_executions",
-    filter: `${owned} AND (s.thread_id IS NULL OR ${thread()}) AND (s.bot_id IS NULL OR ${bot()})`,
+    filter: `${connector} AND ${owned} AND (s.thread_id IS NULL OR ${thread()}) AND (s.bot_id IS NULL OR ${bot()})`,
   },
   { name: "messenger_accounts", filter: owned, secret: "credentials" },
   { name: "bot_channel_routes", filter: `${owned} AND ${bot()}` },

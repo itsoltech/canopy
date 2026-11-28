@@ -15,6 +15,9 @@ import {
   slackPostTool,
 } from "./slack-post-tool.ts";
 import { ConnectorFailure, type AccountRow, type Credentials, type ExecutionSource } from "./store.ts";
+import type { GitHubAccounts } from "../github/service.ts";
+import { prepareGitHubCall, type GitHubToolScope } from "./github-repository-call.ts";
+import { githubRepositoryTools } from "./github-repository-tools.ts";
 import { checkConnectorTurn } from "./turn-permissions.ts";
 import { downloadConnectorSlackFile, slackDownloadScope } from "./slack-download.ts";
 import {
@@ -27,6 +30,9 @@ import {
 } from "./slack-download-tool.ts";
 
 interface ExecutionContext extends PermissionContext {
+  github: GitHubAccounts;
+  githubScope: GitHubToolScope | undefined;
+  replayOnly: boolean;
   messengerTransport: SlackTransport | undefined;
   attachmentLimits(): Promise<AttachmentLimits>;
   catalog(user: string, account: string): Promise<ConnectorTool[]>;
@@ -62,6 +68,25 @@ export async function executeConnector(
     if (old.fingerprint !== fingerprint && old.fingerprint !== legacyFingerprint)
       throw new ConnectorFailure("Connector call identity mismatch");
 
+    if (context.githubScope) {
+      const tool = githubRepositoryTools(account).find((entry) => entry.name === toolName);
+
+      if (!tool) throw new ConnectorFailure("GitHub tool access changed");
+
+      const prepared = await prepareGitHubCall(context.github, context.githubScope, account, tool, args, signal, () =>
+        authorizeGitHubSource(context, source),
+      );
+
+      await prepared.checkAccess();
+
+      // A private file or issue may no longer be readable upstream even when repository metadata is visible.
+      if (tool.readOnly && old.result && !failed(old.result)) {
+        const verified = await prepared.send();
+
+        if (failed(verified)) return verified;
+      }
+    }
+
     if (fileId) {
       if (source.threadId) await checkConnectorTurn(runtime, source, true);
       await slackDownloadScope(runtime, source, account, fileId);
@@ -70,6 +95,8 @@ export async function executeConnector(
     return old.result ?? failure("Outcome unknown after disconnect. Do not repeat a write without user confirmation.");
   }
 
+  if (context.replayOnly) throw new ConnectorFailure("The GitHub execution receipt is unavailable");
+
   // Fresh annotations are authoritative for remote tools, never the worker's descriptor.
   const nativePost = account.connector_type === "slack" && toolName === slackPostName(account);
 
@@ -77,7 +104,10 @@ export async function executeConnector(
     ? slackDownloadTool(account)
     : nativePost
       ? slackPostTool(account)
-      : (await context.catalog(source.userId, source.accountId)).find((t) => t.name === toolName);
+      : (account.connector_type === "github_repository"
+          ? githubRepositoryTools(account)
+          : await context.catalog(source.userId, source.accountId)
+        ).find((t) => t.name === toolName);
 
   if (!tool || (!nativeDownload && tool.remoteName === SLACK_DOWNLOAD_ACTION))
     throw new ConnectorFailure("Connector tool is unavailable");
@@ -90,11 +120,24 @@ export async function executeConnector(
   if (source.botId && source.readOnlyOnly && !tool.readOnly)
     throw new ConnectorFailure("The connector tool now requires approval. Ask the user before retrying.");
 
-  const binding = source.threadId ? await connectorPermission(context, source, callId, tool, args, signal) : undefined;
+  const binding = source.threadId
+    ? await connectorPermission(
+        context,
+        source,
+        callId,
+        tool,
+        args,
+        signal,
+        account.connector_type === "github_repository" ? fingerprint : undefined,
+      )
+    : undefined;
 
   const dispatch = async () => {
     if (source.threadId) await checkConnectorTurn(runtime, source, tool.readOnly, !!binding);
     const current = await run((s) => s.authorize(source));
+
+    if (context.githubScope && BigInt(current.revision) !== BigInt(account.revision))
+      throw new ConnectorFailure("GitHub repository access changed before dispatch");
     const prepared = await prepareCall(context, source, current, tool, args, callId, signal, fileId);
     const claimed = await run((s) => s.claimExecution(callId, source, tool.remoteName, fingerprint, binding));
 
@@ -137,6 +180,11 @@ async function prepareCall(
   signal: AbortSignal,
   fileId: string | undefined,
 ): Promise<{ send(): Promise<JsonValue>; checkAccess?(): Promise<void> }> {
+  if (context.githubScope)
+    return prepareGitHubCall(context.github, context.githubScope, current, tool, args, signal, () =>
+      authorizeGitHubSource(context, source),
+    );
+
   if (tool.remoteName === SLACK_POST_ACTION) {
     const sender = await context.run((s) => s.slackMessagingSender(current));
 
@@ -200,4 +248,10 @@ async function prepareCall(
         (json) => redactConnector(json, connection.value),
       ),
   };
+}
+
+async function authorizeGitHubSource(context: ExecutionContext, source: ExecutionSource) {
+  if (source.threadId) await checkConnectorTurn(context.runtime, source, true);
+
+  return context.run((store) => store.authorize(source));
 }

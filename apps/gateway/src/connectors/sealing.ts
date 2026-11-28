@@ -32,6 +32,8 @@ export function connectorSealing(sql: SqlClient.SqlClient, key: Buffer) {
 
   const updateCredentials = (row: AccountRow, value: Credentials, status = row.status) =>
     Effect.gen(function* () {
+      if (row.connector_type === "github_repository") return yield* fail("Manage agent access in Settings → GitHub");
+
       if (row.connector_type === "slack") {
         const previous = unseal(row);
 

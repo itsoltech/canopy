@@ -1,5 +1,7 @@
 # Boty
 
+Status (2026-11-28): właściciel może przydzielić botowi dostęp do konkretnego repozytorium GitHub. Odczyt i opcjonalny zapis korzystają z konta GitHub w domu bota oraz z jego polityki zatwierdzeń. [Dostęp do repozytorium](github.md#dostęp-projektu-i-bota-do-repozytorium)
+
 Status (2026-11-28): bot może uczyć się procedur w prywatnej rozmowie, poprawiać je po uwagach właściciela i stosować w kolejnych zadaniach. Opis działania znajduje się w sekcji [Umiejętności bota](#umiejętności-bota). Dostępność w kanałach określa [promocja wydań](release.md).
 
 Status (2026-11-28): boty mają wyzwalacze zdarzeń wątków, CI PR-ów, harmonogramów,

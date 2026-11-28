@@ -1,5 +1,9 @@
 # Połączone komputery
 
+Aktualizacja (2026-11-28): na bezpośrednim łączu z `github_agent_access_v1` użytkownik może odczytać i zastąpić granty projektów i botów dla repozytorium na komputerze konta GitHub. Rewizję i identyfikatory sprawdza dom konta. Poświadczenia GitHub App i granty tego repozytorium pozostają poza synchronizacją konfiguracji.
+
+Aktualizacja (2026-11-28). Źródła biblioteki z kontem GitHub zapisują tożsamość konta i repozytorium. Każdy komputer sprawdza własny dostęp do plików upstream.
+
 Aktualizacja (2026-11-28): przy przenoszeniu bota jego biblioteka umiejętności i rewizje procedur trafiają na komputer docelowy. Szczegóły biblioteki opisuje sekcja [Umiejętności bota](bots.md#umiejętności-bota).
 
 Aktualizacja (2026-11-28): **Move to…** wątku Claude lub Codexa kontynuuje tę samą sesję dostawcy
@@ -32,6 +36,8 @@ lokalne kopie skilli i pozwalają przenieść wybraną kopię do archiwum na tym
 Status (2026-11-24): szczegóły wątku w web i desktopie pokazują subagentów z połączonych
 komputerów także wtedy, gdy rodzic i subagent pracują w różnych projektach.
 Indeks wątków zachowuje powiązanie po archiwizacji subagenta.
+
+Status (2026-11-28): bezpośrednio połączone komputery z `github_agent_access_v1` obsługują odczyt i zmianę dostępu projektów i botów do repozytorium. Token i grant pozostają na gatewayu wybranego konta GitHub. [Konta GitHub na połączonych komputerach](github.md#połączone-komputery)
 
 Status (2026-11-28): zgłoszenia i pull requesty pod `#` wyszukuje gateway wybranego wątku lub workspace’u. Korzysta z własnego konta GitHub dla repozytorium i z przyznanych konektorów.
 
@@ -3034,7 +3040,11 @@ operacji widok odświeża raport. Archiwizacja zachowuje definicję i przypisani
 Zapis z kreatora dodaje przejrzane pliki do wspólnej biblioteki gatewaya klienta.
 Przy niedostępnym domu lista workera pozostaje widoczna, a zmiany są zablokowane z powodem obecności.
 
-**Konto źródła.** `source.credentialAccountId` jest lokalnym id konta connectora. Zapis tłumaczy je na
+**Konto źródła.** Dla konta z Settings → GitHub pole `source.credentialAccountId` zawiera
+`github:<GitHub user ID>:<repository ID>`. Obie liczby przechodzą do innych komputerów
+bez tłumaczenia. Każdy dom pobiera aktualizacje przez własne połączenie tego samego konta
+z dostępem do tego repozytorium. Poświadczenia konta GitHub pozostają w domu.
+Dla konta connectora pole zawiera lokalne id. Zapis tłumaczy je na
 globalne id, odbiór na lokalne, a Check upstream ponownie rozwiązuje alias (konto mogło dotrzeć później).
 Podczas oczekiwania Check upstream kończy się „This source's connected account hasn't arrived on this
 computer. Wait for sharing to finish, then try again.” Zainstalowane wersje działają dalej, bo są już

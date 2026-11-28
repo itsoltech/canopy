@@ -172,6 +172,13 @@ describe.skipIf(!dockerAvailable)("private sources through the selected GitHub a
     );
 
     await gw.api.useGitHubPat({ connectorAccountId: legacy.id });
+    const githubAccounts = (await gw.api.listGitHubAccounts({})).accounts;
+    const connectorAccounts = (await gw.api.listConnectors({})).accounts;
+    expect(
+      eligibleSourceAccounts(name, "marketplace", connectorAccounts, githubAccounts)
+        .map((item) => item.id)
+        .sort(),
+    ).toEqual(["github:101", "github:202"]);
     const preview = await gw.api.previewMarketplace({ command: name, credentialAccountId: "github:202" });
     contents = false;
 

@@ -1,3 +1,4 @@
+import { availableConnector } from "../github/installed-repositories.ts";
 import { ConnectorToolSchema, ui } from "@canopy/contracts";
 import { create, fromJson, type JsonValue } from "@bufbuild/protobuf";
 import { Effect } from "effect";
@@ -5,7 +6,7 @@ import type { SqlClient } from "effect/sql";
 import type { ConnectorBase } from "./accounts.ts";
 import { fail } from "./records.ts";
 import { connectorTransaction } from "../config-sync/connector-records.ts";
-import { connectorType } from "./catalog.ts";
+import { connectorLabel } from "./catalog.ts";
 import { connectorSessionState } from "./session-state.ts";
 import { linkedMessengerActive } from "../messengers/linked-account.ts";
 import { connectorToolCatalog } from "./slack-post-tool.ts";
@@ -28,13 +29,14 @@ export function threadConnectorList(
     namespace: string;
     status: string;
     all_projects: boolean;
+    github_allow_writes: boolean;
     revision: string;
     granted: boolean;
     slack_post: boolean;
     slack_download: boolean;
     tools: JsonValue[];
   }>`
-    SELECT c.id,c.connector_type,c.auth_kind,c.name,c.namespace,c.status,c.all_projects,c.revision::text,c.tools,
+    SELECT c.id,c.connector_type,c.auth_kind,c.name,c.namespace,c.status,c.all_projects,c.github_allow_writes,c.revision::text,c.tools,
       ${projectConnectorAccess(sql, user, worker ? project : null, {
         id: sql`c.id`,
         allProjects: sql`c.all_projects`,
@@ -45,22 +47,24 @@ export function threadConnectorList(
           AND ${linkedMessengerActive(sql)}) AS slack_post,
       EXISTS(SELECT 1 FROM workers w WHERE w.id=${worker || null}::uuid
         AND w.capabilities->>'agentToolAttachments'='true' AND coalesce(w.capabilities->>'attachmentsRoot','')<>'') AS slack_download
-    FROM connector_accounts c WHERE c.owner_user_id=${user}::uuid ORDER BY c.connector_type,c.name,c.id`.pipe(
+    FROM connector_accounts c WHERE c.owner_user_id=${user}::uuid AND ${availableConnector(sql, user, "c")} ORDER BY c.connector_type,c.name,c.id`.pipe(
     Effect.flatMap((rows) =>
       connectorSessionState(
         sql,
         threadId,
-        rows.map((row) =>
-          create(ui.ThreadConnectorSchema, {
-            accountId: row.id,
-            connectorName: connectorType(row.connector_type)?.name ?? row.connector_type,
-            accountLabel: row.name,
-            status: row.status,
-            granted: row.granted,
-            allProjects: row.all_projects,
-            revision: BigInt(row.revision),
-          }),
-        ),
+        rows
+          .filter((row) => row.connector_type !== "github_repository")
+          .map((row) =>
+            create(ui.ThreadConnectorSchema, {
+              accountId: row.id,
+              connectorName: connectorLabel(row.connector_type),
+              accountLabel: row.name,
+              status: row.status,
+              granted: row.granted,
+              allProjects: row.all_projects,
+              revision: BigInt(row.revision),
+            }),
+          ),
         rows.flatMap((row) =>
           row.granted && row.status === "connected"
             ? connectorToolCatalog(
@@ -96,7 +100,7 @@ export function threadConnectorGrant(sql: SqlClient.SqlClient, base: ConnectorBa
         const thread = threads[0];
 
         if (!thread) return yield* fail("Choose a thread in an active project");
-        const account = yield* base.owned(user, request.accountId, true);
+        const account = yield* base.editable(user, request.accountId);
 
         if (BigInt(account.revision) !== request.expectedRevision)
           return yield* fail("Connector changed; reload and try again");

@@ -1,3 +1,4 @@
+import { agentBinding } from "./agent-access.ts";
 import { ownerModuleEnabled } from "../store/module-access.ts";
 import { create } from "@bufbuild/protobuf";
 import { github } from "@canopy/contracts";
@@ -16,7 +17,7 @@ import { GitHubBackground } from "./background.ts";
 import { GitHubMutations } from "./mutations.ts";
 import { queryRpc } from "../diagnostics/query-context.ts";
 
-/** Product GitHub access. No worker, agent tool or shared-config adapter receives this service. */
+/** GitHub access and credentials stay at the owner’s home gateway. */
 export class GitHubAccounts {
   readonly run: RunGitHub;
   readonly http: GitHubHttp;
@@ -63,6 +64,9 @@ export class GitHubAccounts {
     this.background = new GitHubBackground(this.prs, archive, settleCheckNotes);
     this.catalogue = new GitHubCatalogue(this.access, this.prs.client, () => this.prs.changed());
     this.device = new GitHubDeviceFlow(this.run, this.http, owner, (id) => this.catalogue.refresh(id));
+  }
+  agentBinding(connectorId: string, expectedRevision: bigint) {
+    return agentBinding(this, connectorId, expectedRevision);
   }
   threadsEnabled() {
     return this.runtime.runPromise(ownerModuleEnabled(this.owner, "threads"));

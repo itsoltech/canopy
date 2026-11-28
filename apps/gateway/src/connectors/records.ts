@@ -53,6 +53,8 @@ export interface AccountRow {
   revision: bigint | string;
   tools: JsonValue[];
   last_used_at: Date | null;
+  github_allow_writes?: boolean;
+  github_account_revision?: bigint | string | null;
   slack_team_id?: string | null;
   slack_refresh_attempt?: string | null;
   slack_refresh_started_at?: Date | null;
@@ -66,6 +68,7 @@ export interface ExecutionSource {
   turnId?: string;
   botId?: string;
   botLease?: string;
+  repositoryAccessRevision?: string;
   readOnlyOnly?: boolean;
 }
 

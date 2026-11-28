@@ -183,6 +183,34 @@ describe.skipIf(!dockerAvailable)("bot settings and archive through gateway", ()
     expect(raced.filter((r) => r.status === "fulfilled")).toHaveLength(1);
   }, 20_000);
 
+  test("legacy bot settings cannot add a GitHub repository grant", async () => {
+    const bot = await add("Repository access");
+    const binding = Bun.randomUUIDv7();
+    await gw.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql`WITH account AS (
+        INSERT INTO github_accounts(id,owner_user_id,github_user_id,login,auth_kind,status)
+        VALUES (${Bun.randomUUIDv7()}::uuid,${gw.userId}::uuid,'102','octocat','device','disconnected') RETURNING id
+      ) INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status,
+        github_account_id,github_repository_id,github_repository_name)
+        SELECT ${binding}::uuid,${gw.userId}::uuid,'github_repository','octocat/demo','native_demo',
+          'https://api.github.com','http','github_app','connected',id,'123','octocat/demo' FROM account`,
+      ),
+    );
+    await expect(
+      gw.api.updateBot({ botId: bot.id, configuration: { ...bot.configuration!, mcpServerIds: [binding] } }),
+    ).rejects.toThrow("Manage repository access in Settings → GitHub");
+
+    const grants = await gw.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql`SELECT 1 FROM connector_bot_grants
+        WHERE account_id=${binding}::uuid AND bot_id=${bot.id}::uuid`,
+      ),
+    );
+
+    expect(grants).toHaveLength(0);
+  });
+
   test("self-edit is durable and atomic with a plain system line and before/after; instructions apply next turn", async () => {
     const bot = await add("Main settings bot");
     useEdit({

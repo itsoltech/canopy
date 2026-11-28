@@ -78,7 +78,7 @@ function ReferenceResults({ scope, query, onPick, inline }: Props & { query: str
   const empty = !client
     ? "Connect to the gateway to search."
     : tracker.data?.connectedSources === 0
-      ? "No threads match. Check access in Settings → GitHub or Settings → Connectors."
+      ? "No matches. Check repository access in Settings → GitHub, or Jira and Linear access in Settings → Connectors."
       : !canSearchTracker
         ? "No threads match."
         : query

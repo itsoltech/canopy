@@ -157,7 +157,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "plug",
     group: "Connections",
     keywords:
-      "github slack outlook microsoft notion linear google atlassian custom mcp server oauth accounts integrations access authentication endpoint url token secret headers client secret scopes tool accounts slack bots",
+      "slack outlook microsoft notion linear google atlassian custom mcp server oauth accounts integrations access authentication endpoint url token secret headers client secret scopes tool accounts slack bots",
   },
   {
     href: "/settings/github",
@@ -165,7 +165,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "github",
     group: "Connections",
     keywords:
-      "github account device code app installations repositories personal access token connect connected accounts and access",
+      "github account device code app installations repositories personal access token connect connected accounts and access agent projects bots allow changes pull requests issues advanced connections mcp",
   },
   {
     href: "/settings/proxies",

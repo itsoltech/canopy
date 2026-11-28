@@ -34,6 +34,16 @@ export const POST: RequestHandler = async ({ params, request, cookies, url }) =>
     if (read !== undefined) return read;
 
     switch (params.operation) {
+      case "agent-access":
+        return encode(
+          github.GitHubAgentAccessResponseSchema,
+          await api.getGitHubAgentAccess(await readMessage(request, github.GetGitHubAgentAccessRequestSchema), options),
+        );
+      case "set-agent-access":
+        return encode(
+          github.GitHubAgentAccessResponseSchema,
+          await api.setGitHubAgentAccess(await readMessage(request, github.SetGitHubAgentAccessRequestSchema), options),
+        );
       case "repository-account":
         return encode(
           github.GitHubRepositoryAccountResponseSchema,

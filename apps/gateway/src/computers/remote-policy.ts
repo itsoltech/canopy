@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { bots, github, computerLink as link, ui } from "@canopy/contracts";
 import { REMOTE_BOTS, REMOTE_BOT_COMPOSER, REMOTE_THREAD_PANEL } from "@canopy/domain/computers";
-import { PROJECT_CONNECTOR_ACCESS, ISSUE_SEARCH } from "./capabilities.ts";
+import { GITHUB_AGENT_ACCESS, PROJECT_CONNECTOR_ACCESS, ISSUE_SEARCH } from "./capabilities.ts";
 import {
   GITHUB_ACCOUNTS,
   GITHUB_PR,
@@ -81,7 +81,10 @@ export const GITHUB_PR_METHODS = new Set([
   "PreparePullRequestContext",
 ]);
 
+const AGENT_ACCESS_METHODS = new Set(["GetGitHubAgentAccess", "SetGitHubAgentAccess"]);
+
 export const GITHUB_METHODS = new Set([
+  ...AGENT_ACCESS_METHODS,
   "ListGitHubAccounts",
   "GetGitHubUpdateAccount",
   "SetGitHubUpdateAccount",
@@ -116,6 +119,8 @@ export function botFeature(method: { name: string }, request: Message): string |
   if (GITHUB_REVIEW_METHODS.has(method.name)) return GITHUB_REVIEW;
 
   if (GITHUB_MUTATION_METHODS.has(method.name)) return GITHUB_COMMENTS;
+
+  if (AGENT_ACCESS_METHODS.has(method.name)) return GITHUB_AGENT_ACCESS;
 
   if (GITHUB_METHODS.has(method.name)) return GITHUB_ACCOUNTS;
 

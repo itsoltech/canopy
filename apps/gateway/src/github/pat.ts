@@ -4,6 +4,7 @@ import { SqlClient } from "effect/sql";
 import type { CoreRuntime } from "../core/core.ts";
 import { GatewayStore } from "../store/store.ts";
 import type { AccountRow } from "./records.ts";
+import type { AccountRow as ConnectorAccount } from "../connectors/records.ts";
 import { queryFamily, queryRpc } from "../diagnostics/query-context.ts";
 
 export class GitHubPat {
@@ -53,14 +54,14 @@ export class GitHubPat {
     return this.run(
       GatewayStore.use((s) =>
         Effect.gen(function* () {
-          const row = yield* s.connectors.owned(owner, id);
+          const sql = yield* SqlClient.SqlClient;
 
-          if (
-            row.connector_type !== "github" ||
-            row.auth_kind !== "headers" ||
-            row.status !== "connected" ||
-            row.url !== "https://api.githubcopilot.com/mcp/"
-          )
+          // The PAT binding stores a local foreign key. A linked connector alias can identify a different row.
+          const [row] = yield* sql<ConnectorAccount>`SELECT * FROM connector_accounts
+            WHERE owner_user_id=${owner}::uuid AND id=${id}::uuid AND connector_type='github' AND auth_kind='headers'
+              AND status='connected' AND url='https://api.githubcopilot.com/mcp/'`;
+
+          if (!row)
             return yield* Effect.fail(
               new ConnectError("Choose a GitHub personal access token from Connectors.", Code.FailedPrecondition),
             );

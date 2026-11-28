@@ -4,7 +4,14 @@ import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { remoteServe, uiHandlers } from "@canopy/gateway/api";
-import { GITHUB_ACCOUNTS, GITHUB_PR, REMOTE_THREADS, THREAD_MIRROR, qualifyId } from "@canopy/domain/computers";
+import {
+  GITHUB_AGENT_ACCESS,
+  GITHUB_ACCOUNTS,
+  GITHUB_PR,
+  REMOTE_THREADS,
+  THREAD_MIRROR,
+  qualifyId,
+} from "@canopy/domain/computers";
 import { ComputerStore } from "../../apps/gateway/src/computers/store.ts";
 import { linkedComputers } from "./support/computers.ts";
 import { connectGitHub, githubPrFixture, githubThread } from "./support/github-pr.ts";
@@ -41,7 +48,15 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
         store: new ComputerStore(gw.runtime, gw.userId, gw.secretsKey),
         host: "127.0.0.1",
         heartbeatMs: 100,
-        capabilities: ["presence", "unlink", REMOTE_THREADS, THREAD_MIRROR, GITHUB_ACCOUNTS, GITHUB_PR],
+        capabilities: [
+          "presence",
+          "unlink",
+          REMOTE_THREADS,
+          THREAD_MIRROR,
+          GITHUB_AGENT_ACCESS,
+          GITHUB_ACCOUNTS,
+          GITHUB_PR,
+        ],
         serve: remoteServe(uiHandlers(gw.core), gw.core),
       });
 
@@ -67,6 +82,23 @@ describe.skipIf(!dockerAvailable)("linked PR summaries without replicated creden
     await b?.close();
     fixture?.close();
   }, 30_000);
+
+  test("a linked editor replaces only grants on the account's home", async () => {
+    const repo = { accountId: qualified(account), repositoryName: "itsoltech/canopy", repositoryId: "777" };
+    const project = (await b.api.createProject({ name: "Agent grants" })).project!.id;
+    const local = (await a.api.createProject({ name: "Other home" })).project!.id;
+    expect((await a.api.getGitHubAgentAccess(repo)).revision).toBe(0n);
+    const granted = await a.api.setGitHubAgentAccess({ ...repo, projectIds: [qualified(project)] });
+    expect(granted.projectIds).toEqual([qualified(project)]);
+    expect((await b.api.getGitHubAgentAccess({ ...repo, accountId: account })).projectIds).toEqual([project]);
+    expect(
+      await failure(a.api.setGitHubAgentAccess({ ...repo, expectedRevision: granted.revision, projectIds: [local] })),
+    ).toContain("same computer");
+    expect(await la.store.query("SELECT id FROM connector_accounts WHERE connector_type='github_repository'")).toEqual(
+      [],
+    );
+    await a.api.setGitHubAgentAccess({ ...repo, expectedRevision: granted.revision });
+  });
 
   test("A reads B through the home and its small mirror, never receiving account secrets", async () => {
     const data = await a.api.getPullRequest({ pullRequestId: qualified(pr) });

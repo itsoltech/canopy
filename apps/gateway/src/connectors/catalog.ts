@@ -112,6 +112,10 @@ export function connectorType(id: string) {
   return CONNECTOR_TYPES.find((t) => t.id === id);
 }
 
+export function connectorLabel(id: string) {
+  return id === "github_repository" ? "GitHub" : (connectorType(id)?.name ?? id);
+}
+
 /** User-entered remote endpoints and callback URLs. */
 export function connectorUrl(raw: string): string {
   const url = new URL(raw);

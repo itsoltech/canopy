@@ -38,8 +38,11 @@ export function connectorSessionCatalog(tools: readonly ConnectorTool[]): Connec
 }
 
 export function connectorSessionNote(previous: ConnectorSessionCatalog, next: ConnectorSessionCatalog): string {
-  const label = (account: typeof ConnectorSessionAccount.Type) =>
-    `${account.connectorType === "custom" ? "Custom MCP server" : account.connectorType} · ${JSON.stringify(account.accountName)}`;
+  const label = (account: typeof ConnectorSessionAccount.Type) => {
+    const type = account.connectorType === "github_repository" ? "GitHub" : account.connectorType;
+
+    return `${type === "custom" ? "Custom MCP server" : type} · ${JSON.stringify(account.accountName)}`;
+  };
 
   const lines = next.flatMap((account) => {
     const before = previous.find((a) => a.accountId === account.accountId);

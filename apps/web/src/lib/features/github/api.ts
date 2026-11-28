@@ -101,6 +101,29 @@ export const disconnect = async (accountId: string) =>
 export const usePat = async (homeId: string, connectorAccountId: string) =>
   decode(github.GitHubAccountResponseSchema, await post("pat", { homeId, connectorAccountId }));
 
+export type AgentRepository = Pick<github.GetGitHubAgentAccessRequest, "accountId" | "repositoryId" | "repositoryName">;
+
+export const agentAccess = async (repository: AgentRepository) =>
+  decode(github.GitHubAgentAccessResponseSchema, await post("agent-access", repository));
+
+export const setAgentAccess = async (
+  repository: AgentRepository,
+  projectIds: readonly string[],
+  botIds: readonly string[],
+  allowWrites: boolean,
+  expectedRevision: bigint,
+) =>
+  decode(
+    github.GitHubAgentAccessResponseSchema,
+    await post("set-agent-access", {
+      ...repository,
+      projectIds,
+      botIds,
+      allowWrites,
+      expectedRevision: String(expectedRevision),
+    }),
+  );
+
 export const installations = async (accountId: string, page = 0, refresh = false) =>
   decode(github.GitHubInstallationsResponseSchema, await post("installations", { accountId, page, refresh }));
 

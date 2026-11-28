@@ -28,7 +28,7 @@ function headerProblem(headers: Readonly<Record<string, string>>): string {
 
 /** Saving accounts and their project and bot access. */
 export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
-  const { owned, seal, credentials, view, audit } = base;
+  const { editable, owned, seal, credentials, view, audit } = base;
 
   return {
     /** `receipt` runs last in the same transaction with the saved account (imports, docs/import.md "Blokady"). */
@@ -41,7 +41,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
         sql,
         key,
         Effect.gen(function* () {
-          const old = request.id ? yield* owned(user, request.id, true) : undefined;
+          const old = request.id ? yield* editable(user, request.id) : undefined;
 
           if (old && BigInt(old.revision) !== request.expectedRevision)
             return yield* fail("Connector changed; reload and try again");
@@ -125,7 +125,7 @@ export function connectorWrites(sql: SqlClient.SqlClient, base: ConnectorBase, k
         sql,
         key,
         Effect.gen(function* () {
-          const row = yield* owned(user, request.accountId, true);
+          const row = yield* editable(user, request.accountId);
 
           if (BigInt(row.revision) !== request.expectedRevision)
             return yield* fail("Connector changed; reload and try again");

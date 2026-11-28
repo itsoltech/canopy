@@ -1,6 +1,10 @@
 # Konto GitHub i pull requesty
 
-Status (2026-11-28): kompozytor nowego i istniejącego wątku wyszukuje pod `#`
+Status (2026-11-28): po jednym logowaniu do GitHub właściciel może przyznać projektom
+i botom dostęp do wybranych repozytoriów. Odczyt jest domyślny. Zapis wymaga
+osobnego włączenia przy repozytorium. Dostępność w kanałach określa [promocja wydań](release.md).
+
+Aktualizacja (2026-11-28): kompozytor nowego i istniejącego wątku wyszukuje pod `#`
 zgłoszenia i pull requesty przez konto GitHub wybrane dla repozytorium workspace’u.
 Wpisanie numeru, np. `#1386`, obejmuje także zamknięte zgłoszenia i scalone PR.
 
@@ -47,8 +51,8 @@ też parametr wersji `u` w adresach awatarów GitHub oraz reaktywny cache list P
 w pamięci BFF. Timeline web/desktop/mobile łączy review z komentarzami inline po identyfikatorach GitHub
 i pomija puste karty podsumowań; web/desktop pokazuje fragment kodu przy komentarzu. Gateway współbieżnie odczytuje listę plików i stan Viewed (§6). Dostępność według
 promocji kanałów w [release.md](release.md).
-Tokeny użytkownika pozostają w domu wątku; integracja produktu nie nadaje agentom
-praw do mutacji GitHub. `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
+Tokeny użytkownika pozostają na gatewayu konta. Właściciel może osobno przyznać agentom
+i botom dostęp do konkretnego repozytorium (§2). `link_pull_request` zmienia tylko lokalne powiązanie z wątkiem,
 a `watch_pr_checks` obejmuje obserwację checków i konfliktów z gałęzią bazową (§10).
 
 Gdy właściciel wyłączy **Threads**, gateway wstrzymuje wykrywanie PR-ów w jego wątkach, odpytywanie checków i automatyczną archiwizację po merge. Oczekujące powiadomienia CI pozostają w bazie. Po ponownym włączeniu gateway sprawdza aktualny stan PR-ów i dostarcza notatki. Gdy w czasie przerwy upłynął termin obserwacji ustawiony przez agenta, raportuje jej wygaśnięcie. Odświeżanie dostępu do kont GitHub działa niezależnie.
@@ -69,10 +73,10 @@ otwarcia wątku, zapisu zdarzeń, ACK workera ani startu tury.
 | Review | Komentarze ogólne i odpowiedzi, inline i zakresy linii w unified/split, pending review, Comment/Approve/Request changes, resolve/unresolve, edycja/usuwanie własnych komentarzy, Viewed z GitHub | Dismiss cudzych reviews, automatyczne publikowanie uwag agenta |
 | Cykl PR | Create z gałęzi wątku i szkicem agenta do zatwierdzenia, ready/draft, merge/squash/rebase, auto-merge on/off, update branch, close/reopen | Revert, automatyczne usuwanie gałęzi, zarządzanie całym stosem PR jedną akcją |
 | Metadane i CI | Tytuł/opis, request/re-request reviewerów i zespołów, assignees, labels; re-run failed/jobs/run, cancel run, logi checków/jobs | Edycja workflow, sekretów i ustawień repo, uruchamianie dowolnego workflow |
-| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Agent może też lokalnie podlinkować PR bieżącego repo przez `link_pull_request` jako fallback po `gh pr create`. Wątek automatycznie otrzymuje konflikty i zbiorcze wyniki CI ([agent-bus.md](agent-bus.md#checki-ci)). | Wywoływanie mutacji GitHub nowej integracji przez agentów/boty; wymaga osobnego projektu jawnych zgód |
+| Praca agenta | Ask a question, Explain this PR, Fix findings in this thread oraz szkic tytułu/opisu Create PR; użytkownik zatwierdza treść i osobno publikuje. Agent może też lokalnie podlinkować PR bieżącego repo przez `link_pull_request` jako fallback po `gh pr create`. Wątek automatycznie otrzymuje konflikty i zbiorcze wyniki CI ([agent-bus.md](agent-bus.md#checki-ci)). | Rozszerzanie katalogu operacji agentów poza narzędzia repozytorium opisane w §2 |
 
 Nie tworzymy klienta git, nowego systemu zgód, własnego hostingu diffów ani mechanizmu
-aktualizacji. Każda mutacja jest jawną akcją użytkownika, bez ukrytych zapisów przy auth,
+aktualizacji. W panelu PR każda mutacja jest jawną akcją użytkownika, bez ukrytych zapisów przy auth,
 odświeżaniu, otwarciu pliku ani odpowiedzi modelu. Włączenie auto-merge jest jawnym zleceniem
 przyszłego scalenia przez GitHub. Istniejące narzędzia agentów zachowują osobne granty (§10).
 
@@ -94,6 +98,33 @@ Mobile ma odpowiedniki w `apps/mobile/src/ui/{Diff,DiffContent}.tsx`, `ui/markdo
 `packages/domain/src/shared-query.ts` i `shared-query-events.ts` obsługują współdzielone odczyty.
 
 ## 2. GitHub App i konta
+
+### Dostęp projektu i bota do repozytorium
+
+W Settings → GitHub właściciel wybiera **Edit agent access** przy repozytorium, a następnie projekty i boty, które
+mogą z niego korzystać. Zakres jest przypisany do konta i liczbowego ID repozytorium
+GitHub. Nowy zakres zaczyna się od odczytu. **Allow changes on GitHub** zezwala wszystkim
+wybranym odbiorcom tego repozytorium na zapis zgodnie z trybem uprawnień wątku
+lub polityką zatwierdzeń bota. Pozostałe repozytoria instalacji wymagają własnego
+przydziału. Cofnięcie dostępu obowiązuje również narzędzia widoczne jeszcze w trwającej turze.
+
+Agent może odczytać plik tekstowy, wyświetlić listę zgłoszeń lub PR-ów i pobrać
+szczegóły wskazanego numeru. Po włączeniu zapisu może utworzyć zgłoszenie, dodać
+komentarz do zgłoszenia lub PR-a i otworzyć PR między gałęziami tego repozytorium.
+
+Gateway wykonuje operacje repozytorium przez API GitHub. Worker dostaje deskryptory
+narzędzi i ich wyniki. Granty należą do gatewaya konta. Właściciel może usunąć
+przydział również po utracie dostępu instalacji do repozytorium.
+
+To samo konto można wybrać przy imporcie skilla lub marketplace’u z prywatnego
+repozytorium. Gateway sprawdza dostęp do repozytorium przy podglądzie i ponownie
+przy zatwierdzeniu. [Źródła skilli i pluginów](agent-environment.md)
+
+Istniejące konta GitHub MCP, ich rutyny, zakresy i poświadczenia zachowują
+dotychczasowe identyfikatory. Pozwala to dalej używać m.in. narzędzi dodatkowo
+udostępnianych przez serwer MCP. Wybranie repozytorium dla nowego zakresu jest
+jawną decyzją właściciela. Starsze nadania mogą obejmować inny zestaw repozytoriów
+niż instalacja GitHub App.
 
 ### Cytaty do wątku
 
@@ -244,10 +275,11 @@ Własny endpoint MCP i jego dowolne nagłówki nie są źródłem tokenu do GitH
 
 ### Połączone komputery
 
-Moduł kont negocjuje osobne `github_accounts_v1`; odczyty i zapisy PR mają własne
-capabilities opisane w §6. Dziesięć RPC kont z `github.proto`
-przechodzi przez bezpośrednie łącze: lista, start/status/cancel device flow,
-disconnect, wybór PAT, katalog instalacji/repozytoriów oraz odczyt i wybór konta aktualizacji.
+Moduł kont negocjuje `github_accounts_v1`. Odczyt i zmiana grantów agentów wymagają
+dodatkowo `github_agent_access_v1` na bezpośrednim połączeniu z domem konta.
+Grant należy do tego domu. Odczyty i zapisy PR mają własne capabilities opisane w §6.
+Bezpośrednie łącze obsługuje także listę kont, logowanie kodem urządzenia, rozłączenie,
+wybór PAT, katalog instalacji i repozytoriów oraz wybór konta do aktualizacji.
 Konto i próba otrzymują
 kwalifikowany identyfikator domu. Lista i start przed utworzeniem konta używają
 kwalifikowanego znacznika `GITHUB_HOME`; znacznik służy tylko do routingu.
@@ -627,6 +659,7 @@ Sam UUID, GitHub node ID, repo ID lub URL nigdy nie jest uprawnieniem do odczytu
 
 | Tabela/relacja | Klucz i dane |
 | --- | --- |
+| `connector_accounts` typu `github_repository` | Lokalna para konto GitHub + liczbowe ID repozytorium, zakres zapisu, rewizja. Poświadczenia przechowuje konto GitHub. Istniejące tabele grantów wskazują wybrane projekty i boty. |
 | `github_accounts` | UUID, owner, host, GitHub user ID/login, nazwa, dom, auth kind, status, access revision; zaszyfrowana para tokenów albo FK do własnego PAT connectora, nigdy oba |
 | `github_installations`, `github_installation_repositories` | Owner + account + installation ID; właściciel instalacji, permissions, selected/all, suspended, repo ID i kanoniczna nazwa, czas weryfikacji. Wiersze instalacji powtarzają się per autoryzowany użytkownik |
 | `github_repository_accounts` | Owner + repo ID → zapamiętane konto i rewizja; automatyczny wybór według indeksu instalacji, opcjonalna zmiana przy kilku dopasowaniach |
@@ -749,16 +782,16 @@ Konflikt rewizji po równoległej detekcji lub akcji UI ponawia odczyt i zapis r
 
 Canopy nie ustawia `GH_TOKEN`, credential helpera ani loginu `gh` na workerze.
 `gh` używa własnej autoryzacji urządzenia, jeśli użytkownik już ją skonfigurował;
-bez niej agent korzysta z istniejącego gatewayowego connectora z odpowiednim grantem.
+właściciel może również przyznać wątkowi narzędzia repozytorium w gatewayu albo dostęp przez GitHub MCP.
 Samo połączenie GitHub App nie nadaje agentom ani botom dostępu do konta. `watch_pr_checks` (§10)
 tego nie zmienia: agent dostaje od Canopy stan checków PR podlinkowanych do swojego wątku, a nie
 token, połączenie ani żadną operację na GitHub.
 
-Dowód merge dla cleanup z nowego klienta jest dostępny wyłącznie dla jawnie wybranego PAT
-z aktualnym dostępem konektora do projektu worktree. Wymaga świeżej listy i szczegółu PR, zgodnego
-pełnego SHA/ref oraz obu repository ID; po odczycie ponownie sprawdzamy konto, mapowanie i grant.
-Konta device flow nie mają obecnie takiego grantu i samo zalogowanie nie upoważnia do cleanup.
-Dotychczasowy dowód MCP, niezależne sprawdzenia git i ochrona lokalnych zmian pozostają aktywne.
+Gateway może potwierdzić scalenie przy sprzątaniu worktree kontem GitHub z dostępem
+do danego repozytorium przyznanym projektowi. Wystarcza odczyt. Obsługuje też wybrany
+PAT z grantem jego konektora do projektu. Potwierdzenie wymaga świeżej listy i szczegółów
+PR, zgodnego repozytorium źródłowego i docelowego, gałęzi oraz pełnego SHA. Po odczycie
+gateway ponownie sprawdza dostęp. Starsza ścieżka MCP i lokalne sprawdzenia git pozostają dostępne.
 
 ### Create PR z gałęzi wątku
 
@@ -1352,7 +1385,7 @@ Poller działa w gatewayu; aplikacja mobilna w tle nie utrzymuje odpytywania.
 | XSS, tracking i SSRF | Tokenowy renderer Markdown i `safeHref` z `@canopy/domain/markdown`; drzewo dozwolonych elementów HTML w web/desktop (`img`/`br` w mobile), bez handlerów i stylów. Obrazy PR pobiera gateway wyłącznie z dozwolonych źródeł (§3), awatary z ograniczonego CDN (§6). Bez skryptów i proxy dowolnych linków. Endpointy API buduje gateway z walidowanych ID |
 | Merge/close niewłaściwego PR albo nowego SHA | Preflight na świeżym stanie, jawne potwierdzenie repo/PR/base/head/metody, związane z request ID i SHA; zmiana celu lub expiry wymaga nowego potwierdzenia. GitHub egzekwuje protection/rulesets; brak bypass, kasowania gałęzi i merge innych PR w tle |
 | Cancel/re-run niewłaściwego CI, przerwanie deploy lub powtórzenie skutku | Gateway ustala repo/run/job/attempt/SHA i związek z PR; potwierdzenie cancel dotyczy całego wskazanego run. Re-run jawnie ostrzega o ponownym wykonaniu joba i jego zależności, również deploy. Nie ma force-cancel, debug logging ani workflow dispatch w v1 |
-| Kradzież tokenu z Contents/Actions: write albo logów | Repo instalacji ogranicza zasięg; token szyfrowany tylko w domu, stała allowlista operacji i brak worker/model API do mutacji. Logi i signed URL mają oddzielne limity/redakcję (§6); żadnego wysyłania logów do modelu z samego View logs |
+| Kradzież tokenu z Contents/Actions: write albo logów | Repo instalacji ogranicza zasięg; token szyfrowany tylko w domu, zamknięta lista operacji i odrębny grant na zapis dla narzędzi agenta. Logi i signed URL mają oddzielne limity/redakcję (§6); żadnego wysyłania logów do modelu z samego View logs |
 
 Przed skutkiem zewnętrznym gateway ponownie sprawdza aktywne konto, rewizję i prawa,
 a GitHub weryfikuje rzeczywiste uprawnienia. REST redirect nie przekazuje Authorization
@@ -1360,10 +1393,11 @@ na inny origin. Link checka do zewnętrznego CI jest zwykłą nawigacją po jawn
 nigdy żądaniem gatewaya z tokenem. Plik kontekstu może zawierać prywatny kod: dodaje go
 użytkownik, widzi zakres przed Send, a dalsze przekazanie do providera podlega zasadom wątku.
 
-Mutacje GitHub nowej integracji przyjmują wyłącznie uwierzytelnione żądania UI użytkownika przez
-obecny BFF/Connect/routing domu; credential workera, AgentToolCall i bot nie są uprawnionymi
-aktorami tych RPC. Pole `actor=user` w body nie jest dowodem. v1 nie wprowadza zgody na wykonanie
-tych mutacji przez agenta, także przy szkicu Create PR, full auto i kontekście Fix findings.
+RPC zapisu z panelu GitHub wymagają uwierzytelnionego żądania użytkownika przez
+BFF lub Connect do domu konta. Agent i bot mogą wykonać operacje zapisu wymienione
+w §2 po przyznaniu dostępu do repozytorium. Gateway sprawdza zakres i politykę
+zatwierdzeń przy wywołaniu. Szkic Create PR i kontekst Fix findings służą do pracy
+nad treścią i same nie udzielają grantu.
 `link_pull_request` wykonuje odrębną lokalną operację: wiąże PR z repozytorium znanym workspace’owi
 lub zapisanemu kontekstowi Git wątku (§5). Nie wykonuje mutacji GitHub, nie udostępnia tokenu
 i nie odwraca unlinku użytkownika.
@@ -1406,12 +1440,12 @@ do dostarczenia. Tura uruchomiona przez notatkę może się zakończyć przed ar
 
 | Funkcja | Decyzja |
 | --- | --- |
-| GitHub MCP dla agentów | Dostęp przez PAT/OAuth i granty `connector_project_grants`/`connector_bot_grants`. Połączenie GitHub App służy API produktu; nie przypisujemy jego tokenu do MCP ani nie dodajemy narzędzi mutacji agentowi. Most AgentToolCall do nowych mutacji jest poza v1 i wymaga osobnego projektu jawnych zgód; dotychczasowe uprawnienia konektora nie są zgodą na nowe konto |
+| Narzędzia GitHub dla agentów | Projekt lub bot otrzymuje jawny grant odczytu do repozytorium na konkretnym koncie. Właściciel może dodatkowo zezwolić na zapis. Gateway sprawdza również politykę zatwierdzeń i bieżący dostęp konta do repozytorium. Dla połączeń MCP obowiązują ich dotychczasowe granty i katalog narzędzi. |
 | Watche checków CI | Narzędzie szyny `watch_pr_checks` ([agent-bus.md](agent-bus.md#checki-ci)) udostępnia agentowi stan checków, który Canopy i tak odczytuje dla panelu PR: tylko PR podlinkowane do wątku wywołującego. Agent otrzymuje projekcję checków i nie wywołuje mutacji GitHub; token nie opuszcza gatewaya, a notatka zawiera nazwy, stany, dostawców, URL i `run_id` checków, bez logów i outputu. Odczyty idą kontem przypisanym do repozytorium w domu wątku, przez wspólnego producenta widocznego PR (te same terminy, ETagi, budżety i single-flight), bez nowego pollera. Boty nie mają tego narzędzia |
 | Linkowanie PR z agenta | `link_pull_request` ([agent-bus.md](agent-bus.md#checki-ci)) jest lokalnym fallbackiem dla automatycznego wykrywania wyniku `gh pr create`: sprawdza repozytorium bazowe lub źródłowe PR względem workspace’u i zapisanego kontekstu Git wątku (§5), zapisuje relację owner-scoped z `evidence=agent_tool`, respektuje unlink i nie wykonuje zapisu do GitHub. Boty nie mają tego narzędzia |
-| `apps/gateway/src/connectors/merged-pr.ts` | Dodatkowy dowód merge do cleanup przez stałe read-only narzędzia MCP. Gateway sprawdza branch/ref/head SHA/base repo i dostęp konektora do projektu worktree. Dowód z REST wymaga świeżych danych i dostępu konektora PAT do tego projektu. Lokalne sprawdzenia Git działają niezależnie od dowodu z GitHub |
+| Potwierdzenie merge przy cleanup | Odczyt REST z konta przyznanego projektowi lub z wybranego PAT z grantem projektu. Konektor GitHub MCP umożliwia też potwierdzenie swoimi narzędziami odczytu. Szczegóły w §5. |
 | Worktrees i Branch | Źródłem gałęzi pozostaje `GitHeads` i istniejący `ThreadBranches`/SwitchThreadBranch. Widok/create PR nie zmienia cwd, worktree ani branch. Merge/update branch zmieniają refy na GitHub, bez git push/fetch/reset lokalnego checkoutu; UI wskazuje rozbieżność po zwykłym odczycie git. Kopia checkout nie wykonuje git; branch switch dalej wymaga braku aktywności i czystego checkoutu |
-| Boty | Mogą nadal czytać/tworzyć PR przez przyznany GitHub MCP i istniejącą politykę safe/always/full_auto. Nowe konto produktu nie daje grantu, nowego narzędzia ani dostępu do podglądu dowolnego właściciela. v1 nie dodaje panelu PR botowi ani ukrytego kontekstu do jego rutyn; użytkownik może przekazać jawny załącznik jak dotychczas |
+| Boty | Właściciel przyznaje narzędzia konkretnego repozytorium wybranemu botowi. Bot może też korzystać z przyznanego GitHub MCP. Wywołania podlegają polityce zatwierdzeń bota. |
 | Aktualizacje | Po scalonym [#486](https://github.com/itsoltech/canopy/pull/486) `packages/domain/src/release/{catalog,http}.ts` współdzielą statyczny katalog, ETag, single-flight, cache i cooldown, a `packages/updater/src/release.ts` składa `ReleaseCatalog`/`ReleaseHttp` przez `ReleaseSourceOptions.fetch`. `apps/gateway/src/updates/runtime.ts` tworzy ReleaseSource: punkt wrappera auth, bez drugiego katalogu i bez zmiany zamrożonego UpdateService |
 
 **Statyczny indeks CDN, scalony w [#486](https://github.com/itsoltech/canopy/pull/486),
@@ -1489,8 +1523,8 @@ GitHub CI, lokalny zakres określa [AGENTS.md](../AGENTS.md#testing-policy).
    tokeny nigdy nie przechodzą między gatewayami. Broker kont jest poza v1.
 2. **Pełny zapis v1 — zaakceptowane.** Komentarze i pełne code review, lifecycle z create/merge/
    auto-merge/update/close, metadane i sterowanie CI z osadzonymi logami (§1, §7).
-   Każda mutacja jest jawną akcją użytkownika z receipt/uncertain, destrukcyjne wymagają
-   potwierdzenia. Wywoływanie nowych mutacji przez agentów/boty pozostaje poza v1.
+   Akcje użytkownika w panelu korzystają z receipt/uncertain, a destrukcyjne wymagają
+   potwierdzenia. Katalog operacji przyznawanych agentom i botom opisuje §2.
 3. **Viewed z GitHub — zaakceptowane.** `viewerViewedState`, mark/unmark, optymistyczny zapis
    z rollback i odczyt `DISMISSED` po push; brak lokalnej tabeli i offline replay.
 4. **Instalacja repo — zaakceptowane.** Bez zaakceptowanej instalacji nie ma automatycznego

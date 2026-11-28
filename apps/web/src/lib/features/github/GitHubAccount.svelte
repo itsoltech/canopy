@@ -11,6 +11,7 @@
   import MenuItem from "#lib/shared/ui/MenuItem.svelte";
   import MenuSeparator from "#lib/shared/ui/MenuSeparator.svelte";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
+  import MiddleTruncatedText from "#lib/shared/ui/MiddleTruncatedText.svelte";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { expand } from "#lib/shared/ui/motion.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -21,8 +22,15 @@
     account,
     installUrl,
     onchanged,
+    onaccess,
     class: className = "",
-  }: { account: github.GitHubAccount; installUrl: string; onchanged: () => void; class?: string } = $props();
+  }: {
+    account: github.GitHubAccount;
+    installUrl: string;
+    onchanged: () => void;
+    onaccess?: ((repositoryId: string, repositoryName: string, removeOnly?: boolean) => void) | undefined;
+    class?: string;
+  } = $props();
 
   let installations = $state<github.GitHubInstallation[]>([]);
   let next = $state(0);
@@ -190,6 +198,24 @@
     >{/if}
   {#if expanded}<div transition:expand={{ instantReduced: true }}>
       <GitHubUpdateChoice {account} />
+      {#if onaccess && account.agentRepositories.length}
+        <section class="grid min-w-0 gap-1 border-t border-divider px-3 py-2">
+          <h3 class="text-base/6 font-medium sm:text-sm/6">Repositories with agent access</h3>
+          <ul class="max-h-72 overflow-y-auto">
+            {#each account.agentRepositories as repo (repo.repositoryId)}
+              <li class="flex min-w-0 items-center gap-2 py-1.5 text-base/5 sm:text-sm/5">
+                <MiddleTruncatedText text={repo.repositoryName} class="flex-1" />
+                <Button
+                  size="sm"
+                  variant="text"
+                  aria-label={`Review agent access for ${repo.repositoryName}`}
+                  onclick={() => onaccess?.(repo.repositoryId, repo.repositoryName, true)}>Review access</Button
+                >
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
       <div class="grid min-w-0 gap-2 border-t border-zinc-950/5 px-3 py-2 dark:border-white/8">
         {#if account.status === "connected"}
           {#if account.authKind === "pat"}<p class="text-base/6 text-zinc-500 sm:text-sm/6 dark:text-zinc-400">
@@ -202,6 +228,7 @@
             <div class={["grid min-w-0 gap-2", all && "max-h-96 overflow-y-auto overscroll-contain"]}>
               {#each shown as installation (`${generation}:${installation.installationId}`)}<GitHubInstallation
                   accountId={account.id}
+                  {onaccess}
                   {installation}
                   {installUrl}
                 />{/each}

@@ -1,5 +1,8 @@
 # Mapa ustawień Canopy
 
+Status (2026-11-28): ustawienia GitHub obejmują dostęp do repozytorium dla agentów i botów.
+Dodawanie konta GitHub z Connectors otwiera tę samą sekcję.
+
 Status (2026-11-28): web i desktop mają zakładkę Motion w Appearance.
 Desktop udostępnia Reduce motion także w Accessibility.
 
@@ -213,6 +216,7 @@ projektów, poświadczeń, zaproszeń ani zasobów. Domyślne „brak” oznacza
 | Agent environment | Instruction fragments; files; skills; sources; plugins; tags; machine targeting; synchronization | konto/zasoby: brak | Konfiguracja środowiska agentów na wybranych workerach |
 | Providers | Instances; display name; proxy/native; models; favorites; environment; worker enablement; CLI login | konto/zasoby: native, wykryty katalog | Dostępność modeli i konfiguracja harnessów; poświadczenia w gateway. W web/desktop odnośnik Manage agent CLIs otwiera ustawienia CLI dla wybranego zakresu workerów. |
 | Connectors | Accounts; OAuth apps; grants; access targets; test/disconnect | konto/zasoby: brak | Uprawnienia zewnętrznych MCP |
+| GitHub | Accounts and access, Connect account, Advanced connections | konto GitHub i repozytorium w domu konta, domyślnie bez grantów | Łączenie konta i przyznawanie projektom i botom odczytu lub zapisu w repozytorium |
 | Proxies | Name; endpoint; API key; provider transport options | konto/zasoby: brak | Współdzielone połączenia dostawców |
 | Workers | Enrollments; public gateway URL; SSH install; name/tags; Agent CLIs | konto/worker: automatic URL, konfiguracja workera | Rejestracja i zdalna konfiguracja workerów. Profile workera ustawia Providers; limity `WorkerConfig.limits` nie mają UI, a worker egzekwuje z nich tylko `idleUnloadSeconds` |
 | Network access | Enabled; port; hostnames; routes; TLS fingerprint | komputer gatewaya: Off, automatyczny port | Osiągalność gatewaya i przypięty TLS; adres nasłuchu ustawia wyłącznie konfiguracja gatewaya |

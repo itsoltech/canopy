@@ -81,6 +81,10 @@ describe.skipIf(!dockerAvailable)("GitHub owner, device and PAT boundaries", () 
         () => foreign.cancelGitHubDeviceAuth({ attemptId: attempt.id }, browser),
         () => foreign.disconnectGitHubAccount({ accountId: account }),
         () => foreign.listGitHubInstallations({ accountId: account }),
+        () =>
+          foreign.getGitHubAgentAccess({ accountId: account, repositoryName: "itsoltech/canopy", repositoryId: "777" }),
+        () =>
+          foreign.setGitHubAgentAccess({ accountId: account, repositoryName: "itsoltech/canopy", repositoryId: "777" }),
         () => foreign.listGitHubRepositories({ accountId: account, installationId: "101" }),
       ])
         expect(
@@ -129,6 +133,72 @@ describe.skipIf(!dockerAvailable)("GitHub owner, device and PAT boundaries", () 
       "needs_reconnect",
     );
     expect(await failure(gw.core.github.access.get(selected.id, "/user"))).toContain("Reconnect");
+  });
+
+  test("removing a PAT retires repository grants created while the same GitHub user used the App", async () => {
+    const device = (await gw.api.listGitHubAccounts({})).accounts.find((a) => a.githubUserId === "101")!;
+    const repo = { accountId: device.id, repositoryId: "1010", repositoryName: "organization-101/canopy" };
+    const project = (await gw.api.createProject({ name: "Retired agent grant" })).project!.id;
+    const access = await gw.api.setGitHubAgentAccess({ ...repo, projectIds: [project] });
+
+    const [native] = await gw.core.connectors.run((s) =>
+      s.list(gw.userId, { projectId: project, connectorType: "github_repository" }),
+    );
+
+    expect(native).toBeDefined();
+
+    const pat = (
+      await gw.api.saveConnectorAccount({
+        connectorType: "github",
+        name: "PAT replacing the App",
+        token: fixture.pat(101),
+      })
+    ).account!;
+
+    expect((await gw.api.useGitHubPat({ connectorAccountId: pat.id })).account?.id).toBe(device.id);
+    expect(await failure(gw.core.github.agentBinding(native!.id, access.revision))).toContain("unavailable");
+    await gw.core.github.run((store) => store.setUpdateAccount(gw.userId, device.id, false));
+    await gw.api.deleteConnectorAccount({ accountId: pat.id });
+    expect((await gw.api.listGitHubAccounts({})).accounts.some((a) => a.id === device.id)).toBe(false);
+    expect(await gw.core.github.run((store) => store.updateAccount(gw.userId))).toMatchObject({
+      account_id: null,
+      enabled: false,
+    });
+    expect(
+      await gw.runtime.runPromise(
+        SqlClient.SqlClient.use(
+          (sql) => sql`SELECT account_id FROM connector_project_grants WHERE account_id=${native!.id}::uuid`,
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  test("a linked connector alias cannot change which GitHub user a local PAT authenticates", async () => {
+    const connector = async (user: number) =>
+      (
+        await gw.api.saveConnectorAccount({
+          connectorType: "github",
+          name: `PAT ${user}`,
+          authKind: "headers",
+          token: fixture.pat(user),
+        })
+      ).account!;
+
+    const selected = await connector(301);
+    const other = await connector(302);
+    const account = (await gw.api.useGitHubPat({ connectorAccountId: selected.id })).account!;
+    await gw.runtime.runPromise(
+      SqlClient.SqlClient.use(
+        (sql) => sql`WITH shared AS (
+        INSERT INTO config_items(owner_user_id,kind,global_id,local_id,revision)
+        VALUES (${gw.userId}::uuid,'connector',${other.id},${other.id},1) ON CONFLICT DO NOTHING
+      ) INSERT INTO config_aliases(owner_user_id,kind,alias_id,global_id)
+        VALUES (${gw.userId}::uuid,'connector',${selected.id},${other.id})`,
+      ),
+    );
+
+    expect((await gw.core.github.access.get(account.id, "/user")).value).toMatchObject({ id: 301 });
+    expect((await gw.api.useGitHubPat({ connectorAccountId: selected.id })).account?.login).toBe("account-301");
   });
 
   test("paired native clients bind attempts to their authenticated device, ignoring browser headers and payload bindings", async () => {

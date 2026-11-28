@@ -11,6 +11,8 @@ export interface ToolSpec {
   parameters: JsonObject;
   source: "platform" | "mcp";
   serverId?: string;
+  /** Native GitHub approvals are bound to the grant and account revisions offered to the bot. */
+  repositoryAccessRevision?: string;
   serverName?: string;
   remoteName?: string;
   readOnly?: boolean;

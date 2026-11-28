@@ -308,8 +308,8 @@ export class GatewayCore {
       (release) => releaseFound(this, release),
     );
     this.appControl = new LocalAppControl(options.runtime, options.userId, () => this.feeds.updatesChanged());
-    this.connectors = createCoreConnectors(this, options);
     this.github = createCoreGitHub(this, options);
+    this.connectors = createCoreConnectors(this, options);
     this.bots = createCoreBots(this, options);
     this.link = createCoreWorkerLink(this);
     this.messengers = new MessengerRuntime(this, options);

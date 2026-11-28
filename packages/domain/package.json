@@ -53,6 +53,7 @@
     "./github-lifecycle": "./src/github-lifecycle.ts",
     "./github-lifecycle-display": "./src/github-lifecycle-display.ts",
     "./github-create-drafts": "./src/github-create-drafts.ts",
+    "./github-agent-access": "./src/github-agent-access.ts",
     "./github-agent-draft": "./src/github-agent-draft.ts",
     "./diff-anchors": "./src/diff-anchors.ts",
     "./thread-diff-limits": "./src/thread-diff-limits.ts",

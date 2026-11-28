@@ -15,7 +15,7 @@ import { canonicalJson } from "../store/instance-config.ts";
 import type { CoreRuntime } from "../core/core.ts";
 import { mcpTools } from "../bots/mcp.ts";
 import type { BotTurn, McpConnection, ToolSpec } from "../bots/types.ts";
-import { connectorCatalog, connectorType } from "./catalog.ts";
+import { connectorCatalog, connectorLabel } from "./catalog.ts";
 import { completeOAuth } from "./oauth-completion.ts";
 import {
   ConnectorFailure,
@@ -32,11 +32,11 @@ import { slackUserCredentials } from "./slack-user-refresh.ts";
 import type { SlackTransport } from "../messengers/slack-http.ts";
 import { handleConnectorCall } from "./calls.ts";
 import { executeConnector } from "./execute.ts";
-import { connectorToolCatalog, SLACK_POST_ACTION, slackPostName } from "./slack-post-tool.ts";
-import { supportsSlackDownload } from "./slack-download-tool.ts";
-import { canDownloadSlackOnWorker } from "./slack-download.ts";
+import { SLACK_POST_ACTION, slackPostName } from "./slack-post-tool.ts";
+import { scopedConnectorCatalog, type ConnectorToolScope } from "./scoped-catalog.ts";
 import { searchIssues } from "./issue-search.ts";
 import type { GitHubAccounts } from "../github/service.ts";
+import { githubRepositoryTools } from "./github-repository-tools.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
 
@@ -49,6 +49,7 @@ export class ConnectorsRuntime {
   constructor(
     private readonly options: {
       runtime: CoreRuntime;
+      github: GitHubAccounts;
       userId: string;
       messengerTransport?: SlackTransport;
       attachmentLimits?: () => Promise<AttachmentLimits>;
@@ -111,7 +112,15 @@ export class ConnectorsRuntime {
 
     const apps = await this.run((s) => s.appTypes(this.options.userId));
 
-    return create(connectors.ListConnectorsResponseSchema, { types: connectorCatalog(apps), accounts });
+    const types = connectorCatalog(apps);
+
+    if (
+      (request.threadId || request.botId) &&
+      accounts.some((account) => account.connectorType === "github_repository")
+    )
+      types.push(create(connectors.ConnectorTypeSchema, { id: "github_repository", name: "GitHub" }));
+
+    return create(connectors.ListConnectorsResponseSchema, { types, accounts });
   }
   save(
     request: connectors.SaveConnectorAccountRequest,
@@ -136,8 +145,12 @@ export class ConnectorsRuntime {
     user: string,
     id: string,
     testing = false,
+    known?: AccountRow,
   ): Promise<{ row: AccountRow; value: Credentials; server: McpConnection }> {
-    const account = await this.run((s) => s.owned(user, id));
+    const account = known ?? (await this.run((s) => s.owned(user, id)));
+
+    if (account.connector_type === "github_repository")
+      throw new ConnectorFailure("GitHub repository tools run in the gateway");
 
     const result =
       account.connector_type === "slack" && account.auth_kind === "oauth"
@@ -201,7 +214,7 @@ export class ConnectorsRuntime {
       value,
       server: {
         id: row.id,
-        name: `${connectorType(row.connector_type)?.name ?? row.connector_type} · ${row.name}`,
+        name: `${connectorLabel(row.connector_type)} · ${row.name}`,
         url: row.url,
         transport: row.transport,
         enabled: true,
@@ -215,7 +228,15 @@ export class ConnectorsRuntime {
     id: string,
     user = this.options.userId,
   ): Promise<{ tools: ConnectorTool[]; account: connectors.ConnectorAccount }> {
-    const connection = await this.#connection(user, id, true);
+    const account = await this.run((s) => s.owned(user, id));
+
+    if (account.connector_type === "github_repository") {
+      await this.options.github.agentBinding(account.id, BigInt(account.revision));
+
+      return { tools: githubRepositoryTools(account), account: await this.run((s) => s.view(account)) };
+    }
+
+    const connection = await this.#connection(user, id, true, account);
 
     try {
       const catalog = await mcpTools(connection.server, AbortSignal.timeout(20_000));
@@ -254,50 +275,26 @@ export class ConnectorsRuntime {
   }
   async tools(
     user: string,
-    scope: { projectId: string; workerId: string } | { botId: string },
+    scope: ConnectorToolScope,
     includeSlackPost = true,
     includeSlackDownload = true,
   ): Promise<ConnectorTool[]> {
-    const rows = await this.run((s) => s.list(user, scope));
-    const tools: ConnectorTool[] = [];
-
-    const workerId = "workerId" in scope ? scope.workerId : undefined;
-
-    const download =
-      includeSlackDownload &&
-      rows.some(supportsSlackDownload) &&
-      (!workerId ||
-        (await this.options.runtime.runPromise(
-          SqlClient.SqlClient.use((sql) => canDownloadSlackOnWorker(sql, workerId)),
-        )));
-
-    for (const row of rows) {
-      if (row.status !== "connected" && row.status !== "error") continue;
-      let catalog = await this.run((s) => Effect.succeed(s.tools(row)));
-
-      // A failed test suspends tools until a fresh listing succeeds, including cached catalogs.
-      if (row.status === "error" || !catalog.length) {
-        try {
-          catalog = (await this.test(row.id, user)).tools;
-        } catch {
-          continue;
-        }
-      }
-
-      const post =
-        includeSlackPost && row.connector_type === "slack" && (await this.run((s) => s.slackMessagingConnected(row)));
-
-      tools.push(...connectorToolCatalog(row, catalog, post, download));
-    }
-
-    // A bounded prompt; account catalog pages are separately capped at 256.
-    return tools.slice(0, 256);
+    return (
+      await scopedConnectorCatalog(this, this.options.runtime, user, scope, includeSlackPost, includeSlackDownload)
+    ).tools;
   }
   async botTools(botId: string, turn?: BotTurn, filesEnabled = true): Promise<ToolSpec[]> {
     const allowSlackPost =
       !!turn && !turn.conversation_id && !turn.exchange_id && !turn.reply_to_bot_id && !turn.remote_recipient_ref;
 
-    const tools = await this.tools(this.options.userId, { botId }, allowSlackPost, filesEnabled);
+    const { tools, repositoryRevisions } = await scopedConnectorCatalog(
+      this,
+      this.options.runtime,
+      this.options.userId,
+      { botId },
+      allowSlackPost,
+      filesEnabled,
+    );
 
     return tools.map((t) => ({
       name: t.name,
@@ -305,8 +302,9 @@ export class ConnectorsRuntime {
       parameters: inputSchema(t.inputSchemaJson),
       source: "mcp",
       serverId: t.accountId,
-      serverName: `${connectorType(t.connectorType)?.name ?? t.connectorType} · ${t.accountName}`,
+      serverName: `${connectorLabel(t.connectorType)} · ${t.accountName}`,
       remoteName: t.remoteName,
+      ...(repositoryRevisions.has(t.accountId) && { repositoryAccessRevision: repositoryRevisions.get(t.accountId)! }),
       readOnly: t.readOnly,
     }));
   }
@@ -339,7 +337,7 @@ export class ConnectorsRuntime {
       call.connectorType = found?.connector_type ?? "";
       call.connectorAccountName = found?.name ?? "";
 
-      if (found) call.server = connectorType(found.connector_type)?.name ?? found.connector_type;
+      if (found) call.server = connectorLabel(found.connector_type);
     }
   }
   async disconnect(id: string) {
@@ -371,12 +369,29 @@ export class ConnectorsRuntime {
     toolName: string,
     args: JsonObject,
     signal: AbortSignal,
+    replayOnly = false,
   ): Promise<JsonValue> {
     // Authorization precedes even replay lookup, so a revoked account cannot disclose old results.
     const account = await this.run((s) => s.authorize(source));
     const { botLease: _botLease, ...identity } = source;
     const legacyFingerprint = digest(JSON.stringify([identity, toolName, args]));
-    const fingerprint = digest(canonicalJson([identity, toolName, args]));
+
+    const scope =
+      account.connector_type === "github_repository"
+        ? await this.options.github.agentBinding(account.id, BigInt(account.revision))
+        : undefined;
+
+    if (scope && source.botId && source.repositoryAccessRevision !== `${account.revision}/${scope.accountRevision}`)
+      throw new ConnectorFailure("Repository access changed after this bot received its tools");
+
+    const fingerprint = digest(
+      canonicalJson(
+        scope
+          ? [identity, toolName, args, String(account.revision), String(scope.accountRevision)]
+          : [identity, toolName, args],
+      ),
+    );
+
     const active = this.#active.get(callId);
 
     if (active) {
@@ -388,6 +403,9 @@ export class ConnectorsRuntime {
     const promise = executeConnector(
       {
         runtime: this.options.runtime,
+        github: this.options.github,
+        githubScope: scope,
+        replayOnly,
         messengerTransport: this.options.messengerTransport,
         attachmentLimits: this.options.attachmentLimits ?? (async () => DEFAULT_ATTACHMENT_LIMITS),
         run: (use) => this.run(use),

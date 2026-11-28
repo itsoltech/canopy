@@ -1,10 +1,11 @@
-import type { Effect } from "effect";
+import { GitHubToolFailure } from "../connectors/github-repository-tools.ts";
+import { Schema, type Effect } from "effect";
 import { DEFAULT_BUS_LIMITS, SETTINGS_REPLY_GUIDANCE } from "@canopy/domain";
 import { SettingsStore } from "../store/settings.ts";
 import { platformError } from "./errors.ts";
 import { approvalPrompt, needsApproval, statusPhrase } from "./policy.ts";
 import { botConfiguration, requiredString, type BotStore } from "./store.ts";
-import type { ModelMessage, ToolResult, ToolSpec, BotTurn } from "./types.ts";
+import type { ModelMessage, ToolResult, ToolSpec, BotTurn, StoredCall } from "./types.ts";
 import type { bots } from "@canopy/contracts";
 import type { BotRuntimeOptions } from "./runtime.ts";
 import { logBotToolResult } from "./diagnostics.ts";
@@ -45,6 +46,17 @@ export async function runToolCall(
     logBotToolResult(ctx.options.log, undefined, result);
   } else {
     const call = await ctx.run((s) => s.planCall(turn, requested.id, tool, requested.arguments));
+
+    if (call.tool.repositoryAccessRevision !== tool.repositoryAccessRevision)
+      return {
+        error: "GitHub repository access changed after this action was requested. Check the grant before continuing.",
+      };
+
+    if (call.status === "completed" && call.tool.repositoryAccessRevision && repositoryResult(call.result)) {
+      const config = botConfiguration(await ctx.run((s) => s.owned(ctx.options.userId, turn.bot_id)));
+
+      return callConnector(ctx, turn, call, tool, config.approvalPolicy, abort, true);
+    }
 
     if (call.status === "completed" || call.status === "interrupted") result = call.result;
     else {
@@ -113,26 +125,7 @@ export async function runToolCall(
         if (tool.source === "mcp") {
           await ctx.run((s) => s.remoteStarted(turn, call));
 
-          try {
-            result = await ctx.options.connectors.call(
-              {
-                userId: ctx.options.userId,
-                botId: turn.bot_id,
-                accountId: call.tool.serverId!,
-                ...(tool.remoteName === SLACK_DOWNLOAD_ACTION && { turnId: turn.id, botLease: turn.lease_token }),
-                readOnlyOnly: tool.readOnly === true && !["always", "full_auto"].includes(currentConfig.approvalPolicy),
-              },
-              call.id,
-              call.tool.name,
-              call.arguments,
-              abort.signal,
-            );
-          } catch {
-            abort.signal.throwIfAborted();
-            result = {
-              error: "Remote MCP call failed; outcome may be unknown. Do not automatically retry writes.",
-            };
-          }
+          result = await callConnector(ctx, turn, call, tool, currentConfig.approvalPolicy, abort);
         } else result = await ctx.options.platform(turn, call);
       }
 
@@ -142,6 +135,46 @@ export async function runToolCall(
   }
 
   return result;
+}
+
+const repositoryResult = Schema.is(Schema.Struct({ content: Schema.Array(Schema.JsonObject) }));
+
+/** A completed GitHub call passes through the same repository checks before its receipt is disclosed again. */
+async function callConnector(
+  ctx: TurnStep,
+  turn: BotTurn,
+  call: StoredCall,
+  tool: ToolSpec,
+  policy: string,
+  abort: AbortController,
+  replayOnly = false,
+) {
+  try {
+    return await ctx.options.connectors.call(
+      {
+        userId: ctx.options.userId,
+        botId: turn.bot_id,
+        accountId: call.tool.serverId!,
+        ...(call.tool.repositoryAccessRevision && { repositoryAccessRevision: call.tool.repositoryAccessRevision }),
+        ...(tool.remoteName === SLACK_DOWNLOAD_ACTION && { turnId: turn.id, botLease: turn.lease_token }),
+        readOnlyOnly: tool.readOnly === true && !["always", "full_auto"].includes(policy),
+      },
+      call.id,
+      call.tool.name,
+      call.arguments,
+      abort.signal,
+      replayOnly,
+    );
+  } catch (cause) {
+    abort.signal.throwIfAborted();
+
+    return {
+      error:
+        cause instanceof GitHubToolFailure
+          ? cause.message
+          : "Remote MCP call failed; outcome may be unknown. Do not automatically retry writes.",
+    };
+  }
 }
 
 /** A bot turn's instructions: its role and tool rules, the current time and the user's timezone. */

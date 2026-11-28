@@ -45,7 +45,7 @@ export function projectConnectorAccess(
 
 export function replaceProjectAccess(
   sql: SqlClient.SqlClient,
-  account: AccountRow,
+  account: Pick<AccountRow, "id" | "owner_user_id">,
   allProjects: boolean,
   requested: readonly string[],
 ) {

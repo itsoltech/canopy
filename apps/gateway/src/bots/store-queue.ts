@@ -1,7 +1,7 @@
 import { create, toBinary, toJson } from "@bufbuild/protobuf";
 import { bots, MentionKind, MentionSchema, type Mention, type ui } from "@canopy/contracts";
 import { ConnectorFailure } from "../connectors/store.ts";
-import { connectorType } from "../connectors/catalog.ts";
+import { connectorLabel } from "../connectors/catalog.ts";
 import { checkMentions, DEFAULT_BUS_LIMITS, mentionPlaceholder, type AttachmentLimits } from "@canopy/domain";
 import { finishChannelTurn, skippedSlackReply } from "../messengers/store-outbound.ts";
 import { activeChannelTurn, admitChannelContinuation } from "../messengers/conversation-access.ts";
@@ -116,7 +116,7 @@ function botEnqueue(
                 kind: MentionKind.CONNECTOR,
                 name: account.id,
                 source: account.connector_type,
-                label: `${connectorType(account.connector_type)?.name} · ${account.name}`,
+                label: `${connectorLabel(account.connector_type)} · ${account.name}`,
                 start: mention.start,
                 end: mention.end,
               }),

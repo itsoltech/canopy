@@ -3,6 +3,7 @@ import type { SqlClient } from "effect/sql";
 import { decryptSecret, encryptSecret, SECRETS_KEY_ID } from "../store/secrets.ts";
 import { accountView, notFound, TokenPair, type AccountRow } from "./records.ts";
 import { githubAttempts } from "./store-attempts.ts";
+import { githubAgentAccessStore } from "./store-agent-access.ts";
 import { githubCatalogue } from "./store-catalogue.ts";
 import { githubCache, lockGitHubCache } from "./store-cache.ts";
 import { githubPullRequests } from "./store-pull-requests.ts";
@@ -69,6 +70,7 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
       revision=github_accounts.revision+1,catalog_verified_at=NULL,updated_at=now() RETURNING *`;
 
   return {
+    ...githubAgentAccessStore(sql),
     ...githubMutationsStore(sql),
     ...githubUpdateStore(sql),
     ...githubPollingStore(sql),
@@ -79,6 +81,9 @@ export function githubStore(sql: SqlClient.SqlClient, key: Buffer) {
     clear,
     list: (owner: string) =>
       sql<AccountRow>`SELECT a.*,
+        (SELECT jsonb_agg(jsonb_build_object('repositoryId',c.github_repository_id,'repositoryName',c.github_repository_name) ORDER BY c.github_repository_name)
+          FROM connector_accounts c WHERE c.owner_user_id=a.owner_user_id AND c.github_account_id=a.id AND
+          (EXISTS(SELECT FROM connector_project_grants g WHERE g.account_id=c.id) OR EXISTS(SELECT FROM connector_bot_grants g WHERE g.account_id=c.id))) AS agent_repositories,
         (SELECT count(*)::integer FROM github_installations i WHERE i.owner_user_id=a.owner_user_id AND i.account_id=a.id) AS installation_count,
         (SELECT count(*)::integer FROM github_installation_repositories r WHERE r.owner_user_id=a.owner_user_id AND r.account_id=a.id) AS repository_count
         FROM github_accounts a WHERE a.owner_user_id=${owner}::uuid ORDER BY a.created_at,a.id`,
