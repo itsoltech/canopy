@@ -115,7 +115,13 @@ function AttachmentChip({ file, onRemove }: { file: DraftFile; onRemove: (key: s
         <AttachmentViewer file={file.attachment} onClose={() => setViewing(false)} />
       ) : viewing && file.previewUri ? (
         <ImageViewer
-          images={[{ key: file.key, source: { kind: "local", uri: file.previewUri }, name: file.name }]}
+          images={[
+            {
+              key: file.key,
+              source: { kind: "local", uri: file.previewUri, mimeType: file.mimeType },
+              name: file.name,
+            },
+          ]}
           onClose={() => setViewing(false)}
         />
       ) : null}

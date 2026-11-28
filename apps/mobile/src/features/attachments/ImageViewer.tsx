@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useDerivedValue } from "react-native-reanimated";
 import { base64Decode } from "@bufbuild/protobuf/wire";
+import { isHeicAttachment } from "@canopy/domain/attachment-preview";
 import { File } from "expo-file-system";
 import { Button, IconButton } from "../../ui/Button";
 import { FullScreenViewer } from "../../ui/FullScreenViewer";
@@ -59,7 +60,10 @@ export function ImageViewer({
       const match = /^data:([^;]+);base64,(.*)$/s.exec(image.uri);
       const encoded = match?.[2];
       const bytes = encoded !== undefined ? base64Decode(encoded) : await new File(image.uri).bytes();
-      await exportFile(current.name, bytes, match?.[1] || "application/octet-stream");
+      const source = current.source;
+      const mime = source.kind === "attachment" ? source.file.mimeType : source.kind === "local" ? source.mimeType : "";
+      const mimeType = match?.[1] || (mime && isHeicAttachment(mime) ? mime : "application/octet-stream");
+      await exportFile(current.name, bytes, mimeType);
     } catch {
       setError("Could not export the image. Try again.");
     } finally {

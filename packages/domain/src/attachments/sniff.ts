@@ -4,7 +4,7 @@
  * executables whose bytes give them away anyway.
  *
  * - `image`: formats every model and browser takes (PNG, JPEG, GIF, WebP); shown inline in the UI.
- * - `convertible`: an image to re-encode before use (HEIC/HEIF, AVIF, TIFF); a file when it cannot be decoded.
+ * - `convertible`: an image requiring format-specific handling (HEIC/HEIF, AVIF, TIFF).
  * - `file`: everything else, including SVG and HTML (text the UI never renders inline).
  * - `executable`: native programs (ELF, PE, Mach-O): rejected.
  */
@@ -93,7 +93,8 @@ export function sniff(bytes: Uint8Array, name = ""): Sniffed {
   if (ascii(4, "ftyp")) {
     const brand = String.fromCharCode(...bytes.slice(8, 12));
 
-    if (brand === "avif" || brand === "avis") return binary("convertible", "image/avif");
+    if (brand === "avif" || brand === "avis" || ((brand === "mif1" || brand === "msf1") && hasAvifBrand(bytes)))
+      return binary("convertible", "image/avif");
 
     if (["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"].includes(brand))
       return binary("convertible", "image/heic");
@@ -154,6 +155,20 @@ export function sniff(bytes: Uint8Array, name = ""): Sniffed {
   if (EXECUTABLE_EXTENSIONS.has(ext)) return binary("executable", "application/octet-stream");
 
   return binary("file", "application/octet-stream");
+}
+
+/** A generic HEIF container can declare AVIF in the ftyp box's compatible brands. */
+function hasAvifBrand(bytes: Uint8Array): boolean {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const end = Math.min(view.getUint32(0), bytes.length);
+
+  for (let offset = 16; offset + 4 <= end; offset += 4) {
+    const brand = view.getUint32(offset);
+
+    if (brand === 0x61766966 || brand === 0x61766973) return true; // avif, avis
+  }
+
+  return false;
 }
 
 /** Valid UTF-8 (a cut multi-byte sequence at the end is fine) without NUL bytes, judged on the first 64 KiB. */

@@ -12,7 +12,7 @@ import { ItemStatus, MentionKind, MentionSchema, Provider, ui } from "@canopy/co
 import { dockerAvailable } from "@canopy/db/testing";
 import { AttachmentStore, GatewayStore, SteerStore } from "@canopy/gateway/store";
 import sharp from "sharp";
-import { ATTACHMENT_PREVIEW_BYTES } from "@canopy/domain/attachment-preview";
+import { ATTACHMENT_PREVIEW_BYTES, attachmentPreviewKind } from "@canopy/domain/attachment-preview";
 import {
   eventually,
   failure,
@@ -106,6 +106,27 @@ describe.skipIf(!dockerAvailable)("attachments", () => {
       expect(meta.orientation).toBeUndefined();
       expect(Buffer.from(stored.data).includes(Buffer.from("Secret Phone"))).toBe(false);
       expect(stored.attachment?.sha256).toBe(sha(stored.data));
+    });
+
+    test("a HEIC upload keeps the original bytes and opens as an image from file metadata", async () => {
+      const data = await Bun.file(
+        new URL("../../apps/worker/src/images/fixtures/rotated-gradient.heic", import.meta.url),
+      ).bytes();
+
+      const name = "Screenshot";
+      const { attachment } = await api.uploadAttachment({ name, data });
+      expect(attachment).toMatchObject({
+        name,
+        kind: "file",
+        mimeType: "image/heic",
+        sha256: sha(data),
+        width: 128,
+        height: 2048,
+        hasThumbnail: false,
+      });
+      expect(attachmentPreviewKind(attachment!)).toBe("image");
+      const original = await api.getAttachment({ attachmentId: attachment!.id });
+      expect(original.data).toEqual(data);
     });
 
     test("text named .png is a text file; SVG is a file, never an inline image", async () => {

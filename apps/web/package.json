@@ -38,6 +38,7 @@
     "@xterm/xterm": "6.0.0",
     "effect": "4.1.5",
     "katex": "0.18.10",
+    "libheif-js": "1.23.5",
     "marked": "18.2.1",
     "mermaid": "12.3.0",
     "qrcode": "1.5.4"

@@ -1,9 +1,18 @@
+import type { ui } from "@canopy/contracts";
+import { attachmentPreviewKind, isHeicAttachment } from "@canopy/domain/attachment-preview";
 import type { IconName } from "@canopy/ui/icons";
 
 export type AttachmentKind = "image" | "video" | "file";
 
 const images = /\.(avif|bmp|gif|heic|heif|jpe?g|png|tiff?|webp)$/i;
 const videos = /\.(3gp|avi|m4v|mkv|mov|mp4|mpeg|mpg|webm)$/i;
+
+/** The native viewer also decodes HEIC/HEIF originals stored as files. SVG uses the file viewer. */
+export function storedAttachmentKind(file: ui.Attachment): AttachmentKind {
+  if (attachmentPreviewKind(file) === "video") return "video";
+
+  return file.kind === "image" || isHeicAttachment(file.mimeType) ? "image" : "file";
+}
 
 /** Presentation only: the gateway still decides the stored kind from the uploaded bytes. */
 export function attachmentKind(name: string, mimeType = ""): AttachmentKind {

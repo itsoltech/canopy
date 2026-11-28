@@ -54,7 +54,7 @@ export function kindLook(m: Pick<Mention, "kind" | "isDir" | "source" | "issue">
   }
 }
 
-function attachmentIcon(source: string): IconName {
+export function attachmentIcon(source: string): IconName {
   if (source === "image") return "photo";
 
   if (source === "video") return "play";

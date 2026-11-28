@@ -1,5 +1,6 @@
 import { error } from "@sveltejs/kit";
 import { INLINE_IMAGE_TYPES } from "@canopy/domain";
+import { isHeicAttachment } from "@canopy/domain/attachment-preview";
 import { createHash } from "node:crypto";
 
 /**
@@ -15,7 +16,7 @@ export function fileResponse(
   const inline =
     (INLINE_IMAGE_TYPES.has(mimeType) ||
       /^video\/(mp4|webm|quicktime)$/.test(mimeType) ||
-      (options.image && mimeType === "image/svg+xml")) &&
+      (options.image && (mimeType === "image/svg+xml" || isHeicAttachment(mimeType)))) &&
     !options.download;
 
   // A text file read as text, never as markup.

@@ -1,12 +1,18 @@
 /** Shared preview limits and file classification. File contents never become HTML. */
 export const ATTACHMENT_PREVIEW_BYTES = 128 * 1024;
+export const MAX_ATTACHMENT_IMAGE_PIXELS = 100_000_000;
 
 export type AttachmentPreviewKind = "image" | "video" | "markdown" | "text" | "file";
+
+/** Original HEIF photos are stored as files, including uploads from older gateways. */
+export function isHeicAttachment(mimeType: string): boolean {
+  return mimeType === "image/heic" || mimeType === "image/heif";
+}
 
 export function attachmentPreviewKind(file: { name: string; mimeType: string; kind?: string }): AttachmentPreviewKind {
   if (/^video\/(mp4|webm|quicktime)$/.test(file.mimeType)) return "video";
 
-  if (file.kind === "image" || file.mimeType === "image/svg+xml") return "image";
+  if (file.kind === "image" || file.mimeType === "image/svg+xml" || isHeicAttachment(file.mimeType)) return "image";
 
   if (/^(text\/(markdown|x-markdown))($|;)/i.test(file.mimeType) || /\.(md|markdown|mdown)$/i.test(file.name))
     return "markdown";

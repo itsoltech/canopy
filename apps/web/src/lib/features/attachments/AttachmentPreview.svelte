@@ -68,9 +68,8 @@
     if (!untrack(() => open)) timer = setTimeout(() => (hover = true), 300);
   }
 
-  function imageLoaded(event: Event) {
-    if (event.currentTarget instanceof HTMLImageElement)
-      dimensions = { width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight };
+  function imageLoaded(width: number, height: number) {
+    dimensions = { width, height };
   }
 
   $effect(() => {
@@ -210,6 +209,7 @@
 </Popover><!-- No whitespace: the chip before it sits in text. -->{#if kind === "image" || kind === "video"}
   <Lightbox
     bind:open
+    onload={imageLoaded}
     src={attachmentUrl(file, kind === "image" ? "image" : undefined)}
     video={kind === "video"}
     poster={kind === "video" && file.hasThumbnail ? attachmentUrl(file, "thumbnail") : undefined}

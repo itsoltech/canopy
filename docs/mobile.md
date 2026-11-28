@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Zdjęcia HEIC i HEIF w wiadomościach i szkicach otwierają się
+w przeglądarce obrazów, także gdy gateway zapisał je wcześniej jako zwykłe pliki.
+
 Status (2026-11-28). Pod odpowiedzią agenta przycisk propozycji kontynuacji ma
 obramowanie o minimalnej wysokości 32 dp, domyślny tekst 14 dp i pole dotyku
 co najmniej 48 × 48 dp. Długie etykiety zawijają się także po powiększeniu tekstu.
@@ -2094,7 +2097,10 @@ odejście ostatniego odbiorcy anuluje RPC. Unpair, revocation i zmiana parowania
 cache przed usunięciem plików. System może wyczyścić cache; brakujący plik pobieramy ponownie.
 Obrazy osi czasu rozpoczynają odczyt dopiero po przecięciu okna ekranu, również wewnątrz
 jednej wysokiej tury; przewijanie odświeża pomiar najwyżej co 100 ms i po zatrzymaniu.
-Załączniki w listach i wysłane chipy używają miniatur, viewer pełnego wariantu.
+Załączniki w listach i wysłane chipy używają miniatur, gdy gateway je udostępnia.
+Dla pliku HEIC lub HEIF bez miniatury lista i pełnoekranowy podgląd korzystają
+z tej samej pobranej kopii oryginału. Obraz dekoduje system. Jeśli dekoder nie
+odczyta zdjęcia, użytkownik nadal może zapisać oryginał na Androidzie lub udostępnić go na iOS.
 `GetThreadBlob` nie ma wariantu miniatury: dla blobów listy wykorzystują dostępny obraz źródłowy.
 Załączniki tekstowe i Markdown otwierają się także z composera po wysłaniu pliku do
 gatewaya. `GetAttachment.preview` pobiera do 128 KiB przez istniejące trasowanie do
