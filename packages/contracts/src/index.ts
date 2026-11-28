@@ -10,6 +10,8 @@ export * from "./gen/canopy/worker/v1/cli_import_pb.ts";
 
 export * from "./gen/canopy/worker/v1/workspace_copy_pb.ts";
 
+export * from "./gen/canopy/worker/v1/thread_transfer_pb.ts";
+
 export * from "./gen/canopy/worker/v1/thread_directory_pb.ts";
 
 export * from "./gen/canopy/worker/v1/thread_diff_pb.ts";

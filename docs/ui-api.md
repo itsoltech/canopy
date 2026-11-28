@@ -1791,6 +1791,12 @@ Idempotencja obejmuje przygotowanie worktree; powtórzenie żądania zwraca ten 
 Pełna historia dostawcy i niezapisane lokalne pliki nie są odtwarzane. Starszy gateway wymaga
 aktualizacji; bez dostępnego workera lub domu akcja pozostaje nieaktywna.
 
+`PreviewThreadTransfer(thread_id, worker_id)` zwraca, co przejdzie na inny worker tego gatewaya (albo powód
+blokady), `StartThreadTransfer(thread_id, worker_id, workspace_id, local_files, confirmed_secrets, expected_head)`
+zaczyna przeniesienie w tle, a `GetThreadTransfer(id)` zwraca jego stan i postęp. BFF:
+`PUT`/`POST /api/threads/[threadId]/transfer` i `GET /api/thread-transfers/[transferId]`. Szczegóły:
+[thread-transfers.md](thread-transfers.md).
+
 `ThreadWorktree.external`, `locked`, `prunable`, `missing`, `unavailable_reason` opisują pochodzenie
 i dostępność. Lista łączy git z rejestrem; wybór odkrytego id rejestruje wpis jako zewnętrzny
 dopiero przy tworzeniu wątku. Wpisy zewnętrzne są tylko do odczytu w ustawieniach.

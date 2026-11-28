@@ -4,6 +4,7 @@ import workerHeartbeatChanges from "./0223_worker_heartbeat_changes.sql" with { 
 import messengerProviders from "./0224_messenger_providers.sql" with { type: "text" };
 import messengerOutboundFiles from "./0225_messenger_outbound_files.sql" with { type: "text" };
 import projectLogins from "./0226_project_logins.sql" with { type: "text" };
+import threadTransfers from "./0227_thread_transfers.sql" with { type: "text" };
 import { mobilePushDismissalMigrations } from "./mobile-push.ts";
 import { sqlFile } from "./run.ts";
 
@@ -16,4 +17,5 @@ export const recentMigrations = {
   "0224_messenger_providers": sqlFile(messengerProviders),
   "0225_messenger_outbound_files": sqlFile(messengerOutboundFiles),
   "0226_project_logins": sqlFile(projectLogins),
+  "0227_thread_transfers": sqlFile(threadTransfers),
 };

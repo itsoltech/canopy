@@ -36,6 +36,7 @@ export interface CommandOutput {
   readonly threadImageExport?: MessageInitShape<typeof CommandResultSchema>["threadImageExport"];
   readonly botFile?: MessageInitShape<typeof CommandResultSchema>["botFile"];
   readonly workspaceCopy?: MessageInitShape<typeof CommandResultSchema>["workspaceCopy"];
+  readonly threadTransfer?: MessageInitShape<typeof CommandResultSchema>["threadTransfer"];
   readonly gitPrContext?: MessageInitShape<typeof CommandResultSchema>["gitPrContext"];
   readonly threadGitStatus?: MessageInitShape<typeof CommandResultSchema>["threadGitStatus"];
   readonly branchSwitchWarning?: string;
@@ -80,6 +81,7 @@ export function successResult(commandId: string, output: CommandOutput): Command
     ok: true,
     ...(output.dataJson !== undefined && { dataJson: output.dataJson }),
     ...(output.workspaceCopy && { workspaceCopy: output.workspaceCopy }),
+    ...(output.threadTransfer && { threadTransfer: output.threadTransfer }),
     ...(output.botFile && { botFile: output.botFile }),
     ...(output.entries && { entries: output.entries }),
     ...(output.directoryPath && { directoryPath: output.directoryPath }),

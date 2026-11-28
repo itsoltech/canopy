@@ -17,6 +17,7 @@ import {
   THREAD_FILE_DOWNLOAD_CAPABILITY,
   THREAD_FILE_REVEAL_CAPABILITY,
   WORKSPACE_COPY_CAPABILITY,
+  THREAD_TRANSFER_CAPABILITY,
   WORKSPACE_COPY_LEGACY_CAPABILITY,
   SKILL_INSTALLER_CAPABILITY,
 } from "@canopy/domain/release/protocol";
@@ -133,6 +134,8 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     WORKSPACE_COPY_LEGACY_CAPABILITY,
     // workspace_copy_batch_v3: batched frames side by side, resumable staging (docs/workspace-copy.md).
     WORKSPACE_COPY_CAPABILITY,
+    // thread_transfer_v1: export a thread's session and working tree changes, or adopt them (docs/thread-transfers.md).
+    THREAD_TRANSFER_CAPABILITY,
     // cli_import_v1: Settings → Import reads the device's CLI homes on request (docs/import.md).
     "cli_import_v1",
     // cli_import_library_v1: the scan also lists settings and library items, and reads them on request.

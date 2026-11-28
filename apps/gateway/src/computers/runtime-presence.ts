@@ -41,6 +41,7 @@ import {
   CONFIG_SYNC,
   LAN_ROUTES,
   MOVE_ITEMS,
+  MOVE_NATIVE_SESSIONS,
   REMOTE_APP_UPDATE,
   REMOTE_CLI_UPGRADE_ONLY,
   RELAY,
@@ -142,6 +143,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           : []),
         ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),
+        ...(this.moves && this.options.core ? [MOVE_NATIVE_SESSIONS] : []),
         ...(this.options.updates ? [REMOTE_APP_UPDATE] : []),
         // Keep the original protocol-1 capabilities first; older peers ignore the overflow field.
         ...(this.options.serve

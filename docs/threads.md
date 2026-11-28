@@ -1,5 +1,8 @@
 # Projekty, wątki i wątki boczne
 
+Status (2026-11-28): w web i desktopie menu wątku głównego ma **Move to another worker…**, które
+przenosi wątek z sesją dostawcy i plikami na inny worker gatewaya ([thread-transfers.md](thread-transfers.md)).
+
 Status (2026-11-27): web, desktop, iOS i Android pozwalają ustawić sekcję Working
 na górze lub na dole aktywnej części listy wątków. Domyślna pozycja to dół.
 
@@ -608,14 +611,16 @@ Zmiana względem wcześniejszego szkicu: `agents.worker_id` i `agents.cwd` znika
 
 Historia dostawcy pozostaje na urządzeniu workera. Przy wznowieniu Claude i Codexa worker oddzielnie rozstrzyga tożsamość sesji i katalog roboczy nowej tury.
 
-- worker, workspace i dostawca są przypisani na stałe. Zmiana cwd i worktree wymaga sprawdzenia aktywnej tury i docelowego checkoutu,
+- worker, workspace i dostawca zmieniają się tylko przez [przeniesienie wątku](thread-transfers.md). Zmiana cwd i worktree wymaga sprawdzenia aktywnej tury i docelowego checkoutu,
 - `provider_thread_id` ustawia zdarzenie `thread_ready`; rewind i Undo mogą przełączyć
   sesję dostawcy, zachowując identyfikator oraz miejsce wątku Canopy,
 - wątek boczny ma **ten sam** worker i workspace co rodzic; domyślnie dziedziczy katalog/worktree,
   a jawny wybór checkoutu lub własnego worktree podlega triggerom miejsca i właściciela (migracja `0067`),
 - jeśli worker zostanie wycofany, jego wątki stają się tylko do odczytu. Transkrypt w PostgreSQL zostaje.
 
-Przeniesienie pracy na inną maszynę to nowy wątek w innym workspace tego samego projektu, nie migracja wątku.
+Wątek główny Claude lub Codexa można przenieść na inny worker razem z sesją dostawcy i plikami
+([thread-transfers.md](thread-transfers.md)); w innych przypadkach przeniesienie pracy na inną maszynę to nowy
+wątek w innym workspace tego samego projektu.
 
 ### Projekt na wielu workerach i systemach
 

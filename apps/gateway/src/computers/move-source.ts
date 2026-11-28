@@ -122,6 +122,11 @@ export function freezeThread(
   return transaction(store, (sql) =>
     Effect.gen(function* () {
       const owner = store.owner;
+      const first = yield* threadFamily(sql, owner, input.threadId, true);
+
+      if (first.error || !first.main) return { error: first.error };
+      // Read again holding the main thread: a side thread whose insert held its parent first is committed now, and no
+      // other can join (its admission waits for the main thread and then sees moved_to).
       const { error, main, family } = yield* threadFamily(sql, owner, input.threadId, true);
 
       if (error || !main) return { error };

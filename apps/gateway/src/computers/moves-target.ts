@@ -1,3 +1,6 @@
+import { dropMoveFiles, keepMoveFiles, moveKey, reservation, serialized } from "./move-native-files.ts";
+import { restoreArchived } from "./move-state.ts";
+import { nativePlacement, serveMoveFiles } from "./move-native-target.ts";
 import { create, toJson, type DescMethod, type Message } from "@bufbuild/protobuf";
 
 import { timestampNow } from "@bufbuild/protobuf/wkt";
@@ -67,7 +70,13 @@ export async function movesOutcome(hostContext: ComputerMoves, peer: string, mov
 export async function movesPrepare(hostContext: ComputerMoves, peer: string, prepare: link.MovePrepare) {
   const reply = (error: string, state = "refused") => create(link.MoveReplySchema, { state, error });
 
-  if (!uuid(prepare.moveId) || !uuid(prepare.itemId) || !["thread", "bot"].includes(prepare.kind))
+  // A bot never carries a thread's session and files.
+  if (
+    !uuid(prepare.moveId) ||
+    !uuid(prepare.itemId) ||
+    !["thread", "bot"].includes(prepare.kind) ||
+    (prepare.kind === "bot" && prepare.native)
+  )
     return reply("Invalid move");
   prepare.moveId = prepare.moveId.toLowerCase();
   prepare.itemId = prepare.itemId.toLowerCase();
@@ -80,6 +89,20 @@ export async function movesPrepare(hostContext: ComputerMoves, peer: string, pre
       known.item_id === prepare.itemId
       ? reply("", known.state === "aborted" ? "refused" : "prepared")
       : reply("Invalid move");
+
+  // Files staged for this move id belong to the partner that sent them, also when this move has none; a move without
+  // them first drops what was staged (it can't be left without an owner).
+  const files = await reservation(hostContext, prepare.moveId);
+
+  if (files && files.peer_node_id !== peer) return reply("Invalid move");
+
+  if (files && files.state !== "done" && !prepare.native) {
+    await dropMoveFiles(hostContext, prepare.moveId, peer).catch(() => {});
+
+    if ((await reservation(hostContext, prepare.moveId))?.state !== "done")
+      return reply("This computer is still removing the move's files. Try the move again in a moment.");
+  }
+
   const placement: MoveRow["placement"] = {};
   const redo: string[] = [];
 
@@ -113,6 +136,9 @@ export async function movesPrepare(hostContext: ComputerMoves, peer: string, pre
     if (!workspace) return reply("The chosen workspace is not on this computer.");
     Object.assign(placement, { workspaceId: prepare.workspaceId, projectId: workspace.project_id });
 
+    if (prepare.native && !(await nativePlacement(hostContext, peer, prepare, rows)))
+      return reply("The moved files are not on this computer. Try the move again.");
+
     const instances = [
       ...new Set(rows.filter((r) => r.provider_profile_id).map((r) => `${r.provider}:${r.provider_profile_id}`)),
     ];
@@ -126,7 +152,11 @@ export async function movesPrepare(hostContext: ComputerMoves, peer: string, pre
       return reply(
         `Provider instance ${missing.map((i) => i.split(":")[1]).join(", ")} is not on this computer. Share it first.`,
       );
-    redo.push("The agent continues in a new session here with a handoff note");
+    redo.push(
+      prepare.native
+        ? "The agent continues its session here in a new worktree"
+        : "The agent continues in a new session here with a handoff note",
+    );
   } else {
     const rows = botRowsJson(prepare.bot?.rowsJson || "{}");
 
@@ -181,7 +211,7 @@ export async function movesApply(hostContext: ComputerMoves, moveId: string) {
       validateMoveContent(prepare);
 
       if (move.kind === "bot") await applyBot(hostContext[movesState].store, move, self, prepare.bot!);
-      else ids = await movesApplyThread(hostContext, move, self, prepare.thread!);
+      else ids = await movesApplyThread(hostContext, move, self, prepare.thread!, prepare.native);
     } catch (error) {
       // The decision is final: the staged state stays and the tick tries again.
       await hostContext[movesState].store.query(
@@ -208,6 +238,7 @@ export async function movesApplyThread(
   move: MoveRow,
   self: { nodeId: string; name: string },
   prepare: link.ThreadMove,
+  native?: link.MoveNative,
 ) {
   const threads = prepare.threads;
   const rows = threads.map((t) => threadRowJson(t.rowJson));
@@ -246,7 +277,12 @@ export async function movesApplyThread(
       instructions: row.settings.instructions ?? "",
       parentThreadId: row.kind === "side" ? (row.parent_thread_id ?? "") : "",
       clientRequestId: `move:${move.id}:${row.id}`,
+      // Native continuation: the session and files already wait in this worktree (docs/thread-transfers.md).
+      ...(native &&
+        row.kind === "main" && { workspaceMode: ui.WorkspaceMode.EXISTING_WORKTREE, worktreeId: native.worktreeId }),
     });
+
+    const session = native?.sessions[row.id];
 
     const notice = create(ThreadEventSchema, {
       eventId: crypto.randomUUID(),
@@ -282,15 +318,30 @@ export async function movesApplyThread(
           notice: { eventId: notice.eventId, payload: toJson(ThreadEventSchema, notice) },
           files: prepare.files,
           blobs: prepare.blobs,
+          ...(session &&
+            native && {
+              native: {
+                sessionId: session,
+                note: `[canopy] This thread moved from ${from} (${row.cwd ?? ""}) to ${self.name} (${native.cwd}). Paths in earlier messages refer to the old folder; use the new one.`,
+              },
+            }),
         }),
       row.kind === "main" ? legacyAudience : undefined,
+      Boolean(session),
     );
-
-    if (row.kind === "main" && row.archived_at)
-      await movesCore(hostContext)
-        .setThreadArchived(row.id, true)
-        .catch(() => {});
   }
+
+  // Archived once the whole family exists (a side thread can't be created under an archived main thread), each at
+  // its own original time. A failure keeps the move committed, so recovery applies it again.
+  // The reason travels in the history snapshot: a side thread closed with its main thread reopens with it.
+  await restoreArchived(
+    hostContext[movesState].store,
+    rows.map((row, i) => ({
+      ...row,
+      archived_by: threads[i]!.history?.thread?.archivedBy,
+      archived_by_thread_id: threads[i]!.history?.thread?.archivedByThreadId,
+    })),
+  );
 
   await finishThread(hostContext[movesState].store, move, ids, self);
 
@@ -305,20 +356,36 @@ export const movesTargetMethods: MovesTargetMethods = {
   // ------------------------------------------------------------------ link: served on the other side
 
   async serve(this: ComputerMoves, peer: string, method: DescMethod, request: Message): Promise<Message> {
-    if (method.name === "PrepareMove") return movesPrepare(this, peer, linkedMessage(link.MovePrepareSchema, request));
+    // Everything of one move runs in order with its files' steps (move-native-files.ts).
+    if (method.name === "PrepareMove") {
+      const prepare = linkedMessage(link.MovePrepareSchema, request);
+
+      return serialized(this, moveKey(prepare.moveId), () => movesPrepare(this, peer, prepare));
+    }
 
     if (method.name === "DecideMove") {
       const decision = linkedMessage(link.MoveDecisionSchema, request);
 
       if (!["commit", "abort"].includes(decision.decision))
         throw new ConnectError("Unknown decision", Code.InvalidArgument);
-      const state = await decideTarget(this[movesState].store, peer, decision.moveId, decision.decision);
+
+      const state = await serialized(this, moveKey(decision.moveId), async () => {
+        const decided = await decideTarget(this[movesState].store, peer, decision.moveId, decision.decision);
+
+        // Durable first, and only this partner's move: its files go with an abort.
+        if (decided === "aborted") await dropMoveFiles(this, decision.moveId, peer).catch(() => {});
+
+        return decided;
+      });
+
       await this[movesState].host.hook?.("decided", { id: decision.moveId, role: "target" });
 
       if (state === "committed")
         void movesRun(
           this,
-          movesApply(this, decision.moveId).catch(() => {}),
+          movesApply(this, decision.moveId)
+            .then(() => serialized(this, moveKey(decision.moveId), () => keepMoveFiles(this, decision.moveId)))
+            .catch(() => {}),
         );
 
       return create(link.MoveReplySchema, { state });
@@ -328,6 +395,9 @@ export const movesTargetMethods: MovesTargetMethods = {
       return movesOutcome(this, peer, linkedMessage(link.MoveDecisionSchema, request).moveId);
 
     if (method.name === "InspectMove") return movesInspection(this, linkedMessage(link.MoveInspectSchema, request));
+
+    if (method.name === "TransferMoveFiles")
+      return serveMoveFiles(this, peer, linkedMessage(link.MoveFilesSchema, request));
     throw new ConnectError("Unknown move method", Code.Unimplemented);
   },
 };

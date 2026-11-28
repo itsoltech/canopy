@@ -1,0 +1,67 @@
+syntax = "proto3";
+package canopy.ui.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Moving a thread with its harness session and working tree changes to another worker of this gateway
+// (docs/thread-transfers.md).
+
+message ThreadTransferPreviewRequest {
+  string thread_id = 1;
+  string worker_id = 2;
+}
+
+message ThreadTransferLocalFile {
+  string path = 1;
+  uint64 size = 2;
+  // Can contain secrets: moving it needs the owner's explicit confirmation.
+  bool secret = 3;
+}
+
+message ThreadTransferPreview {
+  // Why the thread can't move to this worker now; empty when it can.
+  string blocked = 1;
+  // Workspaces of the thread's project on the target worker, the best match first.
+  repeated string workspace_ids = 2;
+  string branch = 3;
+  string head = 4;
+  uint32 changed_files = 5;
+  uint32 untracked_files = 6;
+  uint32 unpushed_commits = 7;
+  repeated ThreadTransferLocalFile local_files = 8;
+  // What to do again after the move (for example thread secrets).
+  repeated string redo = 9;
+  // The main thread and its side threads.
+  uint32 threads = 10;
+  // The provider instance that continues the thread on the target.
+  string instance_label = 11;
+}
+
+message StartThreadTransferRequest {
+  string thread_id = 1;
+  string worker_id = 2;
+  string workspace_id = 3;
+  repeated string local_files = 4;
+  // Local files that can contain secrets, confirmed by the owner.
+  repeated string confirmed_secrets = 5;
+  // The HEAD the preview showed.
+  string expected_head = 6;
+}
+
+message ThreadTransfer {
+  string id = 1;
+  string thread_id = 2;
+  string source_worker_id = 3;
+  string target_worker_id = 4;
+  // preparing, prepared, committed, done or aborted.
+  string state = 5;
+  // What runs now: freezing, exporting, copying, checking_out, applying, switching.
+  string phase = 6;
+  uint64 bytes = 7;
+  uint64 total_bytes = 8;
+  string error = 9;
+  google.protobuf.Timestamp created_at = 10;
+  string target_cwd = 11;
+}
+
+message ThreadTransferRequest { string id = 1; }

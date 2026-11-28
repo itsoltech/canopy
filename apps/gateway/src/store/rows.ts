@@ -22,6 +22,8 @@ export interface ThreadRow {
   permission_mode_selected: boolean;
   last_user_turn_choices?: ComposerChoiceColumns | null;
   rewind_pending_id?: string | null;
+  /** Frozen while the thread moves to another worker (docs/thread-transfers.md). */
+  transfer_pending_id?: string | null;
   newest_pull_request?: JsonValue | null;
   pull_request_count?: number;
   pull_request_revision?: bigint;

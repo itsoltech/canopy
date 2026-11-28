@@ -7,7 +7,7 @@ import { coreState } from "./core-context.ts";
 import { coreCheckProvider, coreStartThread } from "./core-threads.ts";
 import type { GatewayCore } from "./core.ts";
 import { OWNER_FEEDS } from "./owner-feeds.ts";
-import { coreRun } from "./core-broadcast.ts";
+import { coreBroadcastThread, coreRun } from "./core-broadcast.ts";
 import { coreGoals } from "./core-goals.ts";
 import { coreSteers } from "./core-messages.ts";
 import { coreCheckModel, coreProfileModels } from "./core-models.ts";
@@ -23,6 +23,7 @@ export interface CoreWatchMethods {
     id: string,
     prepare: () => Promise<void>,
     memoryAudience?: string,
+    native?: boolean,
   ): Promise<void>;
   watchThread(
     threadId: string,
@@ -65,14 +66,18 @@ export const coreWatchMethods: CoreWatchMethods = {
     id: string,
     prepare: () => Promise<void>,
     memoryAudience?: string,
+    /** The thread continues a harness session already on its worker: no CreateThread (docs/thread-transfers.md). */
+    native = false,
   ): Promise<void> {
     const existing = await coreRun(this, (s) => s.thread(id)).catch(() => undefined);
 
     if (existing) {
       await prepare();
+      // Read again: preparing a native continuation installs the session it resumes.
+      const current = await coreRun(this, (s) => s.thread(id));
 
-      if (existing.status === "creating" && !existing.provider_thread_id)
-        await coreStartThread(this, await coreRun(this, (s) => s.thread(id)));
+      if (native) await coreBroadcastThread(this, id);
+      else if (current.status === "creating" && !current.provider_thread_id) await coreStartThread(this, current);
 
       return;
     }
@@ -103,7 +108,9 @@ export const coreWatchMethods: CoreWatchMethods = {
       ),
     );
     await prepare();
-    await coreStartThread(this, await coreRun(this, (s) => s.thread(id)));
+
+    if (native) await coreBroadcastThread(this, id);
+    else await coreStartThread(this, await coreRun(this, (s) => s.thread(id)));
   },
 
   /** Snapshot first, then live updates after it (subscribe before reading, skip what the snapshot has). */

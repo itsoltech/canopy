@@ -100,7 +100,19 @@ export function pullCheckoutOrigin(core: GatewayCore, target: CheckoutTarget) {
 }
 
 /** Both mutations retain the same checkout/thread/removal locks until acknowledgement and notices. */
-async function changeCheckout(
+/** A checkout a thread move is reading takes no branch change from Canopy until the move's decision. */
+function changeCheckout(
+  core: GatewayCore,
+  target: CheckoutTarget,
+  command: (root: string) => CommandInit,
+  options: { workspace?: WorkspaceSelection; pull?: boolean },
+) {
+  return core.threadTransfers.writes.admit(target.worker_id, target.cwd, () =>
+    changeAdmittedCheckout(core, target, command, options),
+  );
+}
+
+async function changeAdmittedCheckout(
   core: GatewayCore,
   target: CheckoutTarget,
   command: (root: string) => CommandInit,

@@ -99,7 +99,7 @@ function homeDirectory(home: string): BigIntStats {
 }
 
 /** `rel` below `home` through real directories only: its stat when it is of the expected kind. */
-function walk(home: string, rel: string, last: "file" | "directory"): BigIntStats | undefined {
+export function walk(home: string, rel: string, last: "file" | "directory"): BigIntStats | undefined {
   if (!inside(rel)) return undefined;
   let current = home;
   const parts = rel.split(sep);

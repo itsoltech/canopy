@@ -5,6 +5,7 @@ import "canopy/ui/v1/gateway.proto";
 import "canopy/ui/v1/bots.proto";
 import "canopy/ui/v1/diagnostics.proto";
 import "canopy/ui/v1/usage.proto";
+import "canopy/worker/v1/thread_transfer.proto";
 import "google/protobuf/timestamp.proto";
 
 // Source-local accounting only; never recursively gathers linked homes.
@@ -349,6 +350,9 @@ service ComputerMoveService {
   rpc MoveOutcome(MoveDecision) returns (MoveReply);
   // Target: which of these provider instances and projects it has (preview, preparation).
   rpc InspectMove(MoveInspect) returns (MoveInspection);
+  // Target, before PrepareMove (capability move_native_sessions_v1, docs/thread-transfers.md): one step of moving
+  // the thread's harness session and files to the target's own worker.
+  rpc TransferMoveFiles(MoveFiles) returns (MoveFilesReply);
 }
 message MovePrepare {
   string move_id = 1;
@@ -361,6 +365,33 @@ message MovePrepare {
   string workspace_id = 6;
   ThreadMove thread = 7;
   BotMove bot = 8;
+  // The thread's session and files already wait on the target's worker: continue them instead of a handoff note.
+  MoveNative native = 9;
+}
+message MoveNative {
+  string worktree_id = 1;
+  string cwd = 2;
+  // Thread id to its provider session, adopted on the target's worker.
+  map<string, string> sessions = 3;
+}
+// Exactly one of operation, checkout_head or discard, from the partner that started the move. The target binds the
+// move to that partner, the workspace and its worker on the first step; paths and worktrees are its own.
+message MoveFiles {
+  string move_id = 1;
+  // The target's workspace (plain id) the new worktree belongs to.
+  string workspace_id = 2;
+  canopy.worker.v1.ThreadTransferOperation operation = 3;
+  // A worktree at this commit, on this branch name or its moved variants.
+  string checkout_head = 4;
+  string checkout_branch = 5;
+  // Undo the staging, fetched ref and adopted sessions, and remove the worktrees this move created (the target
+  // reads them from its own record of the move).
+  bool discard = 6;
+}
+message MoveFilesReply {
+  canopy.worker.v1.ThreadTransferResult result = 1;
+  string worktree_id = 2;
+  string worktree_path = 3;
 }
 // One attachment row (JSON of its columns) with its bytes.
 message MovedFile {

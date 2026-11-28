@@ -1,3 +1,4 @@
+import { TRANSFER_BUSY } from "../store/errors.ts";
 import { ANTIGRAVITY_PERMISSION_GUIDANCE, supportsThreadPermission } from "@canopy/domain/harnesses";
 import { messageServiceTier } from "./message-service-tier.ts";
 import { create } from "@bufbuild/protobuf";
@@ -61,6 +62,8 @@ export async function prepareMessage(
   if (thread.preparation_fingerprint) throw new InvalidError("This thread's worktree is not ready.");
 
   if (thread.rewind_pending_id) throw new InvalidError("This thread is rewinding. Wait for it to finish.");
+
+  if (thread.transfer_pending_id) throw new InvalidError(TRANSFER_BUSY);
 
   // Imported as history (docs/import.md): no provider session to continue in this thread.
   if (thread.imported?.mode === "history")

@@ -28,6 +28,7 @@ import { initRepository } from "../git/project-sources.ts";
 import { GitPrReader } from "../git/pr-context.ts";
 import { withKnownPaths } from "../git/discovery.ts";
 import { FailedWorktreeCleanup } from "../git/failed-worktree-cleanup.ts";
+import { WorktreeIntents } from "../git/worktree-intents.ts";
 import type { GatewayLink } from "../gateway-link/index.ts";
 
 /** Git worktrees (docs/worktrees.md): refs of a workspace, new worktrees and their branch names. */
@@ -35,8 +36,10 @@ export class GitCommands {
   readonly #creating = new Map<string, Promise<void>>();
   readonly #prContext = new GitPrReader();
   readonly #failedCleanup: FailedWorktreeCleanup;
+  readonly #intents: WorktreeIntents;
   constructor(readonly ctx: HostContext) {
     this.#failedCleanup = new FailedWorktreeCleanup(ctx.state.options.dataDir);
+    this.#intents = new WorktreeIntents(ctx.state.options.dataDir);
   }
 
   async readGitPrContext(kind: Extract<Command["kind"], { case: "readGitPrContext" }>): Promise<CommandOutput> {
@@ -112,6 +115,11 @@ export class GitCommands {
     commandId: string,
   ): Promise<CommandOutput> {
     this.ctx.ops.checkCwd(kind.value.repoPath);
+    // A replayed agent checkout gets the worktree its earlier run added (before its result was remembered).
+    const replayable = kind.value.agentRequested && commandId !== "";
+    const recovered = replayable ? await this.#intents.recover(commandId) : undefined;
+
+    if (recovered) return { worktree: recovered };
 
     return gitStep(() =>
       prepareWorktreeGit(kind.value.checkoutStartDeadlineMs, async () => {
@@ -130,6 +138,7 @@ export class GitCommands {
               (progress) => this.ctx.ops.send({ case: "queryProgress", value: { ...progress, commandId } }),
               this.#failedCleanup,
               this.ctx.state.secrets.root,
+              replayable ? (plan) => this.#intents.record(commandId, plan) : undefined,
             ),
           ),
         );

@@ -14,6 +14,8 @@ const threadWork = new Set<string>([
   "createThread",
   "createThreadWithProgress",
   "continueThreadInWorktree",
+  "previewThreadTransfer",
+  "startThreadTransfer",
   "sendMessage",
   "regenerateTitle",
   "rewindThread",

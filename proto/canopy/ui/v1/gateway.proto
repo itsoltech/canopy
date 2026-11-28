@@ -7,6 +7,7 @@ import "google/protobuf/empty.proto";
 
 package canopy.ui.v1;
 import "canopy/ui/v1/workspace_copy.proto";
+import "canopy/ui/v1/thread_transfer.proto";
 
 import "google/protobuf/timestamp.proto";
 import "canopy/worker/v1/worker_link.proto";
@@ -290,6 +291,10 @@ service GatewayService {
   rpc CreateThread(CreateThreadRequest) returns (CreateThreadResponse);
   rpc CreateThreadWithProgress(CreateThreadRequest) returns (stream CreateThreadProgress);
   rpc ContinueThreadInWorktree(ContinueThreadInWorktreeRequest) returns (CreateThreadResponse);
+  // Moving a thread with its session and files to another worker of this gateway (docs/thread-transfers.md).
+  rpc PreviewThreadTransfer(ThreadTransferPreviewRequest) returns (ThreadTransferPreview);
+  rpc StartThreadTransfer(StartThreadTransferRequest) returns (ThreadTransfer);
+  rpc GetThreadTransfer(ThreadTransferRequest) returns (ThreadTransfer);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc InterruptThread(InterruptThreadRequest) returns (InterruptThreadResponse);
   rpc PrepareThreadRewind(ThreadRewindRequest) returns (ThreadRewindPreview);
