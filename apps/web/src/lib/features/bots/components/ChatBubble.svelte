@@ -8,7 +8,8 @@
   import Markdown from "#lib/shared/ui/markdown/Markdown.svelte";
   import { anchorOnly } from "#lib/shared/ui/Popover.svelte";
   import type { BotAction } from "../actions.ts";
-  import { fullDateLabel, timeLabel } from "../chat-timeline.ts";
+  import { formatLocalDateTime } from "#lib/shared/format.ts";
+  import { fullDateLabel } from "../chat-timeline.ts";
   import { contextMenu } from "../context-menu.ts";
   import { mentionRanges, structuredMentionRanges } from "../mentions.ts";
   import { retainStreamWidth } from "../stream-width.ts";
@@ -99,6 +100,8 @@
   // botEntries gives the transient reply a separate id; settlement mounts a fresh, content-sized bubble.
   const streaming = $derived(message.id.startsWith("stream:"));
 
+  const sentAt = $derived(message.delivery ? undefined : message.at);
+
   const mentions = $derived(
     (mine
       ? [
@@ -176,19 +179,17 @@
               : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800/80 dark:text-zinc-100 [&_pre]:my-1 [&>div]:gap-2 [&>div]:text-base/6 sm:[&>div]:text-sm/6",
             message.delivery === "sending" && "opacity-60",
           ]}
-          title={fullDateLabel(message.at)}
           data-quote-item={message.id}
           data-quote-thread={conversationId}
           data-quote-author={sender?.name || "Agent"}
-          data-quote-time={fullDateLabel(message.at)}
+          data-quote-time={sentAt ? fullDateLabel(sentAt) : undefined}
           {@attach streaming ? retainStreamWidth : undefined}
           {@attach contextMenu(() => {
             if (matchMedia("(pointer: coarse)").matches) touchMenuOpen = true;
           })}
         >
-          <span class="sr-only" data-quote-skip
-            >{mine ? "You" : (sender?.name ?? "Unknown")}, {timeLabel(message.at)}:
-          </span>{#if looseQuotes.length}<MessageQuotes
+          <span class="sr-only" data-quote-skip>{mine ? "You" : (sender?.name ?? "Unknown")}:</span
+          >{#if looseQuotes.length}<MessageQuotes
               quotes={looseQuotes}
               inverted={mine}
               class="pb-2"
@@ -258,6 +259,18 @@
         </li>
       {/each}
     </ul>
+  {/if}
+  {#if sentAt}
+    <time
+      datetime={sentAt.toISOString()}
+      data-quote-skip
+      class={[
+        "max-w-full px-3 text-sm/5 wrap-anywhere text-zinc-500 sm:text-xs/5 dark:text-zinc-400",
+        end && "text-right",
+      ]}
+    >
+      {formatLocalDateTime(sentAt)}
+    </time>
   {/if}
   {#if message.delivery}
     <p

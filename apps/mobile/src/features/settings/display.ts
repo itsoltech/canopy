@@ -36,6 +36,9 @@ export function useClock() {
 
   return {
     time,
+    messageTime(at: Date) {
+      return at.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short", hour12 });
+    },
     day(at: Date, now = new Date()) {
       const n = days(at, now);
 

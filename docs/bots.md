@@ -1,5 +1,8 @@
 # Boty
 
+Status (2026-11-28): zapisane wiadomości botów i użytkownika mają widoczną datę
+i godzinę wysłania w web/desktop oraz na iOS i Androidzie.
+
 Status (2026-11-28): wątek założony przez bota może dołączyć wybrane pliki z workspace’u do wiadomości dla tego bota. Bot może udostępnić załącznik w bieżącej rozmowie. Szczegóły w sekcji [Połączenie z wątkami](#połączenie-z-wątkami). Dostępność w kanałach określa [promocja wydań](release.md).
 
 Status (2026-11-28): właściciel może przydzielić botowi dostęp do konkretnego repozytorium GitHub. Odczyt i opcjonalny zapis korzystają z konta GitHub w domu bota oraz z jego polityki zatwierdzeń. [Dostęp do repozytorium](github.md#dostęp-projektu-i-bota-do-repozytorium)
@@ -2119,6 +2122,8 @@ zapamiętany stan pracy botów z niedostępnego domu lub domu w trakcie odświe�
   cytaty w tekście. W Twoich wiadomościach etykieta, ikona i obrys fokusu używają
   koloru tekstu dymku. Pełny fragment, komentarz i źródło są w podglądzie. `MessageQuotes`
   zachowuje bloki starszych klientów bez zakresów nad treścią.
+  Pod każdą zapisaną wiadomością z dostępnym czasem wysłania widać datę i godzinę
+  w lokalnej strefie czasowej. Godzina uwzględnia ustawienie **Time format**.
 - **Separatory czasu** tylko na początku, po zmianie dnia i po godzinie ciszy
   („Today 11:46 AM”).
 - **Zdarzenia w czacie**: co najmniej dwa kolejne wpisy, w tym odbiór i wysyłka

@@ -129,7 +129,7 @@
 
   const estimates = new Map<string, number>([
     ["date", 48],
-    ["message", 60],
+    ["message", 84],
     ["question", 200],
     ["approval", 150],
   ]);

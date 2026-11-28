@@ -11,6 +11,7 @@ import { MessageSpans, mentionElements } from "../composer/MessageText";
 import { QuotePreview } from "../quotes/QuotePreview";
 import { ChatMessageActions, type SetMessageReaction } from "./ChatMessageActions";
 import { MessageAttachments } from "../attachments/MessageAttachments";
+import { useClock } from "../settings/display";
 
 /**
  * One message in a run (web: ChatBubble, MessageRow). Bots write markdown on soft grey; your messages are plain text
@@ -41,6 +42,7 @@ export function ChatBubble({
   const c = useColors();
   const [actions, setActions] = useState(false);
   const rose = useTone("rose").text;
+  const sentAt = message.delivery ? undefined : message.at;
   const end = mine;
   const tight = 6;
 
@@ -122,6 +124,7 @@ export function ChatBubble({
           onClose={() => setActions(false)}
           onReply={onReply ? () => onReply(message) : undefined}
         />
+        {sentAt && <MessageTime at={sentAt} end={end} />}
         {message.delivery === "failed" && (
           <View style={[styles.row, { gap: 4, paddingHorizontal: 12 }]}>
             <Icon name="exclamation-circle" size={14} color={rose} />
@@ -130,6 +133,22 @@ export function ChatBubble({
         )}
       </View>
     </View>
+  );
+}
+
+function MessageTime({ at, end }: { at: Date; end: boolean }) {
+  const c = useColors();
+  const clock = useClock();
+
+  return (
+    <Text
+      style={[
+        styles.meta,
+        { color: c.muted, maxWidth: "100%", paddingHorizontal: 12, textAlign: end ? "right" : "left" },
+      ]}
+    >
+      {clock.messageTime(at)}
+    </Text>
   );
 }
 

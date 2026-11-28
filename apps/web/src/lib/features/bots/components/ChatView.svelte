@@ -220,7 +220,7 @@
         kind: "agent_message_markdown",
         language: "",
         author: conversation.bots.find((b) => b.id === message.senderId)?.name || "Agent",
-        time: message.at.toLocaleString(),
+        time: message.at?.toLocaleString() ?? "",
       },
     });
 
