@@ -116,6 +116,8 @@ export interface QuestionView {
   at: Date;
   prompt: string;
   routineTitle?: string | undefined;
+  /** What started the asking run: a routine or an event trigger. */
+  routineKind?: "routine" | "trigger" | undefined;
   /** Parked by a background run: the answer starts a new run. */
   parked?: boolean | undefined;
   options: QuestionOptionView[];
@@ -137,6 +139,8 @@ export interface ApprovalView {
   /** What it wants to do, e.g. "Sending to Notion". */
   action: string;
   routineTitle?: string | undefined;
+  /** What started the asking run: a routine or an event trigger. */
+  routineKind?: "routine" | "trigger" | undefined;
   /** Parked by a background run: the decision starts a new run. */
   parked?: boolean | undefined;
   fields: { label: string; value: string }[];

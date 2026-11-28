@@ -22,7 +22,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
   const state = (botId: string, compact = false) =>
     Effect.gen(function* () {
       const routines =
-        yield* sql`SELECT title, instructions, cron, timezone, enabled, next_run_at, last_outcome FROM bot_routines WHERE bot_id = ${botId}::uuid AND deleted_at IS NULL ORDER BY created_at, id`;
+        yield* sql`SELECT kind, title, instructions, cron, timezone, event, schedule_text, enabled, next_run_at, last_outcome FROM bot_routines WHERE bot_id = ${botId}::uuid AND deleted_at IS NULL ORDER BY created_at, id`;
 
       const reminders =
         yield* sql`SELECT prompt, run_at FROM bot_wakeups WHERE bot_id = ${botId}::uuid AND NOT cancelled AND NOT delivered ORDER BY run_at, id`;
@@ -30,7 +30,7 @@ export function handoffStore(sql: SqlClient.SqlClient) {
       const watches =
         yield* sql`SELECT target_thread_id, target_turn_id, target_steer_id FROM bot_thread_watches WHERE bot_id = ${botId}::uuid AND NOT delivered ORDER BY call_id`;
 
-      return `Pending routines (including intent):\n${JSON.stringify(routines).slice(0, compact ? 4000 : 8000)}\nPending reminders:\n${JSON.stringify(reminders).slice(0, compact ? 2500 : 4000)}\nWatched threads:\n${JSON.stringify(watches).slice(0, compact ? 1000 : 2000)}`;
+      return `Pending routines and event triggers (including intent):\n${JSON.stringify(routines).slice(0, compact ? 4000 : 8000)}\nPending reminders:\n${JSON.stringify(reminders).slice(0, compact ? 2500 : 4000)}\nWatched threads:\n${JSON.stringify(watches).slice(0, compact ? 1000 : 2000)}`;
     });
 
   return {

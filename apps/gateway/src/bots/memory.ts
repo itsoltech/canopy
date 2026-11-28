@@ -14,6 +14,8 @@ export interface BotMemoryAccess extends MemoryAccess {
   readonly ownerInput: boolean;
   /** Verified conversation identity for delegated work, independent of note availability. */
   readonly conversationId: string | null;
+  /** An event trigger's run: read-only bot notes, no private history, owner-wide thread reads like a routine. */
+  readonly trigger?: boolean;
 }
 
 /** Only gateway-created queue records describe the source and destination of a turn. */
@@ -24,6 +26,7 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
       conversation_id: string | null;
       owner_input: boolean;
       routine: boolean;
+      trigger: boolean;
       scheduled: boolean;
       channel_input: boolean;
       external: boolean;
@@ -33,7 +36,7 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
     }>`SELECT t.bot_id, t.conversation_id, EXISTS (
         SELECT 1 FROM bot_messages m WHERE m.turn_id=t.id AND ${ownerBotInput(sql)}
       ) AS owner_input,
-      r.id IS NOT NULL AS routine,
+      r.id IS NOT NULL AS routine, coalesce(r.kind = 'trigger', false) AS trigger,
       EXISTS (WITH RECURSIVE chain(id, request, hops, depth) AS (
           SELECT t.id, t.client_request_id, t.hops, 0
           UNION ALL
@@ -55,7 +58,8 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
       FROM bot_turns t JOIN bots b ON b.id=t.bot_id
       LEFT JOIN bot_routines r ON r.id=t.routine_id AND r.bot_id=t.bot_id AND r.enabled AND r.deleted_at IS NULL
         AND EXISTS (SELECT 1 FROM bot_tool_calls c JOIN bot_turns t ON t.id=c.turn_id JOIN bot_messages m ON m.turn_id=t.id
-          WHERE c.id=r.id AND c.tool->>'name'='create_routine' AND t.bot_id=r.bot_id AND ${ownerBotInput(sql)})
+          WHERE c.id=r.id AND c.tool->>'name'=CASE r.kind WHEN 'trigger' THEN 'create_trigger' ELSE 'create_routine' END
+            AND t.bot_id=r.bot_id AND ${ownerBotInput(sql)})
       WHERE t.id=${turn.id}::uuid AND t.bot_id=${turn.bot_id}::uuid AND b.owner_user_id=${ownerId}::uuid
         AND t.status='running' AND t.lease_token=${turn.lease_token}::uuid AND t.lease_until>now()
         AND t.handoff_configuration IS NULL AND b.deleted_at IS NULL AND b.archived_at IS NULL AND b.moved_to IS NULL
@@ -97,7 +101,8 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
         ...access,
         scopes: [{ kind: "bot", botId: row.bot_id }],
         canWrite: row.owner_input || row.scheduled,
-      } satisfies MemoryAccess;
+        trigger: row.trigger && !row.owner_input,
+      } satisfies BotMemoryAccess;
 
     return access;
   });

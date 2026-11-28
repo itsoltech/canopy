@@ -16,6 +16,7 @@ interface ActivityRow {
   working: boolean;
   routine_id: string | null;
   routine_title: string;
+  trigger: boolean;
   account: string | null;
   provider: MessengerProvider | null;
   direct: boolean | null;
@@ -41,7 +42,9 @@ function sourceLabel(turn: ActivityRow) {
   if (!turn.routine_id) return "";
   const title = activityLabel(turn.routine_title).slice(0, 120);
 
-  return title ? `Routine “${title}”` : "Routine";
+  const noun = turn.trigger ? "Event trigger" : "Routine";
+
+  return title ? `${noun} “${title}”` : noun;
 }
 
 function backgroundPhase(sql: SqlClient.SqlClient, turn: ActivityRow, statusLine: string) {
@@ -71,8 +74,8 @@ function backgroundPhase(sql: SqlClient.SqlClient, turn: ActivityRow, statusLine
 /** Stop and streaming belong to the owner's conversation. The live line describes the turn actually running. */
 export function conversationActivity(sql: SqlClient.SqlClient, bot: BotRow) {
   return Effect.gen(function* () {
-    const [turn] =
-      yield* sql<ActivityRow>`SELECT t.id,t.status,t.routine_id,t.routine_title,slack.account,slack.provider,slack.direct,slack.channel_id,slack.thread_id,
+    const [turn] = yield* sql<ActivityRow>`SELECT t.id,t.status,t.routine_id,t.routine_title,
+      coalesce((SELECT r.kind='trigger' FROM bot_routines r WHERE r.id=t.routine_id),false) AS trigger,slack.account,slack.provider,slack.direct,slack.channel_id,slack.thread_id,
       bool_or(t.conversation_id IS NULL AND (t.routine_id IS NULL OR t.status='waiting')) OVER () AS working,
       coalesce(h.text,'') AS streaming_text
       FROM bot_turns t

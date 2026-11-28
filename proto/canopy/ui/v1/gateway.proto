@@ -239,6 +239,8 @@ service GatewayService {
   rpc RetryBot(RetryBotRequest) returns (RetryBotResponse);
   rpc SetBotRoutineEnabled(SetBotRoutineEnabledRequest) returns (BotRoutineResponse);
   rpc DeleteBotRoutine(DeleteBotRoutineRequest) returns (DeleteBotRoutineResponse);
+  rpc SetBotTriggerEnabled(SetBotTriggerEnabledRequest) returns (BotTriggerResponse);
+  rpc DeleteBotTrigger(DeleteBotTriggerRequest) returns (DeleteBotTriggerResponse);
   rpc CancelBotReminder(CancelBotReminderRequest) returns (CancelBotReminderResponse);
   rpc MarkBotRead(MarkBotReadRequest) returns (GetBotResponse);
   rpc SaveBotMcpServer(SaveBotMcpServerRequest) returns (SaveBotMcpServerResponse);

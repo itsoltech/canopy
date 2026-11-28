@@ -4,7 +4,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link, ui } from "@canopy/contracts";
 
-import { nodeRef, qualifyId, splitId, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
+import { MOVE_BOT_TRIGGERS, nodeRef, qualifyId, splitId, REMOTE_BOT_COMPOSER } from "@canopy/domain/computers";
 
 import {
   commitSource,
@@ -109,11 +109,23 @@ export async function movesDrive(hostContext: ComputerMoves, moveId: string) {
       if (move.kind === "thread" && hostContext[movesState].host.ready(target))
         prepare.native = await moveNative(hostContext, move, target);
 
-      if (
-        (prepare.bot?.draft || prepare.bot?.files.length) &&
-        !(await hostContext[movesState].store.peer(target))?.capabilities.includes(REMOTE_BOT_COMPOSER)
-      )
+      const peer = await hostContext[movesState].store.peer(target);
+
+      if ((prepare.bot?.draft || prepare.bot?.files.length) && !peer?.capabilities.includes(REMOTE_BOT_COMPOSER))
         throw new MoveRefused("Update the other computer to move this bot's draft and images.");
+
+      // Deleted triggers travel with the bot too: an older target cannot store any of them.
+      if (
+        prepare.bot &&
+        !peer?.capabilities.includes(MOVE_BOT_TRIGGERS) &&
+        (
+          await hostContext[movesState].store.query(
+            "SELECT 1 FROM bot_routines WHERE bot_id=$1::uuid AND kind='trigger'",
+            [move.item_id],
+          )
+        ).length
+      )
+        throw new MoveRefused("Update the other computer to move this bot's event triggers.");
 
       if (!hostContext[movesState].host.ready(target))
         throw new MoveRefused(

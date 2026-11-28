@@ -24,7 +24,12 @@ import { requireLinkedModules } from "./agents-module-access.ts";
 import type { LinkedAgents } from "./agents.ts";
 import { gather } from "../api/routed-overview.ts";
 import { PEER_READ_TIMEOUT_MS } from "./timing.ts";
-import { botThreadAudience, botThreadAudiences } from "../core/bot-thread-audience.ts";
+import {
+  botThreadAudience,
+  botThreadAudiences,
+  triggerListableThreads,
+  triggerThreadReads,
+} from "../core/bot-thread-audience.ts";
 import { botThreadPermission } from "../bots/thread-permission.ts";
 import { delegationPrompt } from "../bots/external-instructions.ts";
 import { readThreadPage, wantsThreadPage } from "../bots/tools/read-thread-page.ts";
@@ -41,7 +46,12 @@ export const agentsBotToolsMethods: AgentsBotToolsMethods = {
     this.redirect(args);
 
     if (call.tool.name === "list_threads") {
-      return await listBotThreads(this, args, await botThreadAudiences(this.core, turn, true));
+      return await listBotThreads(
+        this,
+        args,
+        await botThreadAudiences(this.core, turn, true),
+        await triggerThreadReads(this.core, turn),
+      );
     }
 
     if (call.tool.name === "list_bots") {
@@ -246,11 +256,12 @@ async function listBotThreads(
   hostContext: LinkedAgents,
   args: Arguments,
   audiences: readonly string[],
+  triggerRun = false,
 ): Promise<JsonValue> {
   await requireLinkedModules(hostContext);
   const project = Predicate.isString(args["project_id"]) ? args["project_id"] : "";
 
-  if (audiences.length && splitId(project).node) return [];
+  if ((audiences.length || triggerRun) && splitId(project).node) return [];
 
   const request = create(ui.ListThreadsRequestSchema, {
     projectId: project,
@@ -262,7 +273,14 @@ async function listBotThreads(
     ? (await hostContext.ui("ListThreads", request, ui.ListThreadsResponseSchema)).threads
     : await hostContext.core.listThreads(project, request.includeArchived, false, audiences);
 
-  if (!project && !audiences.length) {
+  if (triggerRun) {
+    const listable = await triggerListableThreads(
+      hostContext.core,
+      threads.map((t) => t.id),
+    );
+
+    threads = threads.filter((t) => listable.has(t.id));
+  } else if (!project && !audiences.length) {
     // Offline UI mirrors cannot attest the home's current module preference.
     const computers = hostContext.core.computers;
     const nodes = computers?.reachable().filter((node) => computers.capabilities(node).includes(AGENT_BUS)) ?? [];

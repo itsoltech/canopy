@@ -235,6 +235,11 @@ export async function applyBot(
         records.map((record) => ({ ...record, bot_id: move.item_id }));
 
       yield* insertRows(sql, "bot_routines", ownRows(rows.routines), { strict: true });
+      // Event triggers name resources of the source computer: they arrive off, until the owner points them here.
+      yield* sql.unsafe(
+        `UPDATE bot_routines SET enabled = false, revision = revision + 1 WHERE bot_id = $1::uuid AND kind = 'trigger'`,
+        [move.item_id],
+      );
 
       // A continuation names its parked card, which arrives with the approvals below.
       yield* insertRows(sql, "bot_turns", ownRows(rows.turns), { omit: ["resume_approval_id"], strict: true });

@@ -181,6 +181,25 @@ function sendWorkerCommand(
   });
 }
 
+/** A bot turn command goes only while its turn runs; an unsent trigger command also needs its events current. */
+async function botTurnDispatchable(hostContext: GatewayCore, command: Command) {
+  const { options } = hostContext[coreState];
+  const draining = options.relocation?.draining;
+
+  if (!(await options.runtime.runPromise(BotStore.use((s) => s.harnessDispatchable(command.commandId, draining))))) {
+    if (!draining)
+      await coreRun(hostContext, (s) => s.commandDone(command.commandId, false, { errorCode: "TURN_NOT_RUNNING" }));
+
+    return false;
+  }
+
+  // Written for a worker that was offline: the trigger's events may have been settled meanwhile. A refusal is
+  // recorded with the check.
+  const now = hostContext.bots.now();
+
+  return options.runtime.runPromise(BotStore.use((s) => s.triggerDispatchable(command.commandId, now)));
+}
+
 async function deliverCommand(
   hostContext: GatewayCore,
   workerId: string,
@@ -204,19 +223,19 @@ async function deliverCommand(
   )
     return;
 
-  if (!botCommandSupported(command, connection.hello.capabilities)) return;
+  if (!botCommandSupported(command, connection.hello.capabilities)) {
+    // The turn's gateway may not hold this connection: it learns from the command why the turn cannot start.
+    const epoch = connection.registrationEpoch;
 
-  if (
-    command.kind.case === "runBotTurn" &&
-    !(await hostContext[coreState].options.runtime.runPromise(
-      BotStore.use((s) => s.harnessDispatchable(command.commandId, relocation?.draining)),
-    ))
-  ) {
-    if (relocation?.draining) return;
-    await coreRun(hostContext, (s) => s.commandDone(command.commandId, false, { errorCode: "TURN_NOT_RUNNING" }));
+    if (command.kind.case === "runBotTurn" && epoch !== undefined)
+      await hostContext[coreState].options.runtime.runPromise(
+        BotStore.use((s) => s.refuseBotCommand(command.commandId, workerId, epoch)),
+      );
 
     return;
   }
+
+  if (command.kind.case === "runBotTurn" && !(await botTurnDispatchable(hostContext, command))) return;
 
   let legacyThrough: string | false | undefined;
   let result = capabilityRefusal(connection.hello.capabilities, command);

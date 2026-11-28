@@ -187,3 +187,23 @@ function threadApprovalHandlers(core: GatewayCore): Pick<UiHandlers, "listThread
       ),
   };
 }
+
+/** Owner toggles and deletion of event triggers; creation and edits go through the bot's conversation. */
+export function botTriggerHandlers(core: GatewayCore): Pick<UiHandlers, "setBotTriggerEnabled" | "deleteBotTrigger"> {
+  return {
+    setBotTriggerEnabled: (r) =>
+      guard(async () =>
+        create(bots.BotTriggerResponseSchema, {
+          trigger: await core.bots.run((s) =>
+            s.updateTrigger(core[coreState].options.userId, r.botId, r.triggerId, { enabled: r.enabled }),
+          ),
+        }),
+      ),
+    deleteBotTrigger: (r) =>
+      guard(async () => {
+        await core.bots.run((s) => s.deleteTrigger(core[coreState].options.userId, r.botId, r.triggerId));
+
+        return create(bots.DeleteBotTriggerResponseSchema);
+      }),
+  };
+}

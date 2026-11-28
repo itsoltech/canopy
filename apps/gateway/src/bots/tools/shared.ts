@@ -43,7 +43,7 @@ export interface PlatformTool {
   phrase(args: JsonObject): string;
   execute(context: ToolContext): Promise<ToolResult>;
   /** Before any approval card: reject malformed calls (the model gets the error, the user no card) and/or word the card. */
-  prepare?(context: ToolContext): Promise<{ prompt?: string } | undefined>;
+  prepare?(context: ToolContext): Promise<{ prompt?: string; requireApproval?: boolean } | undefined>;
 }
 
 export function define(

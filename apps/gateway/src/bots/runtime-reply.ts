@@ -7,6 +7,14 @@ import { memoryContext } from "../memory/tools.ts";
 import { currentBotTools } from "./policy.ts";
 import { botConfiguration } from "./store.ts";
 import { runParkedApproval } from "./parked-resume.ts";
+import { TriggerSuperseded } from "./trigger-current.ts";
+
+export { TriggerSuperseded };
+
+/** A trigger run superseded before dispatch: one with nothing left to report ends like a quiet run. */
+export async function endSupersededTrigger(runtime: BotsRuntime, turn: BotTurn, error: TriggerSuperseded) {
+  if (error.kind === "empty") await runtime.run((s) => s.finish(turn, "completed", ""));
+}
 
 export async function botModelContext(
   runtime: BotsRuntime,
@@ -21,7 +29,8 @@ export async function botModelContext(
 
   const access = await runtime.run((s) => s.memoryAccess(options.userId, turn));
   const tools = await currentBotTools(options, config, turn, access);
-  const isolatedInput = !turn.conversation_id && !access.scopes.length && !turn.reaction_input;
+  // A trigger run reads only its own input: event data, not the owner's private conversation.
+  const isolatedInput = !turn.conversation_id && (!access.scopes.length || !!access.trigger) && !turn.reaction_input;
 
   const channel = await runtime.run((s) =>
     s.slackTurnContext(options.userId, turn, Boolean(options.model || !options.harness)),

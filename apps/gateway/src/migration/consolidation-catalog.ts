@@ -4,6 +4,7 @@ import { Effect, Redacted } from "effect";
 import type { SqlClient } from "effect/sql";
 import {
   BOT_PARKED_MIGRATION,
+  BOT_TRIGGERS_MIGRATION,
   coveredTables,
   importTables,
   MESSENGER_PROVIDERS_MIGRATION,
@@ -160,17 +161,19 @@ export function consolidationCatalog(sql: Database) {
 
     // Keep the table allowlist closed to columns and FKs introduced without a reviewed import policy.
     const expectedSignature =
-      id >= BOT_PARKED_MIGRATION
-        ? "0be8fc9f65d97b371caf94a63c142eb58e274ceb970eea6eb7437b666fca2815"
-        : id >= THREAD_TRANSFERS_MIGRATION
-          ? "ee388aa01779429e258a7dbb1523b9049acbda77c627a9e46d5af22ba4f9da9b"
-          : id >= MESSENGER_PROVIDERS_MIGRATION
-            ? "c685c576ed76dedeb581fe998bf1020a439ee2bde257aa23fd5bf2400235d5c5"
-            : id >= SLACK_CONTEXT_MIGRATION
-              ? "1397f1da55d4fbd515d6f37e03688cd24158bc8db1f3b80fb4f4ddcf828a5e5c"
-              : id >= 216
-                ? "d9308c1a668ad42ea980e1afa7845a59aca8ec180f0e8b116b7a0fd14ebf8fed"
-                : "ec01736abf5e3a5ba0791405cf373c64a1fd9771e6ca11fd84128c98cd9793b0";
+      id >= BOT_TRIGGERS_MIGRATION
+        ? "e442e83b2a81b2ceb6c1c8c77baf3b2632e6cfc5359329988efbba729c5c019d"
+        : id >= BOT_PARKED_MIGRATION
+          ? "0be8fc9f65d97b371caf94a63c142eb58e274ceb970eea6eb7437b666fca2815"
+          : id >= THREAD_TRANSFERS_MIGRATION
+            ? "ee388aa01779429e258a7dbb1523b9049acbda77c627a9e46d5af22ba4f9da9b"
+            : id >= MESSENGER_PROVIDERS_MIGRATION
+              ? "c685c576ed76dedeb581fe998bf1020a439ee2bde257aa23fd5bf2400235d5c5"
+              : id >= SLACK_CONTEXT_MIGRATION
+                ? "1397f1da55d4fbd515d6f37e03688cd24158bc8db1f3b80fb4f4ddcf828a5e5c"
+                : id >= 216
+                  ? "d9308c1a668ad42ea980e1afa7845a59aca8ec180f0e8b116b7a0fd14ebf8fed"
+                  : "ec01736abf5e3a5ba0791405cf373c64a1fd9771e6ca11fd84128c98cd9793b0";
 
     if (signature !== expectedSignature)
       return yield* Effect.fail(

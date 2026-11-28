@@ -46,6 +46,17 @@ const EXTERNAL_WORK_TOOLS = new Set([
   SKIP_SLACK_REPLY,
 ]);
 
+// Background runs never change what makes them run, nor the bot itself.
+const BACKGROUND_DENIED = new Set([
+  "create_routine",
+  "update_routine",
+  "delete_routine",
+  "create_trigger",
+  "update_trigger",
+  "delete_trigger",
+  "update_self",
+]);
+
 const accountPreferenceNames = new Set(accountPreferenceTools.map(({ spec }) => spec.name));
 const ownerInputTools = new Set(["react_to_message", proposeCanopyTheme.spec.name]);
 
@@ -69,9 +80,7 @@ export async function currentBotTools(
       (!accountPreferenceNames.has(tool.name) || !turn.routine_id) &&
       (config.files !== false || !BOT_FILE_TOOLS.includes(tool.name)) &&
       (config.webAccess !== false || tool.name !== "get_canopy_release_versions") &&
-      (turn.routine_id
-        ? !["create_routine", "update_routine", "delete_routine", "update_self"].includes(tool.name)
-        : tool.name !== "message_user"),
+      (turn.routine_id ? !BACKGROUND_DENIED.has(tool.name) : tool.name !== "message_user"),
   );
 
   return [
@@ -99,6 +108,9 @@ export function needsApproval(tool: ToolSpec, policy: string, args: JsonObject =
       "create_routine",
       "update_routine",
       "delete_routine",
+      "create_trigger",
+      "update_trigger",
+      "delete_trigger",
       "message_user",
       "react_to_message",
       proposeCanopyTheme.spec.name,

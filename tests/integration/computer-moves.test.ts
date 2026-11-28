@@ -462,13 +462,14 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
     );
     await sql(a, "INSERT INTO connector_bot_grants (account_id, bot_id) VALUES ($1::uuid,$2::uuid)", [account, bot]);
     // A routine and a reminder that are due while the bot moves: exactly one home runs each, once.
-    const routine = id();
-    const reminder = id();
+    const [routine, reminder, trigger] = [id(), id(), id()];
     await a.core.bots.stop();
     await sql(
       a,
-      `INSERT INTO bot_routines (id, bot_id, title, instructions, cron, timezone, schedule_text, next_run_at, hops) VALUES ($1::uuid,$2::uuid,'Daily digest','Summarize','0 9 * * *','UTC','Every day at 9:00', now() - interval '1 minute', 1)`,
-      [routine, bot],
+      // An event trigger names this computer's resources, so it arrives turned off.
+      `WITH t AS (INSERT INTO bot_routines (id, bot_id, kind, title, instructions, schedule_text, hops, event, filter) VALUES ($3::uuid,$2::uuid,'trigger','Failed','Explain','',1,'thread.turn_finished','{"scope":{},"where":{},"exclude_own":true,"coalesce_seconds":300,"max_turns_per_hour":4}'))
+       INSERT INTO bot_routines (id, bot_id, title, instructions, cron, timezone, schedule_text, next_run_at, hops) VALUES ($1::uuid,$2::uuid,'Daily digest','Summarize','0 9 * * *','UTC','Every day at 9:00', now() - interval '1 minute', 1)`,
+      [routine, bot, trigger],
     );
     const turn = (await sql<{ id: string }>(a, "SELECT id FROM bot_turns WHERE bot_id=$1::uuid LIMIT 1", [bot]))[0]!.id;
     // With a finished continuation of an approved parked card: it names a card that arrives after the turns.
@@ -514,6 +515,7 @@ describe.skipIf(!dockerAvailable)("moving things between linked computers", () =
         10000,
       ),
     ).toBe(true);
+    expect(await sql(c, "SELECT enabled FROM bot_routines WHERE id=$1", [trigger])).toEqual([{ enabled: false }]);
     expect(await sql(c, "SELECT resume_approval_id AS r FROM bot_turns WHERE id=$1", [continuation])).toEqual([
       { r: card },
     ]);

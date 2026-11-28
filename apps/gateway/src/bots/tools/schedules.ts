@@ -1,3 +1,4 @@
+import { triggerListableSchedules, triggerThreadReads } from "../../core/bot-thread-audience.ts";
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
@@ -79,7 +80,7 @@ export const schedulePageDescription =
 async function listSchedules({ core, optional, args, turn, integer }: ToolContext) {
   const scope = optional("scope");
 
-  const schedules =
+  const all =
     scope === "wakeup"
       ? []
       : await core.listSchedules(
@@ -90,6 +91,15 @@ async function listSchedules({ core, optional, args, turn, integer }: ToolContex
           }),
         );
 
+  // An event trigger run never sees a schedule working for an external conversation.
+  const listable = (await triggerThreadReads(core, turn))
+    ? await triggerListableSchedules(
+        core,
+        all.map((s) => s.id),
+      )
+    : undefined;
+
+  const schedules = listable ? all.filter((s) => listable.has(s.id)) : all;
   const wakeups = scope === "platform" ? [] : await core.bots.run((s) => s.wakeups(turn.bot_id));
   const limit = integer("limit");
   const offset = integer("offset");

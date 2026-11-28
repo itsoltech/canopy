@@ -112,6 +112,8 @@ message BotApproval {
   string request_id = 1004;
   // Parked by a background run: the run already ended, and the decision starts a new run of the same origin.
   bool parked = 1113;
+  // What started the run that asked: routine or trigger; empty for other turns.
+  string routine_kind = 1115;
 }
 message BotApprovalRule {
   string id = 1;
@@ -139,6 +141,7 @@ message BotConversation {
   bool working = 5;
   uint64 revision = 6;
   repeated BotRoutine routines = 560;
+  repeated BotTrigger triggers = 1114;
   repeated BotReminder reminders = 561;
   // Bieżąca odpowiedź harnessu, jeszcze bez końcowego wpisu rozmowy.
   string streaming_text = 830;
@@ -174,6 +177,35 @@ message BotReminder {
   string prompt = 2;
   google.protobuf.Timestamp run_at = 3;
 }
+// An event trigger: the bot runs in the background when a matching Canopy event happens.
+message BotTrigger {
+  string id = 1;
+  string bot_id = 2;
+  string title = 3;
+  string instructions = 4;
+  // Event type from the trigger catalogue, e.g. thread.turn_finished.
+  string event = 5;
+  // The validated filter (scope, where, exclude_own, coalesce_seconds, max_turns_per_hour) as JSON.
+  string filter_json = 6;
+  // Plain-language summary of the filter, made by the gateway.
+  string description = 7;
+  uint32 revision = 8;
+  bool enabled = 9;
+  // Paused by the gateway after hitting its turn limit three hours in a row.
+  bool auto_paused = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  google.protobuf.Timestamp last_run_at = 13;
+  string last_outcome = 14;
+  uint32 run_count = 15;
+  // Matched events and runs in the last 7 days.
+  uint32 matched_week = 16;
+  uint32 runs_week = 17;
+}
+message SetBotTriggerEnabledRequest { string bot_id = 1; string trigger_id = 2; bool enabled = 3; }
+message DeleteBotTriggerRequest { string bot_id = 1; string trigger_id = 2; }
+message BotTriggerResponse { BotTrigger trigger = 1; }
+message DeleteBotTriggerResponse {}
 message SetBotRoutineEnabledRequest { string bot_id = 1; string routine_id = 2; bool enabled = 3; }
 message DeleteBotRoutineRequest { string bot_id = 1; string routine_id = 2; }
 message BotRoutineResponse { BotRoutine routine = 1; }

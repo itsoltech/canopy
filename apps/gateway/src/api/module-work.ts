@@ -100,6 +100,7 @@ const botWork = new Set<string>([
   "retryBot",
   "answerBotApproval",
   "setBotRoutineEnabled",
+  "setBotTriggerEnabled",
 ] satisfies (keyof UiHandlers)[]);
 
 function workModule(method: string): ModuleId | undefined {
@@ -128,6 +129,8 @@ export async function requireModuleWork(core: GatewayCore, method: string, reque
   if (isMessage(request, ui.SetGoalRequestSchema) && ["clear", "pause"].includes(request.action)) return;
 
   if (isMessage(request, bots.SetBotRoutineEnabledRequestSchema) && !request.enabled) return;
+
+  if (isMessage(request, bots.SetBotTriggerEnabledRequestSchema) && !request.enabled) return;
 
   if (isMessage(request, ui.WorkspaceCopySourceRequestSchema) && request.release) return;
 

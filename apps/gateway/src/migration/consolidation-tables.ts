@@ -18,6 +18,9 @@ export const SLACK_CONTEXT_MIGRATION = 220;
 /** Parked bot cards: approvals and continuation turns gain columns. */
 export const BOT_PARKED_MIGRATION = 228;
 
+/** Event triggers: routines gain trigger columns and the scopes table. */
+export const BOT_TRIGGERS_MIGRATION = 229;
+
 /** Conversations record direct messages and the outbox records sent message IDs; both copy as plain values. */
 export const MESSENGER_PROVIDERS_MIGRATION = 224;
 
@@ -256,6 +259,12 @@ export const importTables: readonly ImportTable[] = [
   ...repoData,
   ...threadData.map((name) => ({ name, filter: thread() })),
   ...botData.map((name) => ({ name, filter: bot() })),
+  {
+    name: "bot_trigger_scopes",
+    filter: `${owned} AND EXISTS (SELECT FROM public.bot_routines r JOIN public.bots b ON b.id=r.bot_id
+      WHERE r.id=s.trigger_id AND b.owner_user_id=$1::uuid AND b.moved_to IS NULL)`,
+    sinceMigration: BOT_TRIGGERS_MIGRATION,
+  },
   { name: "thread_reads", filter: `s.user_id=$1::uuid AND ${thread()}` },
   { name: "thread_visuals", filter: `${owned} AND ${thread()}` },
   { name: "thread_rewinds", filter: `${owned} AND ${thread()}` },

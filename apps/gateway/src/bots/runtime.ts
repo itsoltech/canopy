@@ -1,4 +1,4 @@
-import { botModelContext, botModelReply } from "./runtime-reply.ts";
+import { botModelContext, botModelReply, endSupersededTrigger, TriggerSuperseded } from "./runtime-reply.ts";
 import { create } from "@bufbuild/protobuf";
 import { bots, type ui } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure, safeFailureDetail, type JsonObject } from "@canopy/domain";
@@ -132,7 +132,7 @@ export class BotsRuntime {
       await this.run((s) => s.deliverRoutines(this.#options.userId, this.now()));
 
       while (this.#active.size - this.#waiting.size < 4 && !this.#stopped && !this.#options.draining?.()) {
-        const turn = await this.run((s) => s.claim(this.#options.userId));
+        const turn = await this.run((s) => s.claim(this.#options.userId, this.now()));
 
         if (!turn) break;
         const lease = turn.lease_token!;
@@ -258,6 +258,7 @@ export class BotsRuntime {
       }
     } catch (error) {
       if (abort.signal.aborted && this.#stopped) await this.run((s) => s.release(turn));
+      else if (error instanceof TriggerSuperseded) await endSupersededTrigger(this, turn, error);
       else if (turn.handoff_configuration) throw error;
       else {
         const known =

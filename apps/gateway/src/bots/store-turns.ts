@@ -17,6 +17,7 @@ import { lockedOwnerModule } from "../store/module-access.ts";
 import { authorizeThreadAction } from "./thread-access.ts";
 import { activeChannelTurn, lockChannelAccount } from "../messengers/conversation-access.ts";
 import { canonicalJson } from "../store/instance-config.ts";
+import { currentTriggerTurn } from "./trigger-current.ts";
 import { continueParked, PARKED_TTL_MS, parkedRow, parksInteractions, parksTool, withParkedNote } from "./parked.ts";
 
 function requireWaitingHarness(sql: SqlClient.SqlClient, turnId: string) {
@@ -82,23 +83,29 @@ function renewBotLease(sql: SqlClient.SqlClient, turn: BotTurn) {
   });
 }
 
+/** The next bot of the owner with a claimable turn, locked. */
+function nextTurn(sql: SqlClient.SqlClient, user: string) {
+  return sql<BotRow & { next_turn_id: string; next_status: string }>`SELECT b.*, t.id AS next_turn_id,
+      t.status AS next_status FROM bots b
+    CROSS JOIN LATERAL (SELECT * FROM bot_turns WHERE bot_id = b.id AND status IN ('queued','running','waiting')
+      ORDER BY CASE WHEN status = 'running' AND lease_until > now() THEN 0 WHEN handoff_configuration IS NOT NULL THEN 1 ELSE 2 END, created_at, id LIMIT 1) t
+    WHERE b.deleted_at IS NULL AND b.archived_at IS NULL AND b.owner_user_id = ${user}::uuid
+      AND t.status IN ('queued','running') AND (t.lease_until IS NULL OR t.lease_until <= now())
+    ORDER BY b.updated_at FOR UPDATE OF b SKIP LOCKED LIMIT 1`;
+}
+
 /** Running turns: leases, checkpoints and tool calls. */
 export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
   const { changed, active, fenced } = core;
 
   return {
-    claim: (user: string) =>
+    claim: (user: string, now = new Date()) =>
       sql.withTransaction(
         Effect.gen(function* () {
           if (!(yield* lockedOwnerModule(sql, user, "bots"))) return undefined;
 
           // Handoff is a configuration barrier ahead of queued work, but never preempts a live lease.
-          const rows = yield* sql<BotRow & { next_turn_id: string }>`SELECT b.*, t.id AS next_turn_id FROM bots b
-        CROSS JOIN LATERAL (SELECT * FROM bot_turns WHERE bot_id = b.id AND status IN ('queued','running','waiting')
-          ORDER BY CASE WHEN status = 'running' AND lease_until > now() THEN 0 WHEN handoff_configuration IS NOT NULL THEN 1 ELSE 2 END, created_at, id LIMIT 1) t
-        WHERE b.deleted_at IS NULL AND b.archived_at IS NULL AND b.owner_user_id = ${user}::uuid
-          AND t.status IN ('queued','running') AND (t.lease_until IS NULL OR t.lease_until <= now())
-        ORDER BY b.updated_at FOR UPDATE OF b SKIP LOCKED LIMIT 1`;
+          const rows = yield* nextTurn(sql, user);
 
           if (!rows[0]) return undefined;
           const id = rows[0].id;
@@ -111,7 +118,16 @@ export function botTurns(sql: SqlClient.SqlClient, core: BotCore) {
               steer_target_id = NULL
         WHERE id = ${rows[0].next_turn_id}::uuid RETURNING *`;
 
-          const turn = yield* withParkedNote(sql, turns[0]!);
+          const turn = yield* currentTriggerTurn(
+            sql,
+            user,
+            yield* withParkedNote(sql, turns[0]!),
+            rows[0].next_status === "queued",
+            now,
+          );
+
+          if (!turn) return yield* Effect.as(changed(id), undefined);
+
           yield* routineActivity(sql, turn, "started");
           // A remote side effect may already have happened. Never repeat it after a crash.
           yield* sql`UPDATE bot_tool_calls SET status = 'interrupted', result = '{"error":"interrupted: gateway restarted during remote call; outcome unknown; do not retry without user confirmation"}'::jsonb WHERE turn_id = ${turn.id}::uuid AND status = 'running' AND (tool ->> 'source' = 'mcp' OR linked_remote)`;

@@ -1,6 +1,7 @@
+import { SUPERSEDED, TriggerSuperseded } from "../bots/trigger-current.ts";
 import { create, fromJson } from "@bufbuild/protobuf";
 import { createHash } from "node:crypto";
-import { CommandSchema, CommandResultSchema, TurnOutcome } from "@canopy/contracts";
+import { CommandSchema, CommandResultSchema, TurnOutcome, type CommandResult } from "@canopy/contracts";
 import { classifyFailure, ProviderFailure } from "@canopy/domain";
 import { botImageInput } from "./bot-images.ts";
 import { withSlackBotInput } from "./bot-slack-input.ts";
@@ -10,10 +11,16 @@ import type { BotTurn, ModelInput, ModelReply } from "../bots/types.ts";
 import { coreState } from "./core-context.ts";
 import { coreWorkers } from "./core-providers.ts";
 import { coreDeliver, coreDispatch } from "./core-commands.ts";
+import { BOT_WORKER_OUTDATED, BOT_WORKER_REMOVED } from "../bots/store-harness.ts";
 import { coreRun } from "./core-broadcast.ts";
 import type { GatewayCore } from "./core.ts";
 import { workerThreadSnapshot } from "./worker-thread-lifecycle.ts";
 import { SERVICE_TIERS_UNSUPPORTED, supportsServiceTier } from "./service-tier-compatibility.ts";
+
+const REMOVED_MESSAGE = "This bot's worker was removed. Pick another worker in Runs on.";
+
+/** How often a turn waiting for its worker checks that the worker still exists. */
+const REMOVED_CHECK_MS = 5000;
 
 const configurationKey = (
   configuration: ModelInput["configuration"],
@@ -104,14 +111,27 @@ async function botWorker(core: GatewayCore, input: ModelInput, turn: BotTurn, wo
 }
 
 async function waitForBotInterrupt(core: GatewayCore, input: ModelInput, workerId: string, botId: string) {
+  let checkedAt = Date.now();
+
   // Across gateways, worker ACK means the previous harness has closed before the next one starts.
   while (await core.bots.run((s) => s.harnessInterruptPending(workerId, botId))) {
     input.signal.throwIfAborted();
+
+    // A removed worker never acknowledges the interrupt.
+    if (Date.now() - checkedAt >= REMOVED_CHECK_MS) {
+      checkedAt = Date.now();
+
+      if ((await core.bots.run((s) => s.workerBotLink(workerId))) === "removed")
+        throw new ProviderFailure("configuration", REMOVED_MESSAGE, "platform");
+    }
+
     await Bun.sleep(100);
   }
 }
 
 function harnessReply(job: HarnessTurnRow): ModelReply {
+  if (job.error_code === BOT_WORKER_REMOVED) throw new ProviderFailure("configuration", REMOVED_MESSAGE, "platform");
+
   if (job.outcome !== TurnOutcome.COMPLETED)
     throw new ProviderFailure(
       classifyFailure(job.reason, job.error_class || job.error_code || "HARNESS_ERROR"),
@@ -184,10 +204,124 @@ async function assertBotProvider(core: GatewayCore, input: ModelInput, workerId:
     );
 }
 
+/**
+ * A trigger run's command is written only while its worker holds a bot link (on any gateway), so the events it
+ * carries are current when it is sent.
+ */
+async function triggerWorkerOnline(core: GatewayCore, input: ModelInput, workerId: string, turn: BotTurn) {
+  if (!turn.client_request_id.startsWith("trigger:")) return;
+  let waited = false;
+
+  for (;;) {
+    input.signal.throwIfAborted();
+    const link = await core.bots.run((s) => s.workerBotLink(workerId));
+
+    if (link === "present") break;
+
+    if (link === "outdated")
+      throw new ProviderFailure("configuration", "Update this worker to run bots, or pick another worker.", "platform");
+
+    if (link === "removed") throw new ProviderFailure("configuration", REMOVED_MESSAGE, "platform");
+
+    if (!waited) {
+      const name = (await coreWorkers(core)).find((w) => w.id === workerId)?.name || "worker";
+      core.bots.waiting(turn.id, true);
+      await core.bots.run((s) => s.status(turn, `Waiting for ${name}`, "Waiting for a worker"));
+      waited = true;
+    }
+
+    await Bun.sleep(500);
+  }
+
+  if (waited) {
+    core.bots.waiting(turn.id, false);
+    await core.bots.run((s) => s.status(turn, "Typing…", "Typing…"));
+  }
+}
+
+/** The worker's connection, when this gateway holds it, can run this turn. */
+function assertConnection(core: GatewayCore, input: ModelInput, turn: BotTurn, workerId: string, started = false) {
+  const connection = core.link.connections.get(workerId);
+
+  if (!connection?.isOpen) return;
+  const capabilities = connection.hello.capabilities;
+  const attachments = input.messages.findLast((m) => m.role === "user")?.attachments ?? [];
+
+  // Checked before the command is written; a command already handed over recovers through its worker.
+  if (!started && (turn.conversation_id || input.isolatedInput) && !capabilities.includes("bot_conversations_v1"))
+    throw new ProviderFailure(
+      "configuration",
+      "Update this worker to receive messages from isolated conversations.",
+      "platform",
+    );
+
+  if (!capabilities.includes("bot_harness_v1"))
+    throw new ProviderFailure("configuration", "Update this worker to run bots, or pick another worker.", "platform");
+
+  if (
+    attachments.length > 0 &&
+    !capabilities.includes(attachments.some((a) => a.kind !== "image") ? "bot_files_v1" : "bot_images_v1")
+  )
+    throw new ProviderFailure(
+      "configuration",
+      "Update this worker to receive files, or choose another worker.",
+      "platform",
+    );
+}
+
+/** A trigger run still has events to report: "same", or the run is superseded. */
+async function triggerState(core: GatewayCore, turn: BotTurn) {
+  const state = await core.bots.run((s) => s.recheckTrigger(core[coreState].options.userId, turn, core.bots.now()));
+
+  if (state !== "same") throw new TriggerSuperseded(state);
+}
+
+/**
+ * Before the first command: the previous harness of the bot closed, a trigger run's worker is online, the worker
+ * can run the turn, its provider is allowed, and a trigger run still has events to report.
+ */
+async function readyToDispatch(core: GatewayCore, input: ModelInput, workerId: string, turn: BotTurn) {
+  await waitForBotInterrupt(core, input, workerId, turn.bot_id);
+  await triggerWorkerOnline(core, input, workerId, turn);
+  assertConnection(core, input, turn, workerId);
+  await assertBotProvider(core, input, workerId);
+  await triggerState(core, turn);
+}
+
+/** Why a bot turn's command never ran on its worker; a trigger command refused unsent starts its run again. */
+async function commandFailure(core: GatewayCore, turn: BotTurn, result: CommandResult) {
+  if (result.errorCode === SUPERSEDED) {
+    await triggerState(core, turn);
+
+    return new TriggerSuperseded("changed");
+  }
+
+  if (result.errorCode === "SERVICE_TIERS_UNSUPPORTED")
+    return new ProviderFailure("configuration", SERVICE_TIERS_UNSUPPORTED, "platform");
+
+  if (result.errorCode === BOT_WORKER_OUTDATED)
+    return new ProviderFailure("configuration", result.errorMessage, "platform");
+
+  if (result.errorCode === BOT_WORKER_REMOVED) return new ProviderFailure("configuration", REMOVED_MESSAGE, "platform");
+
+  return new ProviderFailure(
+    classifyFailure(result.errorMessage, result.errorCode || "HARNESS_ERROR"),
+    "Bot worker could not start this turn",
+    "harness",
+  );
+}
+
+/** While a turn waits for its worker, a worker archived or revoked meanwhile ends the turn (checked every 5 s). */
+async function endIfWorkerRemoved(core: GatewayCore, turn: BotTurn, workerId: string, checkedAt: number) {
+  if (Date.now() - checkedAt < REMOVED_CHECK_MS) return checkedAt;
+  await core.bots.run((s) => s.settleRemovedWorker(turn.id, workerId));
+
+  return Date.now();
+}
+
 /** A model call attaches to a durable worker command, including after a gateway restart. */
 export async function runBotHarness(core: GatewayCore, input: ModelInput): Promise<ModelReply> {
   const turn = input.turn;
-  const attachments = input.messages.findLast((m) => m.role === "user")?.attachments ?? [];
 
   if (!turn) throw new Error("Bot turn is required");
   const run: GatewayCore["bots"]["run"] = (use) => core[coreState].options.runtime.runPromise(BotStore.use(use));
@@ -196,23 +330,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
   core.bots.waiting(turn.id, false);
 
   if (!job) {
-    await waitForBotInterrupt(core, input, workerId, turn.bot_id);
-    const connection = core.link.connections.get(workerId);
-
-    if (
-      (turn.conversation_id || input.isolatedInput) &&
-      connection?.isOpen &&
-      !connection.hello.capabilities.includes("bot_conversations_v1")
-    )
-      throw new ProviderFailure(
-        "configuration",
-        "Update this worker to receive messages from isolated conversations.",
-        "platform",
-      );
-
-    if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
-      throw new ProviderFailure("configuration", "Update this worker to run bots, or pick another worker.", "platform");
-    await assertBotProvider(core, input, workerId);
+    await readyToDispatch(core, input, workerId, turn);
     await run((s) => s.assignWorker(core[coreState].options.userId, turn.bot_id, workerId));
     const { images, sourceAttachments } = await botTurnInput(core, input, workerId, turn);
     const conversation = await run((s) => s.conversationContext(turn));
@@ -227,7 +345,8 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
         turn,
         workerId,
         create(CommandSchema, {
-          commandId: turn.id,
+          // A trigger run restarted before its first send gets a new command; the refused one is retired.
+          commandId: turn.client_request_id.startsWith("trigger:") ? Bun.randomUUIDv7() : turn.id,
           kind: {
             case: "runBotTurn",
             value: {
@@ -259,6 +378,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
   }
 
   let lastStatus = "";
+  let removedAt = 0;
 
   try {
     for (;;) {
@@ -270,38 +390,11 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
       const failure = await run((s) => s.harnessCommandFailure(turn.id));
 
       if (failure) {
-        const result = fromJson(CommandResultSchema, failure);
-
-        if (result.errorCode === "SERVICE_TIERS_UNSUPPORTED")
-          throw new ProviderFailure("configuration", SERVICE_TIERS_UNSUPPORTED, "platform");
-        throw new ProviderFailure(
-          classifyFailure(result.errorMessage, result.errorCode || "HARNESS_ERROR"),
-          "Bot worker could not start this turn",
-          "harness",
-        );
+        throw await commandFailure(core, turn, fromJson(CommandResultSchema, failure));
       }
 
+      assertConnection(core, input, turn, workerId, true);
       const connection = core.link.connections.get(workerId);
-
-      if (
-        connection?.isOpen &&
-        attachments.length > 0 &&
-        !connection.hello.capabilities.includes(
-          attachments.some((a) => a.kind !== "image") ? "bot_files_v1" : "bot_images_v1",
-        )
-      )
-        throw new ProviderFailure(
-          "configuration",
-          "Update this worker to receive files, or choose another worker.",
-          "platform",
-        );
-
-      if (connection?.isOpen && !connection.hello.capabilities.includes("bot_harness_v1"))
-        throw new ProviderFailure(
-          "configuration",
-          "Update this worker to run bots, or pick another worker.",
-          "platform",
-        );
 
       const status = connection?.isOpen
         ? ""
@@ -313,6 +406,7 @@ export async function runBotHarness(core: GatewayCore, input: ModelInput): Promi
         lastStatus = status;
       }
 
+      if (status) removedAt = await endIfWorkerRemoved(core, turn, workerId, removedAt);
       await Bun.sleep(250);
     }
   } finally {
