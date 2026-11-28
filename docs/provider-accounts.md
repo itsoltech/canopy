@@ -1,6 +1,6 @@
 # Status kont dostawców
 
-Status (2026-11-28). W podglądzie **Provider limits** każde konto zachowuje swoją kolumnę w kolejnych oknach. Podpis nad paskiem podaje okres, reset i pozostały limit. Kreskowanie oznacza potwierdzony brak limitu 5 h w planie.
+Status (2026-11-28). W podglądzie **Provider limits** każde konto zachowuje swoją kolumnę w kolejnych oknach. Podpis nad paskiem podaje okres, reset i pozostały limit. Wiersz 5 h pojawia się tylko u dostawców, u których co najmniej jedno konto ma taki limit.
 
 Aktualizacja (2026-11-28): podsumowanie Providers wyłącza z liczby gotowych
 workerów instancje z odrzuconym loginem lub potwierdzonym brakiem logowania.
@@ -365,8 +365,8 @@ segmentu; tożsamość konta proxy korzysta z ochrony Sensitive.
 
 Ukośne kreski oznaczają plan bez limitu 5 h (**No limit**), przerywany obrys oznacza
 brak aktualnego odczytu (**No reading**), a pusty jednolity tor i **0%** — wyczerpany limit.
-Jeśli wszystkie konta widoczne w podsumowaniu mają plan bez limitu 5 h, pozostaje pełny kreskowany
-wiersz z podziałem na konta i wspólnym podpisem **No limit**.
+Wiersz 5 h pojawia się, gdy przynajmniej jedno konto dostawcy ma aktualny odczyt 5 h
+lub potwierdzony plan z takim limitem. Wtedy obejmuje także pozostałe konta tego dostawcy.
 Kliknięcie paska w stopce otwiera Settings → Providers, gdzie sekcja **Proxy limits** pokazuje odczyty
 poszczególnych kont używanych proxy. Limity bezpośrednie są w statusie instancji
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu

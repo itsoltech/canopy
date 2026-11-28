@@ -127,12 +127,10 @@ describe("proxy subscription capacity", () => {
 
     const all = codex([weekly, missing])[0]!;
     expect(all.window?.percentLeft).toBe(76);
-    expect(all.fiveHourPlaceholder.map((s) => [s.units, segmentValueText(s)])).toEqual([
-      [50, "No limit"],
-      [20, "No limit"],
-    ]);
+    expect(all.fiveHourPlaceholder).toEqual([]);
     expect(all.segments.map(segmentValueText)).toEqual(["No reading", "76%"]);
-    expect(usageSummaryLabel(all, now)).toContain("5-hour: No limit");
+    expect(usageSummaryLabel(all, now)).not.toContain("5-hour");
+    expect(codex([weekly, { ...missing, plan: Plan.UNSPECIFIED }])[0]?.fiveHourPlaceholder).toEqual([]);
     expect(codex([missing])).toEqual([]);
 
     expect(codex([{ ...weekly, plan: Plan.PLUS }])[0]?.fiveHourPlaceholder.map(segmentValueText)).toEqual([

@@ -1,11 +1,6 @@
 <script lang="ts">
   import { usageReset } from "@canopy/domain/provider-usage";
-  import {
-    fiveHourPlaceholderText,
-    percentLeftText,
-    type SummarySegment,
-    type SummaryWindow,
-  } from "@canopy/domain/usage-summary";
+  import { percentLeftText, type SummarySegment, type SummaryWindow } from "@canopy/domain/usage-summary";
   import { clock } from "#lib/shared/clock.svelte.ts";
   import UsageAccountSegment from "./UsageAccountSegment.svelte";
 
@@ -19,7 +14,7 @@
 
   const period = $derived(reading?.name ?? "5-hour");
   const reset = $derived(reading && usageReset(reading, true, clock.now));
-  const left = $derived(reading ? percentLeftText(reading) : fiveHourPlaceholderText(segments));
+  const left = $derived(percentLeftText(reading));
 
   const showValues = $derived(
     segments.length > 1 &&

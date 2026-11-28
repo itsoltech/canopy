@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-na
 import { usageReset } from "@canopy/domain/provider-usage";
 import { usageTone } from "@canopy/domain/sidebar-usage";
 import {
-  fiveHourPlaceholderText,
   percentLeftText,
   segmentValueText,
   type SummarySegment,
@@ -35,7 +34,7 @@ export function UsageSummaryMeter({
   const detail = selected?.label === selection?.label ? selected : undefined;
   const name = window?.name ?? "5-hour";
   const reset = window && usageReset(window, true, now);
-  const total = window ? percentLeftText(window) : fiveHourPlaceholderText(segments);
+  const total = percentLeftText(window);
   const tone = window ? usageTone(100 - window.percentLeft) : "neutral";
   const mixed = segments.some((segment) => segment.noLimit !== segments[0]?.noLimit);
   const captions = segments.length > 1 && (window !== undefined || mixed);

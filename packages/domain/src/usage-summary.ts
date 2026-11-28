@@ -55,7 +55,7 @@ export interface UsageSummaryRow {
    * accounts without a reading retain their columns.
    */
   readonly shorter: readonly SummaryMeter[];
-  /** Aligned account columns when there is no current 5-hour reading but the plans describe that window. */
+  /** Aligned columns when a plan has a five-hour cap but no account reports a current reading. */
   readonly fiveHourPlaceholder: readonly SummarySegment[];
   readonly tone: UsageTone;
   readonly word: "Low" | "Extra usage" | undefined;
@@ -164,11 +164,10 @@ class Columns {
   }
 
   fiveHourPlaceholder(main: SummaryWindow, windows: ReadonlyMap<number, SummaryWindow>): SummarySegment[] {
-    const applicable = [...this.list.values()].some(
-      ({ plan }) => plan && (plan.five_hour === null || windows.has(oneWeek)),
-    );
+    if (windows.has(fiveHours)) return [];
+    const hasCappedPlan = [...this.list.values()].some(({ plan }) => plan?.five_hour != null);
 
-    return !windows.has(fiveHours) && applicable ? this.bar(main, fiveHours) : [];
+    return hasCappedPlan ? this.bar(main, fiveHours) : [];
   }
 }
 
@@ -283,11 +282,8 @@ export const segmentValueText = (segment: SummarySegment): string =>
       ? "No limit"
       : "No reading";
 
-export const fiveHourPlaceholderText = (segments: readonly SummarySegment[]): string =>
-  segments.length > 0 && segments.every((segment) => segment.noLimit) ? "No limit" : "No reading";
-
-/** "44% left". */
-export const percentLeftText = (window: SummaryWindow) => `${whole.format(window.percentLeft)}% left`;
+export const percentLeftText = (window?: SummaryWindow) =>
+  window ? `${whole.format(window.percentLeft)}% left` : "No reading";
 
 /** "Weekly · Resets in 2 d 6 h": the window the bar shows and its reset. */
 export const summaryWindowText = (window: SummaryWindow, now = Date.now()) =>
@@ -307,7 +303,7 @@ export function usageSummaryLabel(row: UsageSummaryRow, now = Date.now()) {
     row.window ? `${row.name}: ${percentLeftText(row.window)}` : row.name,
     accountsText(row),
     row.window ? summaryWindowText(row.window, now) : "",
-    row.fiveHourPlaceholder.length ? `5-hour: ${fiveHourPlaceholderText(row.fiveHourPlaceholder)}` : "",
+    row.fiveHourPlaceholder.length ? "5-hour: No reading" : "",
     ...row.shorter.map((meter) => shorterText(meter.window, now)),
     row.word ?? "",
   ];
