@@ -8,6 +8,11 @@ reaktywne projekcje panelu i list PR oraz dogrzewanie historii po stronie BFF.
 SSE overview karty pozostaje otwarty przy zmianie wątku i zestawu dogrzewania.
 Opis dotyczy implementacji; dostępność w kanałach według [release.md](release.md).
 
+Aktualizacja (2026-11-28). W web/desktop kompozytor nadąża za małymi krokami
+przewijania, których czas przejścia mieści się w jednej klatce przy 120 Hz.
+Wysokość widocznej krawędzi stopki odczytują jej gradienty i akcje. Zmienna CSS
+pozostaje poza poddrzewem wiadomości, co ogranicza przeliczanie stylów podczas zwijania.
+
 Szkice kompozytora są lokalne: zapis dyskowy jest ograniczony do 100 wpisów/4 MiB
 i opóźniony o 250 ms. Synchronizacja publikuje po 1,5 s bez edycji, przy utracie
 fokusu, opuszczeniu kompozytora i przejściu w tło. Seria znaków daje jeden zapis,
