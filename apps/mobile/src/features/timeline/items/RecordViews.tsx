@@ -1,13 +1,16 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { ItemStatus, type ContextCompaction, type Image, type ProviderItem } from "@canopy/contracts";
 import { humanizeEnum } from "@canopy/domain/humanize";
 import { Markdown } from "../../../ui/markdown";
-import { styles, useColors } from "../../../ui/theme";
+import { styles, useColors, useTypography } from "../../../ui/theme";
 import { ItemFrame } from "../ItemFrame";
 import { CodeBlock } from "../CodeBlock";
 import { compactionLabel, prettyJson } from "@canopy/domain/format";
 import { EmptyNote, ErrorText, RowTitle } from "./parts";
+import { TimelineDisclosure } from "../TimelineDisclosure";
+import { useAnchoredToggle } from "../../../ui/feed-anchor";
 import { Chevron } from "../../../ui/MotionViews";
 import { ImagePreview } from "../../attachments/ImagePreview";
 import { useTimelineDirectory } from "../directory";
@@ -56,60 +59,75 @@ export function ImageView({ image, status }: { image: Image; status: ItemStatus 
   );
 }
 
-/** A milestone in the conversation, with an optional disclosure for the provider's summary. */
-export function TimelineDivider({
-  label,
-  open = false,
-  onPress,
-}: {
-  label: string;
-  open?: boolean;
-  onPress?: (() => void) | undefined;
-}) {
+/** A conversation milestone with a label between two rules. */
+export function TimelineDivider({ label }: { label: string }) {
   const c = useColors();
   const line = <View style={{ flex: 1, minWidth: 8, height: 1, backgroundColor: c.rule }} />;
-  const text = <Text style={[styles.meta, { color: c.muted, flexShrink: 1, textAlign: "center" }]}>{label}</Text>;
 
   return (
     <View style={[styles.row, { gap: 12, minHeight: 40 }]}>
       {line}
-      {onPress ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          onPress={onPress}
-          hitSlop={8}
-          style={[styles.row, { flexShrink: 1, gap: 4, paddingHorizontal: 4 }]}
-        >
-          <Chevron open={open} size={14} color={c.faint} />
-          {text}
-        </Pressable>
-      ) : (
-        text
-      )}
+      <Text style={[styles.meta, { color: c.muted, flexShrink: 1, textAlign: "center" }]}>{label}</Text>
       {line}
     </View>
   );
 }
 
 export function CompactionView({ compaction }: { compaction: ContextCompaction }) {
+  const label = compactionLabel(compaction);
+
+  return compaction.summary ? (
+    <CompactionSummary label={label} summary={compaction.summary} />
+  ) : (
+    <TimelineDivider label={label} />
+  );
+}
+
+const compactionStyles = StyleSheet.create({
+  container: { width: "100%", maxWidth: 672, alignSelf: "center", paddingVertical: 4 },
+  header: { alignSelf: "center", maxWidth: "100%" },
+  button: { minHeight: 44, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 },
+  summary: {
+    alignSelf: "center",
+    maxWidth: "100%",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 4,
+  },
+});
+
+function CompactionSummary({ label, summary }: { label: string; summary: string }) {
   const c = useColors();
+  const type = useTypography();
   const lazy = useItemContent();
   const [open, setOpen] = useState(false);
+  const { header, toggle } = useAnchoredToggle();
 
   return (
-    <View style={{ gap: 8 }}>
-      <TimelineDivider
-        label={compactionLabel(compaction)}
-        open={open}
-        onPress={compaction.summary ? () => setOpen(!open) : undefined}
-      />
-      {open && (
-        <>
-          <Markdown text={compaction.summary} color={c.muted} />
-          {lazy && <LazyItemContent key={lazy.reference.sha256} {...lazy} auto subject="summary" />}
-        </>
-      )}
+    <View style={compactionStyles.container}>
+      <Animated.View ref={header} collapsable={false} style={compactionStyles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          accessibilityState={{ expanded: open }}
+          onPress={() => toggle(() => setOpen((previous) => !previous))}
+          style={({ pressed }) => [
+            styles.row,
+            compactionStyles.button,
+            { backgroundColor: pressed ? c.pressed : c.inset },
+          ]}
+        >
+          <Text style={[type.small, { color: c.soft, flexShrink: 1 }]}>{label}</Text>
+          <Chevron open={open} size={14} color={c.muted} />
+        </Pressable>
+      </Animated.View>
+      <TimelineDisclosure open={open} style={{ paddingTop: 4 }}>
+        <View style={[compactionStyles.summary, { backgroundColor: c.well }]}>
+          <Markdown text={summary} color={c.soft} />
+          {open && lazy && <LazyItemContent key={lazy.reference.sha256} {...lazy} auto subject="summary" />}
+        </View>
+      </TimelineDisclosure>
     </View>
   );
 }
