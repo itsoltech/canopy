@@ -13,6 +13,7 @@ export const deviceChoices = {
   threadNotifications: ["off", "notifications", "sound"],
   botNotifications: ["off", "notifications", "sound"],
   claudeLimitResetNotifications: ["off", "on"],
+  codexLimitResetNotifications: ["off", "on"],
   inAppNotifications: ["on", "off"],
   activityNotch: ["off", "on"],
   showFinishedSubagents: ["off", "on"],
@@ -48,6 +49,7 @@ export const deviceDefaults: Record<DeviceKey, string> = {
   threadNotifications: "off",
   botNotifications: "off",
   claudeLimitResetNotifications: "off",
+  codexLimitResetNotifications: "off",
   inAppNotifications: "on",
   activityNotch: "off",
   showFinishedSubagents: "off",
@@ -193,10 +195,15 @@ function validChoice(key: DeviceKey, value: string): boolean {
 
 export const devicePreferences = new DevicePreferences();
 
+export const limitResetDeviceKeys = {
+  claude: "claudeLimitResetNotifications",
+  codex: "codexLimitResetNotifications",
+} as const;
+
 export const notificationDeviceKeys = [
   "threadNotifications",
   "botNotifications",
-  "claudeLimitResetNotifications",
+  ...Object.values(limitResetDeviceKeys),
   "inAppNotifications",
   "activityNotch",
 ] as const;

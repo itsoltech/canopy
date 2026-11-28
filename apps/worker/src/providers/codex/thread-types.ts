@@ -34,7 +34,11 @@ export type InteractionInit = Omit<MessageInitShape<typeof InteractionRequestSch
 
 export interface CodexThreadsOptions extends AutomationMcpOptions {
   pricing?: import("../pricing/model-catalog.ts").OpenAiPricingCatalog | undefined;
-  onUsage?(snapshot: import("@canopy/contracts").ProviderUsageSnapshot): void;
+  onUsage?(
+    snapshot: import("@canopy/contracts").ProviderUsageSnapshot,
+    quota?: import("@canopy/contracts").CodexQuotaObservation | null,
+  ): void;
+  readQuota?: boolean;
   readonly launch: CodexAppServerLaunch;
   readonly clientVersion: string;
   /** Set by the host only for a verified Linux sandbox and stable policy sources. */

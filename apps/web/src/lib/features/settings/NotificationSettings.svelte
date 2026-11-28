@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import SettingsGroup from "#lib/shared/ui/SettingsGroup.svelte";
+  import SettingsRow from "#lib/shared/ui/SettingsRow.svelte";
   import Select from "#lib/shared/ui/Select.svelte";
   import Switch from "#lib/shared/ui/Switch.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
@@ -9,13 +10,21 @@
   import PreferenceRow from "./PreferenceRow.svelte";
   import DeviceChoiceRow from "./DeviceChoiceRow.svelte";
   import ActivityNotchPlacementRows from "./ActivityNotchPlacementRows.svelte";
-  import { devicePreferences as device, notificationDeviceKeys } from "./device-preferences.svelte.ts";
+  import {
+    devicePreferences as device,
+    limitResetDeviceKeys,
+    notificationDeviceKeys,
+  } from "./device-preferences.svelte.ts";
   import { enableNotificationSound } from "#lib/features/notifications/notification-sound.ts";
 
-  const resetKey = "claudeLimitResetNotifications";
-  const resetTitle = "Claude usage limit resets";
+  const resetChoices = [
+    { key: limitResetDeviceKeys.claude, title: "Claude usage limit resets", provider: "Claude" },
+    { key: limitResetDeviceKeys.codex, title: "Codex usage limit resets", provider: "Codex" },
+  ] as const;
 
-  type Key = "threadNotifications" | "botNotifications" | typeof resetKey;
+  type Key = "threadNotifications" | "botNotifications" | (typeof resetChoices)[number]["key"];
+
+  const isReset = (key: Key) => resetChoices.some((row) => row.key === key);
 
   let permission = $state<NotificationPermission | "unavailable" | "unsupported">();
   let desktop = $state(false);
@@ -51,14 +60,15 @@
 
   const rows = $derived(choices.filter((choice) => settings.moduleEnabled(choice.module)));
 
-  const resetOn = $derived(device.values[resetKey] === "on");
-
   const permissionRow = $derived(
-    rows.find((row) => device.values[row.key] !== "off")?.key ?? (resetOn ? resetKey : undefined),
+    rows.find((row) => device.values[row.key] !== "off")?.key ??
+      resetChoices.find((row) => device.values[row.key] === "on")?.key,
   );
 
   const warningRow = $derived(
-    attempted ?? permissionRow ?? (macOS && permission === "denied" ? (rows[0]?.key ?? resetKey) : undefined),
+    attempted ??
+      permissionRow ??
+      (macOS && permission === "denied" ? (rows[0]?.key ?? resetChoices[0].key) : undefined),
   );
 
   const canRetry = $derived(
@@ -73,14 +83,14 @@
         ? "macOS blocks system notifications. In System Settings → Notifications, select Canopy and turn on Allow notifications."
         : "Your browser blocks these alerts. Allow notifications for Canopy in site settings.";
 
-    if (permission === "default" && attempted === resetKey)
+    if (permission === "default" && attempted && isReset(attempted))
       return "To allow system alerts, select Enable notifications.";
 
     if (permission === "default" && attempted && !permissionRow)
       return "Choose a notification option again, then select Allow.";
 
     if (permission === "unavailable" && attempted)
-      return attempted === resetKey
+      return isReset(attempted)
         ? "Canopy couldn’t enable system alerts. Select Enable notifications to try again."
         : "Canopy couldn’t enable notifications. Choose a notification option to try again.";
 
@@ -123,7 +133,7 @@
       return;
     }
 
-    if (key === resetKey) {
+    if (isReset(key)) {
       device.set(key, value);
 
       if (permission === "granted" || permission === "unsupported") return;
@@ -197,23 +207,31 @@
         </div>{/snippet}
     </PreferenceRow>
   {/each}
-  <PreferenceRow
-    title={resetTitle}
-    description="Get an alert when a Claude limit you reached resets."
-    changed={resetOn}
-    onreset={() => change(resetKey, "off")}
-  >
-    {@render permissionHelp(resetKey, device.values[resetKey])}
+  {#each resetChoices as row (row.key)}
+    {@const value = device.values[row.key]}
+    <PreferenceRow
+      title={row.title}
+      description={`Get an alert when a ${row.provider} limit you reached resets.`}
+      changed={value === "on"}
+      onreset={() => change(row.key, "off")}
+    >
+      {@render permissionHelp(row.key, value)}
+      {#snippet control()}
+        <Switch
+          name={row.key}
+          label={row.title}
+          checked={value === "on"}
+          disabled={Boolean(pending)}
+          onchange={(checked) => change(row.key, checked ? "on" : "off")}
+        />
+      {/snippet}
+    </PreferenceRow>
+  {/each}
+  <SettingsRow title="Grok usage limit resets" description="Canopy can’t verify Grok account limit resets yet.">
     {#snippet control()}
-      <Switch
-        name={resetKey}
-        label={resetTitle}
-        checked={resetOn}
-        disabled={Boolean(pending)}
-        onchange={(checked) => change(resetKey, checked ? "on" : "off")}
-      />
+      <Switch name="grokLimitResetNotifications" label="Grok usage limit resets" checked={false} disabled />
     {/snippet}
-  </PreferenceRow>
+  </SettingsRow>
   <DeviceChoiceRow
     preference="inAppNotifications"
     title="In-app notifications"

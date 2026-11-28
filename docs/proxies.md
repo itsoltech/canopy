@@ -1,5 +1,8 @@
 # Współdzielone połączenia proxy
 
+Aktualizacja (2026-11-28): datowane odczyty okien Codexa dla kont OAuth
+CLIProxyAPI z potwierdzoną tożsamością mogą zasilać alerty o odnowieniu limitu.
+
 Status: opis zaimplementowanego zachowania (2026-11-25), w tym konta i limity proxy
 w szczegółach wybranej instancji Providers w web/desktop, wznowienie tury
 Claude po niedostępnym katalogu modeli proxy podczas startu, aktywny odczyt limitów
@@ -223,9 +226,17 @@ jego wcześniejszego raportu. Przy równych lub brakujących datach wybieramy wi
 zużycie. Nowszy odczyt może obniżyć zużycie po resecie; nie bierzemy historycznego
 maksimum. Niepoprawny wpis modelu jest pomijany bez odrzucania konta. Czas pobrania
 listy i `checked_at` nie zastępują czasu obserwacji upstream.
-W odczytach Claude `ProviderUsageWindow.observed_at` przenosi czas wybranego
+W odczytach Claude i Codexa `ProviderUsageWindow.observed_at` przenosi czas wybranego
 pasywnego raportu lub początku aktywnego odczytu Anthropic. W starszych odczytach i
 przy braku daty pasywnego raportu pole pozostaje puste.
+Do alertów Codexa wymagamy konta OAuth z emailem i `id_token.chatgpt_account_id`
+z listy kont. Gateway tworzy taki sam skrót konta jak dla bezpośredniego logowania.
+Odczyt do alertu musi zawierać bezwzględne `reset-at`. Wyliczenie z
+`reset-after-seconds` służy do wyświetlania terminu, ponieważ może przesunąć
+identyfikator tego samego odnowienia względem bezpośredniego odczytu.
+Zmiana limitu pojawia się dopiero, gdy CLIProxyAPI otrzyma i udostępni datowaną
+odpowiedź upstream z wartościami dla tego okna. Grok przez CLIProxyAPI oraz
+pozostałe rodzaje proxy nie zapewniają odczytu spełniającego te warunki.
 
 Dla kont Claude OAuth z `auth_index` gateway dodatkowo wywołuje
 `POST <root>/v0/management/api-call`: stałe `GET https://api.anthropic.com/api/oauth/usage`,

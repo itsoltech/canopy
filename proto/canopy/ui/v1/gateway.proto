@@ -2688,6 +2688,8 @@ message ProxyAccount {
   optional ProxyAccountPlan manual_plan = 12;
   // Opaque account identity for manual settings; empty when upstream has no stable identity.
   string plan_key = 13;
+  // Same opaque Codex OAuth identity as an account-verified provider observation.
+  string codex_quota_account_key = 14;
 }
 message ProxyAccounts {
   string proxy_id = 1;

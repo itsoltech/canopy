@@ -162,14 +162,8 @@ export class CodexRuntimes {
     // Protect the real private Codex policy and credentials from shell reads in a profiled session.
     const policyDirectory = home.login === "none" ? privatePolicyDirectory(home.path) : undefined;
 
-    const usage = usageReporter(
-      this.ctx,
-      Provider.CODEX,
-      group.id ?? "native",
-      home.path,
-      group.key,
-      reportsPlanUsage(profiles, process.env),
-    );
+    const plan = reportsPlanUsage(profiles, process.env);
+    const usage = usageReporter(this.ctx, Provider.CODEX, group.id ?? "native", home.path, group.key, plan);
 
     const layer = CodexThreads.layer({
       pricing: this.ctx.state.pricing,
@@ -195,6 +189,7 @@ export class CodexRuntimes {
       clientVersion: this.ctx.state.options.clientVersion,
       ...(policyDirectory && { sandboxProfileRuntime: { policyDirectory } }),
       onUsage: usage.report,
+      readQuota: plan,
       configuredEffort: () => readCodexConfiguredEffort(runtime.homePath || deviceHome),
       profile: (id) => profiles.find((p) => p.id === (id || "native")),
       ...(cliHomes && { previousPrivateHome: privateHome }),

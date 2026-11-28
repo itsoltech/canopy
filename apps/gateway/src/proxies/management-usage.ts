@@ -1,12 +1,5 @@
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { isUsageResetPlausible } from "@canopy/domain/provider-usage";
-
-const periods = new Map([
-  [300, "five_hour"],
-  [1440, "one_day"],
-  [10080, "seven_day"],
-  [43200, "thirty_day"],
-]);
+import { codexQuotaPeriod, isUsageResetPlausible } from "@canopy/domain/provider-usage";
 
 const number = (value: string | undefined) =>
   value?.trim() && Number.isFinite(Number(value)) ? Number(value) : undefined;
@@ -32,18 +25,22 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
       duration && Number.isSafeInteger(duration) && duration > 0 && duration <= 525600 ? duration : 0;
 
     const after = number(signals.get(`${prefix}reset-after-seconds`));
+    const absoluteReset = reset(number(signals.get(`${prefix}reset-at`)), now);
 
     const resetsAt =
-      reset(number(signals.get(`${prefix}reset-at`)), now) ??
+      absoluteReset ??
       (observed && after !== undefined && after >= 0 ? reset(observed.getTime() / 1000 + after, now) : undefined);
 
     if (usedPercent === undefined || (!windowMinutes && !resetsAt && usedPercent === 0)) continue;
     result.push({
-      key: periods.get(windowMinutes) ?? (windowMinutes ? "duration" : `${slot}_limit`),
+      key: codexQuotaPeriod(windowMinutes) ?? `${slot}_limit`,
       windowMinutes,
       usedPercent,
       resetsAt,
       reached: usedPercent >= 100,
+      // An estimated deadline can be displayed, but only the upstream epoch identifies
+      // the same renewal across both proxy and direct reads.
+      observedAt: absoluteReset && observed && timestampFromDate(observed),
     });
   }
 

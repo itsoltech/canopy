@@ -1,5 +1,8 @@
 # Status kont dostawców
 
+Aktualizacja (2026-11-28): osobny odczyt okien użycia Codexa, powiązany z
+aktywnym kontem, zasila powiadomienia web/desktop o odnowieniu limitu.
+
 Aktualizacja (2026-11-24): natywny bot Codexa pobiera login wybranej instancji z
 osobnego lokalnego RPC. Raport konta nadal zawiera wyłącznie metadane.
 
@@ -281,6 +284,16 @@ rozliczeniowych ani nie czyta tokenów logowania.
   Czytamy okna `primary`/`secondary`, procent, reset i dostępność kredytów.
   Odczyt używa `excludeResetCreditDetails:true`; nie ustawiamy
   `supportsLunaReserve` ani nie wywołujemy komendy zużycia reset-credit.
+  Dla powiadomień wymagamy pełnego okna z `rateLimitsByLimitId.codex`, identyfikatora
+  workspace i pola `ordinaryUsageAllowed`, które app-server zwraca po weryfikacji
+  aktywnego workspace i użytkownika. Login przed i po odczycie musi się zgadzać.
+  Worker wysyła skrót workspace i loginu z czasem rozpoczęcia odczytu. Zdarzenie
+  `account/rateLimits/updated` odświeża mierniki i może zlecić pełny odczyt przy
+  wyczerpaniu. W pobliżu zgłoszonego resetu wyczerpanego okna worker sprawdza
+  limit co minutę, od dwóch minut przed terminem do dziesięciu minut po nim.
+  Wcześniejsze odczyty nie przechodzą jako potwierdzenie na nowe łącze.
+  Brak zweryfikowanej tożsamości, odczytu lub okna ogranicza obsługę do
+  dotychczasowych mierników. Dotyczy to m.in. części starszych app-serverów i kont.
 - Claude: SDK **0.3.316**, `rate_limit_event` i oficjalne prefiksy
   `USAGE_LIMIT_ERROR_PREFIXES`, `USAGE_WARNING_PREFIXES`, `USAGE_TRANSITION_PREFIXES`.
   Pojedyncze okna zdarzeń są scalane w obrębie runtime'u. `utilization`
@@ -291,6 +304,11 @@ rozliczeniowych ani nie czyta tokenów logowania.
   z wcześniejszym odczytem w locie; brak obsługi metody nie blokuje tury.
 - Grok ACP raportuje użycie kontekstu i koszt sesji, ale nie limity konta.
   Nie zamieniamy tych danych na limity planu; UI niczego nie dopisuje.
+  `grok usage --json` z CLI 1.0.92 wymaga usługi tła. Na sprawdzonym workerze
+  polecenie zwróciło komunikat odsyłający do interaktywnego `/usage`. Dostępny publiczny
+  kod polecenia opisuje zapisane tokeny i koszty sesji. Brakuje zweryfikowanego,
+  nieinteraktywnego kontraktu, który wiąże świeży pomiar i odnowienie
+  okna z danym loginem Canopy. [Kod CLI](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/src/usage_cmd.rs)
 
 Addytywne `WorkerMessage.provider_usage` nie zmienia `WORKER_LINK_PROTOCOL`.
 Klucz obejmuje provider, profil i skrót tożsamości runtime'u wraz z CLI home.

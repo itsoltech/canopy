@@ -1091,6 +1091,19 @@ message ProviderUsageSnapshot {
   optional bool unlimited_credits = 4;
   // Only explicit harness reports establish actual extra usage.
   optional bool using_extra_usage = 5;
+  // A full, account-verified Codex read, independent of sparse usage updates.
+  CodexQuotaObservation codex_quota = 6;
+}
+
+message CodexQuotaObservation {
+  // Digest of the Codex workspace and login, never a raw account identifier.
+  string account_key = 1;
+  string session_key = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  repeated ProviderUsageWindow windows = 4;
+  bool ordinary_usage_allowed = 5;
+  // Set by the gateway when exposing a reading from the current worker link.
+  uint64 link_epoch = 6;
 }
 
 message ProviderUsageReport {

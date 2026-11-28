@@ -83,6 +83,7 @@
     "./provider-accounts": "./src/provider-accounts.ts",
     "./harnesses": "./src/harnesses.ts",
     "./provider-usage": "./src/provider-usage.ts",
+    "./provider-usage-resets": "./src/provider-usage-resets.ts",
     "./proxy-accounts": "./src/proxy-accounts.ts",
     "./proxy-capacity": "./src/proxy-capacity.ts",
     "./provider-instances": "./src/provider-instances.ts",

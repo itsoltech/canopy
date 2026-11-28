@@ -16,6 +16,29 @@ const names = new Map([
   ["overage", "Extra usage"],
 ]);
 
+const codexPeriods = new Map([
+  [300, "five_hour"],
+  [1440, "one_day"],
+  [10080, "seven_day"],
+  [43200, "thirty_day"],
+]);
+
+export function codexQuotaPeriod(minutes: number): string | undefined {
+  if (!Number.isSafeInteger(minutes) || minutes <= 0 || minutes > 525600) return undefined;
+
+  return codexPeriods.get(minutes) ?? "duration";
+}
+
+/** Workspace ids can be shared by several seats. Both sources hash the same workspace and login pair. */
+export function codexQuotaAccountIdentity(workspace: string, email: string): string | undefined {
+  const login = email.trim().toLowerCase();
+
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(workspace) || login.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(login))
+    return undefined;
+
+  return JSON.stringify([workspace, login]);
+}
+
 /** Quota resets use epoch milliseconds here; implausible upstream or cached dates are unknown. */
 export const isUsageResetPlausible = (resetAt: number, now = Date.now()) =>
   Number.isFinite(resetAt) && resetAt > 0 && resetAt <= now + 400 * 86_400_000;
@@ -35,42 +58,58 @@ export function usageWindowName(key: string, minutes = 0): string {
 }
 
 /** Allowlist at both transport boundaries; unavailable percentages remain absent. */
-export function sanitizeProviderUsage(value: ProviderUsageSnapshot): ProviderUsageSnapshot {
+function sanitizeUsageWindows(windows: readonly ProviderUsageWindow[]) {
   const seen = new Set<string>();
 
-  const validDate = (date: ProviderUsageWindow["resetsAt"]) =>
-    date && date.seconds > 0n && date.seconds < 253402300800n && date.nanos >= 0 && date.nanos < 1e9 ? date : undefined;
+  return windows
+    .filter((w) => {
+      const identity = `${w.key}:${w.windowMinutes}`;
+
+      if (
+        (!names.has(w.key) && !(w.key === "duration" && w.windowMinutes > 0 && w.windowMinutes <= 525600)) ||
+        seen.has(identity)
+      )
+        return false;
+      seen.add(identity);
+
+      return true;
+    })
+    .slice(0, 8)
+    .map((w) => ({
+      key: w.key,
+      windowMinutes: w.windowMinutes,
+      usedPercent:
+        w.usedPercent !== undefined && Number.isFinite(w.usedPercent) && w.usedPercent >= 0
+          ? Math.min(w.usedPercent, 100)
+          : undefined,
+      resetsAt: validDate(w.resetsAt),
+      reached: w.reached,
+      warning: w.warning,
+    }));
+}
+
+const validDate = (date: ProviderUsageWindow["resetsAt"]) =>
+  date && date.seconds > 0n && date.seconds < 253402300800n && date.nanos >= 0 && date.nanos < 1e9 ? date : undefined;
+
+export function sanitizeProviderUsage(value: ProviderUsageSnapshot): ProviderUsageSnapshot {
+  const quota = value.codexQuota;
 
   return create(ProviderUsageSnapshotSchema, {
     observedAt: validDate(value.observedAt),
-    windows: value.windows
-      .filter((w) => {
-        const identity = `${w.key}:${w.windowMinutes}`;
-
-        if (
-          (!names.has(w.key) && !(w.key === "duration" && w.windowMinutes > 0 && w.windowMinutes <= 525600)) ||
-          seen.has(identity)
-        )
-          return false;
-        seen.add(identity);
-
-        return true;
-      })
-      .slice(0, 8)
-      .map((w) => ({
-        key: w.key,
-        windowMinutes: w.windowMinutes,
-        usedPercent:
-          w.usedPercent !== undefined && Number.isFinite(w.usedPercent) && w.usedPercent >= 0
-            ? Math.min(w.usedPercent, 100)
-            : undefined,
-        resetsAt: validDate(w.resetsAt),
-        reached: w.reached,
-        warning: w.warning,
-      })),
+    windows: sanitizeUsageWindows(value.windows),
     creditsAvailable: value.creditsAvailable,
     unlimitedCredits: value.unlimitedCredits,
     usingExtraUsage: value.usingExtraUsage,
+    codexQuota:
+      quota && /^[a-f0-9]{64}$/.test(quota.accountKey) && /^[a-f0-9-]{36}$/.test(quota.sessionKey)
+        ? {
+            accountKey: quota.accountKey,
+            sessionKey: quota.sessionKey,
+            observedAt: validDate(quota.observedAt),
+            ordinaryUsageAllowed: quota.ordinaryUsageAllowed,
+            windows: sanitizeUsageWindows(quota.windows),
+          }
+        : undefined,
   });
 }
 
