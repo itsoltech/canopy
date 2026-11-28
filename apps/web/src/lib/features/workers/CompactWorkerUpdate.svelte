@@ -22,7 +22,7 @@
     updates,
     home,
     nodeId = "",
-    wrapName = false,
+    compact = false,
     class: className,
   }: {
     worker: ui.WorkerUpdate;
@@ -31,7 +31,7 @@
     home?: ui.UpdatesSnapshot | undefined;
     /** The linked computer the worker belongs to; empty for this computer. */
     nodeId?: string;
-    wrapName?: boolean;
+    compact?: boolean;
     class?: ClassValue;
   } = $props();
 
@@ -106,7 +106,7 @@
 
 <UpdateItem
   name={worker.name}
-  {wrapName}
+  {compact}
   icon={desktop ? "computer-desktop" : "server"}
   current={desktop?.version || worker.version}
   target={offline ? "" : target}
@@ -178,7 +178,7 @@
     {/if}
   {/snippet}
 </UpdateItem>
-{#if desktop?.disabledReason && !inProgress && (status !== "failed" || !!desktop.reason)}
+{#if !compact && desktop?.disabledReason && !inProgress && (status !== "failed" || !!desktop.reason)}
   <p class="mb-2 ml-6 text-xs/5 text-pretty break-words text-muted" role="status">{desktop.disabledReason}</p>
 {/if}
 <WorkerRestartConfirmation bind:open={confirming} {worker} {updates} />

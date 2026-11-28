@@ -9,7 +9,7 @@ Status: opis zaimplementowanego kodu (2026-11-28), w tym ponownego wiązania
 kanału aktualizacji desktopu po parowaniu oraz przerywania okresowego skanu
 worktree przy zamykaniu gatewaya oraz postępu pobierania binarek
 workerów i samodzielnego gatewaya w web, Electronie i na telefonie, animacji cyfr procentu
-pobierania w mobilnym App updates i przy aktualizacji aplikacji desktopowej, szybkich akcji w popoverze
+pobierania w mobilnym App updates i przy aktualizacji aplikacji desktopowej, dwuwierszowej prezentacji instalacji i szybkich akcji w popoverze
 web i Electron oraz wspólnej sekcji App updates w web, Electronie i na telefonie,
 kolejkowania tur od przyjęcia aktualizacji
 gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
@@ -143,10 +143,12 @@ W web i Electronie ikona Updates w stopce wskazuje dostępność, postęp pobier
 gotowość do restartu lub błąd. Kliknięcie otwiera Status w **App updates**, a najechanie
 myszą w szerszym oknie otwiera popover. W nagłówku **Check now** sprawdza te same instalacje co przycisk
 w ustawieniach, także samą aplikację przy niezgodnym gatewayu. Przewijana lista
-pokazuje wersje, postęp i akcje poszczególnych instalacji. Stopka udostępnia
+pokazuje nazwę, status i akcję instalacji w pierwszej linii, a wersje w drugiej.
+Paski postępu mieszczą się w odstępie pod wierszem. **View details** w stopce otwiera
+pełny panel z opisami etapów, przyczynami niedostępności i błędami. Stopka udostępnia
 **Update all**, **Retry failed** albo **Restart to update** dla pobranej lokalnej
 aplikacji. Akcje korzystają z tych samych warunków i potwierdzeń co ustawienia.
-**What's new** pokazuje nieobejrzane notatki. Bez akcji i notatek stopki nie ma.
+**What's new** pokazuje nieobejrzane notatki.
 Pozostałe panele stopki (Usage, Workers i Provider usage) współdzielą z popoverem
 obsługę najechania i zamknięcia. Przy otwartym podglądzie Usage lub App updates
 ikona w stopce ukrywa własny tooltip.
@@ -216,7 +218,7 @@ odczyt nie cofa go z Updating do Queued. Odczyty nie zatrzymują się podczas ak
 odrzucany jest tylko odczyt rozpoczęty przed odpowiedzią.
 
 **Zapowiedziany restart.** Komputer, który ogłosił restart dla własnej aktualizacji,
-ma odznakę Restarting i linię „Restarting to update…”. Gateway nie dodaje wtedy
+ma odznakę Restarting, a w pełnym panelu również linię „Restarting to update…”. Gateway nie dodaje wtedy
 „…is unavailable. Trying again automatically.”. Dopiero po 3 minutach linia zmienia
 się na „Still restarting after N min. Check that computer.”.
 
@@ -240,7 +242,8 @@ mirrora. Przed otrzymaniem pierwszych bajtów i przy starszym workerze bez pomia
 pasek sygnalizuje aktywność bez wskazania ilości. Pasek zbiorczy nadal liczy
 zakończone kroki Update all.
 
-W wierszu pobierania bieżącej aplikacji desktopowej zmieniające się cyfry procentu
+Przy pobieraniu bieżącej aplikacji desktopowej popover pokazuje procent obok statusu,
+a ustawienia w opisie pobierania. Zmieniające się cyfry procentu
 wysuwają się do góry, a nowe sprężyście wskakują od dołu. Etykieta i znak
 procentu pozostają na miejscu. Na iOS i Androidzie wiersz w App updates pokazuje
 animowany procent po otrzymaniu pomiaru dla telefonu, komputera, binarnego workera

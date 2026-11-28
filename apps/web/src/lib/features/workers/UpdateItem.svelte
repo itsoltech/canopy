@@ -14,7 +14,7 @@
   let {
     name,
     title = name,
-    wrapName = false,
+    compact = false,
     icon,
     current,
     target = "",
@@ -32,7 +32,7 @@
     name: string;
     /** The full name in the tooltip when the row shows a shorter one ("This computer"). */
     title?: string;
-    wrapName?: boolean;
+    compact?: boolean;
     icon: IconName;
     current: string;
     target?: string | undefined;
@@ -59,19 +59,26 @@
   <div class="flex min-w-0 items-center gap-2">
     <span class="flex h-5 shrink-0 items-center self-start"><Icon name={icon} /></span>
     <div class="min-w-0 flex-1">
-      <div class={["flex min-h-5 min-w-0 items-start gap-2", !wrapName && "h-5"]}>
-        <p class={["min-w-0 flex-1 text-sm/5 font-medium", wrapName ? "break-anywhere" : "truncate"]} {title}>{name}</p>
+      <div class="flex h-5 min-w-0 items-start gap-2">
+        <p class="min-w-0 flex-1 truncate text-sm/5 font-medium" {title}>{name}</p>
         <!-- Every shared word fits the slot, so state changes never move the name; a rare long edge word widens it. -->
-        <span class="flex min-h-5 min-w-28 shrink-0 items-center justify-end sm:min-w-23"><UpdateBadge {status} /></span
+        <span class="flex min-h-5 min-w-28 shrink-0 items-center justify-end sm:min-w-23"
+          ><UpdateBadge {status} percent={compact && !error ? linePercent : undefined} /></span
         >
       </div>
-      <p class="break-anywhere mt-0.5 font-mono text-xs/4 text-muted tabular-nums select-text" title={versions}>
+      <p
+        class={[
+          "mt-0.5 font-mono text-xs/4 text-muted tabular-nums select-text",
+          compact ? "truncate" : "break-anywhere",
+        ]}
+        title={versions}
+      >
         {versions}
       </p>
     </div>
     <div class="flex w-8 shrink-0 items-center justify-center self-start sm:w-7">{@render action?.()}</div>
   </div>
-  {#if error || line}
+  {#if !compact && (error || line)}
     <div class="mt-1 ml-6 min-w-0 text-xs/4">
       {#if error}
         <button
