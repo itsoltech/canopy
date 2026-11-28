@@ -15,6 +15,7 @@ const Entry = Schema.Struct({
   owned: Schema.Boolean,
   checksum: Schema.String,
   files: Schema.Array(ManifestFile),
+  localDirectories: Schema.optionalKey(Schema.Array(Schema.String)),
   keptDesired: Schema.optionalKey(Schema.String),
   keptObserved: Schema.optionalKey(Schema.String),
 });

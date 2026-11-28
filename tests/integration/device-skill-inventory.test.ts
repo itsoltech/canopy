@@ -106,6 +106,57 @@ describe("device skill inventory", () => {
     for (const skill of report.skills) expect(existsSync(join(skill.path, "SKILL.md"))).toBe(true);
   });
 
+  test("a nested Canopy skill can be updated, unassigned and installed again after restart", () => {
+    const f = fixture();
+    f.assign();
+    const skill = f.desired.skills[0]!;
+    skill.platformHome = true;
+    const files = skillFiles();
+    const script = files[1]!;
+    script.path = "tools/scripts/check.sh";
+    skill.artifact = validateSkillFiles(files);
+    const installed = f.refresh().skills;
+    expect(installed.map((s) => s.status)).toEqual(["applied", "applied"]);
+
+    script.path = "commands/check.sh";
+    skill.artifact = validateSkillFiles(files);
+    skill.version++;
+    expect(f.refresh().skills.map((s) => s.status)).toEqual(["applied", "applied"]);
+
+    for (const { path } of installed) {
+      expect(existsSync(join(path, "tools"))).toBe(false);
+      expect(readFileSync(join(path, "commands/check.sh"))).toEqual(Buffer.from(script.content));
+    }
+
+    f.desired.skills = [];
+    expect(f.refresh().skills.map((s) => s.status)).toEqual(["removed", "removed"]);
+
+    for (const { path } of installed) expect(existsSync(path)).toBe(false);
+
+    f.desired.skills = [skill];
+    const restarted = new SkillLedger(f.homes.dataDir);
+    const reapplied = inventorySkills(f.desired, f.homes, restarted);
+    expect(reapplied.skills.map((s) => [s.status, s.owned])).toEqual([
+      ["applied", true],
+      ["applied", true],
+    ]);
+
+    for (const { path } of installed)
+      expect(readFileSync(join(path, "SKILL.md"))).toEqual(Buffer.from(files[0]!.content));
+  });
+
+  test("an old empty folder without ownership can be archived before the assigned skill is installed", () => {
+    const f = fixture();
+    mkdirSync(join(f.path, "scripts"), { recursive: true });
+    f.assign();
+    const conflict = f.refresh().skills[0]!;
+    expect(conflict).toMatchObject({ path: f.path, status: "drift", owned: false });
+    expect(existsSync(join(f.path, "SKILL.md"))).toBe(false);
+    expect(f.archive(conflict).skills[0]).toMatchObject({ path: f.path, status: "applied", owned: true });
+    expect(existsSync(join(f.recovery(conflict), "scripts"))).toBe(true);
+    expect(readFileSync(join(f.path, "scripts/check.sh"))).toEqual(Buffer.from(skillFiles()[1]!.content));
+  });
+
   test("lists independent device entries and archives only the selected snapshot", () => {
     const f = fixture();
     f.add();

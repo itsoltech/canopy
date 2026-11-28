@@ -1,5 +1,11 @@
 import { create } from "@bufbuild/protobuf";
-import { EnvironmentSkillStatusSchema, type EnvironmentResolution, type SkillFile } from "@canopy/contracts";
+import {
+  EnvironmentSkillStatusSchema,
+  type EnvironmentResolution,
+  type EnvironmentSkillStatus,
+  type SkillArtifact,
+  type SkillFile,
+} from "@canopy/contracts";
 import { skillManifestDigest, validateSkillFiles } from "@canopy/domain/skill-artifact";
 import { readSkillTree } from "./skill-files.ts";
 import { recoverSkillSwap, swapSkillTree } from "./skill-transaction.ts";
@@ -72,7 +78,12 @@ export function reconcileSkill(
       (kept && !(force && resolution?.action === "overwrite")) ||
       (conflict && force && resolution?.action === "keep")
     ) {
-      ledger.commit(target.targetId, { ...base, keptDesired: status.desiredChecksum, keptObserved: current.checksum });
+      ledger.commit(target.targetId, {
+        ...base,
+        ...(previous?.localDirectories && { localDirectories: previous.localDirectories }),
+        keptDesired: status.desiredChecksum,
+        keptObserved: current.checksum,
+      });
       status.status = "kept";
     } else if (conflict && !(force && resolution?.action === "overwrite" && owned)) {
       status.status = "drift";
@@ -92,15 +103,13 @@ export function reconcileSkill(
 
       const files = [...next, ...extras, ...markers];
 
-      // Preserve foreign empty directories, including Claude's empty .in_use cache marker.
-      const directories =
-        strict && !artifact && owned
-          ? current.directories.filter(
-              (dir) =>
-                !previous.files.some((file) => file.path.startsWith(`${dir}/`)) ||
-                extras.some((file) => file.path.startsWith(`${dir}/`)),
-            )
-          : current.directories;
+      const { directories, localDirectories } = installationDirectories(
+        current.directories,
+        owned ? previous : undefined,
+        next,
+        files,
+        strict,
+      );
 
       const entry: ManagedSkill | undefined = artifact
         ? {
@@ -108,6 +117,7 @@ export function reconcileSkill(
             owned: true,
             checksum: artifact.checksum,
             files: next.map((f) => ({ path: f.path, checksum: f.checksum, executable: f.executable })),
+            ...(localDirectories.length && { localDirectories }),
           }
         : // Keep plugin removal discoverable until transaction cleanup and directory retirement finish.
           strict
@@ -117,11 +127,14 @@ export function reconcileSkill(
       if (strict && artifact && extras.length)
         throw new Error("Move user-added plugin files before enabling it. Additional components are not approved.");
 
-      const same =
-        current.exists && installedSkillDigest(current.files, platform) === installedSkillDigest(files, platform);
+      const keepRoot = Boolean(artifact || files.length || directories.size || (strict && current.exists));
 
-      if (!same && (artifact || current.exists))
-        swapSkillTree(target.path, current, files, ledger, entry, target.targetId, directories);
+      const same =
+        current.exists === keepRoot &&
+        directories.size === current.directories.length &&
+        installedSkillDigest(current.files, platform) === installedSkillDigest(files, platform);
+
+      if (!same) swapSkillTree(target.path, current, files, ledger, entry, target.targetId, [...directories]);
       else ledger.commit(target.targetId, entry);
       status.status = artifact ? "applied" : "removed";
       status.owned = Boolean(artifact);
@@ -133,28 +146,79 @@ export function reconcileSkill(
       return status;
     }
 
-    // Only owned paths leave the worker. Unknown local skills and additional files stay private.
-    status.managedFiles = managed;
-    status.desiredFiles = artifact?.files ?? [];
-
-    if (owned) {
-      try {
-        status.importable = validateSkillFiles(managed).name === artifact?.name;
-      } catch {
-        status.importable = false;
-      }
-    }
-
-    status.detail = !owned
-      ? "This folder belongs to you. Canopy will not take it over. Rename the skill or move your folder."
-      : kept
-        ? "Local skill files are preserved until the library or folder changes."
-        : "The installed skill was edited locally. Compare its owned files and choose a version.";
+    describeSkillConflict(status, managed, artifact, kept);
   } catch (error) {
     status.detail = error instanceof Error ? error.message : "Couldn't reconcile this skill. Check its permissions.";
   }
 
   return status;
+}
+
+function describeSkillConflict(
+  status: EnvironmentSkillStatus,
+  managed: SkillFile[],
+  artifact: SkillArtifact | undefined,
+  kept: boolean,
+) {
+  // Only owned paths leave the worker. Unknown local skills and additional files stay private.
+  status.managedFiles = managed;
+  status.desiredFiles = artifact?.files ?? [];
+
+  if (!status.owned) {
+    status.detail = "This folder belongs to you. Canopy will not take it over. Rename the skill or move your folder.";
+
+    return;
+  }
+
+  try {
+    status.importable = validateSkillFiles(managed).name === artifact?.name;
+  } catch {
+    status.importable = false;
+  }
+
+  status.detail = kept
+    ? "Local skill files are preserved until the library or folder changes."
+    : "The installed skill was edited locally. Compare its owned files and choose a version.";
+}
+
+function parentDirectories(paths: readonly string[]): Set<string> {
+  const directories = new Set<string>();
+
+  for (const path of paths) {
+    for (let end = path.indexOf("/"); end !== -1; end = path.indexOf("/", end + 1)) {
+      directories.add(path.slice(0, end));
+    }
+  }
+
+  return directories;
+}
+
+function installationDirectories(
+  current: readonly string[],
+  previous: ManagedSkill | undefined,
+  next: readonly SkillFile[],
+  files: readonly SkillFile[],
+  strict: boolean,
+) {
+  const owned = parentDirectories(previous?.files.map((file) => file.path) ?? []);
+
+  for (const path of previous?.localDirectories ?? []) owned.delete(path);
+  const local = current.filter((path) => !owned.has(path));
+  const nextParents = parentDirectories(next.map((file) => file.path));
+  // A version may start using a directory the user created. Keep its origin across later versions.
+  const localDirectories = local.filter((path) => nextParents.has(path));
+  // Active plugins also retain cache directories such as Claude's empty .in_use marker.
+  const keep = strict && next.length ? current : local;
+  const directories = parentDirectories(keep.map((path) => `${path}/`));
+  const nextPaths = new Set(next.map((file) => file.path.toLowerCase()));
+
+  for (const path of directories)
+    if (nextPaths.has(path.toLowerCase()))
+      throw new Error("A local directory blocks a file in this version. Move the directory and sync again.");
+
+  for (const path of parentDirectories(files.map((file) => file.path))) directories.add(path);
+
+  return { directories, localDirectories };
 }
 
 function conflictsWithExtras(extras: readonly SkillFile[], next: readonly SkillFile[]): boolean {

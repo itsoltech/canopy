@@ -2,6 +2,8 @@
 
 Status (2026-11-28): web i desktop rozstrzygają konflikt skilla z poziomu biblioteki.
 Jeden wybór obejmuje wskazane komputery i lokalizacje danego skilla.
+Worker sprząta też puste katalogi po własnych plikach przy aktualizacji i wycofaniu
+przypisania. Skill z podkatalogami można potem ponownie zainstalować.
 
 Aktualizacja (2026-11-28): prywatne skille i marketplace można importować przez konto
 z **Settings → GitHub** na webie, desktopie i telefonie.
@@ -468,9 +470,15 @@ Portable swap obejmuje dwa rename i krótkie okno braku ścieżki; nie jest tran
 wielu celów. Awaria podczas stagingu przed zapisem journalu zachowuje staging
 do ręcznego przeglądu zamiast ryzykować skasowanie lokalnych bajtów.
 
-Aktualizacja/usunięcie dotyczy wyłącznie plików manifestu. Dodatki i puste katalogi
-użytkownika pozostają; nowa wersja kolidująca z nimi daje widoczny błąd.
+Przy aktualizacji lub wycofaniu przypisania worker usuwa zbędne katalogi po
+plikach z manifestu. Dodatkowy plik lub pusty katalog użytkownika zachowuje także
+swoje katalogi nadrzędne. Jeśli nowa wersja skilla zapisze plik w istniejącym
+katalogu użytkownika, worker zapamiętuje ten katalog i zachowuje go przy usuwaniu
+skilla. Po usunięciu całej czystej instalacji ścieżka jest wolna do ponownego przypisania.
 Canopy nigdy nie przejmuje istniejącego obcego folderu, nawet przez Overwrite.
+Starszy worker mógł po usunięciu skilla zostawić puste podkatalogi i skasować
+wpis o własności. Dla takiej lokalizacji **Resolve local conflict → Use the Canopy version**
+w web/desktop odkłada stary folder do archiwum na wybranym komputerze i instaluje przypisaną wersję.
 `DeleteLibrarySkill` usuwa definicję, pozostawia niezmienne wersje i uzgadnia
 usunięcie własnych plików. Edycja lokalna blokuje również usunięcie; decyzja jest
 dostępna mimo usunięcia definicji. Offline worker dostaje najnowszy pełny stan.

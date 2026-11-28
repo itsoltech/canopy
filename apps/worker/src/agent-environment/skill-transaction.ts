@@ -1,4 +1,4 @@
-import { existsSync, renameSync, rmSync, rmdirSync } from "node:fs";
+import { existsSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Schema } from "effect";
 import type { SkillFile } from "@canopy/contracts";
@@ -43,10 +43,11 @@ export function recoverSkillSwap(path: string, targetId: string, ledger: SkillLe
   }
 
   if (current.checksum === pending.after && !staged.exists && old.checksum === pending.before) {
-    renameSync(path, staging);
+    if (current.exists) renameSync(path, staging);
 
     if (old.exists) renameSync(backup, path);
-    rmSync(staging, { recursive: true });
+
+    if (current.exists) rmSync(staging, { recursive: true });
     rmSync(journal);
 
     return;
@@ -76,13 +77,15 @@ export function swapSkillTree(
   ledger: SkillLedger,
   entry: ManagedSkill | undefined,
   targetId: string,
-  directories: readonly string[] = current.directories,
+  directories: readonly string[],
 ): void {
   const { staging, backup, journal } = paths(path, targetId);
 
   if (existsSync(staging) || existsSync(backup) || existsSync(journal))
     throw new Error("A previous skill transaction needs recovery before syncing.");
-  writeSkillTree(staging, files, directories);
+
+  // A clean uninstall publishes an absent destination before relinquishing ownership.
+  if (entry || files.length || directories.length) writeSkillTree(staging, files, directories);
   const staged = readSkillTree(staging);
   let movedOld = false;
   let published = false;
@@ -106,8 +109,11 @@ export function swapSkillTree(
         throw new Error("The skill changed during the swap. Refresh before resolving.");
     }
 
-    renameSync(staging, path);
-    published = true;
+    if (staged.exists) {
+      renameSync(staging, path);
+      published = true;
+    }
+
     ledger.commit(targetId, entry);
     committed = true;
   } catch (error) {
@@ -117,7 +123,11 @@ export function swapSkillTree(
       renameSync(path, staging);
     }
 
-    if (movedOld) renameSync(backup, path);
+    if (movedOld) {
+      if (readSkillTree(path).exists) throw new Error("The skill changed during rollback. Its backup was preserved.");
+      renameSync(backup, path);
+    }
+
     throw error;
   } finally {
     // A concurrent editor owns any changed bytes. Preserve them and the recovery journal.
@@ -137,7 +147,4 @@ export function swapSkillTree(
 
   if (existsSync(journal))
     throw new Error("The skill backup changed during installation. It was preserved for review.");
-
-  if (!entry && files.length === 0 && directories.length === 0 && readSkillTree(path).files.length === 0)
-    rmdirSync(path);
 }

@@ -26,7 +26,11 @@ import { tempDirs } from "@canopy/testing";
 import { SkillLedger } from "../../apps/worker/src/agent-environment/skill-ledger.ts";
 import { WorkerAgentEnvironment } from "../../apps/worker/src/agent-environment/index.ts";
 import { reconcileSkill } from "../../apps/worker/src/agent-environment/skill-reconcile.ts";
-import { readSkillTree, writeSkillTree } from "../../apps/worker/src/agent-environment/skill-files.ts";
+import {
+  absentSkillChecksum,
+  readSkillTree,
+  writeSkillTree,
+} from "../../apps/worker/src/agent-environment/skill-files.ts";
 import type { SkillTarget } from "../../apps/worker/src/agent-environment/skill-targets.ts";
 import { grokLaunch } from "../../apps/worker/src/providers/grok/launch.ts";
 import { claudeSkillsOnDisk } from "../../apps/worker/src/providers/claude/catalog.ts";
@@ -279,15 +283,40 @@ describe("skill filesystem transactions and harness destinations", () => {
     expect(readdirSync(parent)).toEqual(["code-review"]);
   });
 
+  test("restart restores a clean uninstall interrupted before it could release ownership", () => {
+    const f = fixture();
+    const target = f.version(skillFiles());
+    expect(reconcileSkill(target, f.ledger).status).toBe("applied");
+    const parent = dirname(f.path);
+    const backup = join(parent, `.canopy-${target.targetId}-backup`);
+    const before = readSkillTree(f.path).checksum;
+    writeFileSync(
+      join(parent, `.canopy-${target.targetId}-transaction.json`),
+      JSON.stringify({ before, after: absentSkillChecksum, ownership: environmentDigest("null") }),
+    );
+    renameSync(f.path, backup);
+
+    expect(reconcileSkill(target, new SkillLedger(f.dataDir)).status).toBe("applied");
+    expect(readSkillTree(f.path).checksum).toBe(before);
+    expect(readdirSync(parent)).toEqual(["code-review"]);
+  });
+
   test("unknown files and empty user directories survive update/removal; links and corrupt manifests fail closed", () => {
     const f = fixture();
     reconcileSkill(f.version(skillFiles()), f.ledger);
     writeFileSync(join(f.path, "notes.txt"), "My own notes.");
     mkdirSync(join(f.path, "empty-user-folder"));
-    expect(reconcileSkill(f.version(skillFiles("code-review", "Updated."), 2n), f.ledger).status).toBe("applied");
-    expect(reconcileSkill(f.target, f.ledger).status).toBe("removed");
+    mkdirSync(join(f.path, "scripts/local-empty"));
+    const updated = skillFiles("code-review", "Updated.");
+    updated[1]!.path = "scripts";
+    expect(reconcileSkill(f.version(updated, 2n), f.ledger).detail).toContain("A local directory blocks a file");
+    expect(readdirSync(dirname(f.path))).toEqual(["code-review"]);
+    updated[1]!.path = "empty-user-folder/nested/check.sh";
+    expect(reconcileSkill(f.version(updated, 2n), f.ledger).status).toBe("applied");
+    expect(reconcileSkill(f.target, new SkillLedger(f.dataDir)).status).toBe("removed");
     expect(readFileSync(join(f.path, "notes.txt"), "utf8")).toBe("My own notes.");
-    expect(existsSync(join(f.path, "empty-user-folder"))).toBe(true);
+    expect(readdirSync(join(f.path, "empty-user-folder"))).toEqual([]);
+    expect(readdirSync(join(f.path, "scripts"))).toEqual(["local-empty"]);
     expect(existsSync(join(f.path, "SKILL.md"))).toBe(false);
     const linked = fixture();
     reconcileSkill(linked.version(skillFiles()), linked.ledger);
