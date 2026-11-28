@@ -5,7 +5,8 @@ Aktualizacja (2026-11-27): opcjonalne automatyczne Update all, gdy praca właśc
 
 Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Desktop dla macOS obejmuje ZIP-y x64 i arm64.
 
-Status: opis zaimplementowanego kodu (2026-11-28), w tym ponownego wiązania
+Status: opis zaimplementowanego kodu (2026-11-28), w tym potwierdzania zakresu
+aktualizacji Windows i jawnych akcji odzyskania aplikacji, ponownego wiązania
 kanału aktualizacji desktopu po parowaniu oraz przerywania okresowego skanu
 worktree przy zamykaniu gatewaya oraz postępu pobierania binarek
 workerów i samodzielnego gatewaya w web, Electronie i na telefonie, animacji cyfr procentu
@@ -495,14 +496,15 @@ błąd sprawdzania, który mógł prowadzić do nieudanej wymiany starych plikó
 sam kod nie potwierdza przyczyny konkretnej awarii. Szczegóły patcha i Windows smoke:
 [desktop.md](desktop.md#automatyczne-aktualizacje-desktopu).
 
-Instalacje dla wszystkich użytkowników (np. w Program Files) mogą wymagać zgody
-administratora nawet przy `/S`. Przed zatrzymaniem usług desktop odrzuca aktualizację,
-jeśli wykryje maszynowy wpis NSIS, `isAdminRightsRequired` pobranej paczki lub brak
-zapisu w katalogu aplikacji. Lokalnie pokazuje komunikat, a zdalnie raportuje `failed`
-z przyczyną i zaleceniem instalacji dla bieżącego użytkownika. Nie uruchamia instalatora
-czekającego na UAC. Taką instalację trzeba zaktualizować ręcznie z uprawnieniami
-administratora albo zastąpić instalacją dla bieżącego użytkownika. Nieudany odczyt
-uprawnień także blokuje restart; działające usługi pozostają dostępne.
+Desktop porównuje katalog aplikacji z wpisami NSIS dla bieżącego użytkownika
+i dla wszystkich użytkowników. Osobny wpis maszynowy nie blokuje potwierdzonej
+instalacji per-user. Instalator otrzymuje `/currentuser`, a desktop czeka na
+potwierdzenie startu procesu. Wpis maszynowy dla tego samego katalogu,
+`isAdminRightsRequired`, brak zapisu lub niemożność potwierdzenia instalacji
+per-user blokują automatyczny restart. Zdalne żądanie raportuje `failed`, a
+lokalnie **Update manually** pozwala wskazać zaakceptowany plik w Eksploratorze.
+Gdy instalator jest niedostępny, **Retry app update** pozwala sprawdzić i pobrać
+aktualizację z panelu błędu bez potwierdzania błędu przez **Dismiss**.
 
 Jeżeli podczas oczekiwania na idle pobrano nowszą paczkę, desktop przed restartem
 kończy bieżące sprawdzanie/pobieranie, blokuje następne i raportuje faktyczny cel instalacji.

@@ -8,7 +8,7 @@ import type { DownloadExecutorTask } from "electron-updater/out/AppUpdater.js";
 import { DownloadedUpdateHelper } from "electron-updater/out/DownloadedUpdateHelper.js";
 import { cancellable, StagedDownloads } from "./staged-downloads.ts";
 import { updateErrorCode } from "./update-diagnostics.ts";
-import { checkWindowsUpdateInstall } from "./update-install.ts";
+import { checkWindowsUpdateInstall, launchWindowsUpdate, UpdateInstallerMissingError } from "./update-install.ts";
 
 class NsisReplacement extends DownloadedUpdateHelper {
   private readonly priorInstaller: string | null;
@@ -45,6 +45,8 @@ export class StagedNsisUpdater extends NsisUpdater {
   private readonly downloads = new StagedDownloads((previous, root) => new NsisReplacement(previous, root));
   constructor(directory?: string, adapter?: AppAdapter) {
     super(null, adapter);
+    // Canopy publishes standalone installers only.
+    this.disableWebInstaller = true;
 
     if (directory) this.downloadedUpdateHelper = new DownloadedUpdateHelper(directory);
   }
@@ -52,10 +54,18 @@ export class StagedNsisUpdater extends NsisUpdater {
     return this.installerPath;
   }
   checkInstall() {
+    const installer = this.installerPath;
+
+    if (!installer || !existsSync(installer)) throw new UpdateInstallerMissingError();
     checkWindowsUpdateInstall(
       resolve(process.execPath, ".."),
       this.downloadedUpdateHelper?.downloadedFileInfo?.isAdminRightsRequired ?? false,
     );
+
+    return installer;
+  }
+  async launch() {
+    await launchWindowsUpdate(this.checkInstall());
   }
   protected override async executeDownload(task: DownloadExecutorTask) {
     task = cancellable(task);

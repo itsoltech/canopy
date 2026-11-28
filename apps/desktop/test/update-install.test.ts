@@ -1,32 +1,75 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import { ChildProcess } from "node:child_process";
 import {
   checkWindowsUpdateInstall,
-  WINDOWS_UPDATE_ADMIN_MESSAGE,
+  launchWindowsUpdate,
+  WindowsManualUpdateError,
   WindowsUpdateAdminError,
 } from "../src/update-install.ts";
-import { tempDir } from "@canopy/testing";
 
-test("Windows installation preflight rejects installer metadata, machine scope and unwritable custom directories", () => {
-  const directory = tempDir("canopy-update-permissions-");
-  const perUser = () => ({ status: 1 });
-  expect(() => checkWindowsUpdateInstall(directory, true, perUser)).toThrow(WINDOWS_UPDATE_ADMIN_MESSAGE);
-  expect(() => checkWindowsUpdateInstall(directory, true, perUser)).toThrow(WindowsUpdateAdminError);
-  expect(() => checkWindowsUpdateInstall(directory, false, () => ({ status: 0 }))).toThrow(
-    WINDOWS_UPDATE_ADMIN_MESSAGE,
-  );
-  expect(() =>
-    checkWindowsUpdateInstall(directory, false, perUser, () => {
-      throw new Error("Access denied");
-    }),
-  ).toThrow(WINDOWS_UPDATE_ADMIN_MESSAGE);
-  expect(() => checkWindowsUpdateInstall(directory, false, perUser)).not.toThrow();
+const perUser = "C:\\Users\\Canopy user\\AppData\\Local\\Programs\\Canopy";
+const perMachine = "C:\\Program Files\\Canopy";
+
+test("Windows preflight permits the registered per-user app alongside a separate machine installation", () => {
+  const registry = () => ({ user: perUser, machine: perMachine });
+
+  expect(() => checkWindowsUpdateInstall(perUser.toLowerCase(), false, registry, () => {})).not.toThrow();
+  expect(() => checkWindowsUpdateInstall(perMachine, false, registry, () => {})).toThrow(WindowsUpdateAdminError);
 });
 
-test("Windows installation preflight refuses to launch an installer if the registry probe cannot run", () => {
-  const directory = tempDir("canopy-update-permissions-");
+test("Windows preflight requires a matching user registration and keeps administrator checks", () => {
+  const writable = () => {};
 
-  for (const result of [{ status: null, error: new Error("Could not start reg.exe") }, { status: null }])
-    expect(() => checkWindowsUpdateInstall(directory, false, () => result)).toThrow(
-      "Could not check installation permissions. Retry the update on this computer.",
-    );
+  expect(() => checkWindowsUpdateInstall(perUser, false, () => ({ user: perMachine }), writable)).toThrow(
+    WindowsManualUpdateError,
+  );
+  expect(() => checkWindowsUpdateInstall(perUser, true, () => ({ user: perUser }), writable)).toThrow(
+    WindowsUpdateAdminError,
+  );
+  expect(() =>
+    checkWindowsUpdateInstall(
+      perUser,
+      false,
+      () => ({ user: perUser }),
+      () => {
+        throw new Error("Access denied");
+      },
+    ),
+  ).toThrow(WindowsUpdateAdminError);
+});
+
+test("Windows installer launch selects the confirmed user scope and waits for the child to start", async () => {
+  const child = new ChildProcess();
+  const unref = spyOn(child, "unref");
+  const installer = "C:\\Canopy updates\\Canopy Setup.exe";
+
+  const launch = launchWindowsUpdate(installer, (file, args, options) => {
+    expect(file).toBe(installer);
+    expect(args).toEqual(["--updated", "/S", "--force-run", "/currentuser"]);
+    expect(options).toEqual({ detached: true, stdio: "ignore" });
+
+    return child;
+  });
+
+  await Promise.resolve();
+  expect(unref).not.toHaveBeenCalled();
+  child.emit("spawn");
+  await launch;
+  expect(unref).toHaveBeenCalledTimes(1);
+});
+
+test("Windows installer launch reports a rejected process without retrying with elevation", async () => {
+  const child = new ChildProcess();
+  let attempts = 0;
+
+  const launch = launchWindowsUpdate("Canopy Setup.exe", () => {
+    attempts++;
+
+    return child;
+  });
+
+  const error = new Error("Spawn denied by Windows");
+  child.emit("error", error);
+  await expect(launch).rejects.toBe(error);
+  expect(attempts).toBe(1);
 });
