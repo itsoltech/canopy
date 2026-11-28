@@ -360,8 +360,8 @@ instancji bezpośrednich dla danego okna zostaje niższa wartość.
 Podział paska jest taki sam dla wszystkich okien dostawcy. Szerokość segmentu wynika
 z jednostek planu w głównym oknie, a jego wypełnienie z procentu pozostałego na koncie.
 Bezpośrednia instancja i nieznany plan liczą się jako 1. Przy kilku kontach pod segmentem
-widać jego procent lub stan, jeśli podpis się mieści. Nazwa konta jest w szczegółach
-segmentu; tożsamość konta proxy korzysta z ochrony Sensitive.
+widać jego procent lub stan, jeśli podpis się mieści. Paski są statyczne.
+Czytnik ekranu podaje numer konta, okres i wartość segmentu.
 
 Ukośne kreski oznaczają plan bez limitu 5 h (**No limit**), przerywany obrys oznacza
 brak aktualnego odczytu (**No reading**), a pusty jednolity tor i **0%** — wyczerpany limit.

@@ -180,14 +180,12 @@ describe("proxy subscription capacity", () => {
     expect(glance[0]?.percentLeft).toBeCloseTo(83.333333);
     // One bar per account across proxies, largest plan first, each filled to what it has left.
     expect(rows[0]?.segments).toEqual([
-      { label: "Home · Two", sensitiveLabel: true, units: 10, noLimit: false, percentLeft: 100 },
-      { label: "Work · One", sensitiveLabel: true, units: 5, noLimit: false, percentLeft: 50 },
+      { units: 10, noLimit: false, percentLeft: 100 },
+      { units: 5, noLimit: false, percentLeft: 50 },
     ]);
-    expect(
-      rows[0]?.fiveHourPlaceholder.map((segment) => [segment.label, segment.units, segmentValueText(segment)]),
-    ).toEqual([
-      ["Home · Two", 10, "No limit"],
-      ["Work · One", 5, "No reading"],
+    expect(rows[0]?.fiveHourPlaceholder.map((segment) => [segment.units, segmentValueText(segment)])).toEqual([
+      [10, "No limit"],
+      [5, "No reading"],
     ]);
     expect(glance[0]?.label).toContain("5-hour: No reading");
     expect(
