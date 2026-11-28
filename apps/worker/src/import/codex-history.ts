@@ -2,6 +2,7 @@ import type { v2 } from "@canopy/codex-protocol";
 import { ItemStatus, type ImportedTurn } from "@canopy/contracts";
 import type { JsonObject } from "@canopy/domain";
 import type { ThreadEventInit } from "../journal/index.ts";
+import { RolloutCompaction } from "../providers/codex/rollout-compaction.ts";
 import { CodexEventMapper } from "../providers/codex/mapping.ts";
 import { decodeResponseItem } from "../providers/codex/rollout.ts";
 import { threadItem } from "../providers/codex/transcript.ts";
@@ -31,7 +32,8 @@ interface CodexTurn {
   /** The rollout records whole items for this turn (newer CLIs). */
   items: boolean;
   legacy: number;
-  readonly compactions: { summary: string; at: number | undefined }[];
+  readonly compact: RolloutCompaction;
+  readonly compactions: { summary: string; at: number | undefined; counts: { postTokens?: bigint } | undefined }[];
 }
 
 export interface CodexPageInput {
@@ -127,11 +129,13 @@ function open(codexTurnId: string, at: number | undefined): CodexTurn {
     items: false,
     legacy: 0,
     compactions: [],
+    compact: new RolloutCompaction(),
   };
 }
 
 function apply(turn: CodexTurn, record: JsonObject, payload: JsonObject, kind: string, at: number | undefined): void {
   const draftTurn = turn.draft;
+  const counts = turn.compact.observe(record["type"], payload);
 
   if (at !== undefined) draftTurn.endedMs = Math.max(draftTurn.endedMs ?? at, at);
 
@@ -154,10 +158,13 @@ function apply(turn: CodexTurn, record: JsonObject, payload: JsonObject, kind: s
 
       take(
         turn,
-        turn.mapper.map({
-          method: "item/completed",
-          params: { threadId: "", turnId: turn.codexTurnId, item, completedAtMs: at ?? 0 },
-        }),
+        turn.mapper.map(
+          {
+            method: "item/completed",
+            params: { threadId: "", turnId: turn.codexTurnId, item, completedAtMs: at ?? 0 },
+          },
+          counts,
+        ),
         at,
       );
 
@@ -188,7 +195,7 @@ function apply(turn: CodexTurn, record: JsonObject, payload: JsonObject, kind: s
       return;
     case "compacted:":
       // Newer rollouts record the compaction as an item too; the record alone counts only without items.
-      turn.compactions.push({ summary: jsonString(payload["message"]), at });
+      turn.compactions.push({ summary: jsonString(payload["message"]), at, counts });
 
       return;
     default:
@@ -250,7 +257,7 @@ function flush(turn: CodexTurn): void {
     setItem(
       turn.draft,
       `compact:${turn.codexTurnId}:${index}`,
-      { case: "contextCompaction", value: { summary: c.summary } },
+      { case: "contextCompaction", value: { summary: c.summary, ...c.counts } },
       ItemStatus.COMPLETED,
       c.at,
     );

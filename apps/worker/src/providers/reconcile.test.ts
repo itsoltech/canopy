@@ -370,6 +370,38 @@ describe("Claude session transcript", () => {
   const content = readFileSync(fixture("claude-session.jsonl"), "utf8");
   const home = claudeHome("5e55-1", content);
 
+  test("a recovered compact boundary retains Claude's measurements under its live item id", async () => {
+    const boundary = {
+      type: "system",
+      subtype: "compact_boundary",
+      uuid: "boundary",
+      compactMetadata: { preTokens: 16002, postTokens: 1423 },
+    };
+
+    const records = [
+      { ...boundary, uuid: "child", isSidechain: true },
+      boundary,
+      { ...boundary, uuid: "old", compactMetadata: { trigger: "manual" } },
+    ];
+
+    const recovered = await readClaudeTurn(
+      claudeHome("compact", records.map((r) => JSON.stringify(r) + "\n").join("")),
+      "compact",
+      0,
+    );
+
+    expect(recovered?.items).toMatchObject([
+      {
+        itemId: "compact:boundary",
+        content: { case: "contextCompaction", value: { preTokens: 16002n, postTokens: 1423n } },
+      },
+      {
+        itemId: "compact:old",
+        content: { case: "contextCompaction", value: { preTokens: undefined, postTokens: undefined } },
+      },
+    ]);
+  });
+
   test("unrelated metadata and sidechain messages do not prevent recovery", async () => {
     const skipped = [
       null,
@@ -442,6 +474,52 @@ describe("reconcileEvents", () => {
     harness: { harness: "codex", transcript: "/rollout.jsonl", sessionId: "c", offset: 0, providerTurn: "turn-done" },
     items,
     interruptRequested,
+  });
+
+  test("recovers the Codex post-compaction estimate with the live start's context", async () => {
+    const path = join(tempDir("canopy-rollout-compaction-"), "rollout.jsonl");
+
+    const last = {
+      total_tokens: 2070,
+      input_tokens: 0,
+      output_tokens: 0,
+      cached_input_tokens: 0,
+      cache_write_input_tokens: 0,
+      reasoning_output_tokens: 0,
+    };
+
+    const records = [
+      { type: "event_msg", payload: { type: "task_started", turn_id: "turn-done" } },
+      { type: "compacted", payload: { replacement_history: [], message: "" } },
+      { type: "turn_context", payload: { turn_id: "turn-done" } },
+      { type: "event_msg", payload: { type: "thread_settings_applied" } },
+      { type: "event_msg", payload: { type: "token_count", info: { last_token_usage: last } } },
+      {
+        type: "event_msg",
+        payload: { type: "item_completed", turn_id: "turn-done", item: { type: "ContextCompaction", id: "compact-1" } },
+      },
+    ];
+
+    writeFileSync(path, records.map((record) => JSON.stringify(record) + "\n").join(""));
+    const record = await readCodexTurn(path, 0, "turn-done", "turn");
+
+    const item = create(ItemSchema, {
+      itemId: "compact-1",
+      status: ItemStatus.IN_PROGRESS,
+      content: { case: "contextCompaction", value: { preTokens: 19000n } },
+    });
+
+    const events = reconcileEvents(open([{ item, done: false }]), record, WORKER_RESTARTED);
+
+    expect(events[0]?.body).toMatchObject({
+      case: "itemCompleted",
+      value: {
+        item: {
+          status: ItemStatus.COMPLETED,
+          content: { case: "contextCompaction", value: { preTokens: 19000n, postTokens: 2070n } },
+        },
+      },
+    });
   });
 
   test("journals only what is missing, in the harness's order, then the harness's end", async () => {

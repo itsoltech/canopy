@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { Provider, type ModelInfo, type ProfileModels, type ui } from "@canopy/contracts";
 import { providerKeys } from "@canopy/ui/providers";
+import { effortDisplayName } from "@canopy/domain/model-name";
 import { harnessName } from "@canopy/domain/provider-instances";
 import { useSession } from "../../state/session";
 import { useOverview } from "../../state/overview";
@@ -40,19 +41,7 @@ const providers: Provider[] = providerKeys.map((key) => Provider[key]);
 
 export const providerName = (provider: Provider) => (providers.includes(provider) ? harnessName(provider) : "Agent");
 
-const effortLabels = new Map([
-  ["none", "None"],
-  ["minimal", "Minimal"],
-  ["low", "Low"],
-  ["medium", "Medium"],
-  ["high", "High"],
-  ["xhigh", "Extra high"],
-  ["max", "Max"],
-  ["ultra", "Ultra"],
-]);
-
-export const effortLabel = (id: string) =>
-  effortLabels.get(id) ?? (id ? id[0]!.toUpperCase() + id.slice(1) : "Default");
+export const effortLabel = (id: string) => effortDisplayName(id) || "Default";
 
 const instanceLabel = (instance: ui.WorkerInstance) =>
   instance.label || (instance.id === "native" ? "Device login" : instance.id);

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { ItemStatus } from "@canopy/contracts";
+import { modelChangeLabel } from "@canopy/domain/model-name";
 import { taskListOf } from "@canopy/domain/task-list";
 import { ItemContent, useLazyItem } from "./item-content";
 import { LazyItemContent } from "./LazyItemContent";
@@ -15,7 +16,7 @@ import { CommandView } from "./items/CommandView";
 import { FileChangeView } from "./items/FileChangeView";
 import { InteractionPromptView } from "./items/InteractionPromptView";
 import { ReasoningView } from "./items/ReasoningView";
-import { CompactionView, ImageView, ProviderItemView } from "./items/RecordViews";
+import { CompactionView, ImageView, ProviderItemView, TimelineDivider } from "./items/RecordViews";
 import { SubagentView } from "./items/SubagentView";
 import { ToolCallView } from "./items/ToolCallView";
 import { WebSearchView } from "./items/WebSearchView";
@@ -27,7 +28,7 @@ import { VisualView } from "../visuals/VisualView";
 
 export { itemNodes, type ItemNode } from "./item-nodes";
 
-const INLINE = new Set(["userMessage", "agentMessage", "reasoning", "contextCompaction"]);
+const INLINE = new Set(["userMessage", "agentMessage", "reasoning", "contextCompaction", "modelChange"]);
 
 /**
  * One transcript item; every type has a view (web: ItemView). `turnEnded`: its turn is over, so an item still
@@ -124,6 +125,9 @@ export function ItemView({ node, turnEnded = false }: { node: ItemNode; turnEnde
       break;
     case "contextCompaction":
       view = <CompactionView compaction={content.value} />;
+      break;
+    case "modelChange":
+      view = <TimelineDivider label={modelChangeLabel(content.value)} />;
       break;
     case "interactionPrompt":
       view = <InteractionPromptView prompt={content.value} status={item.status} />;

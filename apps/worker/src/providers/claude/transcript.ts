@@ -1,3 +1,4 @@
+import { claudeCompactionItem } from "./compaction.ts";
 import { ClaudeTranscriptUsage } from "./transcript-usage.ts";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -62,7 +63,17 @@ export async function readClaudeTurn(
 
     if (record) consumed.observe(record);
 
-    if (!record || record["isSidechain"] || (record["type"] !== "assistant" && record["type"] !== "user")) continue;
+    if (!record || record["isSidechain"]) continue;
+
+    if (record["type"] === "system" && record["subtype"] === "compact_boundary" && isString(record["uuid"])) {
+      const metadata = jsonObject(record["compactMetadata"]);
+      const item = claudeCompactionItem(record["uuid"], metadata?.["preTokens"], metadata?.["postTokens"]);
+      items.set(item.itemId, item);
+      seen = true;
+      continue;
+    }
+
+    if (record["type"] !== "assistant" && record["type"] !== "user") continue;
     const entry = Schema.decodeUnknownSync(TranscriptEntry)(record);
 
     if (!entry.message) continue;

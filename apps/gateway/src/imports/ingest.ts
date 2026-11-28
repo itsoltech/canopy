@@ -3,6 +3,7 @@ import type { ImportPage, ImportedTurn } from "@canopy/contracts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 import { applyItem, insertEvent } from "../store/ingest-events.ts";
+import { modelChangeEvent } from "../store/turn-model-change.ts";
 import { importTransaction } from "./locks.ts";
 import type { ItemRow } from "./store.ts";
 import { fenceItem } from "./transitions.ts";
@@ -79,6 +80,8 @@ export const ingestPage = (sql: SqlClient.SqlClient, item: ItemRow, threadId: st
       let added = 0;
 
       for (const turn of page.turns) {
+        if (turn.events.some(modelChangeEvent))
+          return yield* Effect.fail(new Error("The import page contains a reserved model change item."));
         const end = turnEnd(turn);
 
         const inserted = yield* sql<{ id: string }>`

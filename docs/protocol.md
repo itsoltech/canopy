@@ -1,5 +1,9 @@
 # Protokół gateway ↔ worker
 
+Status (2026-11-28). Item `ContextCompaction` może zawierać niezależne pomiary
+`pre_tokens` i `post_tokens`. Gateway zapisuje własny item `ModelChange` przy
+wysłaniu tury ze zmienionym modelem lub poziomem rozumowania. [Transkrypt](transcript.md)
+
 Aktualizacja (2026-11-28): synchronizacja skilli obsługuje grupowe odkładanie lokalnych kopii do archiwum w prywatnych domach Canopy.
 
 Aktualizacja (2026-11-28): raport użycia Codexa może zawierać zweryfikowany

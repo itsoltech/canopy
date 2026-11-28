@@ -178,17 +178,34 @@ describe("Claude event mapping on recorded turns", () => {
 
     for (const message of messages) mapper.map(message);
 
+    mapper.beginTurn("boundary");
+
     const events = mapper.map({
       type: "system",
       subtype: "compact_boundary",
       uuid: "00000000-0000-4000-8000-000000000000",
       session_id: "session",
-      compact_metadata: { trigger: "auto", pre_tokens: 16011 },
+      compact_metadata: { trigger: "auto", pre_tokens: 16011, post_tokens: 0 },
     });
 
     expect(events[0]?.body).toEqual({ case: "usageUpdated", value: { contextUsage: {} } });
+    expect(events[1]).toMatchObject({
+      turnId: "boundary",
+      body: {
+        case: "itemCompleted",
+        value: {
+          item: {
+            itemId: "compact:00000000-0000-4000-8000-000000000000",
+            status: ItemStatus.COMPLETED,
+            content: { case: "contextCompaction", value: { preTokens: 16011n, postTokens: 0n } },
+          },
+        },
+      },
+    });
     const result = messages.find((message) => message.type === "result")!;
-    expect(mapper.map(result).some((event) => event.body?.case === "usageUpdated")).toBe(false);
+    expect(
+      mapper.map(result).some((event) => event.body?.case === "usageUpdated" && event.body.value.contextUsage),
+    ).toBe(false);
 
     for (const message of messages) mapper.map(message);
 
@@ -201,7 +218,9 @@ describe("Claude event mapping on recorded turns", () => {
     });
 
     expect(reset[0]?.body).toEqual({ case: "usageUpdated", value: { contextUsage: {} } });
-    expect(mapper.map(result).some((event) => event.body?.case === "usageUpdated")).toBe(false);
+    expect(
+      mapper.map(result).some((event) => event.body?.case === "usageUpdated" && event.body.value.contextUsage),
+    ).toBe(false);
   });
 
   test("partial message_delta usage preserves the response's cached input", () => {

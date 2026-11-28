@@ -1,3 +1,4 @@
+import { RolloutCompaction } from "./rollout-compaction.ts";
 import { CodexConsumedUsage } from "./consumed-usage.ts";
 import type { ConsumedUsage } from "../token-usage.ts";
 import type { v2 } from "@canopy/codex-protocol";
@@ -52,6 +53,7 @@ export async function readCodexTurn(
   const events: ThreadEventInit[] = [];
   let end: TurnEnd | undefined;
   const consumed = new CodexConsumedUsage();
+  const compact = new RolloutCompaction();
   let usages: ConsumedUsage[] = [];
   let provenModel = "";
   let seen = false;
@@ -61,6 +63,7 @@ export async function readCodexTurn(
     const payload = jsonObject(record?.["payload"]);
 
     if (!record || !payload) continue;
+    const counts = compact.observe(record["type"], payload);
     const turnOf = isString(payload["turn_id"]) ? payload["turn_id"] : undefined;
 
     if (turnOf && turnOf === target) seen = true;
@@ -109,10 +112,13 @@ export async function readCodexTurn(
 
       if (item)
         events.push(
-          ...mapper.map({
-            method: "item/completed",
-            params: { threadId: "", turnId: target, item, completedAtMs: 0 },
-          }),
+          ...mapper.map(
+            {
+              method: "item/completed",
+              params: { threadId: "", turnId: target, item, completedAtMs: 0 },
+            },
+            counts,
+          ),
         );
     } else if (record["type"] === "response_item" && current === target) {
       events.push(
@@ -122,15 +128,7 @@ export async function readCodexTurn(
         }),
       );
     } else if (record["type"] === "event_msg" && payload["type"] === "task_complete" && turnOf === target) {
-      const error = jsonObject(payload["error"]);
-      end = error
-        ? {
-            outcome: TurnOutcome.FAILED,
-            source: TurnEndSource.HARNESS,
-            reason: isString(error["message"]) ? error["message"] : "the turn failed",
-            errorCode: codexErrorCode(error["codex_error_info"]),
-          }
-        : { outcome: TurnOutcome.COMPLETED, source: TurnEndSource.UNSPECIFIED, reason: "" };
+      end = completion(jsonObject(payload["error"]));
     } else if (record["type"] === "event_msg" && payload["type"] === "turn_aborted" && turnOf === target) {
       const reason = isString(payload["reason"]) ? payload["reason"] : "aborted";
       // "interrupted": the client (the platform, for its user) asked; anything else Codex decided itself.
@@ -173,6 +171,17 @@ export async function readCodexTurn(
       },
     }),
   };
+}
+
+function completion(error: JsonObject | undefined): TurnEnd {
+  return error
+    ? {
+        outcome: TurnOutcome.FAILED,
+        source: TurnEndSource.HARNESS,
+        reason: isString(error["message"]) ? error["message"] : "the turn failed",
+        errorCode: codexErrorCode(error["codex_error_info"]),
+      }
+    : { outcome: TurnOutcome.COMPLETED, source: TurnEndSource.UNSPECIFIED, reason: "" };
 }
 
 function rolloutUsage(usage: TokenUsage): v2.TokenUsageBreakdown {

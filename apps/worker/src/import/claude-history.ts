@@ -3,13 +3,14 @@ import { ItemStatus, type ImportedTurn, type ItemSchema } from "@canopy/contract
 import type { JsonObject, JsonValue } from "@canopy/domain";
 import { isJsonObject, isString, jsonObject, jsonString } from "../providers/json.ts";
 import { resultText, toolContent, withOutput } from "../providers/claude/content-mapping.ts";
+import { claudeCompactionItem } from "../providers/claude/compaction.ts";
 import { contentText, promptText } from "./claude-entries.ts";
 import type { ClaudeIndex } from "./claude-index.ts";
 import type { Masker } from "./masking.ts";
 import { lines, parseLine, sourceStat, type SourceFile } from "./read.ts";
 import { timeMs } from "./scan-types.ts";
 import { maskedRecord } from "./masking.ts";
-import { draft, finish, setItem, turnBytes, type TurnDraft } from "./turns.ts";
+import { draft, finish, putItem, setItem, turnBytes, type TurnDraft } from "./turns.ts";
 
 type Content = NonNullable<MessageInitShape<typeof ItemSchema>["content"]>;
 
@@ -139,25 +140,24 @@ export function readClaudePage(input: ClaudePageInput): PageResult {
     state.turn.providerTurnRef = uuid;
 
     if (compact) {
-      state.compaction = `compact:${uuid}`;
-      setItem(
-        state.turn,
-        state.compaction,
-        { case: "contextCompaction", value: { summary: "" } },
-        ItemStatus.COMPLETED,
-        at,
-      );
+      const metadata = jsonObject(entry["compactMetadata"]);
+      const item = claudeCompactionItem(uuid, metadata?.["preTokens"], metadata?.["postTokens"]);
+      state.compaction = item.itemId;
+      putItem(state.turn, item, at);
     } else applyEntry(state, { entry, raw }, at, "");
 
     if (entry["type"] === "user" && entry["isCompactSummary"] === true && state.compaction) {
       const summary = contentText(jsonObject(entry["message"])?.["content"]);
-      setItem(
-        state.turn,
-        state.compaction,
-        { case: "contextCompaction", value: { summary } },
-        ItemStatus.COMPLETED,
-        at,
-      );
+      const content = state.turn.items.get(state.compaction)?.item.content;
+
+      if (content?.case === "contextCompaction")
+        setItem(
+          state.turn,
+          state.compaction,
+          { case: content.case, value: { ...content.value, summary } },
+          ItemStatus.COMPLETED,
+          at,
+        );
     }
 
     for (const tool of startedSubagents(entry))

@@ -89,12 +89,26 @@ export function reconcileEvents(open: OpenTurn, record: HarnessRecord | undefine
     const id = item.itemId ?? "";
     seen.add(id);
 
-    if (journaled.get(id)?.done) continue;
+    const previous = journaled.get(id);
+
+    if (previous?.done) continue;
 
     const status =
       item.status === ItemStatus.IN_PROGRESS ? ItemStatus.INTERRUPTED : (item.status ?? ItemStatus.COMPLETED);
 
-    events.push(finished({ case: "itemCompleted", value: { item: { ...item, status } } }));
+    // Codex rollouts omit item_started, where the worker sampled the pre-compaction context.
+    const prior = previous?.item.content;
+    const content = item.content;
+    const recovered = { ...item, status };
+
+    if (
+      content?.case === "contextCompaction" &&
+      prior?.case === "contextCompaction" &&
+      content.value.preTokens === undefined
+    )
+      recovered.content = { case: content.case, value: { ...content.value, preTokens: prior.value.preTokens } };
+
+    events.push(finished({ case: "itemCompleted", value: { item: recovered } }));
   }
 
   for (const { item, done } of open.items) {

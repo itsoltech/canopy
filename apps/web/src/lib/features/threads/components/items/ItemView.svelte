@@ -6,6 +6,8 @@
   import BackgroundTaskView from "./BackgroundTaskView.svelte";
   import ChecklistView from "./ChecklistView.svelte";
   import CommandView from "./CommandView.svelte";
+  import { modelChangeLabel } from "@canopy/domain/model-name";
+  import TimelineDivider from "./TimelineDivider.svelte";
   import CompactionView from "./CompactionView.svelte";
   import FileChangeView from "./FileChangeView.svelte";
   import ImageView from "./ImageView.svelte";
@@ -48,7 +50,7 @@
   const lazyContent = $derived(lazy());
 
   const inlineChildren = $derived(
-    ["userMessage", "agentMessage", "reasoning", "contextCompaction"].includes(content.case ?? ""),
+    ["userMessage", "agentMessage", "reasoning", "contextCompaction", "modelChange"].includes(content.case ?? ""),
   );
 
   provideItemChildren(() => (content.case === "subagent" || inlineChildren ? undefined : nested));
@@ -93,6 +95,8 @@
   <PublishedVideoView video={content.value} />
 {:else if content.case === "contextCompaction"}
   <CompactionView compaction={content.value} />
+{:else if content.case === "modelChange"}
+  <TimelineDivider>{modelChangeLabel(content.value)}</TimelineDivider>
 {:else if content.case === "interactionPrompt"}
   <InteractionPromptView prompt={content.value} status={item.status} />
 {:else if content.case === "visual"}

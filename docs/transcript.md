@@ -1,5 +1,8 @@
 # Transkrypt: zapis wszystkiego, co dzieje się w wątku
 
+Status (2026-11-28). Historia wątku pokazuje zgłoszone liczby tokenów przed i po
+kompaktowaniu oraz zmiany modelu i poziomu rozumowania między turami.
+
 Aktualizacja (2026-11-24). Grok i Antigravity używają wspólnego mapowania
 zdarzeń ACP. Fragmenty odpowiedzi i rozumowania, wywołania narzędzi oraz
 aktualizacje planu trafiają do transkryptu wątku. Antigravity dołącza do końca
@@ -66,11 +69,19 @@ Worker nie wyłącza słuchania dostawcy po zakończeniu tury. Wątek z pracą w
 | `background_task` | praca w tle (shell, agent, workflow, proces): tura startowa, postęp, pełny output, powód zatrzymania; może kończyć się po turze |
 | `agent_bus_call` | wywołanie narzędzia szyny (`spawn_thread`, `send_message`, `wait_threads`, ...): argumenty, wynik, link do uruchomionego wątku i tury |
 | `image` | blob, ścieżka, prompt |
-| `context_compaction` | podsumowanie |
+| `context_compaction` | podsumowanie i opcjonalne liczby tokenów przed i po kompaktowaniu |
+| `model_change` | poprzedni i nowy model, ich nazwy z katalogu oraz poziomy rozumowania |
 | `interaction_prompt` | zgoda, pytanie albo formularz MCP: żądanie, odpowiedź, adresat (`human` / `parent`), kto odpowiedział (użytkownik albo agent rodzica) i kiedy |
 | `provider_item` | typ dostawcy bez dedykowanego mapowania, pełny JSON |
 
 Strumieniowanie: `item_started` → `item_delta` (`text`, `summary`, `output`) → `item_completed` z pełnym, końcowym stanem.
+
+Gateway porównuje model i poziom rozumowania ustalone przy wysyłaniu `StartTurn`
+z wyborem poprzedniej wysłanej tury. Gdy zmienia się któreś z tych ustawień,
+zapisuje jeden ukończony item `model_change` razem z komendą dla workera.
+Pierwsza tura nowej rozmowy ustala punkt odniesienia. Zmiany szkicu i edycje
+kolejki trafiają do tego porównania dopiero przy wysyłaniu. Klienci wyświetlają
+wpis nad wiadomością użytkownika, także po ponownym otwarciu wątku.
 
 ## 4. Mapowanie dostawców
 
@@ -94,6 +105,18 @@ Strumieniowanie: `item_started` → `item_delta` (`text`, `summary`, `output`) �
 Mapowanie sprawdzamy na przypiętych wersjach adapterów. Nowy typ dostawcy bez mapowania nie jest błędem: trafia do `thread_events` z `raw`, a jeśli ma treść, także jako `provider_item`.
 
 ### Bieżące okno kontekstu
+
+Wpis „Context compacted” zachowuje własne pomiary `pre_tokens` i `post_tokens`.
+Pokazuje zajętość kontekstu w chwili kompaktowania. Każde pole jest opcjonalne:
+przy jednym pomiarze etykieta wskazuje, czy pochodzi sprzed, czy po kompaktowaniu.
+Starsze wpisy bez pomiarów zachowują dotychczasową etykietę. Późniejsze raporty
+zużycia wątku nie zmieniają zapisanych liczb.
+
+Claude przekazuje liczniki w metadanych `compact_boundary`. Codex podaje
+ostatni zaobserwowany rozmiar kontekstu przed rozpoczęciem operacji, a przy
+jej zakończeniu adapter rozpoznaje oszacowanie zachowanej historii raportowane
+przez harness. Rozliczenie wywołania modelu w trakcie kompaktowania nie jest
+pomiarem zachowanej historii.
 
 `UsageUpdated.context_usage` oraz `ui.Thread.context_usage` mają wspólny typ
 `ContextUsage`: opcjonalne `used_tokens` i `limit_tokens`. To najnowszy pomiar

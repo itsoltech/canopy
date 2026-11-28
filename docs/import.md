@@ -1,5 +1,10 @@
 # Import z CLI agentów
 
+Status (2026-11-28). Import Claude zachowuje dostępne pomiary zajętości
+kontekstu przy kompaktowaniu, również gdy kolejne zdarzenie dostarcza podsumowanie.
+Import Codexa odczytuje oszacowanie rozmiaru zachowanej historii, jeśli CLI
+zapisało je w sekwencji zdarzeń kompaktowania.
+
 Aktualizacja (2026-11-23): **Use CLI home** jest trybem domyślnym dla wątków
 wbudowanej instancji `codex/native` z logowaniem urządzenia. Import w tym trybie zachowuje
 historię i pozwala kontynuować w nowym wątku. Do wznowienia natywnej kopii
@@ -481,7 +486,8 @@ Tryb `history` (`thread_imports.mode`): gateway odrzuca `SendMessage`, a miejsce
   z `<sesja>/subagents/agent-*.jsonl` (`meta.json.toolUseId`, do 32 MB) mają `parent_item_id` = wywołanie.
   Subagenci zapisani w pliku sesji (starszy format) nie są importowani: ostrzeżenie.
 - **Kompaktowanie.** `compact_boundary` daje `context_compaction` z podsumowaniem z następnego wpisu
-  `isCompactSummary`; ręczne `/compact` jest osobną turą, automatyczne zostaje w bieżącej.
+  `isCompactSummary` i licznikami `preTokens` oraz `postTokens` z `compactMetadata`, jeśli są
+  obecne. Ręczne `/compact` jest osobną turą, automatyczne zostaje w bieżącej.
 - **Koniec tury.** „[Request interrupted by user…” → `interrupted`, `isApiErrorMessage` → `failed` z tekstem
   błędu, inaczej `completed`; niedokończone narzędzia → item `interrupted`.
 - **Pomijane wpisy:** `api-request*`, `atis-latch`, `queue-operation`, `cost-state`, `file-history-snapshot`,

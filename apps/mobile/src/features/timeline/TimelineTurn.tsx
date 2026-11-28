@@ -45,6 +45,9 @@ export interface TurnContext {
 const isReplyRow = (row: BodyRow) =>
   row.kind === "item" ? isPublishedReply(row.node.item.content) : row.notice.notice?.code === "extra_usage";
 
+const isModelChange = (row: BodyRow) => row.kind === "item" && row.node.item.content.case === "modelChange";
+const isFoldBody = (row: BodyRow) => !isReplyRow(row) && !isModelChange(row);
+
 const replyResults = (body: readonly BodyRow[], ended: boolean) =>
   body.filter((row) => isReplyRow(row) && (ended || row.kind === "notice"));
 
@@ -70,7 +73,7 @@ function initialFolds(turn: ui.Turn, entries: readonly ui.TimelineItem[], contex
   const saved = context.foldChoices.get(turn.id);
 
   if (saved || !target) return saved ?? new Map<number, WorkFoldChoice>();
-  const body = turnBody(turn, entries, context.notices).filter((row) => !isReplyRow(row));
+  const body = turnBody(turn, entries, context.notices).filter(isFoldBody);
   const choices = new Map<number, WorkFoldChoice>();
 
   segmentsOf(turn, body, () => false).forEach((segment, index) => {
@@ -111,7 +114,7 @@ export function TimelineTurn({
 
   const allBody = useMemo(() => turnBody(turn, entries, context.notices), [turn, entries, context.notices]);
 
-  const body = allBody.filter((row) => !isReplyRow(row));
+  const body = allBody.filter(isFoldBody);
   const ended = turnProgress(turn.status) !== "live";
   const plan = segmentsOf(turn, body, () => false);
 
@@ -127,6 +130,9 @@ export function TimelineTurn({
         <View style={{ marginBottom: -8 }}>
           <TurnStart turn={turn} newDay={newDay} />
         </View>
+        {allBody.filter(isModelChange).map((row) => (
+          <BodyRowView key={row.key} row={row} steers={context.steers} ended={ended} />
+        ))}
         {turn.shellCommand !== undefined ? (
           <ShellMessage command={turn.shellCommand} result={turn.shellResult} status={turn.status} error={turn.error} />
         ) : hasInput ? (

@@ -8,7 +8,11 @@ type ItemInit = MessageInitShape<typeof ItemSchema>;
 
 type CodexItem = v2.ThreadItem;
 
-export function mapItem(item: CodexItem, completed: boolean): ItemInit {
+export function mapItem(
+  item: CodexItem,
+  completed: boolean,
+  compaction: { preTokens?: bigint | undefined; postTokens?: bigint | undefined } = {},
+): ItemInit {
   const base = { itemId: item.id };
   const lifecycle = completed ? ItemStatus.COMPLETED : ItemStatus.IN_PROGRESS;
 
@@ -103,7 +107,7 @@ export function mapItem(item: CodexItem, completed: boolean): ItemInit {
         },
       };
     case "contextCompaction":
-      return { ...base, status: lifecycle, content: { case: "contextCompaction", value: {} } };
+      return { ...base, status: lifecycle, content: { case: "contextCompaction", value: compaction } };
     case "collabAgentToolCall":
       return {
         ...base,

@@ -1,7 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ItemSchema } from "@canopy/contracts";
 import { isAgentBusTool, isPlatformServer, VIEW_IMAGE_TOOL, type JsonValue } from "@canopy/domain";
-import { Match } from "effect";
+import { Match, Schema } from "effect";
 import { isString, jsonObject, jsonString } from "../json.ts";
 
 type Content = NonNullable<MessageInitShape<typeof ItemSchema>["content"]>;
@@ -145,3 +145,20 @@ function prefixLines(text: string, prefix: string): string {
 function editDiff(before: string, after: string): string {
   return [prefixLines(before, "-"), prefixLines(after, "+")].filter(Boolean).join("\n");
 }
+
+export const StreamEvent = Schema.Struct({
+  type: Schema.String,
+  index: Schema.optionalKey(Schema.Number),
+  message: Schema.optionalKey(Schema.Struct({ id: Schema.optionalKey(Schema.String) })),
+  content_block: Schema.optionalKey(Schema.Struct({ type: Schema.optionalKey(Schema.String) })),
+  delta: Schema.optionalKey(
+    Schema.Struct({
+      type: Schema.optionalKey(Schema.String),
+      text: Schema.optionalKey(Schema.String),
+      thinking: Schema.optionalKey(Schema.String),
+      stop_reason: Schema.optionalKey(Schema.NullOr(Schema.String)),
+    }),
+  ),
+});
+
+export type StreamEvent = typeof StreamEvent.Type;

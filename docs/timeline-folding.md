@@ -1,5 +1,9 @@
 # Zwijanie pracy na osi wątku
 
+Status (2026-11-28). Wiersz kompaktowania wyświetla dostępne liczby tokenów przed
+i po operacji. Zmiana modelu lub poziomu rozumowania pojawia się przy wejściu
+tury, np. „Astra High → Sol Medium”. Oba wpisy są widoczne przy zwiniętej pracy.
+
 Status: opis zaimplementowanego kodu web/desktop/mobile (2026-11-24), w tym
 doczytywania brakującej pracy podczas przewijania lub na żądanie w web/desktop,
 stosowania „After the turn” do pracy poprzedzającej steer, kompaktowania kontekstu
