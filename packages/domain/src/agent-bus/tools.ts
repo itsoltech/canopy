@@ -4,7 +4,7 @@ import { BACKGROUND_TASK_TOOLS } from "./background-tasks.ts";
 import { PR_CHECK_TOOLS } from "./pr-checks.ts";
 import { TASK_TOOLS } from "./tasks.ts";
 import { isEntityId } from "../computers.ts";
-import { IMAGE_TOOLS } from "./images.ts";
+import { IMAGE_REPLY_LIMITS, IMAGE_TOOLS } from "./images.ts";
 import { SECRET_TOOLS, requestSecretProblem } from "./secrets.ts";
 import { DELEGATING_BOT_MESSAGE_GUIDANCE, SUBAGENT_REPORTING_RULES } from "./communication.ts";
 import { RENDER_VISUAL_MAX_ARGUMENTS, renderVisualProblem, renderHtmlProblem, VISUAL_TOOLS } from "./visuals.ts";
@@ -216,7 +216,14 @@ export const AGENT_BUS_TOOLS = {
   message_delegating_bot: define({
     name: "message_delegating_bot",
     description: DELEGATING_BOT_MESSAGE_GUIDANCE,
-    args: Schema.Struct({ text: Schema.String.check(Schema.isPattern(/\S/), Schema.isMaxLength(80_000)) }),
+    args: Schema.Struct({
+      text: Schema.String.check(Schema.isPattern(/\S/), Schema.isMaxLength(80_000)),
+      attachment_paths: Schema.optionalKey(
+        Schema.Array(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096)))
+          .check(Schema.isMaxLength(IMAGE_REPLY_LIMITS.turnCount))
+          .annotate({ description: "Selected files inside this thread's workspace, in display order." }),
+      ),
+    }),
     mutates: true,
   }),
   send_message: define({

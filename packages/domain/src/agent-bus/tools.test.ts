@@ -162,6 +162,7 @@ describe("decodeAgentBusCall", () => {
     expect(failure("request_secret", { label: "Manual secret" })).toContain("description");
     expect(failure("message_delegating_bot", { text: "  " })).toContain("text");
     expect(failure("message_delegating_bot", { text: "Update", bot_id: THREAD })).toContain("excess property");
+    expect(failure("message_delegating_bot", { text: "Update", attachment_paths: [""] })).toContain("attachment_paths");
     expect(failure("spawn_agent", {})).toContain("unknown agent bus tool");
     expect(failureOf("get_thread", "{oops")).toContain("not valid JSON");
     expect(failure("get_thread", { thread_id: THREAD, extra: 1 })).toContain("excess property");

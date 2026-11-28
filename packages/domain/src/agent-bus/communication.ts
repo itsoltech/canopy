@@ -6,5 +6,7 @@ Combine related actionable findings into one message. Lead with the required act
 
 export const DELEGATING_BOT_MESSAGE_GUIDANCE =
   "Use message_delegating_bot to send a question or update to the bot that started this thread, including in later turns it is not watching. " +
+  "To send files to the bot's conversation on this Canopy instance, name the selected workspace files in attachment_paths. " +
+  "The automatic final report only sends text. Use this tool when the bot needs an attachment, including in a watched turn. " +
   "In a watched turn, send a message if the bot needs to act while you continue working. When you are ready to finish, the final answer is reported automatically. " +
   "For an unwatched turn, use the tool whenever the bot needs to receive a message, including a result. Ordinary commentary stays in the thread. After sending, report only new information.";

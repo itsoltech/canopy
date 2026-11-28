@@ -113,8 +113,12 @@ export const agentsBusToolsMethods: AgentsBusToolsMethods = {
 
     if (caller.memory_audience) requireLocalAudienceTarget(call, caller);
 
-    if (call.tool === "message_delegating_bot" && caller.remote_parent_kind === "bot")
+    if (call.tool === "message_delegating_bot" && caller.remote_parent_kind === "bot") {
+      if (call.args.attachment_paths?.length)
+        return fail("This bot is on a linked computer. Send the message without attachments.");
+
       return messageLinkedDelegatingBot(this, request, caller, call.args.text);
+    }
 
     if (call.tool === "wait_threads" && call.args.thread_ids.some((id) => splitId(id).node)) {
       return await waitLinkedThreads(this, request, call, caller);

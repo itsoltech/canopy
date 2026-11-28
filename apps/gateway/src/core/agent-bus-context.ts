@@ -64,7 +64,11 @@ export interface BusHost {
   inputsChanged(threadId: string): Promise<void>;
   /** An agent created or cancelled a schedule: announce it. */
   scheduleChanged(scheduleId: string): Promise<void>;
-  messageDelegatingBot(source: CallSource, text: string): Promise<JsonValue>;
+  messageDelegatingBot(
+    source: CallSource,
+    caller: ThreadRow,
+    args: AgentBusArgs["message_delegating_bot"],
+  ): Promise<JsonValue>;
   requestSecret(
     source: CallSource,
     args: AgentBusArgs["request_secret"],

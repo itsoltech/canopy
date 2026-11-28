@@ -32,6 +32,7 @@ import { answerBotThreadApproval } from "./bot-thread-approval.ts";
 import { linkedBotThreadApprovals } from "../computers/bot-thread-approvals.ts";
 import { publishThreadMedia } from "./image-publication.ts";
 import { importImageReply } from "./image-markdown.ts";
+import { sendThreadMessageToBot } from "./bot-thread-message.ts";
 import { releaseFound } from "../updates/found.ts";
 import { switchAgentWorktree } from "../worktrees/switch-agent-worktree.ts";
 import { withTurnPermissionMutation } from "./turn-permission-state.ts";
@@ -113,8 +114,8 @@ export function createCoreBus(core: GatewayCore): AgentBus {
     },
     steered: (steerId) => coreSendSteer(core, steerId),
     interaction: (interaction) => corePublishInteraction(core, interaction),
-    messageDelegatingBot: async (source, text) => {
-      const result = await core.bots.run((s) => s.messageDelegatingBot(core[coreState].options.userId, source, text));
+    messageDelegatingBot: async (source, caller, args) => {
+      const result = await sendThreadMessageToBot(core, source, caller, args);
       void core.bots.tick().catch(() => coreLog(core, "bots: queue wake failed"));
 
       return result;

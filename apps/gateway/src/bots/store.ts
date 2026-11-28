@@ -1,6 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 import { SqlClient } from "effect/sql";
 import type { bots } from "@canopy/contracts";
+import type { AgentBusArgs, AttachmentLimits } from "@canopy/domain";
+import type { ThreadFileTransfer } from "../core/thread-file-transfer.ts";
 import { setUserBotMessageReaction } from "./store-reactions.ts";
 import { botMemoryAccess } from "./memory.ts";
 import { botAccess } from "./store-access.ts";
@@ -20,7 +22,7 @@ import { slackTurnContext } from "../messengers/channel-context-read.ts";
 import { conversationContext } from "../messengers/store-outbound.ts";
 import { botPoll } from "./poll.ts";
 import { settleChatSteer } from "./store-chat-steer.ts";
-import { messageDelegatingBot } from "./thread-messages.ts";
+import { checkThreadFileRecipient, messageDelegatingBot } from "./thread-messages.ts";
 import type { CallSource } from "../store/agent-bus-types.ts";
 import { botExecutions } from "./bot-execution.ts";
 import { botParked } from "./parked.ts";
@@ -54,8 +56,14 @@ function makeStore(sql: SqlClient.SqlClient, key: Buffer) {
       slackTurnContext(sql, owner, turn, includeBackground),
     conversationContext: (turn: import("./types.ts").BotTurn) => conversationContext(sql, turn),
     originEnabled: core.originEnabled,
-    messageDelegatingBot: (owner: string, source: CallSource, text: string) =>
-      messageDelegatingBot(sql, core, owner, source, text),
+    checkThreadFileRecipient: (owner: string, source: CallSource) => checkThreadFileRecipient(sql, owner, source),
+    messageDelegatingBot: (
+      owner: string,
+      source: CallSource,
+      args: AgentBusArgs["message_delegating_bot"],
+      limits?: AttachmentLimits,
+      transfer?: ThreadFileTransfer,
+    ) => messageDelegatingBot(sql, core, owner, source, args, limits, transfer),
     interruptedTurns: (owner: string, ids: string[]) =>
       sql<{ id: string }>`SELECT t.id FROM bot_turns t JOIN bots b ON b.id=t.bot_id
       WHERE b.owner_user_id=${owner}::uuid AND t.id=ANY(${ids}::uuid[]) AND t.status='interrupted'`.pipe(

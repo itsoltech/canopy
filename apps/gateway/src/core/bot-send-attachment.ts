@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { AttachmentLimits } from "@canopy/domain";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { Invalid } from "../store/store.ts";
@@ -11,6 +12,7 @@ import { storedBotImage } from "../bots/attachments.ts";
 import { botFileResponse } from "../bots/tools/workspace.ts";
 import type { ToolContext } from "../bots/tools/shared.ts";
 import { coreState } from "./core-context.ts";
+import { copySharedBotFile } from "./bot-share-file.ts";
 
 async function receiveFile(ctx: ToolContext) {
   const limit = Math.min(50 * 1024 ** 2, (await ctx.core.attachmentLimits).maxFileBytes);
@@ -59,21 +61,19 @@ async function receiveFile(ctx: ToolContext) {
 }
 
 /** In an external conversation the file joins this turn's reply instead of the owner's private chat. */
-async function queueReplyFile(ctx: ToolContext, row: AttachmentRow) {
+async function queueReplyFile(ctx: ToolContext, row: AttachmentRow, limits: AttachmentLimits) {
   const actions = ctx.core[coreState].actions;
-
-  await actions.run(
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      yield* sql`UPDATE attachments SET bot_id=${ctx.turn.bot_id}::uuid, bot_turn_id=${ctx.turn.id}::uuid
-        WHERE id=${row.id}::uuid AND owner_user_id=${ctx.options.userId}::uuid AND bot_id IS NULL AND thread_id IS NULL`;
-    }),
-  );
 
   // The upload is still uncommitted inside this action, so the queue entry must join the same transaction.
   const queued = await actions.run(
     MessengerStore.use((s) =>
-      s.queueReplyFile(ctx.options.userId, ctx.turn, row.id, (provider) => messengerAdapter(provider).maxFileBytes),
+      s.queueReplyFile(
+        ctx.options.userId,
+        ctx.turn,
+        row.id,
+        (provider) => messengerAdapter(provider).maxFileBytes,
+        limits,
+      ),
     ),
   );
 
@@ -94,13 +94,19 @@ async function queueReplyFile(ctx: ToolContext, row: AttachmentRow) {
     mime_type: row.mime_type,
     delivered: false,
     queued_for_reply: queued.queued,
-    note: `Sent to ${messengerLabel(queued.provider)} with your final reply. Skipping the reply also skips this file.`,
+    note: `Queued for your final reply in ${messengerLabel(queued.provider)}. Skipping the reply also skips this file.`,
   };
 }
 
 /** Existing upload validation plus one fenced transaction for storage, message, audit and tool result. */
 export async function sendBotAttachment(ctx: ToolContext) {
-  const file = await receiveFile(ctx);
+  const id = ctx.optional("attachment_id");
+  const path = ctx.optional("path");
+
+  if (Boolean(path) === Boolean(id))
+    throw new Invalid("Provide either a workspace filename or an attachment ID from this conversation.");
+
+  const file = path ? await receiveFile(ctx) : undefined;
 
   return ctx.action(async () => {
     const actions = ctx.core[coreState].actions;
@@ -108,34 +114,45 @@ export async function sendBotAttachment(ctx: ToolContext) {
 
     if (botConfiguration(bot).files === false)
       throw new Invalid("Files are disabled for this bot. Enable Files in bot settings.");
-    const attachment = await ctx.core.uploadAttachment(file.name, file.data);
-    const row = await actions.run(AttachmentStore.use((s) => s.owned(ctx.options.userId, attachment.id)));
+    const limits = await ctx.core.attachmentLimits;
+    const row = file ? await storeUploadedBotFile(ctx, file) : await copySharedBotFile(ctx, id, limits);
 
-    if (ctx.turn.conversation_id) return queueReplyFile(ctx, row);
+    await actions.run(
+      SqlClient.SqlClient.use(
+        (sql) => sql`UPDATE attachments SET bot_id=${ctx.turn.bot_id}::uuid, bot_turn_id=${ctx.turn.id}::uuid
+          WHERE id=${row.id}::uuid AND owner_user_id=${ctx.options.userId}::uuid AND bot_id IS NULL AND thread_id IS NULL`,
+      ),
+    );
+
+    if (ctx.turn.conversation_id) return queueReplyFile(ctx, row, limits);
     const caption = ctx.optional("caption").slice(0, 4000);
 
     await actions.run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        yield* sql`UPDATE attachments SET bot_id=${ctx.turn.bot_id}::uuid, bot_turn_id=${ctx.turn.id}::uuid
-        WHERE id=${attachment.id}::uuid AND owner_user_id=${ctx.options.userId}::uuid AND bot_id IS NULL AND thread_id IS NULL`;
         yield* sql`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,attachments)
         VALUES (${Bun.randomUUIDv7()}::uuid,${ctx.turn.bot_id}::uuid,${ctx.turn.id}::uuid,${`attachment:${ctx.call.id}`},${ctx.turn.bot_id},'user','message',${caption},${JSON.stringify([storedBotImage(row)])}::jsonb)
         ON CONFLICT(turn_id,message_key) DO NOTHING`;
         yield* sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
         VALUES (${ctx.call.id}::uuid,${ctx.options.userId}::uuid,'bot.send_attachment','bot',${ctx.turn.bot_id}::uuid,
-        ${JSON.stringify({ attachment_id: attachment.id, name: row.name, size_bytes: Number(row.size_bytes), mime_type: row.mime_type })}::jsonb)
+        ${JSON.stringify({ attachment_id: row.id, name: row.name, size_bytes: Number(row.size_bytes), mime_type: row.mime_type })}::jsonb)
         ON CONFLICT(id) DO NOTHING`;
         yield* BotStore.use((s) => s.changed(ctx.turn.bot_id));
       }),
     );
 
     return {
-      attachment_id: attachment.id,
+      attachment_id: row.id,
       name: row.name,
       size_bytes: Number(row.size_bytes),
       mime_type: row.mime_type,
       delivered: true,
     };
   });
+}
+
+async function storeUploadedBotFile(ctx: ToolContext, file: Awaited<ReturnType<typeof receiveFile>>) {
+  const attachment = await ctx.core.uploadAttachment(file.name, file.data);
+
+  return ctx.core[coreState].actions.run(AttachmentStore.use((s) => s.owned(ctx.options.userId, attachment.id)));
 }

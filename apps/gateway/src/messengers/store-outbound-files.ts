@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import type { AttachmentLimits } from "@canopy/domain";
 import type { SqlClient } from "effect/sql";
 import type { BotTurn } from "../bots/types.ts";
 import { Invalid } from "../store/store.ts";
@@ -20,6 +21,7 @@ export function messengerOutboundFiles(sql: SqlClient.SqlClient) {
       turn: BotTurn,
       attachmentId: string,
       maxFileBytes: (p: MessengerProvider) => number,
+      limits: AttachmentLimits,
     ) =>
       sql.withTransaction(
         Effect.gen(function* () {
@@ -61,11 +63,12 @@ export function messengerOutboundFiles(sql: SqlClient.SqlClient) {
             coalesce(sum(a.size_bytes),0)::text AS bytes,coalesce(max(f.ordinal),0)::int AS last
             FROM messenger_outbound_files f JOIN attachments a ON a.id=f.attachment_id WHERE f.turn_id=${turn.id}::uuid`;
 
-          if (queued!.count >= MAX_REPLY_FILES || Number(queued!.bytes) + Number(file.size) > MAX_REPLY_BYTES)
+          const count = Math.min(limits.maxFiles, MAX_REPLY_FILES);
+          const bytes = Math.min(limits.maxMessageBytes, MAX_REPLY_BYTES);
+
+          if (queued!.count >= count || Number(queued!.bytes) + Number(file.size) > bytes)
             return yield* Effect.fail(
-              new Invalid(
-                `A reply can carry up to ${MAX_REPLY_FILES} files and ${MAX_REPLY_BYTES / 1024 ** 2} MB. Send the rest in a later reply.`,
-              ),
+              new Invalid("These attachments exceed the reply limits. Send fewer or smaller files."),
             );
 
           yield* sql`INSERT INTO messenger_outbound_files(turn_id,attachment_id,ordinal)
