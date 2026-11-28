@@ -3,6 +3,11 @@
 Status (2026-11-28). W wątku na Androidzie ostatnia wiadomość podąża za kompozytorem
 podczas otwierania i chowania klawiatury. Oba widoki korzystają z bieżącej wysokości klawiatury.
 
+Status (2026-11-28). Czat bota pobiera starszą stronę, gdy na ekranie widać
+granicę wczytanych wiadomości, także wewnątrz zwiniętej grupy zdarzeń.
+Dzięki temu przewinięcie do wiadomości sprzed ostatniej strony nie wymaga
+przejścia przez całą historię zgód „Allowed by rule”.
+
 Status (2026-11-28). W rozmowach z botami pod zapisaną wiadomością widać datę
 i godzinę wysłania, jeżeli są dostępne. Godzina uwzględnia ustawienie **Time format**.
 
