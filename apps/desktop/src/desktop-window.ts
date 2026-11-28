@@ -1,4 +1,12 @@
-import { app, BrowserWindow, nativeTheme, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import {
+  app,
+  BrowserWindow,
+  nativeTheme,
+  shell,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+  type WebContents,
+} from "electron";
 import { join } from "node:path";
 import type { QuitGuard } from "./quit-guard.ts";
 import { attachWindowChrome } from "./window-chrome.ts";
@@ -6,7 +14,7 @@ import { applyWindowAppearance, windowAppearance, windowColors } from "./window-
 import { trackAppRoutes } from "./app-route-ipc.ts";
 import type { AppRoutes } from "./app-routes.ts";
 import type { WindowPlacement } from "./window-state.ts";
-import { allowedFontAccess, allowedPermission } from "./window-permissions.ts";
+import { allowedPermission } from "./window-permissions.ts";
 import { attachContextMenu } from "./context-menu.ts";
 import { browserLink } from "./context-menu-template.ts";
 import { attachWorkspaceClose } from "./workspace-close.ts";
@@ -150,22 +158,18 @@ export function createDesktopWindow(options: WindowOptions) {
     external(url, trusted());
   });
   target.webContents.on("will-attach-webview", (event) => event.preventDefault());
+
+  const permissionContext = (contents: WebContents | null, mainFrame: boolean) => ({
+    setupOrigin: options.setupOrigin(),
+    webOrigin: options.webUrl(),
+    mainFrameUrl: mainFrame ? contents?.getURL() : undefined,
+  });
+
   target.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) =>
-    callback(
-      permission === "local-fonts"
-        ? details.isMainFrame &&
-            allowedFontAccess(details.requestingUrl, options.webUrl()) &&
-            allowedFontAccess(contents.getURL(), options.webUrl())
-        : allowedPermission(permission, details.requestingUrl, trusted()),
-    ),
+    callback(allowedPermission(permission, details.requestingUrl, permissionContext(contents, details.isMainFrame))),
   );
   target.webContents.session.setPermissionCheckHandler((contents, permission, requestingOrigin, details) =>
-    permission === "local-fonts"
-      ? details.isMainFrame &&
-        !!contents &&
-        allowedFontAccess(requestingOrigin, options.webUrl()) &&
-        allowedFontAccess(contents.getURL(), options.webUrl())
-      : allowedPermission(permission, requestingOrigin, trusted()),
+    allowedPermission(permission, requestingOrigin, permissionContext(contents, details.isMainFrame)),
   );
 
   return target;

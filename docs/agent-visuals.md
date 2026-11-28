@@ -1,5 +1,8 @@
 # Obrazy, filmy i interaktywne visuals w odpowiedziach
 
+Status (2026-11-28): odtwarzacz w rozmowie zachowuje ustawienia dźwięku przy
+przechodzeniu na pełny ekran i po powrocie do wątku na webie i desktopie.
+
 Status (2026-11-28): podglądy w rozmowie na webie i desktopie reagują na zmianę ustawienia redukcji ruchu i wyłączenie animacji. W ramkach HTML atrybut `data-reduced-motion` elementu `html` wyłącza animacje i przejścia CSS. Skrypty rysujące na canvas mogą odczytać ten sam atrybut.
 
 Status (2026-11-25): `show_video` publikuje trwałe nagrania w odpowiedziach

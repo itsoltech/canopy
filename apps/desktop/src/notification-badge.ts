@@ -4,16 +4,11 @@ import { Schema } from "effect";
 import { maxNotificationBadge } from "@canopy/domain/notification-badge";
 import type { DesktopStatus } from "@canopy/ui/desktop";
 import { windowContents } from "./window-message.ts";
+import { isApplicationPage } from "./window-permissions.ts";
 
 const badgeCount = Schema.decodeUnknownSync(
   Schema.Number.check(Schema.isInt(), Schema.isBetween({ minimum: 0, maximum: maxNotificationBadge })),
 );
-
-function isApplicationPage(url: string, origin: string | undefined) {
-  const page = URL.parse(url);
-
-  return page && page.origin === origin && page.pathname !== "/desktop" && !page.pathname.startsWith("/desktop/");
-}
 
 const iconSize = 16;
 

@@ -1,5 +1,8 @@
 # Canopy Desktop
 
+Status (2026-11-28): przycisk **Full screen** w odtwarzaczu filmu i skrót **F**
+przełączają odtwarzacz między rozmową a pełnym ekranem.
+
 Status (2026-11-28): w zwiniętym **Activity notch** pierścień pracy obraca się
 płynnie. Animacje etykiet ukrytych wierszy pozostają wstrzymane.
 
@@ -201,10 +204,12 @@ Szczegóły kontraktu i kontroli dostępu opisuje [ui-api.md](ui-api.md#pliki-w�
    otwarty dialog tego konta zamyka się po sukcesie. Ponowne wklejenie kodu
    potwierdza zakończenie bez drugiej wymiany. Restart procesu nadal unieważnia
    rozpoczęte logowanie, nawet przy zachowanym porcie; trzeba rozpocząć je ponownie.
-   Okna odmawiają wszystkich uprawnień przeglądarki poza zapisem do schowka
-   (`clipboard-sanitized-write`, potrzebnym dla `navigator.clipboard.writeText`)
-   i powiadomieniami (`notifications`), i to tylko stronom z originu setupu albo web UI
-   (`window-permissions.ts`). Odczyt schowka, media i reszta pozostają zablokowane.
+   Strony z originu setupu albo web UI mogą zapisywać do schowka
+   (`clipboard-sanitized-write`, potrzebne dla `navigator.clipboard.writeText`)
+   i wyświetlać powiadomienia (`notifications`). Główna ramka z originu web UI
+   może także odczytać lokalne fonty (`local-fonts`). Poza stroną setupu może
+   przejść na pełny ekran (`fullscreen`) po akcji użytkownika. Pozostałe uprawnienia
+   przeglądarki, w tym automatyczny pełny ekran, są zablokowane (`window-permissions.ts`).
    Wklejanie plików tego nie potrzebuje: zdarzenie `paste` po akcji użytkownika niesie pliki
    skopiowane w systemie, bez IPC do plików ([ui-api.md](ui-api.md#wklejanie-i-upuszczanie-plików)).
    Alerty wątków i botów idą przez IPC `canopy:notification` do natywnego `Notification`
