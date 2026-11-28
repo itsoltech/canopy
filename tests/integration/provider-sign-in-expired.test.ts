@@ -153,14 +153,14 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   test("a rejected turn shows the account as expired until the device login signs in again", async () => {
     // The CLI alone cannot tell: it reports a ChatGPT login.
     expect(await providersAccount()).toMatchObject({ state: "signed_in", authMethod: "ChatGPT", loginRevision: "" });
-    expect(statusAcross((await codexInstance())!).label).toBe("Ready on 1 worker");
+    const initial = statusAcross((await codexInstance())!).label;
 
     await send("Keep working");
     const expired = await eventually(providersAccount, (a) => a?.state === "expired", 20_000);
     expect(expired).toMatchObject({ state: "expired", authMethod: "ChatGPT", detail: REJECTED_LOGIN_DETAIL });
     expect(expired?.loginRevision).toBe("");
     expect((await overviewAccount())?.state).toBe("expired");
-    expect(statusAcross((await codexInstance())!).label).toBe("0/1 workers ready");
+    const afterRejection = statusAcross((await codexInstance())!).label;
     const turns = (await gw.api.getThread({ threadId })).thread;
     expect(turns?.status).not.toBe("running");
 
@@ -179,11 +179,18 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
       await eventually(providersAccount, (a) => a?.state === "signed_in" && a.loginOutcome === "signed_in", 20_000),
     ).toMatchObject({ state: "signed_in", detail: "", loginId: login.loginId, loginOutcome: "signed_in" });
     expect((await overviewAccount())?.state).toBe("signed_in");
-    expect(statusAcross((await codexInstance())!).label).toBe("Ready on 1 worker");
 
     const continued = await send("Continue");
     expect(await finished(continued)).toBe("completed");
     expect((await providersAccount())?.state).toBe("signed_in");
+
+    // The gateway fixture's scripted worker stays ready throughout this worker's failed turn and recovery.
+    const recovered = statusAcross((await codexInstance())!).label;
+    expect([initial, afterRejection, recovered]).toEqual([
+      "Ready on 2 workers",
+      "1/2 workers ready",
+      "Ready on 2 workers",
+    ]);
   }, 90_000);
 
   for (const ownLogin of [false, true]) {
