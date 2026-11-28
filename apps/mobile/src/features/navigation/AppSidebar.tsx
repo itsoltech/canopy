@@ -347,9 +347,8 @@ function BotList({ state, header }: { state: ReturnType<typeof useSidebarState>;
 
 function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }) {
   const insets = useContentInsets();
-  const [viewportHeight, setViewportHeight] = useState(0);
 
-  const header = useSidebarListHeader(viewportHeight, (beforeSwitch, focusSearch) => (
+  const header = useSidebarListHeader((beforeSwitch, focusSearch) => (
     <SidebarControls state={state} beforeSwitch={beforeSwitch} focusSearch={focusSearch} />
   ));
 
@@ -366,10 +365,7 @@ function SidebarContent({ state }: { state: ReturnType<typeof useSidebarState> }
         }}
       >
         {/* Only the docking space is clipped. The brand stays inside its native cell for hit testing and accessibility. */}
-        <View
-          onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
-          style={{ flex: 1, marginTop: -header.brandHeight }}
-        >
+        <View style={{ flex: 1, marginTop: -header.brandHeight }}>
           <SidebarLists state={state} header={header} />
         </View>
       </View>

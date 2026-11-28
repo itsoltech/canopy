@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { View } from "react-native";
+import { View, type LayoutChangeEvent } from "react-native";
 import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -14,7 +14,6 @@ import { sidebarListInset } from "./sidebar-scale";
 
 /** The scroll view docks one brand row above the visible pane so the toolbar pins at its safe edge. */
 export function useSidebarListHeader(
-  viewportHeight: number,
   renderControls: (beforeSwitch: (searchFocused: boolean) => void, focusSearch: boolean) => ReactNode,
 ) {
   const insets = useContentInsets();
@@ -22,6 +21,7 @@ export function useSidebarListHeader(
   const [brandHeight, setBrandHeight] = useState(48);
   const [controlsHeight, setControlsHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   const [start, setStart] = useState({ y: 0, focusSearch: false });
   const offset = useSharedValue(0);
@@ -68,6 +68,7 @@ export function useSidebarListHeader(
       ListHeaderComponentStyle: { marginHorizontal: -sidebarListInset },
       stickyHeaderIndices: [0],
       contentOffset: { x: 0, y: start.y },
+      onLayout: (event: LayoutChangeEvent) => setViewportHeight(event.nativeEvent.layout.height),
       onScroll: scroll,
       scrollEventThrottle: 16,
       scrollIndicatorInsets: { top: brandHeight },
@@ -81,7 +82,7 @@ export function useSidebarListHeader(
       contentContainerStyle: {
         paddingHorizontal: sidebarListInset,
         paddingTop: brandHeight,
-        // Short lists can scroll the full brand away. Keep Archived above the footer at rest.
+        // Short lists can scroll the full brand away.
         paddingBottom: insets.bottom + 8 + brandHeight,
         minHeight: viewportHeight + brandHeight,
       },

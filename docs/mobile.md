@@ -1,5 +1,9 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Sekcja **Archived** pozostaje przy dolnej krawędzi listy wątków,
+nad stopką, również podczas chowania i odsłaniania nazwy Canopy. Po rozwinięciu
+wiersze archiwum przewijają się pod jego nagłówkiem.
+
 Status (2026-11-28). Zdjęcia HEIC i HEIF w wiadomościach i szkicach otwierają się
 w przeglądarce obrazów, także gdy gateway zapisał je wcześniej jako zwykłe pliki.
 
@@ -189,8 +193,7 @@ Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu
 Aplikacja używa Expo SDK 58.0.26.
 Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki pozostają
 dostępne w zwijanej sekcji **Snoozed** z pełną historią i aktywnym kompozytorem.
-**Snoozed** przylega do listy aktywnych wątków, a **Archived** przy krótkiej liście
-schodzi do dołu widoku, nad stopkę sidebara.
+**Snoozed** przylega do listy aktywnych wątków, a **Archived** do stopki sidebara.
 Powiadomienia push mogą pokazywać podglądy odszyfrowywane na telefonie.
 Relay Canopy może aktywować się automatycznie po atestacji aplikacji.
 Aplikacja automatycznie ponawia atestację przed wygaśnięciem poświadczenia.
@@ -1911,8 +1914,9 @@ ruchu obie kolumny przechodzą od razu do docelowego układu.
 sidebara. Na telefonie i w bocznej kolumnie tabletu przewinięcie listy chowa nazwę Canopy.
 Przełącznik Threads/Bots, wyszukiwarka z przyciskami (w tym Create bot w Bots) i widoczny
 baner połączenia pozostają nad przewijanymi wierszami. Zmiana modułu zachowuje położenie
-przełącznika, a powrót na początek listy odsłania nazwę. Nieprzezroczysta stopka nakłada się na listę, a padding odpowiadający jej wysokości i dolnemu insetowi pozwala
-odsłonić ostatni wiersz w całości. Ikony paska stanu zmieniają jasność wraz z motywem.
+przełącznika, a powrót na początek listy odsłania nazwę. Lista Threads kończy się
+nad stopką. W Bots dolny padding pozwala odsłonić ostatni wiersz nad nakładaną stopką.
+Ikony paska stanu zmieniają jasność wraz z motywem.
 `ScreenScroll` stosuje padding treści w New thread, Pair, Settings i arkuszach szczegółów.
 Timeline wątku i bota ma odwrócone końce: górny inset jest na najstarszym końcu,
 a dolny rezerwuje rzeczywistą wysokość kompozytora wątku lub bota
@@ -2593,10 +2597,11 @@ Podpis miejsca używa wspólnego `threadPlace`: „scratch folder”, HEAD workt
 (gałąź lub detached commit), potem nazwa katalogu. Inicjały i ton znaku projektu
 są wspólne; neutralny znak w ciemnym motywie używa stopnia 300, tak jak web.
 
-Przy krótkiej liście wolne miejsce wypada przed sekcją **Archived**, a przy długiej
-sekcja przewija się za pozostałymi wątkami.
-Tapnięcie Archived zmienia lokalny stan od razu; zapis ustawienia w gatewayu działa
-w tle. Osobny cache `Paths.cache/archived-threads-v1` zachowuje ostatnio odczytane
+**Archived** zajmuje osobne miejsce nad stopką. Aktywne i uśpione wątki przewijają
+się nad sekcją. Rozwinięte archiwum zajmuje do połowy wysokości panelu i ma własną
+wirtualizowaną listę, więc jego nagłówek pozostaje dostępny także przy czytaniu dalszych stron.
+Tapnięcie **Archived** od razu rozwija lub zwija sekcję. Telefon zapamiętuje ten wybór.
+Osobny cache `Paths.cache/archived-threads-v1` zachowuje ostatnio odczytane
 strony dla najwyżej 8 filtrów, razem z metadanymi projektów i workerów. Używa tego
 samego atomowego adaptera i zakresu urządzenie + pin co cache historii; unpair oraz
 revocation zamykają go przed usunięciem plików. Nie zajmuje miejsca w LRU transkryptów.
