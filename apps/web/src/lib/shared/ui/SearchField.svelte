@@ -4,16 +4,17 @@
   import Icon from "./Icon.svelte";
 
   /**
-   * Search box with a magnifier: a framed label around a bare `type="search"` input. `label` is the accessible
+   * Search box with a magnifier. Inline fields fit compact lists. `label` is the accessible
    * name (visually hidden); other input attributes (name, placeholder, data-autofocus) pass through.
    */
   type Props = Omit<HTMLInputAttributes, "class" | "type" | "value"> & {
     label: string;
+    variant?: "framed" | "inline";
     value?: string;
     class?: ClassValue;
   };
 
-  let { label, value = $bindable(""), class: className, ...rest }: Props = $props();
+  let { label, variant = "framed", value = $bindable(""), class: className, ...rest }: Props = $props();
 
   // Overlays (docs/ui-scale.md): 28px from `sm`, 13px text; phones keep 16px text (no zoom on focus).
   const overlay = useDensity() === "overlay";
@@ -21,8 +22,13 @@
 
 <label
   class={[
-    "flex min-w-0 items-center rounded-lg ring-1 ring-zinc-950/10 has-focus-visible:outline-2 has-focus-visible:outline-brand-500 dark:ring-white/10",
-    overlay ? "gap-1.5 px-2 py-1.5 sm:py-1" : "gap-2 px-2.5 py-2 sm:py-1.5",
+    "flex min-w-0 items-center rounded-lg has-focus-visible:outline-2 has-focus-visible:outline-brand-500",
+    variant === "inline"
+      ? "min-h-(--control-touch) gap-1 px-2 -outline-offset-2 sm:min-h-(--control-chrome)"
+      : [
+          "ring-1 ring-zinc-950/10 dark:ring-white/10",
+          overlay ? "gap-1.5 px-2 py-1.5 sm:py-1" : "gap-2 px-2.5 py-2 sm:py-1.5",
+        ],
     className,
   ]}
 >
