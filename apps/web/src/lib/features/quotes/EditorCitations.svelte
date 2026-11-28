@@ -26,6 +26,7 @@
   } = $props();
 
   const revealSource = useCitationSource();
+
   // Keep the hover preview unmounted until the editor's exit and focus restoration finish.
   let selected = $state<{ quote: QuoteDraft; anchor: HTMLElement }>();
   let open = $state(false);
