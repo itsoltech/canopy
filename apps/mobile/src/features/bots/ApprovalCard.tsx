@@ -15,6 +15,15 @@ import { useMotion } from "../../ui/motion";
 import { Swap } from "../../ui/MotionViews";
 import { BotApprovalPolicy } from "./BotApprovalPolicy";
 
+/** Which background run asked, and that a parked card's answer starts a new run. */
+export function approvalOrigin(approval: bots.BotApproval) {
+  const origin = `From ${approval.routineKind === "trigger" ? "event trigger" : "routine"} “${approval.routineTitle}”`;
+
+  if (!approval.parked) return origin;
+
+  return `${origin} · Your ${approval.kind === "question" ? "answer" : "decision"} starts a new run`;
+}
+
 type ApprovalCardProps = {
   approval: bots.BotApproval;
   readOnly?: boolean;
@@ -102,6 +111,7 @@ export function ApprovalCard({ approval, readOnly = false, onAnswer }: ApprovalC
           disabled={readOnly || busy || approval.status !== "pending" || expired}
         />
       )}
+      {approval.routineTitle ? <Text style={[styles.meta, { color: c.muted }]}>{approvalOrigin(approval)}</Text> : null}
       <Text selectable style={[styles.body, { color: c.text }]}>
         {approval.prompt}
       </Text>

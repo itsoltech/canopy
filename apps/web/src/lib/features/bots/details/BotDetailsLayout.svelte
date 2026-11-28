@@ -75,6 +75,11 @@
     else mobileOpen = false;
   }
 
+  /** Closes only the phone overlay, so content it covers can be shown; the desktop panel stays. */
+  export function closeOverlay() {
+    mobileOpen = false;
+  }
+
   export function isExpanded() {
     return desktop ? open : mobileOpen;
   }

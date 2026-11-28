@@ -12,6 +12,9 @@
   const digits = new Intl.NumberFormat("en", { minimumIntegerDigits: 2, useGrouping: false });
   const minutes = new Intl.NumberFormat("en", { useGrouping: false });
 
+  // A parked card waits up to a day: whole hours read better than hundreds of minutes.
+  const hours = $derived(Math.floor(seconds / 3600));
+
   $effect(() => {
     if (!expiresAt || !pending) return;
     // The app has no server clock offset. Recompute from the client clock, including after tab suspension.
@@ -31,8 +34,8 @@
   ]}
 >
   {#if expiresAt && pending}
-    {#if seconds > 0}Expires in {minutes.format(Math.floor(seconds / 60))}:{digits.format(
-        seconds % 60,
-      )}{:else}Expiring…{/if}
+    {#if seconds >= 3600}Expires in {hours} {hours === 1 ? "hour" : "hours"}{:else if seconds > 0}Expires in {minutes.format(
+        Math.floor(seconds / 60),
+      )}:{digits.format(seconds % 60)}{:else}Expiring…{/if}
   {/if}
 </span>

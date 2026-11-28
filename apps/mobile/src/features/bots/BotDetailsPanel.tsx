@@ -7,6 +7,7 @@ import { PanelRow } from "../threads/ThreadPanel";
 import { styles, useColors } from "../../ui/theme";
 import { BotAvatar } from "./BotAvatar";
 import { BotSchedules } from "./BotSchedules";
+import { BotWaitingCards } from "./BotWaitingCards";
 
 export function BotDetailsPanel({
   conversation,
@@ -14,12 +15,14 @@ export function BotDetailsPanel({
   onClose,
   selectedRule = "",
   readOnly = true,
+  onReveal,
 }: {
   conversation?: bots.BotConversation;
   visible: boolean;
   onClose: () => void;
   selectedRule?: string;
   readOnly?: boolean;
+  onReveal?: (approvalId: string) => void;
 }) {
   const c = useColors();
   const bot = conversation?.bot;
@@ -47,6 +50,7 @@ export function BotDetailsPanel({
           <Text style={[styles.heading, { color: c.text }]}>{bot.configuration?.name}</Text>
           <PanelRow title="Model" value={bot.configuration?.model || "Default model"} icon="cpu-chip" />
           <PanelRow title="Instructions" value={bot.configuration?.instructions || "No instructions"} />
+          {conversation && onReveal && <BotWaitingCards approvals={conversation.approvals} onReveal={onReveal} />}
           {conversation && <BotSchedules conversation={conversation} readOnly={readOnly} />}
           <Button title="Bot settings" disabled={readOnly} onPress={() => setSettings(true)} />
         </>
