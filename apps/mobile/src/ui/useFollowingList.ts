@@ -40,7 +40,7 @@ export function useFollowingList<Item>(keyboardChat = false, initialComposerHeig
   const keyboard = useKeyboardFrame();
   const composerInset = useSharedValue(initialComposerHeight);
 
-  // iOS exposes the chat inset as a negative offset; Android's synthetic inset keeps its end at zero.
+  // iOS exposes the chat inset as a negative offset; Android reserves space inside the list and ends at zero.
   const minimum = useDerivedValue(() =>
     keyboardChat && ios
       ? Math.min(0, keyboard.height.get() + insets.bottom * keyboard.progress.get()) -
