@@ -14,6 +14,7 @@ odcinek ruchu sterowany przewijaniem.
 Aktualizacja (2026-11-26): listy sidebara web/desktop mają mniejszy odstęp po prawej
 i zachowują szerokość po pojawieniu się paska przewijania.
 Aktualizacja (2026-11-28): zakładki tematów ustawień mają na desktopie 28 px zamiast 32 px.
+Aktualizacja (2026-11-28): menu zadań w tle nad composerem pokazuje podglądy poleceń w wierszach listy.
 Dostępność kanałów: [release.md](release.md).
 
 Jedna skala dla całego web UI. Każdy fragment interfejsu należy do jednego **kontekstu**; kontekst
@@ -249,7 +250,11 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
 - Wiersze nakładek mają jedną linię na pole: nazwy użytkownika (projekty, workery, gałęzie, modele)
   kończą się wielokropkiem, a pełna nazwa jest w tooltipie (`TruncatedText`; robią to `PickerRow`,
   `MenuItemText`, opcje `Select` i `Checkbox` w nakładce). Druga linia jest tylko tam, gdzie wiersz ją
-  przewiduje (opis, instancja w Favourites).
+  przewiduje (opis, instancja w Favourites). W menu zadań w tle nad composerem opis
+  lub komenda zajmuje do trzech linii. Wybór wiersza otwiera pełne polecenie i wynik.
+  W panelu szczegółów wątku podpowiedź przy ikonie zadania wyjaśnia jego status.
+  Jeśli wskazówka dla widocznej etykiety tekstowej powtarza jej treść, pojawia się
+  dopiero po ucięciu tekstu.
 - Nowa nakładka korzysta z `Popover`, `DropdownMenu`, `SearchPicker`, `Select` lub `HoverCard`
   i dostaje kontekst sama. Własny panel w top layer dostaje klasę `density-overlay`
   i `provideDensity("overlay")`.
