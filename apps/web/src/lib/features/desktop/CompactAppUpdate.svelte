@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { ui } from "@canopy/contracts";
-  import { browser } from "$app/environment";
   import type { ClassValue } from "svelte/elements";
   import Button from "#lib/shared/ui/Button.svelte";
   import IconButton from "#lib/shared/ui/IconButton.svelte";
@@ -34,7 +33,7 @@
 
   const status = $derived(updates.status);
   const ready = $derived(!!status?.stagedVersion || status?.phase === "downloaded");
-  const windows = browser && window.canopyDesktop?.platform === "win32";
+  const windows = typeof window !== "undefined" && window.canopyDesktop?.platform === "win32";
   const manualInstall = $derived(status?.phase === "downloaded" && status.manualInstall);
 
   const reported = $derived(worker?.desktop ?? (bundled ? center.snapshot?.app : undefined));
