@@ -44,7 +44,7 @@ export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState,
     app.remote,
   );
 
-  if (run && summary.phase !== "downloading") return line(run.text, run.tone);
+  if (run && !["downloading", "error", "paused"].includes(summary.phase)) return line(run.text, run.tone);
 
   const planned = snapshot ? bulkUpdateSteps(snapshot).filter((step) => step.state === "queued").length : 0;
 
@@ -60,7 +60,7 @@ export function updatesHeadline(updates: UpdatesState, app: DesktopUpdatesState,
     case "available":
       return line(planned > 1 ? `${planned} updates available` : planned ? "1 update available" : "Updates available");
     case "paused":
-      return line(summary.message, "muted");
+      return line("Update checks paused", "muted");
     case "external":
       return line("Updates available outside Canopy", "muted");
     default: {

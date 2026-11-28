@@ -56,7 +56,7 @@
   />{/if}
 {#if local}<CompactComputerUpdate computer={local} {updates} local {compact} />{/if}
 {#if snapshot}
-  {#if !bundled}<CompactGatewayUpdate {updates} />{/if}
+  {#if !bundled}<CompactGatewayUpdate {updates} {compact} />{/if}
   {#if !compact && snapshot.computers.length}<p class="mt-2 text-xs/5 text-muted">
       Change each linked computer’s channel and check frequency on that computer.
     </p>{/if}
@@ -71,7 +71,7 @@
         >{group.name}</UpdateGroupLabel
       >{/if}
     {#each group.workers as worker (worker.workerId)}
-      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} wrapName={compact} />
+      <CompactWorkerUpdate {worker} {updates} home={group.home} nodeId={group.nodeId} {compact} />
     {/each}
   {/each}
 {/if}

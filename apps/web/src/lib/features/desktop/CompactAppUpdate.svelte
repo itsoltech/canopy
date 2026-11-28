@@ -123,7 +123,7 @@
 {#if status}
   <UpdateItem
     name={worker?.name || (bundled ? "This Canopy app" : "This computer")}
-    wrapName={compact}
+    {compact}
     icon="computer-desktop"
     current={status.version}
     {target}
@@ -213,11 +213,11 @@
       {/if}
     {/snippet}
   </UpdateItem>
-  {#if !compact || info || ready || (row !== "failed" && (updates.error || status.error))}
+  {#if !compact}
     <div class="mb-2 ml-6 grid gap-1 text-xs/5 text-muted">
-      {#if !compact}<p>
-          {status.buildChannel} build{bundled ? " · Includes this computer’s gateway and worker." : ""}
-        </p>{/if}
+      <p>
+        {status.buildChannel} build{bundled ? " · Includes this computer’s gateway and worker." : ""}
+      </p>
       {#if info}<p class="break-anywhere">{info}</p>{/if}
       {#if ready}
         <p>
@@ -234,7 +234,7 @@
         </p>{/if}
     </div>
   {/if}
-{:else if updates.error}<p
+{:else if !compact && updates.error}<p
     class={["break-anywhere text-sm/5 text-rose-600 dark:text-rose-400", className]}
     role="status"
   >
