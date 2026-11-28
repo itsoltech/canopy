@@ -10,6 +10,15 @@ export interface EventGroup {
 
 export type BotTimelineRow = ChatRow | EventGroup;
 
+/** The oldest paged message can be represented by a collapsed group or an exchange marker. */
+export function containsChatMessage(row: BotTimelineRow, messageId: string) {
+  return (
+    row.id === messageId ||
+    (row.kind === "exchanges" && row.id === `exchanges:${messageId}`) ||
+    (row.kind === "event-group" && row.events.some((event) => event.id === messageId))
+  );
+}
+
 /** Keep expanded entries as individual virtualized rows, in chronological order after their header. */
 export function visibleChatRows(groups: readonly BotTimelineRow[], open: ReadonlySet<string>): BotTimelineRow[] {
   const rows: BotTimelineRow[] = [];

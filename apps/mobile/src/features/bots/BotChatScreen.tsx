@@ -31,7 +31,7 @@ import { SidebarToggle } from "../navigation/SidebarToggle";
 import { FloatingComposer } from "../composer/FloatingComposer";
 import { useFloatingComposer } from "../composer/useFloatingComposer";
 import { useBotMessage } from "./useBotMessage";
-import { useBotRead } from "./useBotRead";
+import { useBotHistoryViewport, useBotRead, useBotViewport } from "./useBotRead";
 import { BotComposer } from "./BotComposer";
 import { BotMentionSuggestions } from "./BotMentionSuggestions";
 import { DropZone } from "../attachments/FileIntake";
@@ -98,7 +98,9 @@ function useBotConversation(id: string, rule: string) {
 
   const connected = stream.connection === "live" && !home.away;
   const live = connected && !bot?.archived;
-  const onViewableItemsChanged = useBotRead(conversation, connected && following.atBottom && !chat.details && !rule);
+  const { visible, onViewableItemsChanged } = useBotViewport();
+  const reading = connected && !chat.details && !rule;
+  useBotRead(conversation, reading && following.atBottom, visible);
   const message = useBotMessage(id, live, following.resumeFollowing, bot?.configuration?.name);
 
   const approvals = useMemo(
@@ -112,6 +114,7 @@ function useBotConversation(id: string, rule: string) {
   );
 
   const rows = useChatRows(conversation, approvals, known);
+  useBotHistoryViewport(rows.latestFirst, visible, conversation, reading, chat.history);
   const waiting = approvals.some((a) => a.status === "pending");
 
   const arrival = useArrivals(rows.latestFirst.map(chatRowId), Boolean(conversation), { newestFirst: true });
@@ -237,10 +240,6 @@ function BotChatFeed({ state }: { state: ReturnType<typeof useBotConversation> }
         CellRendererComponent={FeedAnchorCell}
         {...composer.listProps}
         onViewableItemsChanged={onViewableItemsChanged}
-        onEndReached={() => {
-          if (!following.anchoring.get() && !following.isFollowing()) void history.load();
-        }}
-        onEndReachedThreshold={0.3}
         style={styles.fill}
         data={rows.latestFirst}
         keyExtractor={chatRowId}
@@ -279,7 +278,7 @@ function BotChatFeed({ state }: { state: ReturnType<typeof useBotConversation> }
             hasMore={conversation?.historyHasMore}
             history={history}
             skeleton={!conversation}
-            empty={!!conversation && !conversation.messages.length}
+            empty={!!conversation && !conversation.historyHasMore && !rows.latestFirst.length}
           />
         }
         ListHeaderComponent={
