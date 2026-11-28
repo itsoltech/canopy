@@ -51,7 +51,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: "swatch",
     group: "Preferences",
     keywords:
-      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display context window tokens circle text bar render math latex animated mascots themes theme builder custom palette corner radius rounding rounded spacing density compact spacious",
+      "theme color scheme dark light accent chat width thread width device typography font size interface font interface size monospace font monospace size contrast wrap code blocks wrap diffs effort display context window tokens circle text bar percentage render math latex animated mascots themes theme builder custom palette corner radius rounding rounded spacing density compact spacious",
   },
   {
     href: "/settings/notifications",

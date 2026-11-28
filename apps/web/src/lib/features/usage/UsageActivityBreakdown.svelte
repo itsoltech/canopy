@@ -2,7 +2,7 @@
   import type { ClassValue } from "svelte/elements";
   import TruncatedText from "#lib/shared/ui/TruncatedText.svelte";
   import { metricValue, totalTokens, usageActivities, type UsageRow, type UsageView } from "./format.ts";
-  import UsageNumber from "./UsageNumber.svelte";
+  import AnimatedNumber from "#lib/shared/ui/AnimatedNumber.svelte";
 
   let { rows, view, class: className }: { rows: UsageRow[]; view: UsageView; class?: ClassValue } = $props();
 
@@ -30,7 +30,7 @@
         <dd class="text-base/6 font-medium wrap-anywhere tabular-nums select-text">
           {#if amounts}
             {#key view}
-              <UsageNumber
+              <AnimatedNumber
                 value={metricValue(amounts, view)}
                 amount={view === "cost" ? amounts.effectiveCost : totalTokens(amounts)}
               />

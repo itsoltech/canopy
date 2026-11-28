@@ -29,7 +29,7 @@ export const deviceChoices = {
   focusIndicators: ["keyboard", "always", "off"],
   contrast: ["standard", "strong", "maximum"],
   effortDisplay: ["name", "bars"],
-  contextDisplay: ["off", "circle", "text", "bar"],
+  contextDisplay: ["off", "circle", "text", "bar", "percentage"],
   renderMath: ["on", "off"],
   seasonalAccents: ["on", "off"],
   interfaceFont: ["canopy", "system", "serif"],

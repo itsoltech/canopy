@@ -1,7 +1,11 @@
 <script lang="ts">
   import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 
-  let { value, amount }: { value: string; amount?: number | bigint } = $props();
+  let {
+    value,
+    amount,
+    updateAnimation = "subtle",
+  }: { value: string; amount?: number | bigint; updateAnimation?: "subtle" | "pop-in" } = $props();
 
   interface Reading {
     value: string;
@@ -51,7 +55,12 @@
   {#if motion}
     {#key motion}
       {@const { characters, lastChanged, opening, direction } = motion}
-      <span class="digits" class:opening aria-hidden="true" style:--digit-direction={direction}>
+      <span
+        class="digits"
+        class:pop={opening || updateAnimation === "pop-in"}
+        aria-hidden="true"
+        style:--digit-direction={direction}
+      >
         {#each characters as { character, old, changed, stagger }, index}
           {#if changed}
             <span class="digit-slot" data-old={old} style:--digit-stagger={stagger}>
@@ -104,7 +113,7 @@
     animation: digit-enter var(--duration-slow) var(--ease-smooth-out) backwards;
   }
 
-  .opening .new-digit {
+  .pop .new-digit {
     animation: digit-pop var(--duration-very-slow) var(--ease-smooth-out) backwards;
     animation-delay: calc(var(--digit-stagger) * var(--duration-stagger));
   }

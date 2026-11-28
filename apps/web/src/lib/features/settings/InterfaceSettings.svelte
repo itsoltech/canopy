@@ -35,6 +35,7 @@
       { value: "circle", label: "Circle" },
       { value: "text", label: "Text" },
       { value: "bar", label: "Bar" },
+      { value: "percentage", label: "Percentage" },
     ]}
   />
 {/if}

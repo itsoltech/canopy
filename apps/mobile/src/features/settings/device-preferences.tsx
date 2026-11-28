@@ -14,7 +14,7 @@ export const deviceChoices = {
   timeFormat: ["system", "12h", "24h"],
   contrast: ["standard", "strong", "maximum"],
   effortDisplay: ["name", "bars"],
-  contextDisplay: ["off", "circle", "text", "bar"],
+  contextDisplay: ["off", "circle", "text", "bar", "percentage"],
   interfaceFont: ["canopy", "system", "serif"],
   interfaceSize: ["12", "14", "16", "18"],
   monoFont: ["system", "menlo", "consolas"],

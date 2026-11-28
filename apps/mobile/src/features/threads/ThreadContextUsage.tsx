@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
+import { AnimatedNumber } from "../../ui/AnimatedNumber";
 import { Sheet } from "../../ui/components";
 import { Pressable, Text, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
@@ -19,7 +20,7 @@ export function ThreadContextUsage({ usage }: { usage?: ContextUsage }) {
   const mode = values.contextDisplay;
   const used = usage?.usedTokens;
   const limit = usage?.limitTokens;
-  const width = mode === "circle" ? 32 : 64;
+  const width = mode === "circle" ? 32 : mode === "percentage" ? 48 : 64;
 
   if (mode === "off") return null;
 
@@ -29,6 +30,13 @@ export function ThreadContextUsage({ usage }: { usage?: ContextUsage }) {
   const fill = Math.min(100, percent);
   const color = percent >= 95 ? c.danger : percent >= 80 ? c.warning : c.muted;
   const tokens = `${exactTokens(used)} of ${exactTokens(limit)} tokens used`;
+
+  const numberProps = {
+    style: [type.meta, { color, textAlign: "center" }],
+    updateAnimation: "pop-in",
+    numberOfLines: 1,
+    adjustsFontSizeToFit: true,
+  } satisfies Partial<ComponentProps<typeof AnimatedNumber>>;
 
   return (
     <>
@@ -72,10 +80,13 @@ export function ThreadContextUsage({ usage }: { usage?: ContextUsage }) {
               {percent}%
             </Text>
           </>
+        ) : mode === "percentage" ? (
+          <AnimatedNumber {...numberProps} value={`${percent}%`} amount={percent} />
         ) : (
-          <Text numberOfLines={2} adjustsFontSizeToFit style={[type.meta, { color, textAlign: "center" }]}>
-            {compact.format(Number(used))} / {compact.format(Number(limit))}
-          </Text>
+          <View style={{ width, flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: 3 }}>
+            <AnimatedNumber {...numberProps} value={compact.format(Number(used))} amount={used} suffix=" /" />
+            <AnimatedNumber {...numberProps} value={compact.format(Number(limit))} amount={limit} />
+          </View>
         )}
       </Pressable>
       {open && (

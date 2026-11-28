@@ -1,5 +1,7 @@
 # Mapa ustawień Canopy
 
+Status (2026-11-28): Context display w Appearance pozwala wybrać Percentage na webie, desktopie i telefonie.
+
 Status (2026-11-28): ustawienia GitHub obejmują dostęp do repozytorium dla agentów i botów.
 Dodawanie konta GitHub z Connectors otwiera tę samą sekcję.
 
@@ -174,7 +176,7 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Appearance / Interface | Contrast | urządzenie | Standard | Wzmocnienie kontrastu tekstu pomocniczego i obrysów w obu schematach |
 | Appearance / Interface | Thread width | urządzenie | Comfortable | Szerokość wątku i kompozytora |
 | Appearance / Interface | Effort display | urządzenie | Name | Nazwa lub paski w kontrolkach wysiłku modelu, z dostępną nazwą |
-| Appearance / Interface | Context display | urządzenie | Off | Off / Circle / Text / Bar we wszystkich wątkach web/desktop; ostatni raport zajętości i limitu kontekstu, szczegóły po hoverze, fokusie klawiatury lub dotknięciu. Nie uwzględnia szkicu; brak pomiaru ukrywa wskaźnik, zachowując miejsce. Reset pola i całej strony przywraca Off |
+| Appearance / Interface | Context display | urządzenie | Off | Off / Circle / Text / Bar / Percentage we wszystkich wątkach web/desktop. Percentage pokazuje pełny procent użycia według ostatniego raportu. Hover, fokus klawiatury lub dotknięcie pokazują szczegóły. Pomiar pomija szkic. Brak pomiaru ukrywa wskaźnik, zachowując miejsce. Reset pola i całej strony przywraca Off |
 | Appearance / Interface | Render math | urządzenie | On | LaTeX w wiadomościach; wyłączenie pokazuje źródło |
 | Appearance / Motion (web i desktop) | Animations | urządzenie | On | Przełącznik animacji interfejsu |
 | Appearance / Motion (web i desktop) | Animation speed | urządzenie | Standard | Fast, Standard lub Slow |
