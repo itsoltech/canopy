@@ -18,6 +18,11 @@ w transakcji, która zatwierdza zmianę rozmiaru foldu.
 Aktualizacja (2026-11-27): w web/desktop zwijana grupa narzędzi nie przesuwa swoich
 wierszy w dół: nagłówek ma jeden odstęp w obu stanach.
 
+Aktualizacja (2026-11-28). W aplikacji mobilnej nagłówek grupy narzędzi, np.
+„Made 1 tool call”, ma tekst 13 dp z linią 20 dp. Napis, ikony i licznik statusu
+są wyśrodkowane w pionie. Przy domyślnej skali zwinięta karta ma 40 dp wysokości,
+a dotyk działa na całej wysokości 44 dp.
+
 Wejście tury zawsze poprzedza jej pracę. Gateway zapisuje tekst i wiąże załączniki
 przy przyjęciu wiadomości, przed wysłaniem `StartTurn`. Echo `user_message` od
 dostawcy zastępuje placeholder w tym samym miejscu, tuż po początku tury, nawet
