@@ -1,8 +1,11 @@
-/**
- * Permissions the app's own pages may use: `clipboard-sanitized-write` for `navigator.clipboard.writeText`
- * (copy actions) and `notifications`, a fallback for the page's Notification API (alerts use native IPC).
- */
-const ALLOWED = new Set(["clipboard-sanitized-write", "notifications"]);
+/** Both setup and the web UI use copy actions and the Notification API fallback. */
+const SHARED_PERMISSIONS = new Set(["clipboard-sanitized-write", "notifications"]);
+
+export function isApplicationPage(url: string, origin: string | undefined): boolean {
+  const page = URL.parse(url);
+
+  return !!page && page.origin === origin && page.pathname !== "/desktop" && !page.pathname.startsWith("/desktop/");
+}
 
 /** Fonts belong to the application UI, never the setup page or an embedded origin. */
 export function allowedFontAccess(url: string, appOrigin: string | undefined, mainFrame = true): boolean {
@@ -17,16 +20,25 @@ export function allowedFontAccess(url: string, appOrigin: string | undefined, ma
   }
 }
 
-/**
- * Window permissions: only the allowed ones, and only from the app's own pages (setup and web UI).
- * Clipboard reads, media and the rest stay denied.
- */
-export function allowedPermission(permission: string, url: string, trusted: readonly (string | undefined)[]) {
-  if (!ALLOWED.has(permission)) return false;
+interface PermissionContext {
+  setupOrigin: string;
+  webOrigin: string | undefined;
+  /** Present only for requests from the top-level document. */
+  mainFrameUrl: string | undefined;
+}
 
-  try {
-    return trusted.includes(new URL(url).origin);
-  } catch {
-    return false;
-  }
+export function allowedPermission(
+  permission: string,
+  url: string,
+  { setupOrigin, webOrigin, mainFrameUrl }: PermissionContext,
+) {
+  if (permission === "fullscreen")
+    return !!mainFrameUrl && isApplicationPage(mainFrameUrl, webOrigin) && isApplicationPage(url, webOrigin);
+
+  if (permission === "local-fonts")
+    return !!mainFrameUrl && allowedFontAccess(mainFrameUrl, webOrigin) && allowedFontAccess(url, webOrigin);
+
+  const origin = URL.parse(url)?.origin;
+
+  return !!origin && (origin === setupOrigin || origin === webOrigin) && SHARED_PERMISSIONS.has(permission);
 }
