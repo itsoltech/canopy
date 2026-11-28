@@ -10,6 +10,7 @@ import {
 } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { REJECTED_LOGIN_DETAIL } from "@canopy/domain/provider-accounts";
+import { statusAcross } from "@canopy/domain/provider-instances";
 import { CODEX_CLI_HOME_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { tempDir } from "@canopy/testing";
@@ -41,10 +42,11 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   let workspaceId = "";
   const logs: string[] = [];
 
+  const codexInstance = async (id = "native") =>
+    (await gw.api.listProviderInstances({})).instances.find((i) => i.harness === Provider.CODEX && i.id === id);
+
   const providersAccount = async (id = "native") =>
-    (await gw.api.listProviderInstances({})).instances
-      .find((i) => i.harness === Provider.CODEX && i.id === id)
-      ?.workers.find((w) => w.workerId === workerId)?.account;
+    (await codexInstance(id))?.workers.find((w) => w.workerId === workerId)?.account;
 
   const overviewAccount = async () =>
     (await gw.api.getOverview({})).workers
@@ -151,12 +153,14 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
   test("a rejected turn shows the account as expired until the device login signs in again", async () => {
     // The CLI alone cannot tell: it reports a ChatGPT login.
     expect(await providersAccount()).toMatchObject({ state: "signed_in", authMethod: "ChatGPT", loginRevision: "" });
+    const initial = statusAcross((await codexInstance())!).label;
 
     await send("Keep working");
     const expired = await eventually(providersAccount, (a) => a?.state === "expired", 20_000);
     expect(expired).toMatchObject({ state: "expired", authMethod: "ChatGPT", detail: REJECTED_LOGIN_DETAIL });
     expect(expired?.loginRevision).toBe("");
     expect((await overviewAccount())?.state).toBe("expired");
+    const afterRejection = statusAcross((await codexInstance())!).label;
     const turns = (await gw.api.getThread({ threadId })).thread;
     expect(turns?.status).not.toBe("running");
 
@@ -179,6 +183,14 @@ describe.skipIf(!dockerAvailable)("expired provider sign-in over the gateway↔w
     const continued = await send("Continue");
     expect(await finished(continued)).toBe("completed");
     expect((await providersAccount())?.state).toBe("signed_in");
+
+    // The gateway fixture's scripted worker stays ready throughout this worker's failed turn and recovery.
+    const recovered = statusAcross((await codexInstance())!).label;
+    expect([initial, afterRejection, recovered]).toEqual([
+      "Ready on 2 workers",
+      "1/2 workers ready",
+      "Ready on 2 workers",
+    ]);
   }, 90_000);
 
   for (const ownLogin of [false, true]) {

@@ -2,6 +2,11 @@
 
 Status (2026-11-28). W podglądzie **Provider limits** każde konto zachowuje swoją kolumnę w kolejnych oknach. Podpis nad paskiem podaje okres, reset i pozostały limit. Kreskowanie oznacza potwierdzony brak limitu 5 h w planie.
 
+Aktualizacja (2026-11-28): podsumowanie Providers wyłącza z liczby gotowych
+workerów instancje z odrzuconym loginem lub potwierdzonym brakiem logowania.
+Potwierdzenie logowania pod błędem tury korzysta z danych instancji na workerze
+wątku i wskazuje magazyn konta przed rozpoczęciem logowania.
+
 Aktualizacja (2026-11-28): osobny odczyt okien użycia Codexa, powiązany z
 aktywnym kontem, zasila powiadomienia web/desktop o odnowieniu limitu.
 
@@ -36,6 +41,11 @@ Settings → Providers pokazuje status osobno dla instancji i workera. W web/des
 lista pokazuje kanał połączenia, gdy provider ma kilka instancji. Przy wielu workerach
 **All workers** pokazuje zbiorczą gotowość instancji. W **Status and access → Worker details**
 można sprawdzić wersję, konto i limity jednego workera lub wrócić do **Summary**.
+Podsumowanie liczy włączone instancje zgłoszone jako dostępne przez workery
+i uwzględnia znane problemy logowania z raportu konta. Dostępność pochodzi
+z ostatniego raportu konfiguracji każdego workera. Czas **Checked** obok
+przycisku **Refresh** oznacza zakończenie ręcznego odświeżenia panelu. Aktualność
+danego konta widać przy jego statusie.
 Wybór dotyczy podglądu, a zakres edycji określa osobne pole u góry.
 Przy jednym workerze jego szczegóły są od razu widoczne. Te same metadane są w **Settings → Workers**
 po wybraniu maszyny, w zakładce **Configuration**. Raport dostępności
@@ -234,7 +244,9 @@ ma jedną nazwę zależną od stanu, wspólną dla web i mobile
   że zmienia konto CLI na tym komputerze; obok zostaje „Sign out”.
 
 Pod turą z błędem logowania akcja to „Sign in again”, chyba że CLI zgłasza
-brak loginu („Sign in”): tura już pokazała, że login nie działa. „Sign out”
+brak loginu („Sign in”). Potwierdzenie jest przypisane do workera i instancji
+wątku oraz do jej magazynu logowania. Gdy logowanie w miejscu jest niedostępne,
+„Open provider settings” prowadzi do ustawień workera i instancji wątku. „Sign out”
 znika, gdy CLI nie jest zalogowane. Na workerach bez logowania z aplikacji
 ta sama etykieta otwiera popover z poleceniem logowania i przyciskiem kopiowania.
 Gdy obok jest panel logowania z aplikacji, wiersz nie powtarza tej akcji.

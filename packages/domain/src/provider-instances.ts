@@ -61,6 +61,14 @@ function loginUnavailable(on: ui.InstanceOnWorker): boolean {
   return on.account?.state === "error" && !!codexLoginProblem(on.account.detail);
 }
 
+function signInStatus(on: ui.InstanceOnWorker): InstanceStatus | undefined {
+  if (on.account?.state === "expired") return { label: "Sign-in expired", tone: "amber" };
+
+  if (on.account?.state === "signed_out") return { label: "Not signed in", tone: "amber" };
+
+  return undefined;
+}
+
 /** One line for an instance on a worker, as the list and the detail show it (e.g. "Authenticated · ChatGPT"). */
 export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): InstanceStatus {
   if (!on) return { label: "Unknown worker", tone: "neutral" };
@@ -73,8 +81,9 @@ export function statusOn(on: ui.InstanceOnWorker | undefined, online: boolean): 
       tone: "neutral",
     };
 
-  // The CLI still reports the login, but a turn's harness rejected it (the gateway's account mark).
-  if (on.available && on.account?.state === "expired") return { label: "Sign-in expired", tone: "amber" };
+  const signIn = signInStatus(on);
+
+  if (on.available && signIn) return signIn;
 
   if (loginUnavailable(on)) return { label: "Login unavailable", tone: "amber" };
 
@@ -100,7 +109,7 @@ export function statusAcross(instance: ui.ProviderInstance): InstanceStatus {
   const enabled = instance.workers.filter((w) => w.enabled);
 
   if (enabled.length === 0) return { label: "Not on any worker", tone: "neutral" };
-  const usable = enabled.filter((w) => w.available && !loginUnavailable(w)).length;
+  const usable = enabled.filter((w) => w.available && !signInStatus(w) && !loginUnavailable(w)).length;
   const of = `${enabled.length} worker${enabled.length === 1 ? "" : "s"}`;
 
   if (usable === enabled.length) return { label: `Ready on ${of}`, tone: "emerald" };

@@ -1,13 +1,11 @@
 <script lang="ts">
-  import { providerLoginCommand } from "@canopy/domain/provider-accounts";
+  import { providerLoginCommand, rejectedSignInLabel } from "@canopy/domain/provider-accounts";
   import { humanizeEnum, isEnumToken } from "@canopy/domain/humanize";
-  import { rejectedSignInLabel } from "@canopy/domain/provider-accounts";
   import type { ui } from "@canopy/contracts";
   import { Provider, ProviderProfileKind } from "@canopy/contracts";
   import DeviceCode from "#lib/features/providers/DeviceCode.svelte";
   import { DeviceLogin, signsInFromApp } from "#lib/features/providers/device-login.svelte.ts";
   import SignInConfirm from "#lib/features/providers/SignInConfirm.svelte";
-  import { listInstances } from "#lib/features/providers/instances.ts";
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import FailureNotice from "#lib/features/failures/FailureNotice.svelte";
   import ThreadModelDialog from "./ThreadModelDialog.svelte";
@@ -48,8 +46,22 @@
 
   // The gateway marks a login a turn's harness rejected; a retry would only fail the same way.
   const needsSignIn = $derived(instance?.account?.state === "expired" && thread?.provider !== Provider.ANTIGRAVITY);
-  const appSignIn = $derived(!!instance && signsInFromApp(instance.harness, instance.kind));
+
+  const canSignIn = $derived(
+    worker?.online &&
+      !worker.nodeId &&
+      !directory.readOnly &&
+      !turn.inherited &&
+      instance?.enabled &&
+      instance.status?.synced !== false &&
+      signsInFromApp(instance.harness, instance.kind),
+  );
+
   const signInLabel = $derived(rejectedSignInLabel(instance?.account));
+
+  const signInTarget = $derived(
+    canSignIn && worker && instance ? `${worker.id}/${instance.harness}/${instance.id}/${instance.ownLogin}` : "",
+  );
 
   const login = new DeviceLogin(() => ({
     harness: instance?.harness ?? Provider.UNSPECIFIED,
@@ -60,22 +72,14 @@
 
   $effect(() => login.settle());
 
-  // A sign-in changes the login on the worker's computer: say which one and how before it starts.
-  let confirming = $state(false);
-  let ownLogin = $state<boolean>();
-
-  async function confirmSignIn() {
-    confirming = true;
-    ownLogin = undefined;
-    const instances = await listInstances().catch(() => []);
-    const found = instances.find((i) => i.harness === instance?.harness && i.id === instance.id);
-    ownLogin = found?.runtime?.ownLogin === true;
-  }
+  // Confirmation applies to the worker and login source shown when the user opened it.
+  let confirming = $state("");
 
   async function startSignIn() {
+    if (!signInTarget || confirming !== signInTarget) return;
     await login.start();
 
-    if (login.code) confirming = false;
+    if (login.code) confirming = "";
   }
 
   const providerHref = $derived(
@@ -168,34 +172,34 @@
       message={turn.error}
       code={turn.errorCode}
       classification={turn.errorClass}
-      authHint={appSignIn
+      authHint={canSignIn
         ? `${signInLabel}, then retry.`
         : thread?.provider === Provider.ANTIGRAVITY
           ? `Run ${providerLoginCommand("antigravity", instance?.account, worker?.os ?? "")} on the worker, then retry.`
-          : "Open provider settings for this worker. Use its sign-in command, then retry."}
+          : "Use the worker’s sign-in command, then retry."}
       source={turn.errorSource}
       {historical}
       {proxy}
       {providerHref}
       retrying={continuing === "sending"}
       retryDisabled={continuing === "sent" || needsSignIn}
-      onsignin={appSignIn && !directory.readOnly && worker?.online && !login.code ? confirmSignIn : undefined}
+      onsignin={canSignIn && !login.code ? () => (confirming = signInTarget) : undefined}
       signingIn={login.busy}
-      {signInLabel}
+      signInLabel={canSignIn && !login.code ? signInLabel : "Open provider settings"}
       onretry={!directory.readOnly && !directory.sendBlockedReason && !turn.inherited && thread?.status === "idle"
         ? continueTurn
         : undefined}
       onchangemodel={!directory.readOnly && !turn.inherited && thread ? () => (modelOpen = true) : undefined}
     />
-    {#if !historical && confirming && !login.code && worker}
+    {#if !historical && signInTarget && confirming === signInTarget && !login.code && worker && instance}
       <SignInConfirm
-        harness={thread?.provider ?? Provider.CODEX}
+        harness={instance.harness}
         workerName={worker.name}
-        linked={ownLogin !== true}
+        linked={!instance.ownLogin}
         action={signInLabel}
         busy={login.busy}
         onstart={startSignIn}
-        oncancel={() => (confirming = false)}
+        oncancel={() => (confirming = "")}
       />
     {/if}
     {#if !historical && login.code && worker}
