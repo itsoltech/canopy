@@ -77,10 +77,16 @@ function corner(element: Element, rect: DOMRect): number {
   return Math.min(Number.isFinite(value) ? value : 0, rect.width / 2, rect.height / 2);
 }
 
-function box(element: Element): Box {
+function box(element: Element, origin?: DOMRect): Box {
   const rect = element.getBoundingClientRect();
 
-  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height, radius: corner(element, rect) };
+  return {
+    left: rect.left - (origin?.left ?? 0),
+    top: rect.top - (origin?.top ?? 0),
+    width: rect.width,
+    height: rect.height,
+    radius: corner(element, rect),
+  };
 }
 
 function frame({ left, top, width, height, radius }: Box): Keyframe {
@@ -120,8 +126,8 @@ function fade(panel: HTMLElement, show: boolean, ms: number): Animation {
   });
 }
 
-/** One morph per popover: a new open or close replaces the one still running. */
-export function popoverMorph() {
+/** A fixed surface uses viewport coordinates unless the caller supplies its CSS containing block. */
+export function popoverMorph(containingBlock?: () => HTMLElement) {
   listenForPresses();
   let running: Animation[] = [];
 
@@ -150,8 +156,9 @@ export function popoverMorph() {
       }
 
       const look = paint(panel);
-      const from = box(trigger);
-      const to = box(panel);
+      const origin = containingBlock?.().getBoundingClientRect();
+      const from = box(trigger, origin);
+      const to = box(panel, origin);
       running.push(
         panel.animate(
           [
@@ -199,8 +206,9 @@ export function popoverMorph() {
       }
 
       const look = paint(panel);
-      const from = box(panel);
-      const to = box(trigger);
+      const origin = containingBlock?.().getBoundingClientRect();
+      const from = box(panel, origin);
+      const to = box(trigger, origin);
       running.push(
         panel.animate(
           [

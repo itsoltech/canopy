@@ -1,5 +1,9 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
+Status (2026-11-28). Przy otwieraniu i zamykaniu panelu Files w web i desktopie
+animacja Thread details podąża za prawą krawędzią obszaru wątku. Zwijana karta
+zaczyna ruch na wysokości, na której była widoczna przed otwarciem Files.
+
 Status (2026-11-28). W web i desktop nagłówek terminala zadania w tle ma to samo
 tło co aktywna zakładka, również w jasnym motywie.
 
@@ -632,7 +636,9 @@ zapisywane w stanie workspace'u ani transkrypcie. Szczegóły backendów i grant
   w kartę i karta z powrotem w pigułkę (`popover-morph.ts`, opis w `ui-scale.md`),
   zarówno w zadokowanej karcie, jak i w popoverze pod pigułką. Karta pozostaje wtedy
   nieskalowana (`t-summary[data-morph]`) i chowa się dopiero po wyjściu
-  (`--duration-quick`). Zmiany bez naciśnięcia (szerokość obszaru, inny wątek)
+  (`--duration-quick`). Klatki animacji karty i pigułki są liczone względem
+  wspólnego prawego marginesu wątku, który przesuwa się razem z kolumną Files.
+  Zmiany bez naciśnięcia (szerokość obszaru, inny wątek)
   zostają przy wzroście z rogu pigułki (`t-summary`: przezroczystość i skala,
   `--duration-fast`, powrót `--duration-quick`); pigułka przenika w przeciwną stronę.
   Obie warstwy zostają zamontowane.
