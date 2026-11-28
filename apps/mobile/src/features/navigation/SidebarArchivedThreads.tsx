@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ui } from "@canopy/contracts";
 import { Pressable, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { ArchivedThreadsPager, indexChangesArchived } from "@canopy/domain/archived-threads";
 import { collapsedArchivedThread, isArchivedSidebarThread } from "@canopy/domain/sidebar-threads";
 import { useSession } from "../../state/session";
 import { useDevicePreferences } from "../settings/device-preferences";
 import { useOverview } from "../../state/overview";
 import { styles, useColors } from "../../ui/theme";
-import { Chevron, useArrivals } from "../../ui/MotionViews";
-import { useMotion } from "../../ui/motion";
-import { sidebarListInset, sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
+import { Chevron } from "../../ui/MotionViews";
+import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
 import { SidebarThreadTreeRow } from "./SidebarThreadTree";
+import type { SidebarListHeader } from "./SidebarListHeader";
+import type { SidebarListEntry } from "./sidebar-drag";
 import { Button, Notice } from "../../ui/components";
 import { ListSkeleton } from "../../ui/Skeleton";
 import type { useSidebarThreads } from "./useSidebarThreads";
 
-function useArchivedThreads(navigation: ReturnType<typeof useSidebarThreads>) {
+export function useArchivedThreads(navigation: ReturnType<typeof useSidebarThreads>) {
   const { client, archivedCache, online, epoch } = useSession();
   const device = useDevicePreferences();
   const { threads, projects, workers, stream, linkedReads } = useOverview();
@@ -139,49 +140,58 @@ function useArchivedThreads(navigation: ReturnType<typeof useSidebarThreads>) {
 
 type ArchivedThreads = ReturnType<typeof useArchivedThreads>;
 
-export function SidebarArchivedSection({ navigation }: { navigation: ReturnType<typeof useSidebarThreads> }) {
-  const archive = useArchivedThreads(navigation);
-  const threads = archive.expanded ? archive.roots : archive.sticky ? [archive.sticky] : [];
-  const arrival = useArrivals(threads.map((thread) => thread.id));
-  const { layout } = useMotion();
+export function archivedEntries(archive: ArchivedThreads): SidebarListEntry[] {
+  if (!archive.expanded || !archive.visible) return [];
 
-  if (!archive.visible) return null;
+  return [
+    { key: "archived-heading", section: "archived-heading" },
+    ...archive.roots.map((thread) => ({ key: `archived-${thread.id}`, section: "archived" as const, thread })),
+  ];
+}
 
+export function SidebarArchivedRow({ thread, archive }: { thread: ui.Thread; archive: ArchivedThreads }) {
   return (
-    <View style={{ maxHeight: "50%", paddingHorizontal: sidebarListInset, paddingBottom: 8 }}>
-      <SidebarArchivedHeader archive={archive} />
-      {(archive.expanded || archive.sticky) && (
-        <Animated.FlatList
-          style={{ flexGrow: 0 }}
-          data={threads}
-          keyExtractor={(thread) => thread.id}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustContentInsets={false}
-          contentInsetAdjustmentBehavior="never"
-          itemLayoutAnimation={layout}
-          windowSize={7}
-          onEndReached={archive.more}
-          onEndReachedThreshold={0.4}
-          ListFooterComponent={archive.expanded ? <SidebarArchivedStatus archive={archive} /> : undefined}
-          renderItem={({ item }) => (
-            <Animated.View entering={arrival(item.id)}>
-              <SidebarThreadTreeRow
-                thread={item}
-                archived
-                current={archive.current}
-                projects={archive.projects}
-                workers={archive.workers}
-                sideThreads={archive.sideThreads.get(item.id) ?? []}
-              />
-            </Animated.View>
-          )}
-        />
-      )}
-    </View>
+    <SidebarThreadTreeRow
+      thread={thread}
+      archived
+      current={archive.current}
+      projects={archive.projects}
+      workers={archive.workers}
+      sideThreads={archive.sideThreads.get(thread.id) ?? []}
+    />
   );
 }
 
-function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads }) {
+export function SidebarArchiveFooter({ archive, header }: { archive: ArchivedThreads; header: SidebarListHeader }) {
+  if (!archive.visible) return null;
+
+  if (archive.expanded) return <SidebarArchivedStatus archive={archive} />;
+
+  return <SidebarCollapsedArchive archive={archive} header={header} />;
+}
+
+function SidebarCollapsedArchive({ archive, header }: { archive: ArchivedThreads; header: SidebarListHeader }) {
+  const space = useSharedValue(0);
+  const { brandHeight, offset } = header;
+
+  // Short lists include an extra brand height so the toolbar can dock. Keep the archive above the footer
+  // through that scroll, using only the spare space between it and the preceding threads.
+  const position = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.min(space.get(), Math.max(0, brandHeight - offset.get())) }],
+  }));
+
+  return (
+    <>
+      <View style={styles.fill} onLayout={(event) => space.set(event.nativeEvent.layout.height)} />
+      <Animated.View style={position}>
+        <SidebarArchivedHeader archive={archive} />
+        {archive.sticky && <SidebarArchivedRow thread={archive.sticky} archive={archive} />}
+      </Animated.View>
+    </>
+  );
+}
+
+export function SidebarArchivedHeader({ archive }: { archive: ArchivedThreads }) {
   const c = useColors("sidebar-list");
   const type = useSidebarTypography();
 

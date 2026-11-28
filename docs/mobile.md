@@ -3,9 +3,9 @@
 Status (2026-11-28). Wskaźnik kontekstu w kompozytorze ma nowy tryb **Percentage**.
 W trybach **Text** i **Percentage** zmieniające się cyfry pojawiają się z animacją.
 
-Status (2026-11-28). Sekcja **Archived** pozostaje przy dolnej krawędzi listy wątków,
-nad stopką, również podczas chowania i odsłaniania nazwy Canopy. Po rozwinięciu
-wiersze archiwum przewijają się pod jego nagłówkiem.
+Status (2026-11-28). Aktywne, uśpione i zarchiwizowane wątki przewijają się
+razem. Przy krótkiej liście zwinięta sekcja **Archived** pozostaje nad stopką
+również podczas chowania i odsłaniania nazwy Canopy.
 
 Status (2026-11-28). Zdjęcia HEIC i HEIF w wiadomościach i szkicach otwierają się
 w przeglądarce obrazów, także gdy gateway zapisał je wcześniej jako zwykłe pliki.
@@ -201,7 +201,7 @@ Zamknięty przyciskiem × osiągnięty cel pozostaje ukryty po ponownym otwarciu
 Aplikacja używa Expo SDK 58.0.26.
 Menu wątku pozwala go uśpić, zmienić termin lub wybudzić. Uśpione wątki pozostają
 dostępne w zwijanej sekcji **Snoozed** z pełną historią i aktywnym kompozytorem.
-**Snoozed** przylega do listy aktywnych wątków, a **Archived** do stopki sidebara.
+Sekcja **Snoozed** znajduje się tuż za aktywnymi wątkami, a **Archived** zamyka listę.
 Powiadomienia push mogą pokazywać podglądy odszyfrowywane na telefonie.
 Relay Canopy może aktywować się automatycznie po atestacji aplikacji.
 Aplikacja automatycznie ponawia atestację przed wygaśnięciem poświadczenia.
@@ -2619,9 +2619,8 @@ Podpis miejsca używa wspólnego `threadPlace`: „scratch folder”, HEAD workt
 (gałąź lub detached commit), potem nazwa katalogu. Inicjały i ton znaku projektu
 są wspólne; neutralny znak w ciemnym motywie używa stopnia 300, tak jak web.
 
-**Archived** zajmuje osobne miejsce nad stopką. Aktywne i uśpione wątki przewijają
-się nad sekcją. Rozwinięte archiwum zajmuje do połowy wysokości panelu i ma własną
-wirtualizowaną listę, więc jego nagłówek pozostaje dostępny także przy czytaniu dalszych stron.
+Po rozwinięciu **Archived** nagłówek i wiersze archiwum pojawiają się tuż za
+pozostałymi wątkami. Gest rozpoczęty w dowolnej z tych sekcji przewija całą listę.
 Tapnięcie **Archived** od razu rozwija lub zwija sekcję. Telefon zapamiętuje ten wybór.
 Osobny cache `Paths.cache/archived-threads-v1` zachowuje ostatnio odczytane
 strony dla najwyżej 8 filtrów, razem z metadanymi projektów i workerów. Używa tego

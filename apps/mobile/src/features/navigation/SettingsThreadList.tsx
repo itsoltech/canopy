@@ -13,7 +13,13 @@ import { useMotion } from "../../ui/motion";
 import { useContentInsets } from "../../ui/ScreenFrame";
 import { SidebarThreadTreeRow } from "./SidebarThreadTree";
 import type { useSidebarThreads } from "./useSidebarThreads";
-import { SidebarArchivedSection } from "./SidebarArchivedThreads";
+import {
+  archivedEntries,
+  SidebarArchivedHeader,
+  SidebarArchivedRow,
+  SidebarArchiveFooter,
+  useArchivedThreads,
+} from "./SidebarArchivedThreads";
 import { useSnoozedThreads } from "./SidebarSnoozedThreads";
 import { SidebarThreadDisclosure } from "./SidebarThreadDisclosure";
 import { sidebarRowPadding, useSidebarTypography } from "./sidebar-scale";
@@ -45,6 +51,7 @@ export function SettingsThreadList({
   const { view, setView } = useDevicePreferences();
   const { workingThreadsExpanded: workingOpen, groupByWorktree } = view;
   const snoozed = useSnoozedThreads(navigation);
+  const archive = useArchivedThreads(navigation);
   const previous = useRef({ workingOpen, snoozedOpen: snoozed.expanded });
   const workingChanged = previous.current.workingOpen !== workingOpen;
   const snoozedChanged = previous.current.snoozedOpen !== snoozed.expanded;
@@ -95,6 +102,7 @@ export function SettingsThreadList({
     ...ordered,
     ...(!active.length && !snoozed.count ? [{ key: "empty", section: "empty" as const }] : []),
     ...snoozed.entries,
+    ...archivedEntries(archive),
   ];
 
   // Insert or remove the section in one layout without gliding other cells over the new rows.
@@ -124,6 +132,10 @@ export function SettingsThreadList({
                 initialNumToRender={12}
                 maxToRenderPerBatch={8}
                 windowSize={7}
+                onEndReached={archive.more}
+                onEndReachedThreshold={0.4}
+                ListFooterComponentStyle={!archive.expanded && { flexGrow: 1 }}
+                ListFooterComponent={<SidebarArchiveFooter archive={archive} header={header} />}
                 onContentSizeChange={(_, height) => drag.content.set(height)}
                 renderItem={({ item }) => {
                   const workingRow = item.section === "working";
@@ -139,7 +151,7 @@ export function SettingsThreadList({
                     >
                       <SidebarNesting depth={item.depth}>
                         <SidebarListEntryView
-                          {...{ item, navigation, snoozed, rootIds, projects, workers, empty, workingOpen }}
+                          {...{ item, navigation, archive, snoozed, rootIds, projects, workers, empty, workingOpen }}
                           onWorking={() => setView({ workingThreadsExpanded: !workingOpen })}
                         />
                       </SidebarNesting>
@@ -150,7 +162,6 @@ export function SettingsThreadList({
               <SidebarDragFeedback entries={entries} />
             </Animated.View>
           </GestureDetector>
-          <SidebarArchivedSection navigation={navigation} />
         </GestureHandlerRootView>
       </LayoutAnimationConfig>
     </SidebarDragContext.Provider>
@@ -160,6 +171,7 @@ export function SettingsThreadList({
 function SidebarListEntryView({
   item,
   navigation,
+  archive,
   snoozed,
   rootIds,
   projects,
@@ -170,6 +182,7 @@ function SidebarListEntryView({
 }: {
   item: SidebarListEntry;
   navigation: ReturnType<typeof useSidebarThreads>;
+  archive: ReturnType<typeof useArchivedThreads>;
   snoozed: ReturnType<typeof useSnoozedThreads>;
   rootIds: ReadonlySet<string>;
   projects: ui.Project[];
@@ -183,6 +196,10 @@ function SidebarListEntryView({
   const { current, filtered } = navigation;
 
   if (item.section === "empty") return empty;
+
+  if (item.section === "archived-heading") return <SidebarArchivedHeader archive={archive} />;
+
+  if (item.section === "archived" && item.thread) return <SidebarArchivedRow thread={item.thread} archive={archive} />;
 
   if (item.section === "snoozed-heading")
     return (
