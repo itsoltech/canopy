@@ -34,8 +34,8 @@
 <button
   type={onclick ? "button" : "submit"}
   class={[
-    "relative flex h-9 shrink-0 items-center gap-1.5 pr-2.5 pl-3 text-sm/5 font-medium focus-ring not-disabled:hover:bg-action-hover disabled:opacity-60 sm:h-8 sm:text-[0.8125rem]/5",
-    split ? "rounded-l-full" : "rounded-full bg-action text-on-accent",
+    "relative flex h-(--button-height) shrink-0 items-center gap-1.5 text-sm/5 font-medium focus-ring [--button-height:--spacing(9)] not-disabled:hover:bg-action-hover disabled:opacity-60 sm:text-[0.8125rem]/5 sm:[--button-height:var(--control-chrome)]",
+    split ? "rounded-l-full pr-2.5 pl-3" : "optical-alignment rounded-full bg-action text-on-accent",
     className,
   ]}
   aria-label={ariaLabel}
@@ -44,6 +44,19 @@
   {onclick}
 >
   {#if sending}<Spinner />{:else}<Icon name={icon} tone="inherit" />{/if}
-  <span class={split ? "@max-[24rem]/composer:hidden" : undefined}>{label}</span>
+  <span class={["label", split && "@max-[24rem]/composer:hidden"]}>{label}</span>
   <TouchTarget />
 </button>
+
+<style>
+  .optical-alignment {
+    --radius: calc(var(--button-height) / 2);
+    padding-inline-start: calc(var(--radius) - var(--icon-standard) / 2);
+    /* A semicircle removes an average width of r × (1 − π/4) from the text end. */
+    padding-inline-end: calc(2.5 * var(--spacing) + var(--radius) * (1 - pi / 4));
+  }
+
+  .optical-alignment > .label {
+    text-box: trim-both cap alphabetic;
+  }
+</style>

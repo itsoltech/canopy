@@ -20,10 +20,12 @@
     class?: ClassValue;
   } = $props();
 
-  function fromPointer(event: PointerEvent & { currentTarget: HTMLElement }) {
-    const track = event.currentTarget;
-    const box = track.getBoundingClientRect();
-    onchange(Math.round(Math.max(0, Math.min(1, (event.clientX - box.left - 10) / Math.max(1, box.width - 20))) * max));
+  let thumbRange: HTMLDivElement;
+
+  function fromPointer(event: PointerEvent) {
+    const bounds = thumbRange.getBoundingClientRect();
+    const fraction = (event.clientX - bounds.left) / Math.max(1, bounds.width);
+    onchange(Math.round(Math.max(0, Math.min(1, fraction)) * max));
   }
 
   function onkeydown(event: KeyboardEvent) {
@@ -58,7 +60,6 @@
     aria-disabled={disabled || undefined}
     class="relative flex h-11 touch-none items-center rounded-md focus-ring"
     style:--channel-gradient={gradient}
-    style:--channel-position={value / max}
     {onkeydown}
     onpointerdown={(event) => {
       if (disabled || event.button !== 0) return;
@@ -72,10 +73,14 @@
     }}
   >
     <div
-      class="h-5 w-full rounded-full bg-(image:--channel-gradient) ring-1 ring-zinc-950/10 ring-inset dark:ring-white/15"
-    ></div>
-    <div
-      class="pointer-events-none absolute left-[calc(10px+(100%-20px)*var(--channel-position))] size-6 -translate-x-1/2 rounded-full border-[3px] border-white shadow-sm ring-1 ring-black/25"
-    ></div>
+      class="h-(--track-height) w-full rounded-full bg-(image:--channel-gradient) px-[calc(var(--track-height)/2)] ring-1 ring-zinc-950/10 [--track-height:--spacing(5)] ring-inset dark:ring-white/15"
+    >
+      <div bind:this={thumbRange} class="relative h-full">
+        <div
+          class="pointer-events-none absolute top-1/2 size-6 -translate-1/2 rounded-full border-[3px] border-white shadow-sm ring-1 ring-black/25"
+          style:left="{(value / max) * 100}%"
+        ></div>
+      </div>
+    </div>
   </div>
 </div>
