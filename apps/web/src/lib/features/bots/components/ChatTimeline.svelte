@@ -2,7 +2,7 @@
   import { untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import FeedFold from "#lib/shared/ui/FeedFold.svelte";
-  import { ChatEventGroups, visibleChatRows, type BotTimelineRow } from "@canopy/domain/bot-chat";
+  import { ChatEventGroups, containsChatMessage, visibleChatRows, type BotTimelineRow } from "@canopy/domain/bot-chat";
   import VirtualFeed from "#lib/shared/ui/virtual/VirtualFeed.svelte";
   import type { FeedViewport } from "#lib/shared/ui/virtual/viewport.ts";
   import type { FeedScrollMemory } from "#lib/shared/ui/virtual/feed-scroll-memory.svelte.ts";
@@ -155,12 +155,7 @@
   const historyRow = $derived(
     Math.max(
       0,
-      rows.findIndex(
-        (row) =>
-          row.id === firstMessageId ||
-          row.id === `exchanges:${firstMessageId}` ||
-          (row.kind === "event-group" && row.events.some((event) => event.id === firstMessageId)),
-      ),
+      rows.findIndex((row) => row.kind !== "status" && !!firstMessageId && containsChatMessage(row, firstMessageId)),
     ),
   );
 
