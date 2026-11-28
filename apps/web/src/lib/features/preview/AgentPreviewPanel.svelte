@@ -31,6 +31,7 @@
     fit = $bindable<"fit" | "actual">("fit"),
     location = "sidebar",
     onmove,
+    projectId,
   }: {
     threadId: string;
     worker?: ui.Worker;
@@ -43,6 +44,8 @@
     fit?: "fit" | "actual";
     location?: "sidebar" | "tab" | "window";
     onmove?: (target?: AgentPreviewTarget) => void;
+    /** Enables filling the project's logins in Browser Preview. */
+    projectId?: string | undefined;
   } = $props();
 
   const session = new PreviewSession();
@@ -203,6 +206,7 @@
         enabled={live}
         oninput={(input) => session.input(input)}
         onselect={chooseTarget}
+        {projectId}
         bind:focusAddress
         class="order-last flex-1 basis-full @md:order-none @md:basis-0"
       />

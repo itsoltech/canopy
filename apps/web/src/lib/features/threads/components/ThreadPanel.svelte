@@ -70,6 +70,12 @@
     secrets.filter((s) => s.status === "saved" && (!s.expiresAt || timestampMs(s.expiresAt) > clock.now)),
   );
 
+  const secretsHeading = $derived.by(() => {
+    const logins = activeSecrets.filter((secret) => secret.kind === "login").length;
+
+    return !logins ? "Secrets" : logins === activeSecrets.length ? "Logins" : "Logins and secrets";
+  });
+
   const lookup = (id: string) => (tree.main.id === id ? tree.main : tree.sides.find((s) => s.id === id));
   const directory = useThreadDirectory();
   const overview = useOverview();
@@ -122,7 +128,9 @@
 
   {#if activeSecrets.length > 0 && onsecretchange}
     <section aria-labelledby="secrets-title" class="grid min-w-0 grid-cols-1 px-1.5 py-1">
-      <h2 id="secrets-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">Secrets</h2>
+      <h2 id="secrets-title" class="px-2 py-0.5 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
+        {secretsHeading}
+      </h2>
       <ul role="list" class="grid grid-cols-1 gap-0.5">
         {#each activeSecrets as secret (secret.requestId)}
           <li><ThreadSecretRow {secret} onchange={onsecretchange} /></li>

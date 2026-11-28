@@ -14,6 +14,7 @@
   import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
   import type { ClassValue } from "svelte/elements";
+  import PreviewLoginMenu from "./PreviewLoginMenu.svelte";
 
   let {
     tool,
@@ -23,6 +24,7 @@
     enabled,
     oninput,
     onselect,
+    projectId,
     focusAddress = $bindable<(() => void) | undefined>(),
     class: className,
   }: {
@@ -33,6 +35,8 @@
     enabled: boolean;
     oninput: (input: AgentPreviewInput) => void;
     onselect: (target: AgentPreviewTarget) => void;
+    /** The thread's project, for filling its logins; unset for a linked computer's thread. */
+    projectId?: string | undefined;
     focusAddress?: (() => void) | undefined;
     class?: ClassValue;
   } = $props();
@@ -132,6 +136,7 @@
         {/each}
       </DropdownMenu>
     {/if}
+    {#if projectId}<PreviewLoginMenu {projectId} {url} {enabled} {oninput} />{/if}
   {:else}
     <div class="flex min-w-0 flex-1 [&_[role=combobox]]:max-w-full">
       <Select

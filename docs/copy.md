@@ -120,6 +120,7 @@ appear only as the literal name used by an external tool).
 | Discord Bot | a Discord bot connected with its bot token that receives and replies to messages | Discord app, Discord account |
 | messenger account | a reusable Slack Bot, Telegram Bot or Discord Bot connection managed in Settings → Connectors → Messaging | connector, MCP account |
 | message route | a bot’s allowed senders, channels and response destination for a connected messenger account | subscription, webhook |
+| project login | a test account in a project’s Logins and secrets that agents sign in with in Agent Browser; the agent never sees its password | credential, test user, saved account |
 | connected account | an external app account from Settings → Connectors | integration, service, app login |
 | Tool accounts | the section for connected accounts that provide tools to agents and bots | Your accounts (when distinguishing from Slack Bot accounts) |
 | allowed action | a standing bot approval rule explicitly saved by the owner | trusted prompt, automatic grant |

@@ -7,7 +7,7 @@ import {
   retainsProjectSecretOutput,
   secretPatterns,
 } from "./project-secret-guard.ts";
-import { threadSecretRedactionValues } from "./thread-secrets.ts";
+import { threadBrowserValues, threadSecretRedactionValues } from "./thread-secrets.ts";
 import { hideProjectSecretCall } from "./project-secret-tool.ts";
 
 type Redactable =
@@ -119,7 +119,7 @@ export function secretEventRedactor(
       return withholdSettledProjectOutput(event);
     }
 
-    const legacy = threadSecretRedactionValues();
+    const legacy = [...threadSecretRedactionValues(), ...threadBrowserValues(threadId)];
     const project = [...projectSecretJournalValues(threadId)];
     const patterns = secretPatterns([...legacy, ...project, ...(buffered?.legacyValues ?? [])]);
 

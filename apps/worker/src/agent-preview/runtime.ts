@@ -86,6 +86,10 @@ export class PreviewRuntime {
     return this.#resolved.env;
   }
 
+  get executable(): string {
+    return this.#resolved.executable;
+  }
+
   get signal(): AbortSignal {
     return this.#signal;
   }

@@ -44,10 +44,17 @@ export class ProjectSecretTurns {
   }
 
   signal(threadId: string, turnId: string): AbortSignal | undefined {
+    return projectSecretGuard(threadId).isReady() ? this.memorySignal(threadId, turnId) : undefined;
+  }
+
+  /**
+   * The running turn for a value that stays in worker memory (an Agent Browser login): it never reaches the
+   * harness's files or environment, so it does not wait for the harness's output filter.
+   */
+  memorySignal(threadId: string, turnId: string): AbortSignal | undefined {
     const active = this.#threads.get(threadId)?.active;
 
-    if (active?.id === turnId && !active.fence.signal.aborted && projectSecretGuard(threadId).isReady())
-      return active.fence.signal;
+    if (active?.id === turnId && !active.fence.signal.aborted) return active.fence.signal;
 
     return undefined;
   }

@@ -1,3 +1,4 @@
+import { loginAuthorized } from "./automation-permissions.ts";
 import { createCoreGitHub } from "./core-github.ts";
 import { CliImports } from "../imports/index.ts";
 import { WorkspaceCopyJobs } from "../workspace-copy/jobs.ts";
@@ -360,6 +361,8 @@ export class GatewayCore {
       hub: this.hub,
       userId: options.userId,
       ...(options.secretTtlMs !== undefined && { ttlMs: options.secretTtlMs }),
+      loginAdmitted: (connection, scope, authorization, name) =>
+        loginAuthorized(this, connection, scope, authorization, name),
     });
     this.secrets.start();
     this.bus = createCoreBus(this);

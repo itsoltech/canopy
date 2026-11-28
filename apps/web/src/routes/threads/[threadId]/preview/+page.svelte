@@ -57,6 +57,7 @@
       {#key `${threadId}:${worker?.id ?? ""}`}
         <AgentPreviewPanel
           {threadId}
+          projectId={thread && !thread.nodeId ? thread.projectId : undefined}
           {worker}
           offline={away ?? ""}
           active

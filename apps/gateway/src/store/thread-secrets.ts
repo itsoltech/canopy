@@ -9,6 +9,7 @@ import { Invalid, NotFound } from "./store.ts";
 import { encryptSecret, SECRETS_KEY_ID } from "./secrets.ts";
 import { secretDeliveries } from "./secret-deliveries.ts";
 import type { ProjectSecretLease } from "./project-secret-leases.ts";
+import type { LoginDecision } from "./project-login-leases.ts";
 
 type Fx<A> = Effect.Effect<A, SqlError.SqlError | Invalid | NotFound>;
 
@@ -91,7 +92,7 @@ const requestSecret = (sql: SqlClient.SqlClient, source: CallSource, args: Agent
 type SecretMetadata = Pick<
   ThreadSecretRow,
   "id" | "thread_id" | "label" | "description" | "placeholder" | "name" | "status" | "expires_at"
-> & { project_secret?: string };
+> & { project_secret?: string; kind?: string; origin?: string | null; access?: string };
 
 export function toUiThreadSecret(row: SecretMetadata): ui.ThreadSecret {
   return create(ui.ThreadSecretSchema, {
@@ -103,12 +104,36 @@ export function toUiThreadSecret(row: SecretMetadata): ui.ThreadSecret {
     name: row.name,
     projectSecret: row.project_secret ?? "",
     status: row.status,
+    ...(row.kind && { kind: row.kind }),
+    ...(row.origin && { origin: row.origin }),
+    ...(row.access && { access: row.access }),
     ...(row.expires_at && { expiresAt: timestampFromDate(new Date(row.expires_at)) }),
   });
 }
 
 export function toUiProjectSecretLease(row: ProjectSecretLease): ui.ThreadSecret {
-  return toUiThreadSecret({ ...row, label: row.name, description: "", placeholder: "", project_secret: row.name });
+  return toUiThreadSecret({
+    ...row,
+    label: row.name,
+    description: "",
+    placeholder: "",
+    project_secret: row.name,
+    kind: row.login ? "login" : "value",
+  });
+}
+
+/** A login's answer for the turn; `allowed` shows as `saved`, like a granted secret. */
+export function toUiLoginDecision(row: LoginDecision): ui.ThreadSecret {
+  return toUiThreadSecret({
+    ...row,
+    status: row.status === "allowed" ? "saved" : row.status,
+    label: row.name,
+    description: "",
+    placeholder: "",
+    project_secret: row.name,
+    kind: "login",
+    expires_at: null,
+  });
 }
 
 /** Values never enter normal interactions, agent-bus arguments/results or worker_commands. */
@@ -121,10 +146,16 @@ export function threadSecretsStore(sql: SqlClient.SqlClient, key: Buffer): Threa
           SELECT id FROM threads WHERE id=${threadId}::uuid AND owner_user_id=${ownerId}::uuid AND deleted_at IS NULL
         )
         SELECT s.id,s.thread_id,s.label,s.description,s.placeholder,s.name,s.status,s.expires_at,
-          '' AS project_secret,s.created_at FROM thread_secrets s JOIN owned t ON t.id=s.thread_id
+          '' AS project_secret,'' AS kind,NULL::text AS origin,'' AS access,s.created_at
+          FROM thread_secrets s JOIN owned t ON t.id=s.thread_id
         UNION ALL
-        SELECT l.id,l.thread_id,l.name,'','',l.name,l.status,l.expires_at,l.name,l.created_at
-          FROM project_secret_leases l JOIN owned t ON t.id=l.thread_id WHERE l.owner_user_id=${ownerId}::uuid
+        SELECT l.id,l.thread_id,l.name,'','',l.name,l.status,l.expires_at,l.name,'value',NULL,'',l.created_at
+          FROM project_secret_leases l JOIN owned t ON t.id=l.thread_id
+          WHERE l.owner_user_id=${ownerId}::uuid AND NOT l.login
+        UNION ALL
+        SELECT d.id,d.thread_id,d.name,'','',d.name,CASE WHEN d.status='allowed' THEN 'saved' ELSE d.status END,
+          NULL,d.name,'login',d.origin,d.access,d.created_at
+          FROM project_login_decisions d JOIN owned t ON t.id=d.thread_id WHERE d.owner_user_id=${ownerId}::uuid
         ORDER BY created_at,id`;
 
         return rows.map(toUiThreadSecret);

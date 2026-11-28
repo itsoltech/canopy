@@ -9,6 +9,7 @@ import {
   type ui,
 } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
+import { PROJECT_SECRET_NAME_PATTERN } from "@canopy/domain";
 import { validateAgentToolOperation } from "./agent-tools-validation.ts";
 
 const INPUTS = new Set([
@@ -27,7 +28,11 @@ const INPUTS = new Set([
   "release",
   "resize",
   "tab",
+  // The owner enters a project login field; the gateway replaces it with the value for the worker.
+  "login",
 ]);
+
+const LOGIN_FIELDS = new Set(["username", "password", "one_time_code"]);
 
 const STATES = new Set(["connecting", "ready", "frame", "error", "closed"]);
 const MAX_FRAME = 2 * 1024 * 1024;
@@ -83,6 +88,10 @@ export function agentPreviewScope(request: ui.WatchAgentPreviewRequest) {
 export function validatePreviewInputs(inputs: AgentPreviewInput[]): void {
   if (!inputs.length || inputs.length > 64) throw invalid("Send between 1 and 64 bounded preview inputs");
 
+  // The worker bounds a login value separately from the batch: one per batch keeps that bound.
+  if (inputs.filter((input) => input.kind === "login").length > 1 || inputs.some((input) => input.login))
+    throw invalid("Send one project login field at a time");
+
   for (const input of inputs) {
     if (
       !INPUTS.has(input.kind) ||
@@ -100,6 +109,9 @@ export function validatePreviewInputs(inputs: AgentPreviewInput[]): void {
       throw invalid("Invalid preview input");
 
     if (input.kind === "resize" && (!input.width || !input.height)) throw invalid("Invalid preview viewport");
+
+    if (input.kind === "login" && (!LOGIN_FIELDS.has(input.key) || !PROJECT_SECRET_NAME_PATTERN.test(input.text)))
+      throw invalid("Choose a project login and one of its fields");
 
     if (input.kind === "navigate") {
       let url: URL;

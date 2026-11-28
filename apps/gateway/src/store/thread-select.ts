@@ -22,8 +22,9 @@ const LIST_COLUMNS = `t.id,t.project_id,t.owner_user_id,t.kind,t.parent_thread_i
 export const STARTED_BY_BOT = "EXISTS (SELECT 1 FROM bot_started_threads s WHERE s.thread_id = t.id)";
 
 const PROJECT_SECRETS_CONFIGURED = `t.runtime = 'worker' AND EXISTS (
-  SELECT 1 FROM projects p JOIN project_secrets s ON s.project_id=p.id
-    WHERE p.id=t.project_id AND p.owner_user_id=t.owner_user_id AND p.kind='project' AND p.archived_at IS NULL)`;
+  SELECT 1 FROM projects p WHERE p.id=t.project_id AND p.owner_user_id=t.owner_user_id AND p.kind='project'
+    AND p.archived_at IS NULL AND (EXISTS (SELECT 1 FROM project_secrets s WHERE s.project_id=p.id)
+      OR EXISTS (SELECT 1 FROM project_logins s WHERE s.project_id=p.id)))`;
 
 export const listThreadSelect = (where: string, extraColumns = "") => threadSelect(where, extraColumns, true);
 

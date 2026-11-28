@@ -5,6 +5,11 @@ narzędzi, obraz od krawędzi do krawędzi panelu i cienki pasek stanu z rozmiar
 viewportu otwieranym jako popover z gotowymi rozmiarami.
 [Interaktywny Preview wątku](#interaktywny-preview-wątku)
 
+Aktualizacja (2026-11-28). Agent Browser loguje się loginami projektu:
+`agent_browser_fill_login`, `agent_browser_fill_one_time_code` i Basic Auth z `login`.
+Agent nie widzi hasła, a wpisane wartości są maskowane i chronione przed wysłaniem poza
+strony loginu. [Loginy projektu](#loginy-projektu)
+
 Aktualizacja (2026-11-26). Agent Browser udostępnia stan i obsługę dialogów
 JavaScript oraz otwieranie stron z HTTP Basic Auth przez prywatny sekret wątku.
 Dialog podczas nawigacji jest zgłaszany agentowi jeszcze przed zakończeniem
@@ -611,6 +616,25 @@ użyć zaakceptowanych danych w tej sesji. [Sekrety wątków](secrets.md)
 
 Obsługa dialogów jest dostępna agentowi przez MCP. Ręczny Preview pokazuje
 obraz strony.
+
+## Loginy projektu
+
+Gdy worker ma magazyn przydziałów loginów, Browser MCP dodaje narzędzia
+`agent_browser_fill_login` i `agent_browser_fill_one_time_code`, a
+`agent_browser_open_with_basic_auth` przyjmuje `login` zamiast `requestId`. Bridge
+przekazuje narzędziom zarządzanym kontekst wywołania (`AutomationContext.leaseLogin`),
+związany z identyfikatorem jego autoryzacji: bridge nadaje go przed `authorize` i używa jako
+`call_id` wywołania `authorize_local_automation`. Przez istniejące `callTool` pyta gateway
+o przydział `lease_project_login` dla originu bieżącej strony i czyta wartość z pamięci
+workera. Pole wskazane refem albo selektorem bridge klika przez agent-browser. Aktywny
+element i `securityOrigin` jego ramki sprawdza przez CDP, również w ramce z innego originu,
+a wartość zapisuje w tym elemencie przez `Runtime.callFunctionOn`. Wyniki wszystkich
+narzędzi tej sesji przeglądarki przechodzą przez maskowanie wpisanych wartości, a zrzuty
+ekranu i PDF ukrywają je w polach. Strażnik sieci sesji blokuje żądania niosące login do
+obcego originu. Ochrona i maskowanie należą do sesji przeglądarki, więc obowiązują także
+w kolejnym bridge'u tego samego wątku; zamknięcie sesji je czyści.
+Browser Preview ma menu **Fill login** dla właściciela. Opis modelu danych, zgód
+i granic bezpieczeństwa: [Loginy projektu](secrets.md#loginy-projektu).
 
 ## Automatyczny mini Preview
 

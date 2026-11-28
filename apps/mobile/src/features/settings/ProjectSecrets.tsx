@@ -6,6 +6,7 @@ import { useSession } from "../../state/session";
 import { Button, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ProjectSecretForm } from "./ProjectSecretForm";
+import { ProjectLogins } from "./ProjectLogins";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 
 type Open = { mode: "add" } | { mode: "edit"; name: string };
@@ -14,7 +15,7 @@ type Open = { mode: "add" } | { mode: "edit"; name: string };
  * Project details → Secrets: names and update times only, in memory (docs/mobile.md). Values are write only and
  * never come back from the gateway. A row opens its sheet: Replace value, or Delete from the project.
  */
-export function ProjectSecrets({ projectId }: { projectId: string }) {
+export function ProjectSecrets({ projectId, logins = false }: { projectId: string; logins?: boolean }) {
   const resource = useSettingsResource(`ListProjectSecrets:${projectId}`, (api) =>
     api.listProjectSecrets({ projectId }),
   );
@@ -22,8 +23,9 @@ export function ProjectSecrets({ projectId }: { projectId: string }) {
   const { active } = useSession();
   const [open, setOpen] = useState<Open>();
   const [saving, setSaving] = useState(false);
-  const secrets = (resource.data?.secrets ?? []).toSorted((a, b) => a.name.localeCompare(b.name));
-  const names = secrets.map((secret) => secret.name);
+  const all = (resource.data?.secrets ?? []).toSorted((a, b) => a.name.localeCompare(b.name));
+  const names = all.map((secret) => secret.name);
+  const secrets = all.filter((secret) => secret.kind !== "login");
   const close = () => !saving && setOpen(undefined);
 
   const remove = (name: string) =>
@@ -40,6 +42,19 @@ export function ProjectSecrets({ projectId }: { projectId: string }) {
 
   return (
     <ResourceState resource={resource}>
+      {logins && (
+        <ProjectLogins
+          projectId={projectId}
+          logins={all.filter((secret) => secret.kind === "login")}
+          names={names}
+          busy={resource.busy}
+          loaded={Boolean(resource.data)}
+          onDelete={async (name) => Boolean(await resource.run((api) => api.deleteProjectSecret({ projectId, name })))}
+          reload={async () => {
+            await resource.reload();
+          }}
+        />
+      )}
       <SettingsGroup
         title="Secrets"
         description="Agents in this project's threads can ask for these by name."

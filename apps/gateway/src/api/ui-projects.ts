@@ -28,6 +28,7 @@ export function projectsHandlers(
   | "listProjectSecrets"
   | "putProjectSecret"
   | "deleteProjectSecret"
+  | "putProjectLogin"
   | "createWorkspace"
   | "addProject"
   | "cloneProject"
@@ -89,6 +90,14 @@ export function projectsHandlers(
           s.putProjectSecret(userId, request.projectId, request.name, request.value),
         );
 
+        core.secrets.refresh();
+
+        return create(ui.PutProjectSecretResponseSchema, { secret });
+      }),
+
+    putProjectLogin: (request) =>
+      projectSecretWrite(async () => {
+        const secret = await coreRun(core, (s) => s.putProjectLogin(userId, request));
         core.secrets.refresh();
 
         return create(ui.PutProjectSecretResponseSchema, { secret });

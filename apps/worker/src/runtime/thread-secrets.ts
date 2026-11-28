@@ -21,24 +21,42 @@ import { ThreadSecretReceiptSchema, type ThreadSecretDelivery, type ThreadSecret
 
 import { projectSecretGuard, projectSecretValues, redactSecretText, secretPatterns } from "./project-secret-guard.ts";
 import { ProjectSecretTurns } from "./project-secret-turns.ts";
+import { loginRedactionValues } from "./project-login-values.ts";
 import { isWithin } from "../git/worktrees.ts";
 import { canonicalPath } from "../git/checkout-paths.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const activeStores = new Set<ThreadSecretFiles>();
 
+// Output a harness already produced can arrive after the browser session closed.
+const BROWSER_OUTPUT_DRAIN_MS = 30_000;
+
 export function threadSecretRedactionValues(threadId?: string): string[] {
   return [...activeStores].flatMap((store) => store.redactionValues(threadId));
 }
 
+/** Values entered into this thread's browser: masked in its own output only. */
+export function threadBrowserValues(threadId: string): string[] {
+  return [...activeStores].flatMap((store) => store.browserValues(threadId));
+}
+
 /** Provider output masking for both manual and project secrets scoped to the current thread. */
 export function threadSecretOutputGuard(threadId: string) {
-  const values = () => [...threadSecretRedactionValues(threadId), ...projectSecretValues(threadId)];
+  const values = () => [
+    ...threadSecretRedactionValues(threadId),
+    ...projectSecretValues(threadId),
+    ...threadBrowserValues(threadId),
+  ];
 
   return {
     hasValues: () => values().length > 0,
     redact: (text: string) => redactSecretText(text, secretPatterns(values())),
   };
+}
+
+interface BrowserValues {
+  current: Set<string>;
+  readonly closing: Set<{ values: Set<string>; timer: ReturnType<typeof setTimeout> }>;
 }
 
 interface SecretFile {
@@ -47,6 +65,8 @@ interface SecretFile {
   readonly file: string;
   readonly threadId: string;
   readonly turnId: string;
+  /** A browser login lease: the value lives only here, never in a file, and is dropped on removal. */
+  memory?: string;
   revoked: boolean;
   timer?: ReturnType<typeof setTimeout>;
 }
@@ -58,6 +78,7 @@ export class ThreadSecretFiles {
   readonly #redactions = new Map<string, Set<string>>();
   readonly #closed = new Set<string>();
   readonly #entries = new Map<string, SecretFile>();
+  readonly #browser = new Map<string, BrowserValues>();
   readonly #turns = new ProjectSecretTurns((threadId, turnId) => this.#removeProjectFiles(threadId, turnId));
   readonly #projectThreads = new Set<string>();
   #projectTurnsDisabled = false;
@@ -118,7 +139,11 @@ export class ThreadSecretFiles {
       if (previous && (previous.revision > delivery.revision || previous.turnId !== delivery.turnId)) return receipt;
       const expires = delivery.expiresAt ? timestampDate(delivery.expiresAt).getTime() : 0;
       const project = Boolean(delivery.turnId);
-      const eligible = this.projectTurnSignal(delivery.threadId, delivery.turnId);
+
+      const eligible = delivery.memoryOnly
+        ? this.#memoryTurnSignal(delivery.threadId, delivery.turnId)
+        : this.projectTurnSignal(delivery.threadId, delivery.turnId);
+
       const retired = previous && (previous.revoked || previous.expires <= Date.now());
 
       if (
@@ -155,6 +180,8 @@ export class ThreadSecretFiles {
 
         return receipt;
       }
+
+      if (delivery.memoryOnly) return this.#applyMemory(key, delivery, entry, receipt, beforeProjectWrite);
 
       if (!delivery.cwd) return receipt;
       const root = realpathSync(this.root);
@@ -206,8 +233,13 @@ export class ThreadSecretFiles {
         Math.max(0, Math.min(expires - Date.now(), 2_147_483_647)),
       ).unref();
 
-      if (project) this.#turns.add(delivery.threadId, delivery.turnId, delivery.value, file, delivery.requestId);
-      else if (delivery.value) this.#rememberManualValue(delivery.threadId, delivery.value);
+      if (project) {
+        this.#turns.add(delivery.threadId, delivery.turnId, delivery.value, file, delivery.requestId);
+
+        // A login file is JSON: its password and other parts can appear on their own in output.
+        for (const value of delivery.login ? loginRedactionValues(delivery.value) : [])
+          this.#turns.add(delivery.threadId, delivery.turnId, value);
+      } else if (delivery.value) this.#rememberManualValue(delivery.threadId, delivery.value);
       this.#entries.set(key, { ...entry, timer });
       receipt.applied = true;
       receipt.rejected = false;
@@ -218,6 +250,79 @@ export class ThreadSecretFiles {
 
     return receipt;
   }
+  #applyMemory(
+    key: string,
+    delivery: ThreadSecretDelivery,
+    entry: SecretFile,
+    receipt: ThreadSecretReceipt,
+    beforeProjectWrite?: () => boolean,
+  ): ThreadSecretReceipt {
+    const values = loginRedactionValues(delivery.value);
+
+    if (!delivery.turnId || !values.length || (beforeProjectWrite && !beforeProjectWrite())) return receipt;
+    const previous = this.#entries.get(key);
+
+    if (previous?.timer) clearTimeout(previous.timer);
+
+    const timer = setTimeout(
+      () => this.#removeEntry(key, true),
+      Math.max(0, Math.min(entry.expires - Date.now(), 2_147_483_647)),
+    ).unref();
+
+    for (const value of values)
+      this.#turns.add(delivery.threadId, delivery.turnId, value, undefined, delivery.requestId);
+    this.#entries.set(key, { ...entry, file: "", memory: delivery.value, timer });
+    receipt.applied = true;
+    receipt.rejected = false;
+
+    return receipt;
+  }
+
+  /** A browser login lease of the running turn, read by Agent Browser only. */
+  readProjectLogin(threadId: string, turnId: string, requestId: string): string | undefined {
+    if (!UUID.test(threadId) || !UUID.test(requestId) || !this.#memoryTurnSignal(threadId, turnId)) return;
+    const entry = this.#entries.get(`${threadId}/${requestId}`);
+
+    if (!entry?.memory || entry.turnId !== turnId || entry.revoked || entry.expires <= Date.now()) return;
+
+    return entry.memory;
+  }
+
+  /** Values entered into this thread's browser stay masked after the lease ends: the page can still hold them. */
+  rememberBrowserValues(threadId: string, values: readonly string[]): void {
+    if (!UUID.test(threadId) || this.#closed.has(threadId)) return;
+    const known = this.#browser.get(threadId) ?? { current: new Set<string>(), closing: new Set() };
+
+    for (const value of values) if (value) known.current.add(value);
+    this.#browser.set(threadId, known);
+  }
+
+  /**
+   * The browser session ended. Its values stay masked for output already on its way, then go; a session
+   * opened meanwhile keeps its own.
+   */
+  forgetBrowserValues(threadId: string): void {
+    const known = this.#browser.get(threadId);
+
+    if (!known?.current.size) return;
+
+    const closing = {
+      values: known.current,
+      timer: setTimeout(() => known.closing.delete(closing), BROWSER_OUTPUT_DRAIN_MS).unref(),
+    };
+
+    known.current = new Set();
+    known.closing.add(closing);
+  }
+
+  browserValues(threadId: string): string[] {
+    const known = this.#browser.get(threadId);
+
+    if (!known) return [];
+
+    return [...new Set([...known.current, ...[...known.closing].flatMap((closing) => [...closing.values])])];
+  }
+
   beginProjectTurn(threadId: string, turnId: string): void {
     if (this.#projectTurnsDisabled || !UUID.test(threadId) || !turnId || this.#closed.has(threadId)) return;
     this.#projectThreads.add(threadId);
@@ -226,6 +331,10 @@ export class ThreadSecretFiles {
 
   projectTurnSignal(threadId: string, turnId: string): AbortSignal | undefined {
     return this.#closed.has(threadId) ? undefined : this.#turns.signal(threadId, turnId);
+  }
+
+  #memoryTurnSignal(threadId: string, turnId: string): AbortSignal | undefined {
+    return this.#closed.has(threadId) ? undefined : this.#turns.memorySignal(threadId, turnId);
   }
 
   requestProjectTurnSignal(threadId: string, turnId: string): AbortSignal | undefined {
@@ -237,6 +346,7 @@ export class ThreadSecretFiles {
 
     return [...this.#entries.values()].some(
       (entry) =>
+        Boolean(entry.file) &&
         entry.file === file &&
         entry.threadId === threadId &&
         entry.turnId === turnId &&
@@ -301,12 +411,13 @@ export class ThreadSecretFiles {
 
     if (!entry) return;
     entry.revoked = true;
+    delete entry.memory;
 
     if (entry.timer) clearTimeout(entry.timer);
     delete entry.timer;
 
     try {
-      rmSync(entry.file, { force: true });
+      if (entry.file) rmSync(entry.file, { force: true });
 
       if (!keepRevision) this.#entries.delete(key);
     } catch {
@@ -317,6 +428,7 @@ export class ThreadSecretFiles {
   closeThread(threadId: string): void {
     if (!UUID.test(threadId)) throw new Error("invalid thread secret owner");
     this.#closed.add(threadId);
+    this.forgetBrowserValues(threadId);
     projectSecretGuard(threadId).reset();
     this.#turns.finishThread(threadId);
     this.#projectThreads.delete(threadId);
@@ -347,6 +459,9 @@ export class ThreadSecretFiles {
     for (const entry of this.#entries.values()) if (entry.timer) clearTimeout(entry.timer);
     this.#entries.clear();
     this.#redactions.clear();
+
+    for (const known of this.#browser.values()) for (const closing of known.closing) clearTimeout(closing.timer);
+    this.#browser.clear();
     this.#closed.clear();
 
     for (const name of readdirSync(this.root)) rmSync(join(this.root, name), { recursive: true, force: true });

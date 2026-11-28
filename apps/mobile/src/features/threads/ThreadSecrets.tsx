@@ -22,11 +22,14 @@ export function ThreadSecrets({ secrets, disabled }: { secrets: readonly ui.Thre
   }, [active]);
 
   if (!pending.length) return null;
+  const logins = pending.every((secret) => secret.kind === "login");
+  const noun = logins ? "Review login request" : "Provide secret";
+  const nouns = logins ? "Review login requests" : "Provide secrets";
 
   return (
     <>
       <Button
-        title={pending.length === 1 ? "Provide secret" : `Provide secrets (${pending.length})`}
+        title={pending.length === 1 ? noun : `${nouns} (${pending.length})`}
         icon="lock-closed"
         disabled={disabled}
         onPress={() => setOpen(true)}
@@ -34,9 +37,13 @@ export function ThreadSecrets({ secrets, disabled }: { secrets: readonly ui.Thre
       <Sheet title="Thread secrets" visible={open && active} onClose={() => setOpen(false)}>
         {open && active && (
           <>
-            {pending.map((secret) => (
-              <SecretRequest key={secret.requestId} secret={secret} disabled={disabled} />
-            ))}
+            {pending.map((secret) =>
+              secret.kind === "login" ? (
+                <LoginRequest key={secret.requestId} secret={secret} disabled={disabled} />
+              ) : (
+                <SecretRequest key={secret.requestId} secret={secret} disabled={disabled} />
+              ),
+            )}
             <SecretGrants secrets={secrets} disabled={disabled} />
           </>
         )}
@@ -132,6 +139,57 @@ function SecretRequest({ secret, disabled }: { secret: ui.ThreadSecret; disabled
   );
 }
 
+/** A project login set to ask each time: the agent waits until the owner allows it for this turn or declines. */
+function LoginRequest({ secret, disabled }: { secret: ui.ThreadSecret; disabled: boolean }) {
+  const c = useColors();
+  const type = useTypography();
+  const { client } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const site = secret.origin.replace(/^https:\/\//, "") || "a website";
+  const file = secret.access === "file";
+
+  async function send(decline: boolean) {
+    if (!client || disabled || busy) return;
+    setBusy(true);
+    setError("");
+
+    try {
+      await client.api.answerThreadSecret({ requestId: secret.requestId, decline, value: "" });
+    } catch {
+      setError("Could not send your answer. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Text style={[styles.body, { color: c.text }]}>
+        {file ? "Give login " : "Use login "}
+        <Text style={{ fontFamily: type.mono.fontFamily }}>{secret.projectSecret}</Text>
+        {file ? " to the agent’s commands?" : "?"}
+      </Text>
+      <Text style={[styles.body, { color: c.muted }]}>
+        {file
+          ? "The agent wants it as a private file for scripts or API tests. Its commands can read the password."
+          : `The agent wants to sign in on ${site}. Canopy enters the password. The agent never sees it.`}
+      </Text>
+      <View style={[styles.row, { flexWrap: "wrap" }]}>
+        <Button
+          title="Allow for this turn"
+          variant="primary"
+          disabled={disabled}
+          busy={busy}
+          onPress={() => void send(false)}
+        />
+        <Button title="Decline" disabled={disabled || busy} onPress={() => void send(true)} />
+      </View>
+      {error ? <Notice error>{error}</Notice> : null}
+    </View>
+  );
+}
+
 /** Active grants contain metadata only; a saved value is never returned by the API. */
 export function SecretGrants({ secrets, disabled }: { secrets: readonly ui.ThreadSecret[]; disabled: boolean }) {
   const now = useLiveTime(secrets.some((secret) => secret.status === "saved" && !!secret.expiresAt));
@@ -186,7 +244,15 @@ function SecretGrant({ secret, disabled }: { secret: ui.ThreadSecret; disabled: 
           >
             {name}
           </Text>
-          {secret.projectSecret ? <Text style={[styles.meta, { color: c.muted }]}>Project secret</Text> : null}
+          {secret.projectSecret ? (
+            <Text style={[styles.meta, { color: c.muted }]}>
+              {secret.kind !== "login"
+                ? "Project secret"
+                : secret.access === "file"
+                  ? "Project login · file for this turn"
+                  : `Project login · ${secret.origin.replace(/^https:\/\//, "") || "browser"} for this turn`}
+            </Text>
+          ) : null}
           {secret.expiresAt && (
             <Text style={[styles.meta, { color: c.muted }]}>
               {`Expires ${new Date(timestampMs(secret.expiresAt)).toLocaleString()}`}

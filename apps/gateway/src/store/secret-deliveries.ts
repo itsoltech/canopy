@@ -87,6 +87,8 @@ export function secretDeliveries(sql: SqlClient.SqlClient, key: Buffer, worker: 
                     : "",
                 ...(r.expires_at && { expiresAt: timestampFromDate(new Date(r.expires_at)) }),
                 remove: r.status !== "saved" || !r.expires_at || new Date(r.expires_at).getTime() <= Date.now(),
+                memoryOnly: false,
+                login: false,
               },
             ],
       ),

@@ -2,10 +2,17 @@ import { create, toBinary } from "@bufbuild/protobuf";
 import {
   AgentTool,
   AgentPreviewInputBatchSchema,
+  AgentPreviewInputSchema,
   RunAgentToolSchema,
   type AgentPreviewInput,
   type StartAgentPreview,
 } from "@canopy/contracts";
+import {
+  LOGIN_NAME_MAX,
+  LOGIN_PREVIEW_TEXT_MAX_BYTES,
+  LOGIN_WEBSITE_MAX,
+  LOGIN_WEBSITES_MAX,
+} from "@canopy/domain/project-logins";
 import { agentToolSession } from "../agent-tools/scope.ts";
 
 const INPUT_KINDS = new Set([
@@ -24,6 +31,8 @@ const INPUT_KINDS = new Set([
   "release",
   "resize",
   "tab",
+  // A project login field the owner chose; the gateway resolved the value (browser only).
+  "login-text",
 ]);
 
 export function previewScope(start: StartAgentPreview) {
@@ -58,11 +67,40 @@ export function previewScope(start: StartAgentPreview) {
   });
 }
 
+const LOGIN_FIELDS = new Set(["username", "password", "one_time_code"]);
+
+/** A project login value the gateway resolved: bounded by the login limits, never by keyboard input's. */
+function validateLogin(input: AgentPreviewInput): void {
+  const login = input.login;
+
+  if ((input.kind === "login-text") !== Boolean(login)) throw new Error("Unsupported preview login input");
+
+  if (!login) return;
+
+  if (
+    !login.name ||
+    login.name.length > LOGIN_NAME_MAX ||
+    !login.text ||
+    Buffer.byteLength(login.text) > LOGIN_PREVIEW_TEXT_MAX_BYTES ||
+    login.text.includes("\0") ||
+    !login.websites.length ||
+    login.websites.length > LOGIN_WEBSITES_MAX ||
+    login.websites.some((website) => !website || website.length > LOGIN_WEBSITE_MAX) ||
+    !LOGIN_FIELDS.has(login.field) ||
+    (login.field === "one_time_code") !== login.expiresAtMs > 0n
+  )
+    throw new Error("Preview login input exceeds its limit");
+}
+
 export function validatePreviewInputs(inputs: readonly AgentPreviewInput[], previewId = ""): void {
+  // The batch limit covers pointer and keyboard input; a login value has its own bound (one per batch).
+  const bounded = inputs.map((input) => (input.login ? create(AgentPreviewInputSchema, { kind: input.kind }) : input));
+
   if (
     !inputs.length ||
     inputs.length > 64 ||
-    toBinary(AgentPreviewInputBatchSchema, create(AgentPreviewInputBatchSchema, { previewId, inputs: [...inputs] }))
+    inputs.filter((input) => input.login).length > 1 ||
+    toBinary(AgentPreviewInputBatchSchema, create(AgentPreviewInputBatchSchema, { previewId, inputs: bounded }))
       .byteLength >
       32 * 1024
   )
@@ -70,6 +108,7 @@ export function validatePreviewInputs(inputs: readonly AgentPreviewInput[], prev
 
   for (const input of inputs) {
     if (!INPUT_KINDS.has(input.kind)) throw new Error("Unsupported preview input kind");
+    validateLogin(input);
 
     if (
       Buffer.byteLength(input.text) > 8192 ||

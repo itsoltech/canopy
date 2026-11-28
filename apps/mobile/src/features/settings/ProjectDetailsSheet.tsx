@@ -86,7 +86,9 @@ export function ProjectDetailsSheet({
           onOpen={() => openSettingsSection("worktrees", { projectId: project.id })}
         />
       )}
-      {secrets && <ProjectSecrets projectId={project.id} />}
+      {secrets && (
+        <ProjectSecrets projectId={project.id} logins={!!capabilities.data?.methods.includes("PutProjectLogin")} />
+      )}
       {!project.nodeId && project.kind === "project" && (
         <SettingsGroup>
           <SettingsRow

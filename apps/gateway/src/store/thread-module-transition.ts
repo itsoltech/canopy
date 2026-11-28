@@ -29,6 +29,8 @@ export function applyThreadModuleTransition(sql: SqlClient.SqlClient, owner: str
         AND t.owner_user_id = ${owner}::uuid AND s.status IN ('pending', 'saved')`;
       yield* sql`UPDATE project_secret_leases SET status='expired',revision=revision+1,file_path=NULL
         WHERE owner_user_id=${owner}::uuid AND status='saved'`;
+      yield* sql`UPDATE project_login_decisions SET status='expired',revision=revision+1
+        WHERE owner_user_id=${owner}::uuid AND status IN ('pending','allowed')`;
       yield* suspendThreadSteers(sql, owner);
       yield* sql`UPDATE goals g SET status = 'paused', resume_after_module_enable = TRUE, updated_at = now()
         FROM threads t WHERE t.id = g.thread_id AND t.owner_user_id = ${owner}::uuid AND g.status = 'active'`;

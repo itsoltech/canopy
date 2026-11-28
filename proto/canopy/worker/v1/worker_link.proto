@@ -148,6 +148,10 @@ message ThreadSecretDelivery {
   string cwd = 7;
   // Set for a project secret lease; requires the project_secret_leases_v1 capability.
   string turn_id = 8;
+  // Keep the value in worker memory for Agent Browser only; write no file. Requires project_logins_v1.
+  bool memory_only = 9;
+  // The value is a project login (JSON); mask its parts in output too. Requires project_logins_v1.
+  bool login = 10;
 }
 
 message ThreadSecretReceipt {

@@ -1,9 +1,20 @@
 import type { JsonValue } from "@canopy/domain";
+import { z } from "zod";
 import { isJsonObject, isString } from "./json.ts";
 
 /** Redact JSON keys and values, keeping the input itself when nothing changed. */
 export function redactToolOutput(value: JsonValue, redact: (text: string) => string): JsonValue {
   if (isString(value)) return redact(value);
+
+  // An all-digit secret can come back as a JSON number.
+  const number = z.number().safeParse(value);
+
+  if (number.success) {
+    const text = String(number.data);
+    const masked = redact(text);
+
+    return masked === text ? value : masked;
+  }
 
   if (Array.isArray(value)) {
     const redacted = value.map((item) => redactToolOutput(item, redact));
