@@ -17,6 +17,7 @@ import { type CommandInit } from "../worker-link/index.ts";
 import {
   checkMentions,
   composeMessage,
+  githubMentionTarget,
   joinNotes,
   MentionError,
   numberAttachmentMarkers,
@@ -39,6 +40,8 @@ import { coreWorkers } from "./core-providers.ts";
 import { coreUiThread } from "./core-titles.ts";
 import type { PlacedFile } from "./core-attachments.ts";
 import { coreRun } from "./core-broadcast.ts";
+import { githubName } from "../github/discovery.ts";
+import type { IssueScope } from "../connectors/issue-access.ts";
 
 /** Worker, provider, profile and folder of a thread, or of a new thread in a workspace. */
 export async function coreMentionScope(
@@ -149,6 +152,33 @@ export async function coreWorkerQuery(
   return result;
 }
 
+async function checkIssueAccess(core: GatewayCore, scope: IssueScope, issues: Mention[]) {
+  const { accounts, placement } = await coreRun(core, (s) =>
+    s.connectors.issueSources(core[coreState].options.userId, scope),
+  );
+
+  const remaining = issues.filter((m) => !accounts.some((a) => a.id === m.source && a.provider === m.issue?.provider));
+
+  if (!remaining.length) return;
+  const repository = githubName(placement.git_origin);
+
+  if (!repository || remaining.some((m) => m.issue?.provider !== "github"))
+    throw new InvalidError("This connector account is unavailable here. Check project access or remove the mention.");
+  const denied = "This GitHub reference is unavailable here. Check repository access or remove the mention.";
+
+  for (const mention of remaining) {
+    // checkMentions has already validated the URL, key, and snapshot together.
+    const url = new URL(mention.path);
+
+    if (url.origin !== "https://github.com" || githubMentionTarget(url)?.repository.toLowerCase() !== repository)
+      throw new InvalidError(denied);
+  }
+
+  const selection = await core.github.prs.repositories.get(repository);
+
+  if (remaining.some((m) => m.source !== selection.accountId)) throw new InvalidError(denied);
+}
+
 /**
  * A user's message with mentions: checked against the text, files resolved to their path on the worker, threads
  * to the user's own (their title as the label), placed attachments to the message's own files (`attachments`: by
@@ -174,17 +204,12 @@ export async function coreMessageMentions(
 
   const issues = checked.filter((m) => m.kind === MentionKind.ISSUE);
 
-  if (issues.length) {
-    const sources = await coreRun(hostContext, (s) =>
-      s.connectors.issueSources(hostContext[coreState].options.userId, {
-        ...(thread.id && { threadId: thread.id }),
-        ...(thread.workspaceId && { workspaceId: thread.workspaceId }),
-      }),
+  if (issues.length)
+    await checkIssueAccess(
+      hostContext,
+      { ...(thread.id && { threadId: thread.id }), ...(thread.workspaceId && { workspaceId: thread.workspaceId }) },
+      issues,
     );
-
-    if (issues.some((m) => !sources.accounts.some((a) => a.id === m.source && a.provider === m.issue?.provider)))
-      throw new InvalidError("This connector account is unavailable here. Check project access or remove the mention.");
-  }
 
   const command = checked.find(isPlatformCommand);
 

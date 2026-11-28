@@ -39,7 +39,7 @@ export function attachmentsHandlers(
 
     searchFiles: (request) => guard(() => core.searchFiles(request)),
 
-    searchIssues: (request, context) => guard(() => core.connectors.searchIssues(request, context.signal)),
+    searchIssues: (request, context) => guard(() => core.connectors.searchIssues(request, context.signal, core.github)),
 
     searchThreads: (request) => guard(() => core.searchThreads(request)),
   };

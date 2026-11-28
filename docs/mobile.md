@@ -135,7 +135,7 @@ z którego je otwarto. Menu sekcji na telefonie i panel boczny na tablecie zacho
 wyszukiwanie i pozycję listy. Każda odwiedzona sekcja ma własną pozycję przewinięcia
 na czas otwarcia ustawień.
 
-Status (2026-11-23): w kompozytorze wspólna lista `#` wyszukuje wątki, zgłoszenia Linear, Jira i GitHub oraz pull requesty GitHub.
+Status (2026-11-28): w kompozytorze wspólna lista `#` wyszukuje wątki, zgłoszenia Linear, Jira i GitHub oraz pull requesty GitHub. Dla repozytorium workspace’u korzysta także z konta w Settings → GitHub.
 Szczegóły projektu pozwalają zapisać kolor i przywrócić dobór automatyczny.
 
 Status: opis zaimplementowanego kodu (2026-11-23), w tym czterech wariantów ikony Canopy

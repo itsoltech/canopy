@@ -36,6 +36,7 @@ import { connectorToolCatalog, SLACK_POST_ACTION, slackPostName } from "./slack-
 import { supportsSlackDownload } from "./slack-download-tool.ts";
 import { canDownloadSlackOnWorker } from "./slack-download.ts";
 import { searchIssues } from "./issue-search.ts";
+import type { GitHubAccounts } from "../github/service.ts";
 import { worktreeMerged } from "./merged-pr.ts";
 import { connectorTestError, ConnectorTestFailure } from "./test-error.ts";
 
@@ -85,8 +86,8 @@ export class ConnectorsRuntime {
       signal,
     );
   }
-  searchIssues(request: ui.SearchIssuesRequest, signal: AbortSignal) {
-    return searchIssues(this, (id) => this.#connection(this.options.userId, id), this.options.userId, request, signal);
+  searchIssues(request: ui.SearchIssuesRequest, signal: AbortSignal, github: GitHubAccounts) {
+    return searchIssues(this, (id) => this.#connection(this.options.userId, id), github, request, signal);
   }
 
   async list(request: connectors.ListConnectorsRequest) {

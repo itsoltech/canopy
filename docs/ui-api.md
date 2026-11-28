@@ -74,7 +74,7 @@ Status (2026-11-24): w web i desktopie lokalny wątek można przeciągnąć do P
 Status (2026-11-24): web i desktop zgłaszają odczyt, gdy wczytany koniec rozmowy
 jest widoczny. Sidebar aktualizuje etykietę po zmianie w overview.
 
-Status (2026-11-23): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu GitHub w kompozytorze nowego i istniejącego wątku.
+Status (2026-11-28): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu w kompozytorze nowego i istniejącego wątku. Wyszukiwanie korzysta też z konta GitHub repozytorium workspace’u.
 
 Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
 
@@ -2684,7 +2684,7 @@ Na ekranach poniżej `40rem` lub ze wskaźnikiem `coarse` sugestie są części�
 | `SendMessageResponse.goal` | wiadomość z komendą platformy `/goal`: reszta tekstu to cel (`SetGoal set`), a wskazane zgłoszenie lub pull request wnosi do celu klucz, tytuł i URL; Codex bez tury, Claude z turą celu |
 | `ListMentionCatalog` | `{scope, refresh}` → `MentionCatalog` (`entries`: kind, name, label, description, argument_hint, source, path, icon, aliases, plugin, color; `notes`: czego brakuje i dlaczego). Najpierw komendy platformy (`/goal`), potem katalog harnessu z workera. Pamięć: gateway 30 s, worker (Claude) 5 min albo do zmiany katalogów skilli/komend; `refresh` omija obie |
 | `SearchFiles` | `{scope, query, limit}` → `FileSearchResult` (`matches`: path, is_dir, indices; `truncated`; `source`: git / walk). Wyszukiwanie na workerze, tylko w folderze wątku |
-| `SearchIssues` | `{scope, query, limit, include_pull_requests}` → zgłoszenia i opcjonalnie pull requesty z kont konektorów dostępnych w projekcie, z kluczem, tytułem, URL i opisem |
+| `SearchIssues` | `{scope, query, limit, include_pull_requests}` → zgłoszenia i opcjonalnie pull requesty z repozytorium GitHub workspace’u oraz z kont konektorów dostępnych w tym zakresie, z kluczem, tytułem, URL i opisem |
 | `SearchThreads` | `{query, exclude_thread_id, limit}` → wątki użytkownika po tytule (fuzzy), przy równym dopasowaniu najnowsza aktywność; bez workera |
 
 `MentionScope`: istniejący wątek (`thread_id`) albo nowy (`workspace_id`, dostawca, profil, opcjonalnie `cwd`). Worker offline: `Unavailable` z nazwą workera, popup to pokazuje.

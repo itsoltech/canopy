@@ -7,6 +7,8 @@ import { Effect } from "effect";
 import { listMcpTools, withMcp } from "../bots/mcp.ts";
 import type { McpConnection } from "../bots/types.ts";
 import { githubName } from "../github/discovery.ts";
+import { searchGitHubMentions } from "../github/issue-mentions.ts";
+import type { GitHubAccounts } from "../github/service.ts";
 import { Invalid } from "../store/errors.ts";
 import type { IssueAccount } from "./issue-access.ts";
 import { searchProviderIssues } from "./issue-providers.ts";
@@ -15,6 +17,8 @@ import type { AccountRow, Credentials } from "./records.ts";
 import type { ConnectorsRuntime } from "./runtime.ts";
 
 type ConnectAccount = (accountId: string) => Promise<{ row: AccountRow; server: McpConnection; value: Credentials }>;
+
+const githubUrlKey = (url: string) => url.toLowerCase().replace(/\/$/, "");
 
 interface SearchContext {
   connect: ConnectAccount;
@@ -87,50 +91,8 @@ async function searchAccount(context: SearchContext, account: IssueAccount) {
   });
 }
 
-export async function searchIssues(
-  runtime: Pick<ConnectorsRuntime, "run">,
-  connect: ConnectAccount,
-  owner: string,
-  request: ui.SearchIssuesRequest,
-  callerSignal: AbortSignal,
-) {
-  const query = request.query.trim();
-
-  if (query.length > 256 && !parseIssueUrl(query)) throw new Invalid("Use a search of 256 characters or fewer");
-  const read = () => runtime.run((store) => store.issueSources(owner, request.scope));
-  const { accounts, placement } = await read();
-  const response = create(ui.SearchIssuesResponseSchema, { connectedSources: accounts.length });
-
-  if (!accounts.length) return response;
-  const limit = Math.min(request.limit || 20, 50);
-  const signal = AbortSignal.any([callerSignal, AbortSignal.timeout(25_000)]);
-
-  const context: SearchContext = {
-    connect,
-    query,
-    includePullRequests: request.includePullRequests,
-    limit,
-    signal,
-    repository: githubName(placement.git_origin),
-    audit: async (account, tool, outcome) => {
-      await runtime.run((store) =>
-        store.audit(
-          {
-            userId: owner,
-            workerId: placement.worker_id,
-            accountId: account.id,
-            ...(request.scope?.threadId && { threadId: request.scope.threadId }),
-          },
-          tool,
-          outcome,
-        ),
-      );
-    },
-    granted: async (account) =>
-      (await read()).accounts.some((a) => a.id === account.id && a.revision === account.revision),
-  };
-
-  const pages = await Effect.runPromise(
+function searchConnectors(accounts: readonly IssueAccount[], context: SearchContext) {
+  return Effect.runPromise(
     Effect.forEach(
       accounts,
       (account) =>
@@ -148,20 +110,82 @@ export async function searchIssues(
       { concurrency: 4 },
     ),
   );
+}
+
+export async function searchIssues(
+  runtime: Pick<ConnectorsRuntime, "run">,
+  connect: ConnectAccount,
+  github: GitHubAccounts,
+  request: ui.SearchIssuesRequest,
+  callerSignal: AbortSignal,
+) {
+  const owner = github.owner;
+  const query = request.query.trim();
+
+  if (query.length > 256 && !parseIssueUrl(query)) throw new Invalid("Use a search of 256 characters or fewer");
+  const read = () => runtime.run((store) => store.issueSources(owner, request.scope));
+  const { accounts, placement } = await read();
+  const repository = githubName(placement.git_origin);
+  const limit = Math.min(request.limit || 20, 50);
+  const signal = AbortSignal.any([callerSignal, AbortSignal.timeout(25_000)]);
+  const response = create(ui.SearchIssuesResponseSchema);
+
+  if (!repository && !accounts.length) return response;
+
+  const [native, pages] = await Promise.all([
+    searchGitHubMentions(github, repository, query, request.includePullRequests, limit, signal),
+    searchConnectors(accounts, {
+      connect,
+      query,
+      includePullRequests: request.includePullRequests,
+      limit,
+      signal,
+      repository,
+      audit: async (account, tool, outcome) => {
+        await runtime.run((store) =>
+          store.audit(
+            {
+              userId: owner,
+              workerId: placement.worker_id,
+              accountId: account.id,
+              ...(request.scope?.threadId && { threadId: request.scope.threadId }),
+            },
+            tool,
+            outcome,
+          ),
+        );
+      },
+      granted: async (account) =>
+        (await read()).accounts.some((a) => a.id === account.id && a.revision === account.revision),
+    }),
+  ]);
 
   if (callerSignal.aborted) throw new ConnectError("Issue search cancelled", Code.Canceled);
-  // A grant can disappear while a provider is sending its response. Drop that page and its account label.
-  const current = (await read()).accounts;
+  // Access or the workspace origin can change while another source is still sending its response.
+  const current = await read();
   const matches: { rank: number; issue: ui.IssueSearchMatch }[] = [];
-  response.connectedSources = 0;
+  const nativeUrls = new Set<string>();
+
+  if (repository === githubName(current.placement.git_origin) && (!native.isCurrent || (await native.isCurrent()))) {
+    response.connectedSources = native.connectedSources;
+    response.warnings.push(...native.warnings);
+
+    native.issues.forEach((issue, rank) => {
+      nativeUrls.add(githubUrlKey(issue.url));
+      matches.push({ issue, rank: exactTrackerMatch(issue, query) ? -1 : rank });
+    });
+  }
 
   for (const { account, issues, warning } of pages) {
-    if (!current.some((a) => a.id === account.id && a.revision === account.revision)) continue;
+    if (!current.accounts.some((a) => a.id === account.id && a.revision === account.revision)) continue;
     response.connectedSources++;
 
     if (warning) response.warnings.push(warning);
 
-    issues.forEach((issue, rank) => matches.push({ issue, rank: exactTrackerMatch(issue, query) ? -1 : rank }));
+    issues.forEach((issue, rank) => {
+      if (issue.provider === "github" && nativeUrls.has(githubUrlKey(issue.url))) return;
+      matches.push({ issue, rank: exactTrackerMatch(issue, query) ? -1 : rank });
+    });
   }
 
   response.issues = matches
