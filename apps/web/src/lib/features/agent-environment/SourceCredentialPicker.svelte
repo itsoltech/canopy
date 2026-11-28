@@ -1,8 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ClassValue } from "svelte/elements";
-  import { connectors } from "@canopy/contracts";
-  import { eligibleSourceAccounts, type SourceKind } from "@canopy/domain/source-access";
+  import { connectors, type github } from "@canopy/contracts";
+  import {
+    eligibleSourceAccounts,
+    sourceGitHubAccount,
+    sourceGitHubRepository,
+    sourceUrl,
+    type SourceKind,
+  } from "@canopy/domain/source-access";
+  import { accounts as listGitHubAccounts } from "#lib/features/github/api.ts";
   import { requestJson } from "#lib/shared/http.ts";
   import { decode } from "#lib/shared/wire.ts";
   import Field from "#lib/shared/ui/Field.svelte";
@@ -12,38 +19,53 @@
   let {
     command,
     kind,
-    account = $bindable(),
+    accountId = $bindable(""),
     disabled = false,
     onchange,
     class: className,
   }: {
     command: string;
     kind: SourceKind;
-    account?: connectors.ConnectorAccount | undefined;
+    accountId?: string;
     disabled?: boolean;
     onchange: () => void;
     class?: ClassValue;
   } = $props();
 
   let accounts = $state.raw<connectors.ConnectorAccount[]>();
-  let error = $state("");
-  const eligible = $derived(eligibleSourceAccounts(command, kind, accounts ?? (account ? [account] : [])));
+  let githubAccounts = $state.raw<github.GitHubAccount[]>();
+  let connectorError = $state(false);
+  let githubError = $state(false);
+  let githubRequested = false;
+  const repository = $derived(sourceGitHubRepository(sourceUrl(command, kind)));
+  const eligible = $derived(eligibleSourceAccounts(command, kind, accounts ?? [], githubAccounts ?? []));
 
   $effect(() => {
-    if (account && !eligible.some((item) => item.id === account?.id)) {
-      account = undefined;
+    const loaded = sourceGitHubAccount(accountId) ? !repository || githubAccounts : accounts;
+
+    if (loaded && accountId && !eligible.some((item) => item.id === accountId)) {
+      accountId = "";
       onchange();
     }
   });
 
+  $effect(() => {
+    if (!repository || githubRequested) return;
+    githubRequested = true;
+    void listGitHubAccounts("")
+      .then((response) => (githubAccounts = response.accounts))
+      .catch(() => {
+        githubAccounts = [];
+        githubError = true;
+      });
+  });
+
   onMount(() => {
     void requestJson("GET", "/api/connectors")
-      .then((data) => {
-        accounts = decode(connectors.ListConnectorsResponseSchema, data).accounts;
-      })
+      .then((data) => (accounts = decode(connectors.ListConnectorsResponseSchema, data).accounts))
       .catch(() => {
         accounts = [];
-        error = "Couldn't load connector accounts. Open Settings → Connectors to check access.";
+        connectorError = true;
       });
   });
 </script>
@@ -53,18 +75,21 @@
     <Select
       class="min-w-0"
       name="skill-source-account"
-      value={account?.id ?? ""}
+      value={accountId}
       {disabled}
       options={[
         { value: "", label: kind === "skill" ? "Public source" : "Public repository · no credentials" },
-        ...eligible.map((a) => ({ value: a.id, label: `${a.name} · ${new URL(a.url).host}` })),
+        ...eligible.map((a) => ({ value: a.id, label: a.label })),
       ]}
       onchange={(id) => {
-        account = eligible.find((item) => item.id === id);
+        accountId = id;
         onchange();
       }}
     />
   </Field>
-{:else if error}
-  <Alert tone="warning" class={className}>{error}</Alert>
+{/if}
+{#if connectorError || (repository && githubError)}
+  <Alert tone="warning" class={className}
+    >Couldn’t load all source accounts. Check the connection and reopen this panel.</Alert
+  >
 {/if}

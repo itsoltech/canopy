@@ -3,6 +3,7 @@ import {
   ANTIGRAVITY_ACP_CAPABILITY,
   SKILL_INSTALLER_CAPABILITY,
 } from "@canopy/domain/release/protocol";
+import type { GitHubAccounts } from "../github/service.ts";
 import { harnessOf } from "@canopy/domain/harnesses";
 import { create, fromJson, toJson, type JsonValue } from "@bufbuild/protobuf";
 import {
@@ -64,6 +65,7 @@ export class AgentEnvironment {
       link: WorkerLink;
       changed: () => void;
       sources?: SourceOptions;
+      github?: GitHubAccounts;
     },
   ) {
     this.db = new EnvironmentDatabase(options.runtime, options.userId);

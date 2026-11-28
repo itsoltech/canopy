@@ -341,6 +341,7 @@ export class GatewayCore {
     this.agentTools = createCoreAgentTools(this, options);
     this.agentPreviews = new AgentPreviews(this);
     this.environment = new AgentEnvironment({
+      github: this.github,
       ...(options.skillSources && { sources: options.skillSources }),
       runtime: options.runtime,
       userId: options.userId,

@@ -14,7 +14,7 @@ class CacheReadTimeout extends ConnectError {
   }
 }
 
-async function waitForRead<T>(reading: Promise<T>, signal: AbortSignal): Promise<T> {
+export async function waitForRead<T>(reading: Promise<T>, signal: AbortSignal): Promise<T> {
   const aborted = Promise.withResolvers<never>();
   const listener = addAbortListener(signal, () => aborted.reject(signal.reason));
 

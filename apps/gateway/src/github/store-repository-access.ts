@@ -8,6 +8,19 @@ export interface RepositoryAccessRow extends AccountRow {
 
 export function githubRepositoryAccess(sql: SqlClient.SqlClient) {
   return {
+    sourceAccount: (owner: string, githubUser: string) => sql<{ id: string; auth_kind: string }>`
+      SELECT id,auth_kind FROM github_accounts WHERE owner_user_id=${owner}::uuid AND host='github.com'
+        AND github_user_id=${githubUser} AND status='connected'`,
+    sourceInstallation: (owner: string, account: string, name: string) => sql<{
+      repository_id: string;
+      revision: bigint;
+    }>`
+      SELECT r.repository_id,a.revision FROM github_installation_repositories r
+      JOIN github_installations i USING(owner_user_id,account_id,installation_id)
+      JOIN github_accounts a ON a.owner_user_id=r.owner_user_id AND a.id=r.account_id
+      WHERE r.owner_user_id=${owner}::uuid AND r.account_id=${account}::uuid AND lower(r.full_name)=lower(${name})
+        AND a.status='connected' AND a.auth_kind='device' AND NOT i.suspended
+        AND i.permissions->>'contents' IN ('read','write')`,
     connectedGitHubAccounts: (owner: string) => sql<AccountRow>`SELECT * FROM github_accounts
       WHERE owner_user_id=${owner}::uuid AND status='connected' ORDER BY id`,
     repositoryAccess: (owner: string, name: string) => sql<RepositoryAccessRow>`

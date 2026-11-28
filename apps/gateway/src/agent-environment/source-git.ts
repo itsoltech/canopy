@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { create } from "@bufbuild/protobuf";
 import { SkillFileSchema, type ui } from "@canopy/contracts";
 import { SKILL_FILE_BYTES, SKILL_TOTAL_BYTES } from "@canopy/domain/skill-artifact";
+import { GitHubSource } from "./source-github.ts";
 import { sourceInvalid } from "./source-command.ts";
 import { publicSourceAddress } from "./source-address.ts";
 
@@ -235,14 +236,20 @@ function gitBlobs(run: RunGit, sizes: Map<string, number>, fetch: (oids: string)
   };
 }
 
+export type SourceReader<A> = (commit: string, entries: GitEntry[], blobs: ReturnType<typeof gitBlobs>) => Promise<A>;
+
+export type SourceAccess = string | GitHubSource;
+
 export async function readGitSource<A>(
   source: ui.SkillSource,
-  authorization: string,
+  authorization: SourceAccess,
   transport: SourceTransport,
-  read: (commit: string, entries: GitEntry[], blobs: ReturnType<typeof gitBlobs>) => Promise<A>,
+  read: SourceReader<A>,
   selective = false,
 ): Promise<A> {
   transport.signal?.throwIfAborted();
+
+  if (authorization instanceof GitHubSource) return authorization.read(source.ref, selective, read, transport.signal);
   const url = new URL(source.url);
   const fixture = transport.fixtureRepo?.(source.url);
 

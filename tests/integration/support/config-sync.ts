@@ -11,8 +11,10 @@ export async function configComputer(
   name: string,
   capabilities?: string[],
   skillSources?: NonNullable<Parameters<typeof startTestGateway>[0]>["skillSources"],
+  github?: NonNullable<Parameters<typeof startTestGateway>[0]>["github"],
 ) {
-  let gateway = await startTestGateway({ role: "desktop", ...(skillSources && { skillSources }) });
+  const options = { role: "desktop", ...(skillSources && { skillSources }), ...(github && { github }) } as const;
+  let gateway = await startTestGateway(options);
   let store = new ComputerStore(gateway.runtime, gateway.userId, gateway.secretsKey);
   let links = makeLinks();
 
@@ -91,7 +93,7 @@ export async function configComputer(
       await gateway.close(true);
 
       try {
-        gateway = await startTestGateway({ role: "desktop", storage, ...(skillSources && { skillSources }) });
+        gateway = await startTestGateway({ ...options, storage });
       } catch (error) {
         await storage.pg.stop();
         throw error;

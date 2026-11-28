@@ -11,7 +11,7 @@ import {
 } from "@canopy/domain/skill-artifact";
 import { Schema } from "effect";
 import { sourceInvalid, type parseSourceCommand } from "./source-command.ts";
-import { gitFile, readGitSource, type SourceTransport, type GitEntry } from "./source-git.ts";
+import { gitFile, readGitSource, type SourceAccess, type SourceTransport, type GitEntry } from "./source-git.ts";
 import type { WebsiteTransport } from "./source-https.ts";
 import { sourcePreview, visibleSourceSkill } from "./source-preview.ts";
 import { probeWebsite, readWebsiteSource } from "./source-website.ts";
@@ -117,7 +117,7 @@ async function discoveryRoots(
 
 export async function discoverSource(
   parsed: ReturnType<typeof parseSourceCommand>,
-  authorization: string,
+  authorization: SourceAccess,
   options: SourceOptions,
   originalCommand = "",
 ) {
