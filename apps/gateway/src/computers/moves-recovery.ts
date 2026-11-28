@@ -5,13 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 
 import { computerLink as link } from "@canopy/contracts";
 
-import {
-  decideTarget,
-  MOVE_COLUMNS,
-  restoreSource,
-  unfreezeSource,
-  type MoveRow,
-} from "./move-state.ts";
+import { decideTarget, MOVE_COLUMNS, restoreSource, unfreezeSource, type MoveRow } from "./move-state.ts";
 import { ACTIVE, ASK_AFTER_MS, DECIDE_TIMEOUT_MS, movesState, type MovePhase } from "./moves-context.ts";
 import { movesChanged, movesDrive, movesSettle } from "./moves-source.ts";
 import { movesApply } from "./moves-target.ts";
