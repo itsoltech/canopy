@@ -10,8 +10,9 @@
   let {
     accountId,
     installationId,
+    showLoading = $bindable(false),
     class: className,
-  }: { accountId: string; installationId: string; class?: string } = $props();
+  }: { accountId: string; installationId: string; showLoading?: boolean; class?: string } = $props();
 
   let repos = $state<github.GitHubRepository[]>([]);
   let next = $state(0);
@@ -23,6 +24,16 @@
   let error = $state("");
   const matches = $derived(repos.filter((repo) => repo.fullName.toLowerCase().includes(query.trim().toLowerCase())));
   const shown = $derived(all || query ? matches : matches.slice(0, 5));
+
+  $effect(() => {
+    if (!busy) return;
+    const timer = window.setTimeout(() => (showLoading = true), 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      showLoading = false;
+    };
+  });
 
   async function load(remaining = false) {
     if (busy) return;
@@ -58,7 +69,7 @@
   });
 </script>
 
-<div class={["grid min-w-0 gap-2", className]}>
+<div hidden={!loaded && !error} class={["grid min-w-0 gap-2", className]}>
   {#if total > 10}<SearchField
       label="Search repositories"
       placeholder="Search repositories…"
@@ -94,7 +105,6 @@
         }}>{all ? "Show fewer" : `Show all ${total}`}</Button
       >
     </div>{/if}
-  {#if busy}<p role="status" class="text-sm/5 text-zinc-500 dark:text-zinc-400">Loading repositories…</p>{/if}
   {#if error}<p role="alert" class="text-sm/5 text-zinc-500 dark:text-zinc-400">{error}</p>
     <div><Button size="sm" onclick={() => load(Boolean(next))}>Retry</Button></div>{/if}
 </div>
