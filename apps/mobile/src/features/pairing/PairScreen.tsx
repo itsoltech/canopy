@@ -185,12 +185,14 @@ export default function PairScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           >
-            <AppIcon size={72} style={{ marginTop: 16 }} />
-            <View style={{ gap: 10 }}>
-              <Text style={[styles.title, { color: c.text }]}>{mobileApp.displayName}</Text>
-              <Text style={[styles.body, { color: c.muted }]}>Connect to your gateway</Text>
+            <View style={[styles.row, { gap: 12 }]}>
+              <AppIcon size={44} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.heading, { color: c.text }]}>{mobileApp.displayName}</Text>
+                <Text style={[styles.meta, { color: c.muted }]}>Connect to your gateway</Text>
+              </View>
             </View>
-            <View style={{ gap: 12 }}>
+            <View style={{ gap: 4 }}>
               <Text style={[styles.heading, { color: c.text }]}>Pair with your Canopy</Text>
               <Text style={[styles.body, { color: c.muted }]}>
                 On your computer, open Settings → Devices → Pair a phone. Use the same Wi-Fi or VPN.

@@ -44,18 +44,18 @@ export function ProjectSettingsRow({ project, onPress }: { project: ui.Project; 
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
-        minHeight: 64,
+        gap: 8,
+        minHeight: 48,
         marginHorizontal: -12,
         marginVertical: -10,
         paddingHorizontal: 12,
-        paddingVertical: 12,
+        paddingVertical: 4,
         opacity: away ? 0.55 : 1,
         backgroundColor: pressed ? c.pressed : "transparent",
       })}
     >
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ flexShrink: 0 }}>
-        <ProjectMark project={project} size={32} />
+        <ProjectMark project={project} size={24} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text numberOfLines={1} style={[type.chrome, { color: c.text, fontFamily: font.medium }]}>

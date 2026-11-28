@@ -71,9 +71,10 @@ export function ProjectChoiceRow({
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
-        minHeight: 64,
-        padding: 12,
+        gap: 8,
+        minHeight: 48,
+        paddingHorizontal: 12,
+        paddingVertical: 4,
         borderRadius: 10,
         opacity: disabled ? 0.45 : 1,
         backgroundColor: pressed ? c.pressed : "transparent",
@@ -81,15 +82,15 @@ export function ProjectChoiceRow({
     >
       <View
         style={{
-          width: 36,
-          height: 36,
+          width: 28,
+          height: 28,
           borderRadius: 8,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: c.well,
         }}
       >
-        <Icon name={icon} size={18} color={c.icon} />
+        <Icon name={icon} size={16} color={c.icon} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text numberOfLines={2} style={[type.chrome, { color: c.text, fontFamily: font.medium }]}>
