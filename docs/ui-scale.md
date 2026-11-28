@@ -1,12 +1,21 @@
 # Skala typografii i gęstości UI
 
-Status (2026-11-27): opis zaimplementowanej skali web/desktop i zwartego arkusza
+Status (2026-11-28): opis zaimplementowanej skali web/desktop i zwartego arkusza
 szczegółów wątku na natywnym mobile, w tym dwuliniowych
 kart sidebara, ich jednoliniowego wariantu w worktree, ikon projektów, wcięć i linii hierarchii
 oraz kompaktowego wariantu przełącznika i adaptacyjnych pickerów modelu, wysiłku i prędkości composera,
 z jednoliniowym menu prędkości i oznaczeniami poziomu przyspieszenia.
 Karta zużycia kontekstu composera używa skali nakładek (15 / 13). Zakotwiczone nakładki otwarte kliknięciem powstają z wyzwalacza (morph).
-Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
+Przyciski Continue i samodzielny Queue używają skali Steer/Queue i zachowują etykiety na telefonie.
+Ikona jest wyśrodkowana w półkolistym końcu przycisku, a odstęp za tekstem
+uwzględnia krzywiznę drugiego końca (dodatkowo `r × (1 − π/4)`, gdzie `r` to połowa wysokości).
+Środek przycisku wypada w połowie odległości od linii bazowej napisu do górnej krawędzi
+wielkich liter wybranego fontu, także gdy przeglądarka używa fontu zastępczego.
+Nazwa poziomu Reasoning effort korzysta z tego samego wyrównania w pionie i zajmuje co najmniej
+jeden pełny wiersz. Słupki rosną od wspólnej podstawy proporcjonalnie do wysokości ikony.
+Cała grupa jest wyśrodkowana także w wąskim composerze.
+W suwaku wyboru koloru środek uchwytu porusza się między środkami półkolistych końców toru.
+Kliknięcie i przeciąganie korzystają z tego samego zakresu przy każdej skali interfejsu.
 Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
 Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
 Aktualizacja (2026-11-28): podczas przewijania w web/desktop pasek narzędzi zanika przy przycisku
