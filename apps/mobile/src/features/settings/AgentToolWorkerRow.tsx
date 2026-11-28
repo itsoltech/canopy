@@ -1,6 +1,6 @@
 import type { AgentTool, ui } from "@canopy/contracts";
 import { workerTool, type ToolWorker } from "@canopy/domain/agent-tool-settings";
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import { Button } from "../../ui/components";
 import { Switch } from "../../ui/Switch";
 import { useColors, useTypography } from "../../ui/theme";
@@ -70,14 +70,13 @@ export function AgentToolWorkerRow({
       description={status}
       inlineControl
       control={
-        <View style={{ minHeight: 44, justifyContent: "center" }}>
-          <Switch
-            label={`Use ${name} on ${worker.name}`}
-            value={!!item?.enabled}
-            disabled={disabled || (!worker.online && !item?.enabled)}
-            onChange={onEnable}
-          />
-        </View>
+        <Switch
+          size="sm"
+          label={`Use ${name} on ${worker.name}`}
+          value={!!item?.enabled}
+          disabled={disabled || (!worker.online && !item?.enabled)}
+          onChange={onEnable}
+        />
       }
     >
       {reason ? <Text style={[type.meta, { color: c.muted }]}>{reason}</Text> : null}

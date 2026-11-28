@@ -15,10 +15,12 @@ export function WorkerCliSettings({
   worker,
   readOnly = "",
   onChanged,
+  onImport,
 }: {
   worker?: ui.Worker;
   readOnly?: string;
   onChanged?: () => void;
+  onImport?: () => void;
 }) {
   const settings = useAppearance();
   // Workers follow the overview stream: their changes after an action arrive there, no read needed.
@@ -35,9 +37,10 @@ export function WorkerCliSettings({
     : String(settings.user?.cliUpdates?.intervalMinutes ?? 360);
 
   return (
-    <ResourceState resource={resource}>
+    <ResourceState resource={resource} gap={8}>
       {(current || overview.workers.length > 0) && (
         <SettingsActions>
+          {onImport && <Button title="Import CLI threads" disabled={!current?.online} onPress={onImport} />}
           <Button
             title={current ? "Check for updates" : "Check agent CLI versions"}
             disabled={(current && !current.online) || !!readOnly}
@@ -49,7 +52,7 @@ export function WorkerCliSettings({
         </SettingsActions>
       )}
       {current && (
-        <View style={{ gap: 12 }}>
+        <View style={{ gap: 8 }}>
           {current.cliTools.map((item) => (
             <WorkerCliRow
               key={item.tool?.provider}

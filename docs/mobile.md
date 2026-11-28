@@ -18,6 +18,9 @@ Ekran parowania pokazuje ikonę i nazwę aplikacji w jednym wierszu.
 W App updates przycisk „Check for updates” pozostaje w nagłówku „Canopy versions”.
 „Update all” i „Retry failed” pojawiają się przy podsumowaniu aktualizacji. Gdy brakuje
 szerokości, przycisk przechodzi pod podsumowanie.
+Akcje na ekranach ustawień korzystają z tego samego rozmiaru co pola wyboru.
+W rozwiniętej karcie workera import wątków i sprawdzanie aktualizacji są obok siebie
+w sekcji Agent CLIs. Przy dłuższym tekście akcje przechodzą do kolejnego wiersza.
 
 Status (2026-11-26): Skills w Agent environment obsługuje interaktywne instalatory na workerze i przegląd wykrytego skilla.
 
@@ -1811,9 +1814,12 @@ Kit `src/ui` odpowiada `apps/web/src/lib/shared/ui`. Zawiera `Button` (primary, 
 `IconButton`, `Alert` (info, warning, danger, error i wariant banner), `Notice` (wyciszony tekst, błąd jako `Alert`),
 `EmptyState`, `Switch`, `Checkbox`, `SearchField`, `Segmented`, `Field`, `Sheet` i wspólne okno
 potwierdzenia `confirm()` w miejsce natywnego `Alert.alert`.
-Przycisk `md` ma wysokość 40 dp, a w Settings 44 dp. Wariant `sm` używany m.in. w nagłówkach grup
-i banerach ma wysokość 32 dp i tekst 14 dp. W ustawieniach jego pole dotyku ma minimum 48 dp wysokości. Przełącznik w wierszu ustawienia ma tor
-32 × 18 dp i pole dotyku 48 × 48 dp. Osobna akcja resetu zajmuje miejsce po jego lewej stronie.
+Przycisk `md` ma minimum 40 dp wysokości, a w Settings 44 dp. Na ekranach ustawień akcje
+domyślnie korzystają z wariantu `sm` (minimum 32 dp wysokości, domyślnie tekst 14 dp).
+W stopkach zwykłych arkuszy przyciski domyślnie mają rozmiar `md`. Kompaktowa akcja ma
+w ustawieniach pole dotyku co najmniej 48 × 48 dp. Przełączniki ustawień, również na listach
+workerów i instancji dostawców, mają tor 32 × 18 dp wewnątrz tego samego pola dotyku.
+Osobna akcja resetu zajmuje miejsce po lewej stronie przełącznika.
 
 Typography przechowuje na urządzeniu osobny wybór fontu interfejsu i kodu. Presety
 pozostają na początku wyszukiwanego pickera; nazwy mają podgląd we własnym kroju.

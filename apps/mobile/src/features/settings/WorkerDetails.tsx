@@ -108,18 +108,18 @@ export function WorkerDetails({
             id: "agent-clis",
             label: "Agent CLIs",
             content: (
-              <>
-                <SettingsSection title="Agent CLIs" description="Nothing changes until you install or update.">
-                  <WorkerCliSettings worker={worker} readOnly={readOnly} onChanged={onChanged} />
-                </SettingsSection>
-                {threadsEnabled && own && worker.cliImport && (
-                  <Button
-                    title="Import CLI threads"
-                    disabled={!worker.online}
-                    onPress={() => openSettingsSection("import", { worker: worker.id })}
-                  />
-                )}
-              </>
+              <SettingsSection title="Agent CLIs" description="Nothing changes until you install or update.">
+                <WorkerCliSettings
+                  worker={worker}
+                  readOnly={readOnly}
+                  onChanged={onChanged}
+                  onImport={
+                    threadsEnabled && own && worker.cliImport
+                      ? () => openSettingsSection("import", { worker: worker.id })
+                      : undefined
+                  }
+                />
+              </SettingsSection>
             ),
           },
           {

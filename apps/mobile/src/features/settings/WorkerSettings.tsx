@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRoute } from "expo-router";
 import { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
 import { Icon } from "../../ui/Icon";
-import { font, styles, useColors } from "../../ui/theme";
+import { useColors, useTypography, weightedFont } from "../../ui/theme";
 import { SettingsGroup, SettingsRow, SettingsActions } from "./SettingsGroup";
 import { SettingsTopics } from "./SettingsTopics";
 import { SettingsInput } from "./SettingsInput";
@@ -242,6 +242,7 @@ function WorkerNetworkAccess({ network }: { network?: ui.NetworkAccess }) {
     <SettingsGroup title="Network access">
       <SettingsRow
         title={network?.enabled ? "Remote access is on" : "Remote access is off"}
+        inlineControl="wrap"
         description={network?.note || "Connect paired devices and remote workers to this gateway."}
         control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
       />
@@ -273,11 +274,12 @@ function WorkerConnection({ url, onSaved }: { url: string; onSaved: () => Promis
 
 function ComputerHeading({ title }: { title: string }) {
   const c = useColors();
+  const type = useTypography();
 
   return (
     <Text
       accessibilityRole="header"
-      style={[styles.chrome, { fontFamily: font.semibold, color: c.text, paddingHorizontal: 4 }]}
+      style={[type.chrome, weightedFont(type.chrome.fontFamily, "semibold"), { color: c.text, paddingHorizontal: 4 }]}
     >
       {title}
     </Text>
@@ -300,6 +302,7 @@ function WorkerCard({
   children: React.ReactNode;
 }) {
   const c = useColors();
+  const type = useTypography();
   const format = useDateTime();
 
   const target = useRef<ComponentRef<typeof View>>(null);
@@ -317,6 +320,12 @@ function WorkerCard({
 
   const updates = worker.cliTools.filter((tool) => tool.action === "update").length;
   const route = worker.networkRouteStatus;
+
+  const connection =
+    worker.online && route && route.route !== "local"
+      ? (route.route === "pinned" ? "Over the secure route" : "Over the server port") +
+        (route.detail ? ` · secure route unavailable: ${route.detail}` : "")
+      : "";
 
   const meta = [
     worker.hostname,
@@ -345,7 +354,8 @@ function WorkerCard({
         accessibilityState={{ expanded }}
         onPress={onToggle}
         style={({ pressed }) => ({
-          padding: 16,
+          paddingHorizontal: 16,
+          paddingVertical: 10,
           flexDirection: "row",
           gap: 12,
           alignItems: "center",
@@ -354,23 +364,16 @@ function WorkerCard({
         })}
       >
         <Icon name="computer-desktop" />
-        <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-          <Text style={[styles.chrome, { fontFamily: font.semibold, color: c.text }]}>{worker.name}</Text>
-          <Text style={[styles.workMeta, { color: c.muted }]}>{meta}</Text>
-          {worker.online && route && route.route !== "local" && (
-            <Text style={[styles.workMeta, { color: c.muted }]}>
-              {route.route === "pinned" ? "Over the secure route" : "Over the server port"}
-              {route.detail ? ` · secure route unavailable: ${route.detail}` : ""}
-            </Text>
-          )}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {!!updates && (
-              <Text style={[styles.workMeta, { color: c.text }]}>
-                {updates} {updates === 1 ? "CLI update" : "CLI updates"}
-              </Text>
-            )}
-            <Text style={[styles.workMeta, { color: c.text }]}>{status}</Text>
-          </View>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={[type.chrome, weightedFont(type.chrome.fontFamily, "semibold"), { color: c.text }]}>
+            {worker.name}
+          </Text>
+          {!!meta && <Text style={[type.meta, { color: c.muted }]}>{meta}</Text>}
+          <Text style={[type.meta, { color: c.text }]}>
+            {status}
+            {connection && <Text style={{ color: c.muted }}>{` · ${connection}`}</Text>}
+            {!!updates && ` · ${updates} ${updates === 1 ? "CLI update" : "CLI updates"}`}
+          </Text>
         </View>
         <View style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}>
           <Icon name="chevron-down" />

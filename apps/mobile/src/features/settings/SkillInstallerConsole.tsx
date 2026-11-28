@@ -123,6 +123,7 @@ function InstallerInput({ writing, onSend }: { writing: boolean; onSend: (value:
               icon={icon}
               label={label}
               variant="secondary"
+              size="sm"
               disabled={writing}
               onPress={() => onSend(value)}
             />

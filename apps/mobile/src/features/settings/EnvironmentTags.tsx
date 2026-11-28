@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ui } from "@canopy/contracts";
-import { PickerSheet, SelectField } from "../../ui/Picker";
-import { SettingsRow } from "./SettingsGroup";
+import { PickerSheet } from "../../ui/Picker";
+import { SettingSelectRow } from "./SettingsGroup";
 
 export function EnvironmentTags({
   title,
@@ -41,32 +41,23 @@ export function EnvironmentTags({
   }
 
   return (
-    <SettingsRow
+    <SettingSelectRow
       title={title}
       description={description}
-      control={
-        <>
-          <SelectField
-            hideLabel
-            label={title}
-            value={tags.join(", ") || "Find or create a tag"}
-            expanded={open}
-            onPress={() => setOpen(true)}
-          />
-          <PickerSheet
-            title={title}
-            search="Find or create a tag"
-            onQueryChange={setQuery}
-            visible={open}
-            selected={tags}
-            sections={[{ options }]}
-            onSelect={(value) =>
-              onChange(tags.includes(value) ? tags.filter((item) => item !== value) : [...tags, value])
-            }
-            onClose={() => setOpen(false)}
-          />
-        </>
-      }
-    />
+      value={tags.join(", ") || "Find or create a tag"}
+      expanded={open}
+      onPress={() => setOpen(true)}
+    >
+      <PickerSheet
+        title={title}
+        search="Find or create a tag"
+        onQueryChange={setQuery}
+        visible={open}
+        selected={tags}
+        sections={[{ options }]}
+        onSelect={(value) => onChange(tags.includes(value) ? tags.filter((item) => item !== value) : [...tags, value])}
+        onClose={() => setOpen(false)}
+      />
+    </SettingSelectRow>
   );
 }

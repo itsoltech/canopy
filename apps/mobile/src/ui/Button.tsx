@@ -63,7 +63,7 @@ export function Button({
   title: string;
   onPress: () => void;
   variant?: ButtonVariant;
-  /** Default: `md`, `sm` in group headers and banners. */
+  /** Settings actions, group headers and banners default to `sm`. Sheet footers default to `md`. */
   size?: ButtonSize;
   icon?: IconName;
   disabled?: boolean;
@@ -78,7 +78,7 @@ export function Button({
   const settings = useSettingsDensity();
   const compact = useCompactControls();
   const alignment = useContext(SettingsButtonAlignment);
-  const size = explicitSize ?? (compact ? "sm" : "md");
+  const size = explicitSize ?? (compact || (settings && alignment !== "stretch") ? "sm" : "md");
   const s = sizes[size];
   const l = look(variant, c);
   const lead = Boolean(icon || busy);
@@ -173,6 +173,14 @@ export function IconButton({
   const s = sizes[size];
   const l = look(variant, c);
 
+  const compactKey = settings && size === "sm" && l.ring;
+  const target = settings ? (compactKey ? 48 : 44) : s.height;
+
+  const face = (pressed: boolean) => [
+    { borderRadius: s.radius, backgroundColor: pressed ? l.pressed : l.background },
+    l.ring && raised(c),
+  ];
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -183,25 +191,36 @@ export function IconButton({
       hitSlop={settings ? 2 : s.slop}
       style={({ pressed }) => [
         {
-          width: settings ? 44 : s.height,
-          height: settings ? 44 : s.height,
+          width: target,
+          height: target,
           alignItems: "center",
           justifyContent: "center",
-          borderRadius: s.radius,
-          backgroundColor: pressed ? l.pressed : l.background,
           opacity: disabled ? 0.5 : 1,
         },
-        l.ring && raised(c),
+        !compactKey && face(pressed),
         style,
       ]}
     >
-      {({ pressed }) =>
-        busy ? (
+      {({ pressed }) => {
+        const content = busy ? (
           <ActivityIndicator size="small" color={l.icon} />
         ) : (
           <Icon name={icon} color={color ?? (pressed && variant === "ghost" ? c.iconStrong : l.icon)} />
-        )
-      }
+        );
+
+        return compactKey ? (
+          <View
+            style={[
+              { width: s.height, height: s.height, alignItems: "center", justifyContent: "center" },
+              face(pressed),
+            ]}
+          >
+            {content}
+          </View>
+        ) : (
+          content
+        );
+      }}
     </Pressable>
   );
 }

@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
 /**
- * The settings rhythm (web: features/settings/density.css): standard controls grow to 44 dp on phones there.
+ * Settings rows use compact actions with phone-sized touch targets.
  * Overlays opened from settings keep their own compact size.
  */
 export const SettingsDensity = createContext(false);

@@ -1,4 +1,4 @@
-import { Children, Fragment, isValidElement, useContext, useState, type ReactNode } from "react";
+import { Children, Fragment, isValidElement, useContext, useState, type ComponentProps, type ReactNode } from "react";
 import { StyleSheet, Text, useWindowDimensions, View, type StyleProp, type ViewStyle } from "react-native";
 import { contextType } from "@canopy/ui";
 import { PickerSheet, SelectField, type PickerOption } from "../../ui/Picker";
@@ -155,6 +155,36 @@ export function SettingsGroup({
   );
 }
 
+export function SettingSelectRow({
+  title,
+  description,
+  label = title,
+  accessory,
+  children,
+  ...field
+}: Omit<ComponentProps<typeof SelectField>, "label" | "hideLabel" | "compact"> & {
+  title: string;
+  description?: string;
+  label?: string;
+  accessory?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <SettingsRow
+      title={title}
+      description={description}
+      accessory={accessory}
+      inlineControl="wrap"
+      control={
+        <>
+          <SelectField compact hideLabel label={label} {...field} />
+          {children}
+        </>
+      }
+    />
+  );
+}
+
 export function SettingChoice<T extends string | number>({
   title,
   description,
@@ -207,26 +237,17 @@ export function SettingChoice<T extends string | number>({
     );
 
   return (
-    <SettingsRow
+    <SettingSelectRow
       title={title}
       description={description}
       accessory={accessory}
-      inlineControl="wrap"
-      control={
-        <>
-          <SelectField
-            compact
-            hideLabel
-            expanded={!!open}
-            label={title}
-            value={label}
-            onPress={() => setOpen(true)}
-            disabled={disabled}
-          />
-          {picker}
-        </>
-      }
-    />
+      expanded={!!open}
+      value={label}
+      onPress={() => setOpen(true)}
+      disabled={disabled}
+    >
+      {picker}
+    </SettingSelectRow>
   );
 }
 
@@ -237,6 +258,7 @@ export function SettingToggle({
   onChange,
   disabled,
   accessory,
+  children,
 }: {
   title: string;
   description?: string;
@@ -244,6 +266,7 @@ export function SettingToggle({
   onChange: (value: boolean) => void;
   disabled?: boolean;
   accessory?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <SettingsRow
@@ -251,12 +274,10 @@ export function SettingToggle({
       description={description}
       inlineControl
       accessory={accessory}
-      control={
-        <View style={{ width: 48, minHeight: 48, alignItems: "center", justifyContent: "center" }}>
-          <Switch size="sm" label={title} value={value} onChange={onChange} disabled={disabled} />
-        </View>
-      }
-    />
+      control={<Switch size="sm" label={title} value={value} onChange={onChange} disabled={disabled} />}
+    >
+      {children}
+    </SettingsRow>
   );
 }
 

@@ -8,10 +8,10 @@ import {
   sameAccess,
   type AccessChoice,
 } from "@canopy/domain/access-picker";
-import { PickerSheet, SelectField, type PickerSection } from "../../ui/Picker";
+import { PickerSheet, type PickerSection } from "../../ui/Picker";
 import { Switch } from "../../ui/Switch";
 import { font, styles, useColors } from "../../ui/theme";
-import { SettingsRow } from "./SettingsGroup";
+import { SettingSelectRow } from "./SettingsGroup";
 
 export interface AccessOption {
   id: string;
@@ -61,40 +61,30 @@ export function SettingAccess({
   }
 
   return (
-    <SettingsRow
+    <SettingSelectRow
       title={title}
       description={description}
-      control={
-        <>
-          <SelectField
-            hideLabel
-            label={title}
-            value={accessSummary(shown, options, noun)}
-            disabled={disabled}
-            onPress={() => setDraft({ all: current.all, ids: [...current.ids] })}
-          />
-          <PickerSheet
-            title={title}
-            visible={!!draft}
-            onClose={close}
-            sections={accessSections(options, allOn)}
-            selected={allOn ? options.map((o) => o.id) : shown.ids}
-            onSelect={(id) => setDraft(accessToggled(shown, id, !shown.ids.includes(id)))}
-            search={options.length > ACCESS_SEARCH_THRESHOLD ? `Search ${noun}` : undefined}
-            note={options.length ? undefined : `No ${noun} yet.`}
-            header={
-              allowAll ? (
-                <AllRow
-                  noun={noun}
-                  value={shown.all}
-                  onChange={(on) => setDraft(accessWithAll(shown, on, selectable))}
-                />
-              ) : undefined
-            }
-          />
-        </>
-      }
-    />
+      value={accessSummary(shown, options, noun)}
+      expanded={!!draft}
+      disabled={disabled}
+      onPress={() => setDraft({ all: current.all, ids: [...current.ids] })}
+    >
+      <PickerSheet
+        title={title}
+        visible={!!draft}
+        onClose={close}
+        sections={accessSections(options, allOn)}
+        selected={allOn ? options.map((o) => o.id) : shown.ids}
+        onSelect={(id) => setDraft(accessToggled(shown, id, !shown.ids.includes(id)))}
+        search={options.length > ACCESS_SEARCH_THRESHOLD ? `Search ${noun}` : undefined}
+        note={options.length ? undefined : `No ${noun} yet.`}
+        header={
+          allowAll ? (
+            <AllRow noun={noun} value={shown.all} onChange={(on) => setDraft(accessWithAll(shown, on, selectable))} />
+          ) : undefined
+        }
+      />
+    </SettingSelectRow>
   );
 }
 
@@ -127,12 +117,12 @@ function AllRow({ noun, value, onChange }: { noun: string; value: boolean; onCha
   const c = useColors();
 
   return (
-    <View style={[styles.row, { gap: 12, paddingHorizontal: 16, paddingVertical: 8 }]}>
+    <View style={[styles.row, { gap: 12, paddingHorizontal: 16 }]}>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={[styles.overlay, { fontFamily: font.medium, color: c.strong }]}>All {noun}</Text>
         <Text style={[styles.overlayMeta, { color: c.muted }]}>Includes {noun} added later.</Text>
       </View>
-      <Switch label={`All ${noun}`} value={value} onChange={onChange} />
+      <Switch size="sm" label={`All ${noun}`} value={value} onChange={onChange} />
     </View>
   );
 }

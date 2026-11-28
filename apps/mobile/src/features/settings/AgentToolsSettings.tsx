@@ -239,6 +239,7 @@ function ToolCard({
           <Chevron open={open} />
         </Pressable>
         <Switch
+          size="sm"
           label={`Use ${name} on all workers`}
           value={all}
           mixed={enabled > 0 && !all}
