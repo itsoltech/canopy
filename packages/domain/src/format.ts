@@ -1,5 +1,6 @@
 /** Numbers and spans of time as the timeline shows them, the same on every client. */
 import { timestampDate, type Timestamp } from "@bufbuild/protobuf/wkt";
+import type { ContextCompaction } from "@canopy/contracts";
 
 export { connectorStatus, connectorAccessSummary } from "./connector-display.ts";
 
@@ -37,6 +38,26 @@ export function formatCount(value: bigint | number): string {
   }
 
   return `${tenths(n)}`;
+}
+
+// Hermes groups Number values but does not implement BigInt locale formatting.
+const tokenCount = (value: bigint) =>
+  value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value).toLocaleString() : value.toLocaleString();
+
+/** The provider can report either side of compaction independently. Zero is a measured count. */
+export function compactionLabel({ preTokens, postTokens }: ContextCompaction): string {
+  if (postTokens !== undefined) {
+    const after = `${tokenCount(postTokens)} ${postTokens === 1n ? "token" : "tokens"}`;
+
+    return preTokens === undefined
+      ? `Context compacted to ${after}`
+      : `Context compacted from ${tokenCount(preTokens)} to ${after}`;
+  }
+
+  if (preTokens !== undefined)
+    return `Context compacted from ${tokenCount(preTokens)} ${preTokens === 1n ? "token" : "tokens"}`;
+
+  return "Context compacted";
 }
 
 /** 3500 → "3.5s", 125000 → "2m 5s". */

@@ -6,6 +6,7 @@ import { turnEndSource, turnOutcome, threadStatus, snake } from "./status-mappin
 
 export { codexErrorCode } from "./status-mapping.ts";
 
+import { CodexCompaction } from "./compaction.ts";
 import { CodexConsumedUsage } from "./consumed-usage.ts";
 import type { OpenAiPricingCatalog } from "../pricing/model-catalog.ts";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
@@ -76,6 +77,7 @@ interface RunningCommand {
 export class CodexEventMapper {
   readonly #ctx: MapperContext;
   readonly #usage: CodexConsumedUsage;
+  readonly #compaction = new CodexCompaction();
   /** In-progress command items with a process, by item id. */
   readonly #commands = new Map<string, RunningCommand>();
   /** Code-mode cells and waits by call id: they become tool_call items (docs/codex-adapter.md, "Code mode"). */
@@ -139,8 +141,9 @@ export class CodexEventMapper {
     return undefined;
   }
 
-  map(notification: ServerNotification): ThreadEventInit[] {
+  map(notification: ServerNotification, recordedCompaction?: { postTokens?: bigint }): ThreadEventInit[] {
     const rawJson = JSON.stringify(notification);
+    const counts = this.#compaction.observe(notification, this.#latestTurn) ?? recordedCompaction;
 
     const event = (codexTurnId: string | null | undefined, body: ThreadEventInit["body"]): ThreadEventInit => {
       const turnId = codexTurnId ? this.#ctx.turnId(codexTurnId) : undefined;
@@ -222,7 +225,7 @@ export class CodexEventMapper {
           }
         }
 
-        const mapped = mapItem(item, completed);
+        const mapped = mapItem(item, completed, counts);
 
         return [
           event(turnId, { case: completed ? "itemCompleted" : "itemStarted", value: { item: mapped } }),

@@ -11,6 +11,7 @@ import { storageEvent } from "./event-text.ts";
 import { dataErrorCode, quarantineEvent } from "./event-quarantine.ts";
 import { recoverPreviews } from "./preview-uploads.ts";
 import { gatewayOwnedItem } from "./visuals.ts";
+import { modelChangeEvent } from "./turn-model-change.ts";
 import { queryFamily, queryMethods } from "../diagnostics/query-context.ts";
 import {
   acknowledgeDeleted,
@@ -128,10 +129,10 @@ export const ingestThread = (
         known.add(incoming.eventId);
         const seq = ++last;
 
-        const gatewayMedia = origin === "worker" && gatewayMediaEvent(incoming);
+        const reservedItem = origin === "worker" && (gatewayMediaEvent(incoming) || modelChangeEvent(incoming));
 
         const rejection =
-          gatewayMedia || gatewayOwnedItem(incoming)
+          reservedItem || gatewayOwnedItem(incoming)
             ? { code: "23514", reason: "data_error" as const }
             : thread.archived_at && !(yield* archivedEventAllowed(sql, incoming))
               ? { code: "23514", reason: "archived_thread" as const }

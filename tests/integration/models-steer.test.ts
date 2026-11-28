@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { JsonObject } from "@canopy/domain";
-import { PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
+import { ItemStatus, PermissionMode, Provider, ui, type AgentToolResult } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
@@ -181,6 +181,41 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
       ["gpt-5.5", "high"],
       ["", "medium"],
     ]);
+    expect(
+      view?.items.flatMap(({ turnId, item }) =>
+        item?.content.case === "modelChange" ? [[turnId, item.content.value]] : [],
+      ),
+    ).toMatchObject([
+      [
+        sent.turn!.id,
+        {
+          previousModel: "gpt-5.5",
+          previousEffort: "high",
+          model: "gpt-6.1-sol",
+          modelName: "GPT-6.1-Sol",
+          effort: "xhigh",
+        },
+      ],
+      [
+        all[2]!.id,
+        {
+          previousModel: "gpt-6.1-sol",
+          previousModelName: "GPT-6.1-Sol",
+          previousEffort: "xhigh",
+          model: "gpt-5.5",
+          effort: "high",
+        },
+      ],
+      [fourth.id, { previousModel: "gpt-5.5", previousEffort: "high", model: "", effort: "medium" }],
+    ]);
+
+    for (const change of view!.items.filter((entry) => entry.item?.content.case === "modelChange")) {
+      const reply = view!.items.find(
+        (entry) => entry.turnId === change.turnId && entry.item?.content.case === "agentMessage",
+      );
+
+      expect(change.firstSeq).toBeLessThan(reply!.firstSeq);
+    }
   });
 
   test("a turn carries no effort to a model without efforts; an effort the model lacks falls back to its default", async () => {
@@ -235,6 +270,10 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
       effort: "high",
     });
     expect((await ran(thread.id, 3)).sent).toEqual({ model: "grok-5", effort: "" });
+    // Both requests dispatched the same choice. An unsupported effort in the second request adds no history.
+    const [updated] = await watchUntil(gw.api, thread.id, (u) => u.length >= 1);
+    const history = updated?.change.case === "snapshot" ? updated.change.value : undefined;
+    expect(history?.items.filter((row) => row.item?.content.case === "modelChange")).toHaveLength(1);
     await gw.api.sendMessage({ threadId: thread.id, text: "four", clientRequestId: "fb-4", model: "gpt-5-mini" });
     expect((await ran(thread.id, 4)).sent).toEqual({ model: "gpt-5-mini", effort: "medium" });
     await gw.api.sendMessage({ threadId: thread.id, text: "five", clientRequestId: "fb-5", model: "gpt-6-luna" });
@@ -352,6 +391,83 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
     );
   });
 
+  test("worker input cannot author or replace the gateway's turn selection history", async () => {
+    gw.worker.holdTurns = false;
+    const thread = await newThread("protected model history", { effort: "low", initialMessage: "first" });
+    await eventually(
+      () => turns(thread.id),
+      (rows) => rows[0]?.status === "completed",
+    );
+    const controller = new AbortController();
+
+    const updates = gw.api
+      .watchThread({ threadId: thread.id }, { signal: controller.signal, timeoutMs: 5000 })
+      [Symbol.asyncIterator]();
+
+    let turnId: string;
+    let itemId: string;
+
+    try {
+      await updates.next();
+      const sent = await gw.api.sendMessage({ threadId: thread.id, text: "next", effort: "high" });
+      turnId = sent.turn!.id;
+      let liveItem;
+
+      while (!liveItem) {
+        const update = await updates.next();
+
+        if (update.done) throw new Error("Thread watch ended before the selection change.");
+        const change = update.value.change;
+        const event = change.case === "event" ? change.value.event : undefined;
+
+        if (
+          event?.turnId === turnId &&
+          event.body.case === "itemCompleted" &&
+          event.body.value.item?.content.case === "modelChange"
+        )
+          liveItem = event.body.value.item;
+      }
+
+      expect(liveItem.content.value).toMatchObject({ previousEffort: "low", effort: "high" });
+      itemId = liveItem.itemId;
+    } finally {
+      controller.abort();
+      await updates.return?.();
+    }
+
+    gw.worker.emit(thread.id, turnId, {
+      case: "itemCompleted",
+      value: {
+        item: {
+          itemId,
+          status: ItemStatus.COMPLETED,
+          content: { case: "agentMessage", value: { text: "replacement" } },
+        },
+      },
+    });
+    gw.worker.emit(thread.id, turnId, {
+      case: "itemCompleted",
+      value: {
+        item: {
+          itemId: "worker-choice",
+          status: ItemStatus.COMPLETED,
+          content: { case: "modelChange", value: { model: "injected" } },
+        },
+      },
+    });
+    await eventually(
+      () => query("SELECT 1 FROM worker_event_quarantine WHERE thread_id=$1::uuid", thread.id),
+      (rows) => rows.length === 2,
+    );
+    const [update] = await watchUntil(gw.api, thread.id, (updates) => updates.length > 0);
+    const items = update?.change.case === "snapshot" ? update.change.value.items : [];
+    expect(items.find((row) => row.item?.itemId === "worker-choice")).toBeUndefined();
+    expect(items.find((row) => row.item?.itemId === itemId)?.item?.content).toMatchObject({
+      case: "modelChange",
+      value: { previousEffort: "low", effort: "high" },
+    });
+  });
+
   test("steer the worker cannot deliver (turn over, or taken and dropped) becomes the next turn with a reason", async () => {
     for (const mode of ["not_running", "drop"] as const) {
       gw.worker.steerMode = mode;
@@ -390,6 +506,11 @@ describe.skipIf(!dockerAvailable)("models, effort and steering (gateway + script
       expect(snapshot?.steers.map((s) => [s.id, s.status, s.queuedTurnId])).toEqual([
         [sent.steer!.id, "queued", steer!.queued_turn_id ?? ""],
       ]);
+      expect(
+        snapshot?.items.flatMap(({ turnId, item }) =>
+          item?.content.case === "modelChange" ? [[turnId, item.content.value]] : [],
+        ),
+      ).toMatchObject([[all[1]!.id, { previousModel: "", model: "", previousEffort: "", effort: "high" }]]);
     }
 
     gw.worker.steerMode = "accept";

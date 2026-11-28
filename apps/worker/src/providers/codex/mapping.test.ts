@@ -127,6 +127,63 @@ describe("Codex event mapping on a recorded turn with tools", () => {
     expect(contexts.at(-1)?.limitTokens).toBeUndefined();
   });
 
+  test("compaction captures the preceding context and Codex's retained-history estimate inside the matching item", () => {
+    const sample = notifications.find((n) => n.method === "thread/tokenUsage/updated")!;
+
+    const estimate = {
+      ...sample,
+      params: {
+        ...sample.params,
+        tokenUsage: {
+          ...sample.params.tokenUsage,
+          last: {
+            totalTokens: 2100,
+            inputTokens: 0,
+            cachedInputTokens: 0,
+            cacheWriteInputTokens: 0,
+            outputTokens: 0,
+            reasoningOutputTokens: 0,
+          },
+        },
+      },
+    };
+
+    const edge = (id: string, done: boolean): ServerNotification => {
+      const params = { item: { type: "contextCompaction" as const, id }, threadId: "t", turnId: codexTurnId };
+
+      return done
+        ? { method: "item/completed", params: { ...params, completedAtMs: 1 } }
+        : { method: "item/started", params: { ...params, startedAtMs: 0 } };
+    };
+
+    const { items } = replay([
+      notifications.find((n) => n.method === "turn/started")!,
+      sample,
+      edge("one", false),
+      sample,
+      estimate,
+      { ...sample, params: { ...sample.params, turnId: "other" } },
+      edge("one", true),
+      edge("two", false),
+      sample,
+      edge("two", true),
+      edge("missing", false),
+      edge("missing", true),
+      sample,
+      { method: "thread/compacted", params: { turnId: codexTurnId, threadId: "t" } },
+    ]);
+
+    expect(
+      items.map(
+        ({ content }) => content.case === "contextCompaction" && [content.value.preTokens, content.value.postTokens],
+      ),
+    ).toEqual([
+      [12013n, 2100n],
+      [2100n, undefined],
+      [undefined, undefined],
+    ]);
+  });
+
   test("thread activity: running, then idle", () => {
     const statuses = events.flatMap((e) => (e.body.case === "activity" ? [e.body.value.status] : []));
     expect(statuses).toEqual([ThreadStatus.RUNNING, ThreadStatus.IDLE]);

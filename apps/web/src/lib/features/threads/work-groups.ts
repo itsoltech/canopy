@@ -167,9 +167,15 @@ export function foldTurns(
 
   const bodies = new Map<string, TimelineRow[]>();
   const results = new Map<string, TimelineRow[]>();
+  const modelChanges = new Map<string, TimelineRow>();
 
   for (const row of rows) {
     const turnId = turnIdOf(row);
+
+    if (row.kind === "item" && row.node.entry.item.content.case === "modelChange") {
+      modelChanges.set(turnId, row);
+      continue;
+    }
 
     if (
       (row.kind === "item" && isPublishedReply(row.node.entry.item.content)) ||
@@ -208,6 +214,10 @@ export function foldTurns(
     // Emit after the input, including a turn with no items yet. The next body/footer row is skipped.
     if (!fold || row.kind === "turn-start" || row.kind === "input" || (row.kind === "item" && row.inputOf)) {
       out.push({ kind: "row", row, work: false });
+
+      const change = row.kind === "turn-start" && modelChanges.get(turnId);
+
+      if (change) out.push({ kind: "row", row: change, work: false });
 
       if (!fold || (row.kind === "turn-start" && inputs.has(turnId))) continue;
     }

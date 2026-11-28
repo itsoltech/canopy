@@ -6,7 +6,7 @@ import { Markdown } from "../../../ui/markdown";
 import { styles, useColors } from "../../../ui/theme";
 import { ItemFrame } from "../ItemFrame";
 import { CodeBlock } from "../CodeBlock";
-import { prettyJson } from "@canopy/domain/format";
+import { compactionLabel, prettyJson } from "@canopy/domain/format";
 import { EmptyNote, ErrorText, RowTitle } from "./parts";
 import { Chevron } from "../../../ui/MotionViews";
 import { ImagePreview } from "../../attachments/ImagePreview";
@@ -56,34 +56,54 @@ export function ImageView({ image, status }: { image: Image; status: ItemStatus 
   );
 }
 
-/** The provider summarised older context to make room (web: CompactionView): a rule with a label that opens the summary. */
+/** A milestone in the conversation, with an optional disclosure for the provider's summary. */
+export function TimelineDivider({
+  label,
+  open = false,
+  onPress,
+}: {
+  label: string;
+  open?: boolean;
+  onPress?: (() => void) | undefined;
+}) {
+  const c = useColors();
+  const line = <View style={{ flex: 1, minWidth: 8, height: 1, backgroundColor: c.rule }} />;
+  const text = <Text style={[styles.meta, { color: c.muted, flexShrink: 1, textAlign: "center" }]}>{label}</Text>;
+
+  return (
+    <View style={[styles.row, { gap: 12, minHeight: 40 }]}>
+      {line}
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          onPress={onPress}
+          hitSlop={8}
+          style={[styles.row, { flexShrink: 1, gap: 4, paddingHorizontal: 4 }]}
+        >
+          <Chevron open={open} size={14} color={c.faint} />
+          {text}
+        </Pressable>
+      ) : (
+        text
+      )}
+      {line}
+    </View>
+  );
+}
+
 export function CompactionView({ compaction }: { compaction: ContextCompaction }) {
   const c = useColors();
   const lazy = useItemContent();
   const [open, setOpen] = useState(false);
-  const line = <View style={{ flex: 1, height: 1, backgroundColor: c.rule }} />;
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={[styles.row, { gap: 12, minHeight: 40 }]}>
-        {line}
-        {compaction.summary ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: open }}
-            onPress={() => setOpen(!open)}
-            hitSlop={8}
-          >
-            <View style={[styles.row, { gap: 4, paddingHorizontal: 4 }]}>
-              <Chevron open={open} size={14} color={c.faint} />
-              <Text style={[styles.meta, { color: c.muted }]}>Context compacted</Text>
-            </View>
-          </Pressable>
-        ) : (
-          <Text style={[styles.meta, { color: c.muted }]}>Context compacted</Text>
-        )}
-        {line}
-      </View>
+      <TimelineDivider
+        label={compactionLabel(compaction)}
+        open={open}
+        onPress={compaction.summary ? () => setOpen(!open) : undefined}
+      />
       {open && (
         <>
           <Markdown text={compaction.summary} color={c.muted} />

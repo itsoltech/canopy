@@ -4,9 +4,10 @@ import { claudeLimitError } from "../usage-limits.ts";
 export { isTaskNotificationAck, startsTurn, type GoalVerdict } from "./goal-mapping.ts";
 
 import { ClaudeConsumedUsage } from "./consumed-usage.ts";
+import { claudeCompactionItem } from "./compaction.ts";
 import { ClaudeContextUsage } from "./context-usage.ts";
 import { backgroundResultRunId, ClaudeBackgroundMapper } from "./background-mapping.ts";
-import { emptyContent, textContent, toolContent, withOutput, resultText } from "./content-mapping.ts";
+import { StreamEvent, emptyContent, textContent, toolContent, withOutput, resultText } from "./content-mapping.ts";
 
 export { toolContent, withOutput, resultText } from "./content-mapping.ts";
 
@@ -230,6 +231,13 @@ export class ClaudeEventMapper {
 
       case "system":
         switch (message.subtype) {
+          case "compact_boundary": {
+            const metadata = message.compact_metadata;
+            const item = claudeCompactionItem(message.uuid, metadata?.pre_tokens, metadata?.post_tokens);
+
+            return [event({ case: "itemCompleted", value: { item } })];
+          }
+
           case "api_retry":
             return [
               event({
@@ -504,20 +512,3 @@ function atLeastOne(
 ): ThreadEventInit[] {
   return bodies.length > 0 ? bodies.map((body) => event(body)) : [event(undefined)];
 }
-
-const StreamEvent = Schema.Struct({
-  type: Schema.String,
-  index: Schema.optionalKey(Schema.Number),
-  message: Schema.optionalKey(Schema.Struct({ id: Schema.optionalKey(Schema.String) })),
-  content_block: Schema.optionalKey(Schema.Struct({ type: Schema.optionalKey(Schema.String) })),
-  delta: Schema.optionalKey(
-    Schema.Struct({
-      type: Schema.optionalKey(Schema.String),
-      text: Schema.optionalKey(Schema.String),
-      thinking: Schema.optionalKey(Schema.String),
-      stop_reason: Schema.optionalKey(Schema.NullOr(Schema.String)),
-    }),
-  ),
-});
-
-type StreamEvent = typeof StreamEvent.Type;

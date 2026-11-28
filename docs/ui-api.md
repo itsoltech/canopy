@@ -1,5 +1,9 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-28). W historii wątku widać zmianę modelu i poziomu rozumowania
+przed wiadomością używającą nowego wyboru. Przy kompaktowaniu klient pokazuje
+dostępne liczniki tokenów sprzed operacji i po niej. [Transkrypt](transcript.md)
+
 Status (2026-11-28). Wskaźnik kontekstu web/desktop ma tryb Percentage. Text i Percentage animują zmiany cyfr.
 
 Status (2026-11-28). Web i desktop wybierają sposób rozwiązania konfliktu skilla w bibliotece. [Środowisko agentów](#agent-environment)

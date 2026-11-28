@@ -46,6 +46,8 @@ import { cancelStaleOomRecovery } from "../store/worker-oom-recovery.ts";
 import { sandboxCommandThread } from "../store/thread-sandbox.ts";
 import { storedShellResult } from "../store/shell-input.ts";
 import { takeBranchNote } from "../store/thread-branches.ts";
+import { recordTurnModelChange } from "../store/turn-model-change.ts";
+import type { StoredEvent } from "../store/ingest.ts";
 import { coreBroadcastThread, coreBroadcastTurn, coreLog, coreRun } from "./core-broadcast.ts";
 
 /** Turns that no longer run on their worker end as interrupted; the threads go on with what is queued. */
@@ -95,12 +97,7 @@ export async function coreSettle(
 
   const expired = await coreRun(hostContext, (s) => s.expireEndedInteractions(threadId));
 
-  for (const stored of settled.stored) {
-    hostContext.hub.publishThread(
-      threadId,
-      create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq: stored.seq, event: stored.event } } }),
-    );
-  }
+  for (const stored of settled.stored) publishStoredEvent(hostContext, threadId, stored);
 
   for (const interaction of expired) {
     await corePublishInteraction(hostContext, interaction);
@@ -121,6 +118,10 @@ export async function coreSettle(
   }
 
   return changed;
+}
+
+function publishStoredEvent(core: GatewayCore, threadId: string, { seq, event }: Pick<StoredEvent, "seq" | "event">) {
+  core.hub.publishThread(threadId, create(ui.ThreadUpdateSchema, { change: { case: "event", value: { seq, event } } }));
 }
 
 export async function corePump(hostContext: GatewayCore, threadId: string): Promise<void> {
@@ -228,7 +229,7 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
   const workerId = thread.worker_id ?? "";
   const models = (await coreProfileModels(hostContext, { thread })).models;
 
-  let stored: Command | undefined;
+  let stored: { command: Command; change: Effect.Success<ReturnType<typeof recordTurnModelChange>> } | undefined;
   let rejected = false;
   let rejectedGoal = false;
 
@@ -324,13 +325,18 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
                 yield* s.setTurnSettings(turn.id, { model, effort, serviceTier, permissionMode, threadPermissionMode });
               }
 
-              return yield* s.enqueueCommand({
+              const start = yield* s.enqueueCommand({
                 workerId,
                 command,
                 threadId,
                 turnId: turn.id,
                 ttlSeconds: TTL.startTurn,
               });
+
+              return {
+                command: start,
+                change: yield* recordTurnModelChange(threadId, turn.id, { model, effort }, models),
+              };
             }),
           ),
         ),
@@ -350,9 +356,10 @@ export async function coreStartTurn(hostContext: GatewayCore, thread: ThreadRow,
     return false;
   }
 
+  if (stored.change) publishStoredEvent(hostContext, threadId, stored.change);
   await coreBroadcastTurn(hostContext, threadId, turn.id);
   await coreBroadcastThread(hostContext, threadId);
-  const commandToDeliver = stored;
+  const commandToDeliver = stored.command;
 
   const deliver = () => {
     void coreDeliver(hostContext, workerId, commandToDeliver);

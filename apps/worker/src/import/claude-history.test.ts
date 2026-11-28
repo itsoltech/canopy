@@ -101,6 +101,16 @@ test("the fixture session: every turn, tool, reasoning, subagent and compaction,
     "Continue after compaction with FIXTURE_AFTER",
   ]);
   expect(turns.every((t) => t.providerTurnRef && t.startedAt && t.status === "completed")).toBe(true);
+
+  const compacted = turns[3]!.events.flatMap(({ body }) => {
+    const content = body.case === "itemCompleted" && body.value.item?.content;
+
+    return content && content.case === "contextCompaction" ? [content.value] : [];
+  });
+
+  expect(compacted).toMatchObject([
+    { summary: expect.stringContaining("FIXTURE_ANSWER"), preTokens: 8n, postTokens: 2597n },
+  ]);
   // Another Canopy thread gets other ids: importing again after an undo never collides.
   const again = await pages(service, id, 0);
   expect(again[0]!.turns[0]!.turnId).not.toBe(turns[0]!.turnId);

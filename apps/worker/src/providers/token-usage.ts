@@ -1,3 +1,5 @@
+import type { JsonValue } from "@canopy/domain";
+import { isNumber } from "./json.ts";
 import { UsageScope } from "@canopy/contracts";
 
 /** Consumed tokens, cumulative within one platform turn. Cache and reasoning are subsets. */
@@ -36,8 +38,12 @@ export function emptyUsage(): ConsumedUsage {
   };
 }
 
+export function optionalTokenCount(value: JsonValue | undefined): bigint | undefined {
+  return isNumber(value) && Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : undefined;
+}
+
 export function tokenCount(value: number | null | undefined): bigint {
-  return value != null && Number.isSafeInteger(value) && value >= 0 ? BigInt(value) : 0n;
+  return optionalTokenCount(value) ?? 0n;
 }
 
 export function reportedUsd(value: number | null | undefined): number | undefined {

@@ -12,7 +12,7 @@ import {
   providerKeyOf,
   providerKeys,
 } from "#lib/features/threads/providers.ts";
-import { modelDisplayName } from "@canopy/domain/model-name";
+import { effortDisplayName, modelDisplayName } from "@canopy/domain/model-name";
 
 /**
  * Model options for the pickers: one entry per provider + profile + model, with what the UI shows and
@@ -81,21 +81,8 @@ export interface ModelSources {
   readonly only?: { readonly provider: ProviderKey; readonly profileId: string } | undefined;
 }
 
-const effortLabels = new Map<string, string>([
-  ["none", "None"],
-  ["minimal", "Minimal"],
-  ["low", "Low"],
-  ["medium", "Medium"],
-  ["high", "High"],
-  ["xhigh", "Extra high"],
-  ["max", "Max"],
-  ["ultra", "Ultra"],
-]);
-
 export function effortLevel(id: string): EffortLevel {
-  const known = effortLabels.get(id);
-
-  return { id, label: known ?? capitalize(id) };
+  return { id, label: effortDisplayName(id) };
 }
 
 /** Per-provider stand-ins, only for profiles without a catalog. */
@@ -137,8 +124,6 @@ export function shortModelName(name: string): string {
 
   return claude ? claude[1]! : name;
 }
-
-const capitalize = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
 /** The catalog's list for a provider + profile (the catalog names the native profile "native"). */
 export function profileCatalog(

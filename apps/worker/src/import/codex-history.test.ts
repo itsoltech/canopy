@@ -117,6 +117,18 @@ test("an older rollout without item_completed: messages, reasoning, shell calls,
       "not json\n" +
       rec(5, "event_msg", { type: "user_message", message: "Summarize everything" }) +
       rec(6, "compacted", { message: "Summary of the earlier work" }) +
+      rec(6, "event_msg", {
+        type: "token_count",
+        info: {
+          last_token_usage: {
+            total_tokens: 730,
+            input_tokens: 0,
+            output_tokens: 0,
+            cached_input_tokens: 0,
+            reasoning_output_tokens: 0,
+          },
+        },
+      }) +
       rec(7, "event_msg", { type: "turn_aborted", reason: "interrupted" }) +
       rec(8, "event_msg", { type: "task_started", turn_id: "t3" }) +
       rec(8, "event_msg", { type: "user_message", message: "Try again" }) +
@@ -134,7 +146,8 @@ test("an older rollout without item_completed: messages, reasoning, shell calls,
   expect(first.find((c) => c.case === "reasoning")?.value).toMatchObject({ text: "Thinking about files" });
   expect(first.find((c) => c.case === "agentMessage")?.value).toMatchObject({ text: "Two files." });
   expect(first.some((c) => c.case === "commandExecution")).toBe(true);
-  expect(items(turns[1]!).map((i) => i.content.case)).toContain("contextCompaction");
+  const compact = items(turns[1]!).find((i) => i.content.case === "contextCompaction")?.content;
+  expect(compact?.value).toMatchObject({ summary: "Summary of the earlier work", postTokens: 730n });
   expect(turns[2]!.error).toContain("401");
 });
 

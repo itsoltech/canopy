@@ -2243,6 +2243,10 @@ powłoki (obramowanie rose, nota w miejscu kontrolek). Wiadomość czekająca w 
 turą na osi czasu (jak w web): pokazuje ją kolejka w zasobniku, a tura pojawia się po `dispatched`
 z notą „Starting”; pliki tury są odznakami w dymku.
 
+Status (2026-11-28). Na iOS i Androidzie historia pokazuje zmianę modelu lub
+poziomu rozumowania przy turze, która używa nowego wyboru. Wiersz kompaktowania
+podaje liczbę tokenów przed i po operacji, o ile dostawca przekazał pomiary.
+
 Kompaktowanie kontekstu jest granicą segmentu, tak jak steer. Wiersz
 „Context compacted” stoi między poprzednią a dalszą pracą, poza zwijanymi foldami
 i grupami narzędzi. Pozostaje widoczny po zwinięciu aktywności oraz po ponownym

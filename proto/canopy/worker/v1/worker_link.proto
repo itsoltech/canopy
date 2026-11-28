@@ -1474,6 +1474,8 @@ message Item {
     Visual visual = 26;
     // Gateway-owned recording attached to the agent's reply.
     PublishedVideo published_video = 27;
+    // Gateway records the model and reasoning effort selected for a dispatched turn.
+    ModelChange model_change = 28;
     // Typ dostawcy bez dedykowanego mapowania. Dane są pełne, UI pokazuje widok ogólny.
     ProviderItem provider_item = 30;
   }
@@ -1717,6 +1719,8 @@ message Image {
 
 message ContextCompaction {
   string summary = 1;
+  optional uint64 pre_tokens = 2;
+  optional uint64 post_tokens = 3;
 }
 
 // Interakcja z użytkownikiem na osi czasu. Tworzy ją gateway po InteractionRequest, kończy po odpowiedzi.
@@ -2548,4 +2552,13 @@ message QueryProgress {
   string step = 2;
   string status = 3;
   string detail = 4;
+}
+
+message ModelChange {
+  string previous_model = 1;
+  string previous_effort = 2;
+  string model = 3;
+  string effort = 4;
+  string previous_model_name = 5;
+  string model_name = 6;
 }
