@@ -16,9 +16,9 @@ import { Button, Notice } from "../../ui/components";
 import { Skeleton, SkeletonScope } from "../../ui/Skeleton";
 import { ResetSetting } from "./ResetSetting";
 import { ContrastSetting } from "./ContrastSetting";
+import { SettingsTopics } from "./SettingsTopics";
 
 export function AppearanceSettings() {
-  const { botsEnabled, threadsEnabled } = useAppearance();
   const device = useDevicePreferences();
   const { appearance } = device;
 
@@ -32,7 +32,7 @@ export function AppearanceSettings() {
           </>
         ) : null}
         <Button
-          title="Restore device defaults"
+          title="Reset appearance"
           icon="arrow-path"
           size="sm"
           style={{ alignSelf: "flex-end" }}
@@ -43,7 +43,23 @@ export function AppearanceSettings() {
           }}
         />
       </View>
-      <SkeletonScope loading={appearance.loading}>
+      <SettingsTopics
+        topics={[
+          { id: "themes", label: "Themes", content: <ThemeSettings /> },
+          { id: "interface", label: "Interface", content: <InterfaceSettings /> },
+          { id: "typography", label: "Typography", content: <TypographySettings /> },
+        ]}
+      />
+    </View>
+  );
+}
+
+function ThemeSettings() {
+  const { appearance } = useDevicePreferences();
+
+  return (
+    <SkeletonScope loading={appearance.loading}>
+      <View style={{ gap: 24 }}>
         <ColorSchemeSettings />
         <SettingsGroup title="Themes">
           <View style={{ flexDirection: "row", gap: 12 }}>
@@ -51,61 +67,68 @@ export function AppearanceSettings() {
             <ThemeColumn mode="dark" />
           </View>
         </SettingsGroup>
-      </SkeletonScope>
-      <SettingsGroup title={threadWidthPreference.group}>
-        <ContrastSetting />
+      </View>
+    </SkeletonScope>
+  );
+}
+
+function InterfaceSettings() {
+  const { botsEnabled, threadsEnabled } = useAppearance();
+  const { appearance } = useDevicePreferences();
+
+  return (
+    <SettingsGroup title={threadWidthPreference.group}>
+      <ContrastSetting />
+      <DeviceChoiceRow
+        preference="effortDisplay"
+        title="Effort display"
+        description="Show reasoning effort as names or bars in model controls."
+        options={[
+          { value: "name", label: "Name" },
+          { value: "bars", label: "Bars" },
+        ]}
+      />
+      {threadsEnabled && (
         <DeviceChoiceRow
-          preference="effortDisplay"
-          title="Effort display"
-          description="Show reasoning effort as names or bars in model controls."
+          preference="contextDisplay"
+          title="Context display"
+          description="Show the latest reported context use in every thread’s message box on this device."
           options={[
-            { value: "name", label: "Name" },
-            { value: "bars", label: "Bars" },
+            { value: "off", label: "Off" },
+            { value: "circle", label: "Circle" },
+            { value: "text", label: "Text" },
+            { value: "bar", label: "Bar" },
           ]}
         />
-        {threadsEnabled && (
-          <DeviceChoiceRow
-            preference="contextDisplay"
-            title="Context display"
-            description="Show the latest reported context use in every thread’s message box on this device."
-            options={[
-              { value: "off", label: "Off" },
-              { value: "circle", label: "Circle" },
-              { value: "text", label: "Text" },
-              { value: "bar", label: "Bar" },
-            ]}
+      )}
+      <SettingsRow
+        title="Render math"
+        description="Messages show LaTeX source on mobile. Markdown file previews render formulas."
+      />
+      {botsEnabled && (
+        <SettingsRow title="Animated mascots" description="Bot mascots stay still in mobile lists and chats." />
+      )}
+      {threadsEnabled && (
+        <SkeletonScope loading={appearance.loading}>
+          <SettingChoice
+            title={threadWidthPreference.label}
+            description={threadWidthPreference.description}
+            value={appearance.values.chatWidth}
+            options={Object.values(threadWidthPreference.choices)}
+            disabled={!appearance.editable}
+            accessory={
+              <ResetSetting
+                label="Reset thread width"
+                disabled={!appearance.editable}
+                changed={appearance.values.chatWidth !== deviceAppearanceDefaults.chatWidth}
+                onReset={() => appearance.update({ chatWidth: deviceAppearanceDefaults.chatWidth })}
+              />
+            }
+            onChange={(chatWidth) => appearance.update({ chatWidth })}
           />
-        )}
-        <SettingsRow
-          title="Render math"
-          description="Messages show LaTeX source on mobile. Markdown file previews render formulas."
-        />
-        {botsEnabled && (
-          <SettingsRow title="Animated mascots" description="Bot mascots stay still in mobile lists and chats." />
-        )}
-        {threadsEnabled && (
-          <SkeletonScope loading={appearance.loading}>
-            <SettingChoice
-              title={threadWidthPreference.label}
-              description={threadWidthPreference.description}
-              value={appearance.values.chatWidth}
-              options={Object.values(threadWidthPreference.choices)}
-              disabled={!appearance.editable}
-              accessory={
-                <ResetSetting
-                  label="Reset thread width"
-                  disabled={!appearance.editable}
-                  changed={appearance.values.chatWidth !== deviceAppearanceDefaults.chatWidth}
-                  onReset={() => appearance.update({ chatWidth: deviceAppearanceDefaults.chatWidth })}
-                />
-              }
-              onChange={(chatWidth) => appearance.update({ chatWidth })}
-            />
-          </SkeletonScope>
-        )}
-      </SettingsGroup>
-      <TypographySettings />
-    </View>
+        </SkeletonScope>
+      )}
+    </SettingsGroup>
   );
 }
 

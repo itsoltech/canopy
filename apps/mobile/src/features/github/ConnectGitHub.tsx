@@ -20,7 +20,7 @@ export function ConnectGitHub({
   homeId?: string;
   configured: boolean;
   hasAccounts?: boolean;
-  onconnected?: () => void;
+  onconnected?: (justConnected: boolean) => void;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();

@@ -4,7 +4,7 @@ import type { SkillArtifact, ui } from "@canopy/contracts";
 import { libraryWorkers } from "@canopy/domain/environment-library";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { ContentInsets, useContentInsets } from "../../ui/ScreenFrame";
-import { Segmented } from "../../ui/Segmented";
+import { SettingsTopicPicker } from "./SettingsTopics";
 import { SettingsScroll, createSettingsViewState } from "./SettingsScroll";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { InstructionEditor } from "./InstructionEditor";
@@ -27,13 +27,13 @@ type Editor = {
 };
 
 const panels = [
-  { value: "instructions", label: "Instructions" },
-  { value: "skills", label: "Skills" },
-  { value: "plugins", label: "Plugins" },
-  { value: "computers", label: "Computers" },
+  { id: "instructions", label: "Instructions" },
+  { id: "skills", label: "Skills" },
+  { id: "plugins", label: "Plugins" },
+  { id: "computers", label: "Computers" },
 ] as const;
 
-type Panel = (typeof panels)[number]["value"];
+type Panel = (typeof panels)[number]["id"];
 
 const usePanel = createSettingsViewState<Panel>("instructions");
 const useSelectedWorker = createSettingsViewState("");
@@ -45,7 +45,7 @@ export function AgentEnvironmentSettings({ position, notices }: { position: stri
   return (
     <View style={{ flex: 1, minWidth: 0, paddingTop: insets.top }}>
       <View style={{ paddingLeft: insets.left + 12, paddingRight: insets.right + 12, paddingTop: 8 }}>
-        <Segmented compact options={panels} value={panel} onChange={setPanel} style={{ maxWidth: 520 }} />
+        <SettingsTopicPicker options={panels} value={panel} onChange={setPanel} />
       </View>
       <ContentInsets.Provider value={{ ...insets, top: 0 }}>
         <SettingsScroll

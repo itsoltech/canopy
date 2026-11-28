@@ -8,22 +8,18 @@ import { useWhatsNew } from "../updates/whats-new";
 import { PhoneReleaseNotes, phoneReleaseVersion } from "../updates/PhoneReleaseNotes";
 import { CANOPY_VERSION } from "../../version";
 
+const channel = Updates.channel?.replace(/^./, (letter) => letter.toUpperCase()) || "Development";
+
 export function AppUpdateStatus() {
   const phone = usePhoneUpdates();
-  const notes = useWhatsNew();
   const c = useColors();
   const { status } = phone;
-  const channel = Updates.channel?.replace(/^./, (letter) => letter.toUpperCase()) || "Development";
+
   const update = Updates.isEmbeddedLaunch ? "Bundled" : Updates.updateId?.slice(0, 8);
   const date = Updates.createdAt?.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const value = Updates.isEnabled ? [channel, update, date].filter(Boolean).join(" · ") : "Development build";
 
-  const candidate = status.isUpdatePending
-    ? status.downloadedUpdate
-    : status.isUpdateAvailable
-      ? status.availableUpdate
-      : undefined;
-
+  const candidate = phoneUpdateCandidate(status);
   const target = candidate ? phoneReleaseVersion(candidate) : undefined;
 
   const error =
@@ -77,9 +73,27 @@ export function AppUpdateStatus() {
               <Button title="Apply next launch" size="sm" variant="ghost" disabled={phone.busy} onPress={phone.defer} />
             </View>
           )}
-          {candidate && <PhoneReleaseNotes version={target} channel={channel} />}
         </View>
       )}
+    </>
+  );
+}
+
+function phoneUpdateCandidate(status: ReturnType<typeof usePhoneUpdates>["status"]) {
+  return status.isUpdatePending
+    ? status.downloadedUpdate
+    : status.isUpdateAvailable
+      ? status.availableUpdate
+      : undefined;
+}
+
+export function AppUpdateReleases() {
+  const notes = useWhatsNew();
+  const { status } = usePhoneUpdates();
+  const candidate = phoneUpdateCandidate(status);
+
+  return (
+    <>
       <Button
         title="See what's new"
         size="sm"
@@ -87,6 +101,9 @@ export function AppUpdateStatus() {
         style={{ alignSelf: "flex-start" }}
         onPress={notes.show}
       />
+      {Updates.isEnabled && candidate && (
+        <PhoneReleaseNotes version={phoneReleaseVersion(candidate)} channel={channel} />
+      )}
     </>
   );
 }

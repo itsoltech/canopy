@@ -2,44 +2,53 @@ import type { ui } from "@canopy/contracts";
 import { ResetSetting } from "./ResetSetting";
 import { SettingChoice, SettingToggle, SettingsGroup } from "./SettingsGroup";
 
-export function PullRequestSettings({
-  value,
-  inherited,
-  disabled,
-  onChange,
-}: {
+interface PullRequestProps {
   value: ui.ThreadDefaults;
   inherited?: ui.ThreadDefaults;
   disabled: boolean;
   onChange: (patch: Partial<ui.ThreadDefaults>) => void;
-}) {
+}
+
+export function PullRequestSettings(props: PullRequestProps) {
   return (
     <SettingsGroup title="Pull requests">
-      <PullRequestToggle
-        title="Auto-archive after merge"
-        resetLabel="Reset auto-archive after merge"
-        description={
-          inherited
-            ? "Archive once all linked pull requests merge and a thread finishes working, unless the thread overrides it."
-            : "Archive once all linked pull requests merge and a thread finishes working, unless a project or thread overrides it."
-        }
-        value={value.autoArchiveOnMerge}
-        fallback={false}
-        inherited={inherited && (inherited.autoArchiveOnMerge ?? false)}
-        disabled={disabled}
-        onChange={(autoArchiveOnMerge) => onChange({ autoArchiveOnMerge })}
-      />
-      <PullRequestToggle
-        title="Notify agent about pull requests"
-        resetLabel="Reset pull request notifications to default"
-        description="Send merge conflicts and final check results to the agent in the linked thread."
-        value={value.notifyOnLinkedPullRequests}
-        fallback={true}
-        inherited={inherited && (inherited.notifyOnLinkedPullRequests ?? true)}
-        disabled={disabled}
-        onChange={(notifyOnLinkedPullRequests) => onChange({ notifyOnLinkedPullRequests })}
-      />
+      <AutoArchiveSetting {...props} />
+      <PullRequestNotificationSetting {...props} />
     </SettingsGroup>
+  );
+}
+
+export function AutoArchiveSetting({ value, inherited, disabled, onChange }: PullRequestProps) {
+  return (
+    <PullRequestToggle
+      title="Auto-archive after merge"
+      resetLabel="Reset auto-archive after merge"
+      description={
+        inherited
+          ? "Archive once all linked pull requests merge and a thread finishes working, unless the thread overrides it."
+          : "Archive once all linked pull requests merge and a thread finishes working, unless a project or thread overrides it."
+      }
+      value={value.autoArchiveOnMerge}
+      fallback={false}
+      inherited={inherited && (inherited.autoArchiveOnMerge ?? false)}
+      disabled={disabled}
+      onChange={(autoArchiveOnMerge) => onChange({ autoArchiveOnMerge })}
+    />
+  );
+}
+
+export function PullRequestNotificationSetting({ value, inherited, disabled, onChange }: PullRequestProps) {
+  return (
+    <PullRequestToggle
+      title="Notify agent about pull requests"
+      resetLabel="Reset pull request notifications to default"
+      description="Send merge conflicts and final check results to the agent in the linked thread."
+      value={value.notifyOnLinkedPullRequests}
+      fallback={true}
+      inherited={inherited && (inherited.notifyOnLinkedPullRequests ?? true)}
+      disabled={disabled}
+      onChange={(notifyOnLinkedPullRequests) => onChange({ notifyOnLinkedPullRequests })}
+    />
   );
 }
 

@@ -37,7 +37,7 @@ export function HabitReviewNotice() {
     dismiss.current?.();
     dismiss.current = toast(count === 1 ? "New habit suggestion" : "New habit suggestions", {
       label: "Review habits",
-      run: () => openSettingsSection("memory"),
+      run: () => openSettingsSection("memory", { topic: "habits" }),
       failure: "Could not open Memory. Open it from Settings.",
     });
   });
