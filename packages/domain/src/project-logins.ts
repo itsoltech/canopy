@@ -40,39 +40,44 @@ export interface ProjectLoginValue {
   hide_username: boolean;
 }
 
-const WILDCARD = "*.";
+// One star at the end of the first label, followed by a fixed domain.
+const WILDCARD_HOST = /^([a-z0-9_-]*)\*((?:\.[a-z0-9_-]+){2,}\.?)$/;
 
 /**
- * A website is an origin (scheme, host and port). A leading `*.` in the host matches its subdomains, not the
- * domain itself. Returns undefined for anything else.
+ * A pasted URL keeps only its origin. The host may start with a wildcard such as *.example.com
+ * or pr-*.app.example.com.
  */
 export function normalizeLoginWebsite(input: string): string | undefined {
   const trimmed = input.trim();
   const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const schemeEnd = withScheme.indexOf("://") + 3;
-  const wildcard = withScheme.slice(schemeEnd).startsWith(WILDCARD);
-  const parsed = URL.parse(wildcard ? withScheme.replace(WILDCARD, "wildcard-host.") : withScheme);
+  const parsed = URL.parse(withScheme);
 
   if (!parsed || !["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return;
 
-  // A pasted page address keeps only its origin.
-  const host = wildcard ? parsed.host.replace(/^wildcard-host\./, WILDCARD) : parsed.host;
+  if (parsed.hostname.includes("*") && !WILDCARD_HOST.test(parsed.hostname)) return;
 
-  if (!host || host === WILDCARD || (wildcard && !host.slice(WILDCARD.length).includes("."))) return;
-
-  return `${parsed.protocol}//${host}`;
+  return parsed.origin;
 }
 
 /** Whether a page origin is one of a login's websites. */
 export function loginWebsiteMatches(website: string, origin: string): boolean {
   const page = URL.parse(origin);
 
-  if (!page || page.origin !== origin) return false;
+  if (!page || page.origin !== origin || page.hostname.includes("*")) return false;
 
-  if (!website.includes(`//${WILDCARD}`)) return website === origin;
-  const [scheme, pattern = ""] = website.split(`//${WILDCARD}`);
+  if (!website.includes("*")) return website === origin;
+  const site = URL.parse(website);
 
-  return `${page.protocol}` === scheme && page.host.endsWith(`.${pattern}`);
+  if (!site || site.origin !== website || site.protocol !== page.protocol || site.port !== page.port) return false;
+  const [, prefix, suffix] = WILDCARD_HOST.exec(site.hostname) ?? [];
+
+  if (!suffix || !page.hostname.endsWith(suffix)) return false;
+  const subdomain = page.hostname.slice(0, -suffix.length);
+
+  // A whole-label wildcard covers nested subdomains. A prefix wildcard stays inside one label.
+  if (!prefix) return subdomain.length > 0;
+
+  return subdomain.startsWith(prefix) && /^[a-z0-9_-]+$/.test(subdomain.slice(prefix.length));
 }
 
 export function loginAllowsOrigin(websites: readonly string[], origin: string): boolean {

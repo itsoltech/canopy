@@ -176,7 +176,15 @@ describe.skipIf(!dockerAvailable)("project logins (gateway ↔ worker)", () => {
 
   test("lists logins for the agent without secrets and leases them only for their websites", async () => {
     const password = `pw-${crypto.randomUUID()}`;
-    await gw.api.putProjectLogin({ projectId, name: "HIDDEN_USER", login: login({ showUsername: false }), password });
+    await gw.api.putProjectLogin({
+      projectId,
+      name: "HIDDEN_USER",
+      login: {
+        ...login({ showUsername: false }),
+        websites: ["*.example.test", "https://PR-*.app.preview.test:8443/login"],
+      },
+      password,
+    });
     await gw.api.putProjectSecret({ projectId, name: "API_TOKEN", value: "token" });
     const scope = await start();
     const listed = (await gw.worker.callTool({ ...scope, tool: "list_project_secrets", args: {} })).content;
@@ -186,10 +194,24 @@ describe.skipIf(!dockerAvailable)("project logins (gateway ↔ worker)", () => {
       logins: expect.arrayContaining([expect.objectContaining({ name: "HIDDEN_USER", username: "hidden" })]),
     });
 
-    const foreign = await lease(scope, "HIDDEN_USER", "https://evil.example.org");
-    expect(foreign.isError).toBe(true);
-    expect(foreign.content).toContain("not for https://evil.example.org");
-    expect(JSON.parse((await lease(scope, "HIDDEN_USER", "https://app.example.test")).content).status).toBe("saved");
+    for (const origin of ["https://pr-1090.app.preview.test:8443", "https://nested.app.example.test"]) {
+      expect(JSON.parse((await lease(scope, "HIDDEN_USER", origin)).content).status).toBe("saved");
+    }
+
+    for (const origin of [
+      "https://example.test",
+      "https://staging.app.preview.test:8443",
+      "https://pr-.app.preview.test:8443",
+      "https://pr-1090.nested.app.preview.test:8443",
+      "https://pr-1090.api.preview.test:8443",
+      "https://pr-1090.app.preview.test.example.org:8443",
+      "http://pr-1090.app.preview.test:8443",
+      "https://pr-1090.app.preview.test",
+    ]) {
+      const denied = await lease(scope, "HIDDEN_USER", origin);
+      expect(denied.isError).toBe(true);
+      expect(denied.content).toContain(`not for ${origin}.`);
+    }
 
     const file = await gw.worker.callTool({
       ...scope,
