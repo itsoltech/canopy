@@ -12,6 +12,8 @@ import type { ToolContext } from "./tools/shared.ts";
 
 export interface BotMemoryAccess extends MemoryAccess {
   readonly ownerInput: boolean;
+  /** A private owner message can manage skills. Only its verified automations can also read them. */
+  readonly skillAccess: "none" | "read" | "manage";
   /** Verified conversation identity for delegated work, independent of note availability. */
   readonly conversationId: string | null;
   /** An event trigger's run: read-only bot notes, no private history, owner-wide thread reads like a routine. */
@@ -27,7 +29,7 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
       owner_input: boolean;
       routine: boolean;
       trigger: boolean;
-      scheduled: boolean;
+      automation: "routine" | "trigger" | null;
       channel_input: boolean;
       external: boolean;
       shared_context: boolean;
@@ -37,15 +39,23 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
         SELECT 1 FROM bot_messages m WHERE m.turn_id=t.id AND ${ownerBotInput(sql)}
       ) AS owner_input,
       r.id IS NOT NULL AS routine, coalesce(r.kind = 'trigger', false) AS trigger,
-      EXISTS (WITH RECURSIVE chain(id, request, hops, depth) AS (
-          SELECT t.id, t.client_request_id, t.hops, 0
+      (WITH RECURSIVE chain(id, request, hops, depth) AS (
+          SELECT t.id, t.client_request_id, t.hops, 0 WHERE r.id IS NOT NULL
+            AND t.conversation_id IS NULL AND t.slack_context_epoch IS NULL AND t.exchange_id IS NULL
+            AND t.remote_recipient_ref IS NULL AND t.reply_to_bot_id IS NULL AND NOT t.reaction_input
           UNION ALL
-          -- A parked continuation acts with its asking run's access: follow verified card edges to the scheduled run.
+          -- Only a parked card from this same private automation can carry its access to a continuation.
           SELECT s.id, s.client_request_id, s.hops, c.depth + 1 FROM chain c
           JOIN bot_approvals a ON c.request = 'parked:' || a.id::text AND a.parked AND a.bot_id = t.bot_id
-          JOIN bot_turns s ON s.id = a.turn_id AND s.bot_id = t.bot_id AND s.routine_id = t.routine_id
-          WHERE c.depth < 16)
-        SELECT 1 FROM chain c WHERE c.request LIKE ('routine:' || r.id::text || ':%') AND c.hops = r.hops) AS scheduled,
+          JOIN bot_turns s ON s.id = a.turn_id AND s.bot_id = t.bot_id AND s.routine_id = r.id AND s.hops = c.hops
+          WHERE c.depth < 16 AND s.conversation_id IS NULL AND s.slack_context_epoch IS NULL AND s.exchange_id IS NULL
+            AND s.remote_recipient_ref IS NULL AND s.reply_to_bot_id IS NULL AND NOT s.reaction_input
+            AND s.handoff_configuration IS NULL)
+        SELECT r.kind FROM chain c WHERE
+          (r.kind = 'routine' AND c.request LIKE ('routine:' || r.id::text || ':%') AND c.hops = r.hops)
+          OR (r.kind = 'trigger' AND EXISTS (SELECT 1 FROM bot_trigger_batches x
+            WHERE x.trigger_id = r.id AND x.turn_id = c.id AND x.status = 'delivered'
+              AND c.request = 'trigger:' || r.id::text || ':' || x.id::text)) LIMIT 1) AS automation,
       EXISTS (SELECT 1 FROM bot_channel_inputs i JOIN bot_messages m ON m.turn_id=i.turn_id
         WHERE i.turn_id=t.id AND i.conversation_id=t.conversation_id AND i.status='applied'
           AND t.client_request_id='messenger:' || i.id::text
@@ -58,7 +68,7 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
       FROM bot_turns t JOIN bots b ON b.id=t.bot_id
       LEFT JOIN bot_routines r ON r.id=t.routine_id AND r.bot_id=t.bot_id AND r.enabled AND r.deleted_at IS NULL
         AND EXISTS (SELECT 1 FROM bot_tool_calls c JOIN bot_turns t ON t.id=c.turn_id JOIN bot_messages m ON m.turn_id=t.id
-          WHERE c.id=r.id AND c.tool->>'name'=CASE r.kind WHEN 'trigger' THEN 'create_trigger' ELSE 'create_routine' END
+          WHERE c.id=r.id AND c.tool->>'source'='platform' AND c.tool->>'name'=CASE r.kind WHEN 'trigger' THEN 'create_trigger' ELSE 'create_routine' END
             AND t.bot_id=r.bot_id AND ${ownerBotInput(sql)})
       WHERE t.id=${turn.id}::uuid AND t.bot_id=${turn.bot_id}::uuid AND b.owner_user_id=${ownerId}::uuid
         AND t.status='running' AND t.lease_token=${turn.lease_token}::uuid AND t.lease_until>now()
@@ -69,6 +79,7 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
 
     const access: BotMemoryAccess = {
       ownerInput: row.owner_input,
+      skillAccess: "none",
       conversationId: row.external && !row.relay ? row.conversation_id : null,
       ownerId,
       scopes: [],
@@ -100,7 +111,8 @@ export function botMemoryAccess(sql: SqlClient.SqlClient, ownerId: string, turn:
       return {
         ...access,
         scopes: [{ kind: "bot", botId: row.bot_id }],
-        canWrite: row.owner_input || row.scheduled,
+        canWrite: row.owner_input || row.automation === "routine",
+        skillAccess: row.owner_input ? "manage" : row.automation ? "read" : "none",
         trigger: row.trigger && !row.owner_input,
       } satisfies BotMemoryAccess;
 

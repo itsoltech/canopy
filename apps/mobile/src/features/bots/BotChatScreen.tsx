@@ -8,7 +8,7 @@ import { TimelineList } from "../composer/TimelineList";
 import type { bots } from "@canopy/contracts";
 import { splitId } from "@canopy/domain/computers";
 import { useComputerHome } from "../computers/presence";
-import { botParticipant, type BotTimelineRow } from "@canopy/domain/bot-chat";
+import { botParticipant, learnFromConversation, type BotTimelineRow } from "@canopy/domain/bot-chat";
 import { useAppearance } from "../../state/appearance";
 import { useSession } from "../../state/session";
 import { useBotList } from "../../state/bot-list";
@@ -176,6 +176,16 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
         readOnly={!live}
         visible={chat.details || !!rule}
         selectedRule={rule}
+        onLearn={
+          live && chat.online && message.loaded && !busy
+            ? () => {
+                if (!draft.value.text.endsWith(learnFromConversation.prompt))
+                  draft.appendText(learnFromConversation.prompt);
+                setDetails(false);
+                composer.expand();
+              }
+            : undefined
+        }
         onReveal={(approvalId) => {
           setDetails(false);
           const index = state.rows.latestFirst.findIndex((row) => row.id === approvalId);

@@ -238,6 +238,12 @@ describe.skipIf(!dockerAvailable)("bot event triggers: scoped thread events beco
   test("matching failed turns in the scope coalesce into one isolated background run", async () => {
     const id = await add();
     await send(id, "My private note: the release is on Friday");
+    const procedure = "Check the first failed job before summarizing.";
+    await ask(id, "save_skill", {
+      name: "failure-report",
+      description: "Review failed builds",
+      instructions: procedure,
+    });
     const trigger = await watchFailures(id);
 
     expect(trigger.description).toContain("Watched project");
@@ -257,7 +263,9 @@ describe.skipIf(!dockerAvailable)("bot event triggers: scoped thread events beco
     model = async (i) => {
       seen.push(i);
 
-      return reply("Internal: two failures");
+      return lastTool(i) === undefined
+        ? tool("read_skill", { name: "failure-report" })
+        : reply("Internal: two failures");
     };
 
     const after = await settle(id);
@@ -273,7 +281,11 @@ describe.skipIf(!dockerAvailable)("bot event triggers: scoped thread events beco
     expect(seen[0]!.instructions).toContain('HIDDEN BACKGROUND RUN of event trigger "Failed turns"');
     // Event data only: the owner's private conversation stays out of a trigger run.
     expect(seen[0]!.messages.some((m) => m.text.includes("release is on Friday"))).toBe(false);
-    expect(seen[0]!.tools.map((t) => t.name)).not.toContain("create_trigger");
+    const available = seen[0]!.tools.map((t) => t.name);
+    expect(available).not.toContain("create_trigger");
+    expect(available).not.toContain("save_skill");
+    expect(available).not.toContain("delete_skill");
+    expect(lastTool(seen.at(-1)!)).toContain(procedure);
     expect(after.triggers[0]!.runCount).toBe(1);
     expect(after.triggers[0]!.matchedWeek).toBe(2);
   });

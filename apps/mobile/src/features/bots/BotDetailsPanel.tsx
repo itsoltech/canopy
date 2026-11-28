@@ -1,6 +1,7 @@
 import { Text } from "react-native";
 import { useState } from "react";
 import type { bots } from "@canopy/contracts";
+import { learnFromConversation } from "@canopy/domain/bot-chat";
 import { Button, Sheet } from "../../ui/components";
 import { BotSettings } from "./BotSettings";
 import { PanelRow } from "../threads/ThreadPanel";
@@ -16,6 +17,7 @@ export function BotDetailsPanel({
   selectedRule = "",
   readOnly = true,
   onReveal,
+  onLearn,
 }: {
   conversation?: bots.BotConversation;
   visible: boolean;
@@ -23,6 +25,7 @@ export function BotDetailsPanel({
   selectedRule?: string;
   readOnly?: boolean;
   onReveal?: (approvalId: string) => void;
+  onLearn?: (() => void) | undefined;
 }) {
   const c = useColors();
   const bot = conversation?.bot;
@@ -48,6 +51,15 @@ export function BotDetailsPanel({
         <>
           <BotAvatar bot={bot} size={64} />
           <Text style={[styles.heading, { color: c.text }]}>{bot.configuration?.name}</Text>
+          {!bot.archived && !!conversation?.messages.length && (
+            <Button
+              title={learnFromConversation.label}
+              icon="light-bulb"
+              multiline
+              disabled={!onLearn}
+              onPress={() => onLearn?.()}
+            />
+          )}
           <PanelRow title="Model" value={bot.configuration?.model || "Default model"} icon="cpu-chip" />
           <PanelRow title="Instructions" value={bot.configuration?.instructions || "No instructions"} />
           {conversation && onReveal && <BotWaitingCards approvals={conversation.approvals} onReveal={onReveal} />}

@@ -236,7 +236,7 @@ export class BotsRuntime {
           instructions: [
             turn.conversation_id
               ? `You are ${config.name}.\n${config.instructions}\n\n${externalInstructions(await this.run((s) => s.conversationContext(turn)))}\n\n${botApprovalContext(config)} Current time: ${this.now().toISOString()}. Web access is ${config.webAccess === false ? "disabled" : "enabled"}. Conversation files are ${config.files === false ? "disabled" : "enabled"}.`
-              : await turnInstructions(step, turn, config, () => this.now()),
+              : await turnInstructions(step, turn, config, () => this.now(), isolatedInput),
             guidance,
           ]
             .filter(Boolean)

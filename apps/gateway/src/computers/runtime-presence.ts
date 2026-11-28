@@ -40,6 +40,7 @@ import {
   GITHUB_WRITE,
   CONFIG_SYNC,
   LAN_ROUTES,
+  MOVE_BOT_SKILLS,
   MOVE_BOT_TRIGGERS,
   MOVE_ITEMS,
   MOVE_NATIVE_SESSIONS,
@@ -174,7 +175,7 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
         // Moving a thread with its session and files (docs/thread-transfers.md); past the 32-entry guard.
         ...(this.moves && this.options.core ? [MOVE_NATIVE_SESSIONS] : []),
         // Peers with the 32-entry guard never see it, so they never receive a bot with event triggers.
-        ...(this.moves ? [MOVE_BOT_TRIGGERS] : []),
+        ...(this.moves ? [MOVE_BOT_TRIGGERS, MOVE_BOT_SKILLS] : []),
       ],
     });
 

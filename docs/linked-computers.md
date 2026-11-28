@@ -1,5 +1,7 @@
 # Połączone komputery
 
+Aktualizacja (2026-11-28): przy przenoszeniu bota jego biblioteka umiejętności i rewizje procedur trafiają na komputer docelowy. Szczegóły biblioteki opisuje sekcja [Umiejętności bota](bots.md#umiejętności-bota).
+
 Aktualizacja (2026-11-28): **Move to…** wątku Claude lub Codexa kontynuuje tę samą sesję dostawcy
 w nowym worktree celu, gdy obie strony to obsługują ([thread-transfers.md](thread-transfers.md)).
 
@@ -2466,7 +2468,7 @@ oba komputery mają kopię — po Unlink nic już ich nie łączy.
   rutynami, wyzwalaczami zdarzeń (przychodzą wyłączone) i przypomnieniami. Cel sprawdza powiązania tych
   rekordów oraz plików i szkicu z przenoszonym botem, także odwołanie kontynuacji do jej zaparkowanej
   karty (`resume_approval_id`, odtwarzane po wstawieniu kart). Bot z wyzwalaczami przenosi się tylko na
-  komputer z capability **`move_bot_triggers_v1`**; starszy cel odmawia przed decyzją. Rozmowy
+  komputer z capability **`move_bot_triggers_v1`**. Przeniesienie procedur bota i zachowanych rewizji wymaga **`move_bot_skills_v1`** po stronie celu. Starszy cel odmawia przed decyzją. Rozmowy
   komunikatorów zostają u źródła. Cel wybiera własnego workera i uprawnienia dla nowych
   działań bota. Zachowuje wymóg każdorazowej zgody oraz tryby `read_only` i `ask` dla tworzonych
   wątków. Pozostałe ustawienia uprawnień dostają lokalne wartości `safe` i `user_default`.

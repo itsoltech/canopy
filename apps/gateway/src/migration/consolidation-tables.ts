@@ -18,6 +18,8 @@ export const SLACK_CONTEXT_MIGRATION = 220;
 /** Parked bot cards: approvals and continuation turns gain columns. */
 export const BOT_PARKED_MIGRATION = 228;
 
+export const BOT_SKILLS_MIGRATION = 232;
+
 /** Event triggers: routines gain trigger columns and the scopes table. */
 export const BOT_TRIGGERS_MIGRATION = 229;
 
@@ -259,6 +261,7 @@ export const importTables: readonly ImportTable[] = [
   ...repoData,
   ...threadData.map((name) => ({ name, filter: thread() })),
   ...botData.map((name) => ({ name, filter: bot() })),
+  { name: "bot_skills", filter: bot(), sinceMigration: BOT_SKILLS_MIGRATION },
   {
     name: "bot_trigger_scopes",
     filter: `${owned} AND EXISTS (SELECT FROM public.bot_routines r JOIN public.bots b ON b.id=r.bot_id
