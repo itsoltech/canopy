@@ -7,6 +7,7 @@ import { THREAD_VISUALS_CAPABILITY, THREAD_HTML_CAPABILITY } from "@canopy/domai
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import { readVisual } from "../../apps/gateway/src/store/visuals.ts";
+import { listArtifacts } from "./support/thread-artifacts.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 
 const spec = (label = "Add worker") => ({
@@ -187,6 +188,14 @@ describe.skipIf(!dockerAvailable)("interactive visuals over WorkerLink", () => {
     expect(foreign.isError).toBe(true);
     expect(foreign.content).toContain("Visual not found in this thread");
     await expect(gw.api.getVisual({ threadId: other.threadId, visualId: first.visual_id })).rejects.toThrow();
+    gw.worker.finish(source.threadId, source.turnId);
+
+    const artifacts = await eventually(
+      () => listArtifacts(gw.api, source.threadId),
+      (list) => list.length > 0,
+    );
+
+    expect(artifacts).toMatchObject([{ itemId: first.item_id, content: { case: "visual", value: { version: 2 } } }]);
   });
 
   test("scopes reads to the owner", async () => {

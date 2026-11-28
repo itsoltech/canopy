@@ -7,6 +7,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { linkedMessage } from "../computers/remote.ts";
 import type { LinkedComputers } from "../computers/runtime.ts";
 import { threadHistory } from "../core/thread-history.ts";
+import { linkedArtifacts } from "../computers/mirror-artifacts.ts";
 import { warmRangeMirror } from "../computers/range-warm.ts";
 
 /** Background reads follow the local mirror checkpoint, including while the home is offline. */
@@ -47,6 +48,12 @@ export async function* mirrorFirst(
   request: Message,
   send: (request: Message) => AsyncIterable<Message>,
 ): AsyncGenerator<Message, boolean> {
+  if (method.name === "ListThreadArtifacts") {
+    yield* linkedArtifacts(computers, nodeId, linkedMessage(ui.ListThreadArtifactsRequestSchema, request), send);
+
+    return true;
+  }
+
   if (
     !computers.reachable().includes(nodeId) ||
     !computers.capabilities(nodeId).includes(THREAD_MIRROR) ||

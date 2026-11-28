@@ -70,7 +70,7 @@
   </span>
 {/snippet}
 
-<div class="density-work text-base/6 select-none sm:text-sm/5">
+<div class="density-work text-base/6 select-none sm:text-sm/5" data-item-frame>
   {#if children || nested()}
     <Disclosure bind:open remember="frame" grid class={activitySurface} summaryClass={activityHeader}>
       {#snippet summary()}{@render row()}{/snippet}

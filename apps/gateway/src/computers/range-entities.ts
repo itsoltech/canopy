@@ -1,5 +1,6 @@
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
+import { artifactManifest } from "../store/thread-artifacts.ts";
 import { Effect } from "effect";
 import type { SqlClient } from "effect/sql";
 
@@ -25,6 +26,10 @@ export function writeRangeEntities(sql: SqlClient.SqlClient, owner: string, node
 
       if (value.case === "turn") turnId = value.value.id;
 
+      let state = value.case === "turn" ? value.value.status : "";
+
+      if (value.case === "item") state = artifactManifest(value.value.item) ? "artifact" : "other";
+
       return [
         {
           key: record.key,
@@ -32,7 +37,7 @@ export function writeRangeEntities(sql: SqlClient.SqlClient, owner: string, node
           kind: value.case ?? "unknown",
           turn_id: turnId,
           ordinal: record.position.toString(),
-          state: value.case === "turn" ? value.value.status : "",
+          state,
           payload: Buffer.from(toBinary(ui.ThreadSyncRecordSchema, record)).toString("base64"),
         },
       ];

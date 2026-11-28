@@ -21,6 +21,7 @@
   import { useOverview } from "#lib/features/overview/overview-state.svelte.ts";
   import { awayReason } from "#lib/features/computers/computers.ts";
   import ThreadAutoArchive from "./ThreadAutoArchive.svelte";
+  import ThreadArtifacts from "../artifacts/ThreadArtifacts.svelte";
 
   const capabilities = useGatewayCapabilities();
 
@@ -40,6 +41,7 @@
     onsecretchange,
     backgroundTasks = [],
     items = new Map(),
+    onshowartifact,
     onbackground,
     onschedule,
     onschedulechange,
@@ -58,6 +60,7 @@
     onsecretchange?: ((secret: ui.ThreadSecret) => void) | undefined;
     backgroundTasks?: readonly BackgroundEntry[];
     items?: ReadonlyMap<string, Item>;
+    onshowartifact?: ((item: Item) => void) | undefined;
     onbackground?: ((id: string) => void) | undefined;
     onschedule?: (() => void) | undefined;
     onschedulechange?: ((schedule: ui.Schedule) => void) | undefined;
@@ -114,6 +117,9 @@
   {#if thread.permissionModeNote}<p class="px-3 py-2 text-sm text-pretty text-zinc-600 sm:text-xs dark:text-zinc-400">
       {thread.permissionModeNote}
     </p>{/if}
+  {#if onshowartifact && capabilities?.supportsMethod("ListThreadArtifacts") !== false}
+    {#key thread.id}<ThreadArtifacts threadId={thread.id} onshow={onshowartifact} />{/key}
+  {/if}
   {#if capabilities?.supports("/pull-requests") !== false}<div>
       <ThreadPullRequests {thread} />
       {#key thread.id}<ThreadAutoArchive {thread} disabled={stale} class="mx-1.5 mb-1" />{/key}

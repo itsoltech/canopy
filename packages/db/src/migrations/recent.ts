@@ -12,6 +12,7 @@ import botTriggerMoreEvents from "./0231_bot_trigger_more_events.sql" with { typ
 import githubAgentAccess from "./0233_github_agent_access.sql" with { type: "text" };
 import botSkills from "./0232_bot_skills.sql" with { type: "text" };
 import { mobilePushDismissalMigrations } from "./mobile-push.ts";
+import threadArtifacts from "./0234_thread_artifacts.sql" with { type: "text" };
 import { sqlFile } from "./run.ts";
 
 /** Applied after 0219, in migration order; kept apart so the main map stays within its size limit. */
@@ -30,4 +31,5 @@ export const recentMigrations = {
   "0231_bot_trigger_more_events": sqlFile(botTriggerMoreEvents),
   "0232_bot_skills": sqlFile(botSkills),
   "0233_github_agent_access": sqlFile(githubAgentAccess),
+  "0234_thread_artifacts": sqlFile(threadArtifacts),
 };

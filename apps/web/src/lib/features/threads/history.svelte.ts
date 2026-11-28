@@ -13,12 +13,14 @@ import { ThreadWatchRecovery, threadWatchMessage, threadSyncStatus } from "@cano
 import { threadWatchReady } from "@canopy/domain/thread-watch-state";
 import { threadOverviewHead, warmCacheHit } from "./warming.ts";
 import { ThreadWatchLiveness, threadViewDiverged } from "@canopy/domain/thread-watch-liveness";
+import { invalidateArtifacts } from "./artifacts/artifact-read.ts";
 
 export class ThreadHistory {
   loading = $state(false);
   error = $state("");
   #restart = () => {};
   #abort = new AbortController();
+  #page: Promise<void> | undefined;
   #recovery = new ThreadWatchRecovery();
   #smaller = false;
   #reportedGap = false;
@@ -96,6 +98,7 @@ export class ThreadHistory {
           const update = decode(ui.ThreadUpdateSchema, JSON.parse(data));
           const previous = this.read();
           this.view.apply(update);
+          invalidateArtifacts(id, update);
 
           const snapshot = this.read();
 
@@ -160,24 +163,38 @@ export class ThreadHistory {
     };
   }
 
-  async load(target = "") {
-    // Revealing a quote walks bounded pages so the loaded window stays continuous.
-    if (target) {
-      while (!this.read()?.items.some((entry) => entry.item?.itemId === target)) {
-        const before = this.read()?.historyBeforeItemId;
+  /** Item jumps walk the same continuous window as scrolling, sharing any page already in flight. */
+  async loadUntil(ready: () => boolean, signal: AbortSignal) {
+    while (!signal.aborted && !ready()) {
+      const before = this.read();
 
-        if (this.loading || this.error || (!this.read()?.historyHasMore && !this.read()?.historyItemsHasMore)) return;
-        await this.load();
+      if (!before || (!before.historyHasMore && !before.historyItemsHasMore)) return;
+      await this.load();
+      const after = this.read();
 
-        if (this.#abort.signal.aborted || this.read()?.historyBeforeItemId === before) return;
-      }
-
-      return;
+      if (
+        this.error ||
+        !after ||
+        after.historyVersion !== before.historyVersion ||
+        (after.historyBeforeItemId === before.historyBeforeItemId &&
+          after.historyBeforeTurnId === before.historyBeforeTurnId)
+      )
+        return;
     }
+  }
 
+  load(): Promise<void> {
+    this.#page ??= this.#loadPage().finally(() => {
+      this.#page = undefined;
+    });
+
+    return this.#page;
+  }
+
+  async #loadPage() {
     const base = this.read();
 
-    if (this.loading || !base?.thread || (!target && !base.historyHasMore && !base.historyItemsHasMore)) return;
+    if (!base?.thread || (!base.historyHasMore && !base.historyItemsHasMore)) return;
     this.loading = true;
     this.error = "";
     const started = performance.now();
@@ -194,7 +211,6 @@ export class ThreadHistory {
         before: base.historyBeforeTurnId,
         beforeItem: base.historyBeforeItemId,
         version: base.historyVersion,
-        target,
       });
 
       const response = await fetch(`/api/threads/${base.thread.id}/history?${query}`, { signal });

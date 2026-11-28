@@ -1,14 +1,31 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { isMessage } from "@bufbuild/protobuf";
-import { ExportThreadImageSchema, Provider, type AgentToolResult } from "@canopy/contracts";
+import { ExportThreadImageSchema, Provider, type AgentToolResult, type Item } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
 import { qualifyId, splitId } from "@canopy/domain/computers";
 import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { attachmentResponse } from "../../apps/web/src/lib/server/attachment-response.ts";
-import { configComputer, pairConfig } from "./support/config-sync.ts";
+import { configComputer, pairConfig, type ConfigComputer } from "./support/config-sync.ts";
+import { listArtifacts } from "./support/thread-artifacts.ts";
 import { eventually, failure, watchUntil } from "./support/gateway.ts";
+
+async function checkOfflineArtifacts(home: ConfigComputer, viewer: ConfigComputer, thread: string, manifest: Item) {
+  const synced = await eventually(
+    () => viewer.links.mirror.snapshot(home.node, thread),
+    (snapshot) =>
+      !!snapshot?.turns.some((turn) => turn.status === "completed") &&
+      snapshot.items.some((entry) => entry.item?.itemId === manifest.itemId),
+    15_000,
+  );
+
+  expect(synced?.items.map((entry) => entry.item?.itemId)).toContain(manifest.itemId);
+  expect(synced?.turns.some((turn) => turn.status === "completed")).toBe(true);
+  await home.links.close();
+  expect(await eventually(async () => !viewer.links.reachable().includes(home.node), Boolean)).toBe(true);
+  expect(await listArtifacts(viewer.gateway.api, qualifyId(thread, home.node))).toEqual([manifest]);
+}
 
 test.skipIf(!dockerAvailable)(
   "published image manifests and attachment reads survive a linked home restart",
@@ -86,6 +103,7 @@ test.skipIf(!dockerAvailable)(
       });
 
       expect(result.isError).toBe(false);
+      expect(await listArtifacts(home.gateway.api, thread.id)).toEqual([]);
       worker.finish(thread.id, turn.id);
       const qualified = qualifyId(thread.id, home.node);
 
@@ -105,6 +123,12 @@ test.skipIf(!dockerAvailable)(
       const image = manifest?.content.case === "imageGallery" ? manifest.content.value.images[0] : undefined;
       expect(image?.attachmentId).toBe(qualifyId(splitId(image!.attachmentId).id, home.node));
       const attachmentId = image!.attachmentId;
+      expect(
+        await eventually(
+          () => listArtifacts(viewer.gateway.api, qualified),
+          (items) => items.length === 1,
+        ),
+      ).toEqual([manifest!]);
       const first = await viewer.gateway.api.getAttachment({ attachmentId });
       expect(first.mimeType).toBe("image/png");
       expect((await viewer.gateway.api.getAttachment({ attachmentId, thumbnail: true })).mimeType).toBe("image/webp");
@@ -117,6 +141,7 @@ test.skipIf(!dockerAvailable)(
 
       expect(response.status).toBe(200);
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      await checkOfflineArtifacts(home, viewer, thread.id, manifest!);
       await home.restart();
       expect(await eventually(async () => viewer.links.reachable().includes(home.node), Boolean, 15_000)).toBe(true);
       expect((await viewer.gateway.api.getAttachment({ attachmentId })).data).toEqual(first.data);

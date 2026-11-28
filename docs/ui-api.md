@@ -2,6 +2,14 @@
 
 Status (2026-11-28). Web i desktop wybierają sposób rozwiązania konfliktu skilla w bibliotece. [Środowisko agentów](#agent-environment)
 
+Status (2026-11-28). BFF udostępnia pełną listę opublikowanych materiałów wątku przez
+`GET /api/threads/[threadId]/artifacts`. Gateway sprawdza właściciela, wybiera manifesty
+z widocznych zakończonych tur tego wątku, pomija odziedziczone tury forka i przesyła
+wyniki od najnowszego w partiach gRPC `ListThreadArtifacts`. BFF zwraca jedną
+listę `items`. Zaimportowane obrazy Markdown
+zachowują identyfikator wiadomości. Dla połączonego komputera odczyt działa także
+z zatwierdzonego lustra po utracie połączenia.
+
 Status (2026-11-28). Web, desktop i telefon zarządzają dostępem projektów i botów
 do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
 

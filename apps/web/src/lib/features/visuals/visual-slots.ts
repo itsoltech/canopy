@@ -22,7 +22,8 @@ export function claimVisualSlot(slot: VisualSlot, force: boolean): boolean {
     const victim = held.find((other) => !other.focused());
 
     if (!victim) return false;
-    releaseVisualSlot(victim);
+    // Transfer the occupied slot directly: waking waiters here could let one claim it mid-transfer.
+    held.splice(held.indexOf(victim), 1);
     victim.evict();
   }
 

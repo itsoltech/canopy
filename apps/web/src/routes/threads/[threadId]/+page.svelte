@@ -55,7 +55,7 @@
   import { ThreadRewind, provideThreadRewind } from "#lib/features/threads/rewind-state.svelte.ts";
   import { openThreadMemory, threadViews } from "#lib/features/threads/thread-views.ts";
   import { retainTree, treeOf } from "#lib/features/threads/thread-tree.ts";
-  import { createQuoteReveal } from "#lib/features/threads/quote-reveal.svelte.ts";
+  import { createItemReveal } from "#lib/features/threads/item-reveal.svelte.ts";
   import type { FoldReader } from "#lib/features/threads/work-folds.svelte.ts";
   import { syncWorkFolds, workHistoryReader } from "#lib/features/threads/thread-feed-effects.svelte.ts";
   import { threadScrollMemory } from "#lib/features/threads/thread-scroll-memory.svelte.ts";
@@ -195,7 +195,7 @@
   providePageDirectory(
     () => ({ id: threadId, view, readOnly: Boolean(away) || worktreeRemoved, canFork }),
     threadById,
-    (quote) => revealQuote(quote.sourceItemId),
+    (quote) => revealItem(quote.sourceItemId),
   );
 
   // The composer and reading position follow the thread's timeline.
@@ -440,7 +440,7 @@
   // Keep the tray mounted through the panel's local outro when the last subagent finishes.
   let subagentsPanel = $state<HTMLDivElement>();
 
-  const revealQuote = createQuoteReveal(
+  const { revealItem, showArtifact } = createItemReveal(
     () => threadId,
     () => ({ view, folds, rewind, rows, feed, region: feedRegion, openHistory: () => (historyOpen = true) }),
   );
@@ -601,7 +601,7 @@
           {view}
           reveal={async (turnId, itemId) => {
             if (itemId) {
-              await revealQuote(itemId);
+              await revealItem(itemId);
               return;
             }
             historyOpen = true;
@@ -646,8 +646,9 @@
                   floating={summary.floating}
                   docked={summary.docked}
                   bind:pillWidth={summary.pillWidth}
-                  preview={showMiniPreview ? miniPreview : undefined}>{@render threadPanel()}</ThreadSummary
-                >{/if}
+                  preview={showMiniPreview ? miniPreview : undefined}
+                  children={threadPanel}
+                />{/if}
             </div>
             {#key threadId}
               {#if turnsOnRail.length >= 3}
@@ -915,7 +916,7 @@
   {/if}
 {/snippet}
 
-{#snippet threadPanel()}
+{#snippet threadPanel(closeOverlay: () => void)}
   {#if thread && tree}
     <ThreadPanel
       onworktree={manageWorktree}
@@ -927,6 +928,10 @@
       backgroundTasks={allBackgroundTasks}
       items={itemsById}
       onbackground={openOutput}
+      onshowartifact={(item) => {
+        closeOverlay();
+        void showArtifact(item);
+      }}
       onschedule={canSchedule ? openSchedule : undefined}
       onschedulechange={(schedule) => view.upsertSchedule(schedule)}
       secrets={view.secrets}

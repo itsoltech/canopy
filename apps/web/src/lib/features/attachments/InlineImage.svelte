@@ -7,7 +7,7 @@
   let visible = $state(false);
 </script>
 
-<span class="my-2 inline-grid w-80 max-w-full align-top" data-quote-skip>
+<span class="my-2 inline-grid w-80 max-w-full align-top" data-quote-skip data-inline-image>
   <span
     class="grid aspect-video overflow-hidden rounded-lg bg-zinc-950/3 dark:bg-white/5"
     {@attach (element) =>

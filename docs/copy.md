@@ -73,6 +73,7 @@ appear only as the literal name used by an external tool).
 | diff | changes in the thread’s directory compared with Git HEAD | patch viewer |
 | review | a draft of comments on a diff, sent to the agent together | feedback batch |
 | citation | an inline token containing a quoted passage; `Cite` inserts it, `quote` names its text | footnote, reference |
+| artifact | an image, gallery, video or visual the agent publishes in a thread | asset, deliverable |
 | visual | an interactive explanation the agent publishes in a thread; controls change it locally (`Visual` in titles) | widget, app, embed, applet |
 | shell command | an owner's command entered with a leading `!`; runs when delivered | terminal message, bash mode |
 | agent | Claude, Codex, Grok or Antigravity working in a thread | assistant, AI, model (a model is something else) |
