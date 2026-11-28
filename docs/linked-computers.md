@@ -33,7 +33,7 @@ Status (2026-11-24): szczegóły wątku w web i desktopie pokazują subagentów 
 komputerów także wtedy, gdy rodzic i subagent pracują w różnych projektach.
 Indeks wątków zachowuje powiązanie po archiwizacji subagenta.
 
-Status (2026-11-23): wyszukiwanie zgłoszeń i pull requestów pod `#` korzysta z konektorów domu wybranego wątku lub workspace.
+Status (2026-11-28): zgłoszenia i pull requesty pod `#` wyszukuje gateway wybranego wątku lub workspace’u. Korzysta z własnego konta GitHub dla repozytorium i z przyznanych konektorów.
 
 Status (2026-11-23): `send_message` bota bez załączników akceptuje identyfikator z przyrostkiem
 własnego gatewaya. Dostęp do wątku sprawdza jego dom zgodnie z zakresem rozmowy.
@@ -1063,7 +1063,7 @@ odczytu nie powoduje kolejnej próby na każdym pollu. Tick Update all też jest
 | `ListModels`, `ListSchedules`, `ListWorktrees`, cele botów/harmonogramów | Ostatnia odpowiedź i odświeżenie w tle; pickery zachowują workery/projekty i wyjaśniają wyłączone akcje. |
 | `ListBots`, App updates, Connectors | Cache / lustro bota i stan dostępności; rekordy kont konektorów są lokalne. Zimny lub nieudany odczyt listy botów korzysta z zatwierdzonego lustra także online. |
 | Settings: projekty, providers, connectors, proxies, workers, agent environment, Devices | Lokalne rekordy i współdzielona konfiguracja; edycja zdalnego workera ma osobny jawny RPC i owner-scoping. Pobieranie blobów config-sync jest poza transakcją DB. |
-| Search i wzmianki | Paleta i sidebar przeszukują zachowany overview. Pod `#` wyszukiwanie wątków (`SearchThreads`) obejmuje lokalny dom, a wyszukiwanie zgłoszeń i pull requestów (`SearchIssues`) korzysta z domu wybranego wątku lub workspace i jego grantów. Pliki i katalogi należą do wybranego workera. |
+| Search i wzmianki | Paleta i sidebar przeszukują zachowany overview. Pod `#` wyszukiwanie wątków (`SearchThreads`) obejmuje lokalny dom. Zgłoszenia i pull requesty (`SearchIssues`) pochodzą z konta GitHub repozytorium oraz konektorów dostępnych w wybranym wątku lub workspace na jego macierzystym gatewayu. Pliki i katalogi należą do wybranego workera. |
 | Katalogi agentów i narzędzia `list_agents`, `list_threads`, `list_bots` | Dane z tego samego modułu korzystają z cache i luster. Gdy wątek szuka botów lub bot szuka wątków/projektów, listę udostępnia osiągalny dom po sprawdzeniu bieżących ustawień. W `list_agents` wszystkie domy mają wspólne 200 ms na zwrot nazw botów. Przy przekroczeniu tego czasu narzędzie zwraca dostępne dane z oznaczeniem `loading`, a następne wywołanie ponownie sprawdza dostęp. |
 
 Uzgadnianie w web i mobile usuwa powtórzenia po pełnym id zasobu, niezależnie od

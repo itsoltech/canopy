@@ -1,5 +1,7 @@
 # Konektory Canopy
 
+Aktualizacja (2026-11-28): pod `#` kompozytor uwzględnia też konto GitHub z dostępem do repozytorium workspace’u.
+
 Aktualizacja (2026-11-26): bot może obsłużyć turę Slacka bez odpowiedzi lub
 powiadomienia właściciela. Dostępność w kanałach określa [promocja wydań](release.md).
 
@@ -57,22 +59,25 @@ Dostępność kanałów według [release.md](release.md).
 
 ## Zgłoszenia w kompozytorze wątku
 
-W Settings → Connectors podłącz konto Atlassian, Linear albo GitHub i włącz dostęp
-dla projektu. Dla wątku poza projektem włącz No project. Wpisz `#` w kompozytorze,
+Jeśli repozytorium workspace’u jest dostępne przez Settings → GitHub, jego
+zgłoszenia i pull requesty pojawiają się w kompozytorze bez dodatkowego konektora.
+W Settings → Connectors możesz podłączyć konto Atlassian, Linear albo GitHub i włączyć
+dostęp dla projektu. Dla wątku poza projektem włącz No project. Wpisz `#` w kompozytorze,
 a następnie klucz, numer lub fragment tytułu. Wyniki są pogrupowane jako
 **Issues**, **Pull requests** i **Threads**. Możesz wybrać kilka pozycji
 w jednej wiadomości. Agent otrzyma rodzaj, klucz, tytuł, link oraz dostępne
 status i opis z chwili wyboru. Wzmianka o wątku pozwala agentowi odczytać go w Canopy.
 
-W repozytorium GitHub wpisz np. `#123`, a dla innego repozytorium
-`#owner/repo#123`. Po wyborze w wiadomości zostaje `owner/repo#123`.
+W repozytorium GitHub wpisz np. `#123`. Przy dostępie przez konektor GitHub możesz
+też podać inne repozytorium jako `#owner/repo#123`. Po wyborze w wiadomości zostaje `owner/repo#123`.
 W Jira i Linear możesz wpisać np. `#OPS-42`. Możesz też wkleić po `#`
 link do zgłoszenia lub pull requestu. Wyszukiwanie tekstowe w Jira obejmuje
 do czterech witryn na konto. Link kieruje zapytanie do konkretnej witryny.
 
-Gateway wykonuje wyszukiwanie przy użyciu narzędzi odczytu MCP dla kont danego
-właściciela z dostępem w wybranym zakresie. Przyjęcie wiadomości sprawdza
-aktualny dostęp do konta. Ewentualną zmianę zgłoszenia agent wykonuje osobnym
+Gateway korzysta z API GitHub dla repozytorium workspace’u i z narzędzi odczytu MCP
+dla kont właściciela z grantem w wybranym zakresie. Gdy oba źródła zwracają ten sam
+link GitHub, kompozytor pokazuje go raz. Przy wysyłce gateway ponownie sprawdza
+dostęp do repozytorium lub grant konektora użytego przy wyborze. Ewentualną zmianę zgłoszenia agent wykonuje osobnym
 wywołaniem konektora w ramach uprawnień wątku.
 
 ## Decyzje

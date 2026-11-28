@@ -19,19 +19,27 @@ const row = Schema.decodeUnknownOption(
   }),
 );
 
-type Kind = "issue" | "pr";
+export type GitHubMentionKind = "issue" | "pr";
 
-interface Lookup {
+export interface GitHubMentionLookup {
   repository: string;
   number?: number;
   origin?: string;
 }
 
-function githubMatch(value: JsonValue, kind: Kind, lookup: Lookup) {
-  const hit = Option.getOrUndefined(row(value));
-
-  if (!hit || (kind === "issue" && hit.pull_request) || (lookup.number && lookup.number !== hit.number)) return;
-  const url = parseIssueUrl(hit.html_url);
+export function githubMention(
+  hit: {
+    number: number;
+    url: string;
+    title: string;
+    body?: string | null | undefined;
+    state?: string | null | undefined;
+  },
+  kind: GitHubMentionKind,
+  lookup: GitHubMentionLookup,
+) {
+  if (lookup.number && lookup.number !== hit.number) return;
+  const url = parseIssueUrl(hit.url);
   const target = url && githubMentionTarget(url);
 
   if (!url || !target || target.number !== hit.number || target.pullRequest !== (kind === "pr")) return;
@@ -40,17 +48,30 @@ function githubMatch(value: JsonValue, kind: Kind, lookup: Lookup) {
 
   if (lookup.repository && lookup.repository.toLowerCase() !== target.repository.toLowerCase()) return;
 
-  let status = hit.state;
-
-  if (target.pullRequest && (hit.merged || hit.pull_request?.merged_at)) status = "merged";
-  else if (target.pullRequest && hit.draft && status === "open") status = "draft";
-
-  const result = issue(`${target.repository}#${target.number}`, hit.title, url, hit.body, status);
+  const result = issue(`${target.repository}#${target.number}`, hit.title, url, hit.body, hit.state);
 
   return result && target.pullRequest ? { ...result, pullRequest: true } : result;
 }
 
-async function readKind(kind: Kind, lookup: Lookup, query: string, limit: number, call: IssueToolCall) {
+function githubMatch(value: JsonValue, kind: GitHubMentionKind, lookup: GitHubMentionLookup) {
+  const hit = Option.getOrUndefined(row(value));
+
+  if (!hit || (kind === "issue" && hit.pull_request)) return;
+  let state = hit.state;
+
+  if (kind === "pr" && (hit.merged || hit.pull_request?.merged_at)) state = "merged";
+  else if (kind === "pr" && hit.draft && state === "open") state = "draft";
+
+  return githubMention({ ...hit, url: hit.html_url, state }, kind, lookup);
+}
+
+async function readKind(
+  kind: GitHubMentionKind,
+  lookup: GitHubMentionLookup,
+  query: string,
+  limit: number,
+  call: IssueToolCall,
+) {
   const [owner, repo] = lookup.repository.split("/");
   const scoped = owner && repo ? { owner, repo } : {};
 
@@ -76,6 +97,39 @@ async function readKind(kind: Kind, lookup: Lookup, query: string, limit: number
   return matches(rows, limit, (item) => githubMatch(item, kind, lookup));
 }
 
+export function githubMentionQuery(term: string, url: URL | undefined, options: IssueProviderOptions) {
+  const target = url && githubMentionTarget(url);
+
+  if (url && (!target || (target.pullRequest && !options.includePullRequests))) return;
+  const qualified = qualifiedNumber.exec(term);
+  const repository = target?.repository ?? qualified?.[1] ?? options.repository ?? "";
+  const repoMatch = repositoryPattern.exec(repository);
+
+  if (repository && (!repoMatch || repoMatch[2] === "." || repoMatch[2] === "..")) return;
+  const numberText = qualified?.[2] ?? /^#?([1-9]\d*)$/.exec(term)?.[1];
+  const number = target?.number ?? (numberText ? Number(numberText) : undefined);
+
+  if (number !== undefined && !Number.isSafeInteger(number)) return;
+
+  // GitHub semantic search strips quotes. Keep user text out of its qualifier syntax.
+  const words = term.match(/[\p{L}\p{M}\p{N}_]+/gu) ?? [];
+  const text = words.map((word) => word.toLowerCase()).join(" ");
+
+  if (term && !text) return;
+
+  const open = repository ? "is:open" : "is:open involves:@me";
+  const query = number?.toString() ?? (text ? `"${text}" in:title,body` : open);
+  const lookup: GitHubMentionLookup = { repository, ...(number && { number }), ...(url && { origin: url.origin }) };
+
+  const kind: GitHubMentionKind | undefined = target?.pullRequest
+    ? "pr"
+    : target || !options.includePullRequests
+      ? "issue"
+      : undefined;
+
+  return { lookup, query, kind };
+}
+
 export async function githubIssues(
   term: string,
   url: URL | undefined,
@@ -83,31 +137,13 @@ export async function githubIssues(
   call: IssueToolCall,
   options: IssueProviderOptions,
 ) {
-  const target = url && githubMentionTarget(url);
+  const parsed = githubMentionQuery(term, url, options);
 
-  if (url && (!target || (target.pullRequest && !options.includePullRequests))) return [];
-  const qualified = qualifiedNumber.exec(term);
-  const repository = target?.repository ?? qualified?.[1] ?? options.repository ?? "";
-  const repoMatch = repositoryPattern.exec(repository);
+  if (!parsed) return [];
+  const { lookup, query, kind } = parsed;
+  const read = (kind: GitHubMentionKind) => readKind(kind, lookup, query, limit, call);
 
-  if (repository && (!repoMatch || repoMatch[2] === "." || repoMatch[2] === "..")) return [];
-  const numberText = qualified?.[2] ?? /^#?([1-9]\d*)$/.exec(term)?.[1];
-  const number = target?.number ?? (numberText ? Number(numberText) : undefined);
-
-  if (number !== undefined && !Number.isSafeInteger(number)) return [];
-
-  // GitHub semantic search strips quotes. Keep user text out of its qualifier syntax.
-  const words = term.match(/[\p{L}\p{M}\p{N}_]+/gu) ?? [];
-  const text = words.map((word) => word.toLowerCase()).join(" ");
-
-  if (term && !text) return [];
-
-  const open = repository ? "is:open" : "is:open involves:@me";
-  const query = number?.toString() ?? (text ? `"${text}" in:title,body` : open);
-  const lookup: Lookup = { repository, ...(number && { number }), ...(url && { origin: url.origin }) };
-  const read = (kind: Kind) => readKind(kind, lookup, query, limit, call);
-
-  if (target || !options.includePullRequests) return read(target?.pullRequest ? "pr" : "issue");
+  if (kind) return read(kind);
 
   const [issues, pulls] = await Promise.allSettled([read("issue"), read("pr")]);
 
@@ -115,7 +151,7 @@ export async function githubIssues(
 
   // Both kinds share a repository's number sequence. One exact hit fully answers that lookup.
   const pages = [issues, pulls].flatMap((page) => (page.status === "fulfilled" ? [page.value] : []));
-  const exact = number && repository && pages.some((page) => page.length);
+  const exact = lookup.number && lookup.repository && pages.some((page) => page.length);
 
   if (!exact && issues.status === "rejected") options.onPartialFailure?.("issues");
 

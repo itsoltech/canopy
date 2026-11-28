@@ -1,5 +1,9 @@
 # Konto GitHub i pull requesty
 
+Status (2026-11-28): kompozytor nowego i istniejącego wątku wyszukuje pod `#`
+zgłoszenia i pull requesty przez konto GitHub wybrane dla repozytorium workspace’u.
+Wpisanie numeru, np. `#1386`, obejmuje także zamknięte zgłoszenia i scalone PR.
+
 Aktualizacja (2026-11-27): odświeżenie listy w tle może zapisać podsumowanie tylko
 z odpowiedzi, która nadal znajduje się w cache bieżącej rewizji dostępu (§3). Jawne odświeżenie
 strony PR przyjmuje wypełnienie cache zapisane po jego pierwszym odczycie zamiast pobierać ponownie.
@@ -130,7 +134,7 @@ Nie istnieje client secret ani private key i ten przepływ nigdy ich nie używa.
 | Metadata | Read, obowiązkowe | Tożsamość repozytorium i dostęp instalacji |
 | Pull requests | Read and write | Create, ready/draft, close/reopen, tytuł/opis, reviews/inline/resolve, request/re-request użytkowników i zespołów, Viewed oraz auto-merge |
 | Contents | Read and write | Odczyt commitów/plików oraz merge i update branch przez API GitHub; update wymaga write także do head repo, również forka |
-| Issues | Read and write | Labels i assignees PR przez Issues API oraz komentarze ogólne; bez zarządzania osobnymi issues |
+| Issues | Read and write | Wyszukiwanie zgłoszeń pod `#` w kompozytorze, etykiety i osoby przypisane do PR przez Issues API oraz komentarze ogólne |
 | Actions | Read and write | Odczyt runs/jobs/logów, ponowienie joba, nieudanych jobów lub całego run oraz cancel run |
 | Checks | Read | Check runs/suites, output i adnotacje, także od zewnętrznych dostawców |
 | Commit statuses | Read | Starsze statusy commitów, uzupełniające check runs |
@@ -405,7 +409,7 @@ viewportu, mobile przy montowaniu widocznego okna listy.
 
 ### Automatyczne konto repozytorium
 
-Wspólny resolver gatewaya wybiera konto według dostępu do repozytorium dla linkowania,
+Wspólny resolver gatewaya wybiera konto według dostępu do repozytorium dla wzmianek `#`, linkowania,
 Create PR, panelu PR, wykrywania gałęzi i odczytów wydań. Indeks owner + nazwa repo → konta
 i instalacje powstaje z katalogu GitHub App, także dla instalacji organizacji. Jedno
 dopasowanie działa bez kontrolki konta. Kilka zachowuje ostatni wybór dla repo, a bez niego
