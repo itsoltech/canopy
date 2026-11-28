@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { untrack, type Snippet } from "svelte";
+  import type { Snippet } from "svelte";
   import type { Attachment } from "svelte/attachments";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
   import { useRemembered } from "#lib/shared/ui/memory.ts";
-  import { duration } from "#lib/shared/ui/motion.ts";
+  import FindableMessagePanel from "./FindableMessagePanel.svelte";
   import { firstLine } from "@canopy/domain/first-line";
 
   /**
@@ -33,22 +33,7 @@
   const memory = useRemembered<boolean>("agent-message");
   let expanded = $state(memory?.get() ?? false);
 
-  // Folded content leaves the find-in-page tree only after its fold animation.
-  let findable = $state(untrack(() => expanded));
-
   $effect(() => memory?.set(expanded));
-
-  $effect(() => {
-    if (expanded) {
-      findable = true;
-
-      return;
-    }
-
-    const timer = setTimeout(() => (findable = false), duration("fast"));
-
-    return () => clearTimeout(timer);
-  });
 
   const measure: Attachment<HTMLElement> = (node) => {
     const observer = new ResizeObserver(() => (truncated = node.scrollWidth > node.clientWidth));
@@ -77,17 +62,9 @@
       <div class="t-acc-panel grid-cols-1" data-open={expanded ? undefined : ""} aria-hidden="true">
         <span class="block truncate" {@attach measure}>{line.text}</span>
       </div>
-      <div class="t-acc-panel grid-cols-1" data-open={expanded ? "" : undefined}>
-        <!-- Long paths and code lines wrap or scroll inside the bubble instead of widening the clipped panel. -->
-        <div
-          {id}
-          class="wrap-anywhere *:grid-cols-1"
-          hidden={findable ? undefined : "until-found"}
-          onbeforematch={() => (expanded = true)}
-        >
-          {@render children()}
-        </div>
-      </div>
+      <FindableMessagePanel {id} bind:expanded class="wrap-anywhere *:grid-cols-1">
+        {@render children()}
+      </FindableMessagePanel>
     </div>
     <!-- Folded, the button covers the whole bubble; open, only the chevron's corner, so the text stays selectable.
          The chevron keeps its place in both. -->

@@ -45,6 +45,7 @@
   const id = $props.id();
   let pill = $state<HTMLButtonElement>();
   let card = $state<HTMLElement>();
+  let cardArea: HTMLDivElement;
   let previewRoot = $state<HTMLElement>();
   let sheet = $state(false);
   let popover = $state(false);
@@ -74,7 +75,15 @@
     if (floating) sheet = false;
   });
 
-  const morpher = popoverMorph();
+  // The Files column moves this containing block throughout the morph.
+  const morpher = popoverMorph(() => cardArea);
+
+  // When Files displaces a docked card, let it close from its visible position.
+  let cardDocked = $state(false);
+
+  $effect.pre(() => {
+    if (open) cardDocked = docked;
+  });
 
   /** The card and the state its last change left it in; a card mounted just now shows without motion. */
   let settled: { card: HTMLElement; open: boolean } | undefined;
@@ -186,8 +195,9 @@
   />
 </div>
 <div
-  class="pointer-events-none absolute inset-y-3 right-4 z-30 w-80 max-w-[calc(100%-2rem)] [--summary-card-top:--spacing(10)] sm:[--summary-card-top:--spacing(9)]"
-  style:--summary-card-top={docked ? "0px" : undefined}
+  bind:this={cardArea}
+  class="pointer-events-none absolute inset-y-3 right-4 z-30 w-80 max-w-[calc(100%-2rem)] [contain:layout] [--summary-card-top:--spacing(10)] sm:[--summary-card-top:--spacing(9)]"
+  style:--summary-card-top={cardDocked ? "0px" : undefined}
 >
   {#if floating}
     <section
@@ -197,11 +207,11 @@
       aria-label="Thread details"
       class={[
         "t-summary pointer-events-auto absolute right-0 isolate flex w-full flex-col overflow-hidden rounded-xl bg-white ring-1 ring-zinc-950/10 dark:shadow-none",
-        docked
+        cardDocked
           ? "top-0 max-h-full shadow-sm dark:bg-zinc-900 dark:ring-white/10"
           : "top-10 max-h-[max(16rem,calc(100%-14rem))] shadow-xl sm:top-9 dark:bg-zinc-800 dark:ring-white/15",
       ]}
-      data-docked={docked || undefined}
+      data-docked={cardDocked || undefined}
       data-hidden={!open || undefined}
       style:max-height={preview
         ? `max(0px, calc(100% - ${previewHeight + 12}px - var(--summary-card-top)))`
@@ -209,7 +219,7 @@
       inert={!open}
       {@attach escapeCloses}
     >
-      <ThreadSummaryHeader {docked} controls={id} onclose={() => void hide(true)} />
+      <ThreadSummaryHeader docked={cardDocked} controls={id} onclose={() => void hide(true)} />
       <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">{@render children()}</div>
     </section>
   {/if}

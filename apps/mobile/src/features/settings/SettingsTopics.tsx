@@ -53,7 +53,7 @@ export function SettingsTopics({
   ref?: Ref<{ selectTopic(id: string): void }>;
 }) {
   const [selected, setSelected] = useSelectedTopic(scopeKey);
-  const { pattern, counts, report } = useTopicMatches();
+  const { query, pattern, counts, report } = useTopicMatches();
   const visible = topics.filter((topic) => !topic.hidden);
   const picked = visible.find((topic) => topic.id === selected.id);
   const initial = visible.find((topic) => topic.id === defaultTopic);
@@ -62,6 +62,11 @@ export function SettingsTopics({
 
   if (pattern && !(picked && selected.pattern === pattern) && !initial) {
     for (const topic of visible) {
+      if (topic.label.toLowerCase() === query) {
+        matched = topic;
+        break;
+      }
+
       const score = counts.get(topic.id)?.size ?? 0;
 
       if (score > best) {

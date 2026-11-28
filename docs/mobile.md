@@ -1,9 +1,11 @@
 # Canopy na iOS i Android
 
-Status (2026-11-28). Raport Usage animuje cyfry sumy, liczników tokenów, liczby raportów
-z niepełnym kosztem i wartości w podziale Activity. W nawigacji animują się liczniki
-pracy i nieprzeczytanych wiadomości, a w App updates procent pobrania aktualizacji.
-Systemowe ograniczenie ruchu wyłącza przejścia cyfr.
+Status (2026-11-28). Dostarczony steer od agenta zajmuje na telefonie dwa wiersze.
+Nazwa nadawcy otwiera wątek lub czat bota. Dotknięcie podglądu albo strzałki
+rozwija treść, informacje o modelu i dostarczeniu, załączniki oraz akcje wiadomości.
+Podczas wysyłania i po przyjęciu przez dostawcę stan jest widoczny także w zwiniętym
+wierszu. Panel i strzałka używają ruchu sekcji osi czasu, a przy ograniczeniu ruchu
+przełączają się od razu.
 
 Status (2026-11-28). Na iOS i Androidzie sekcje ustawień z kilkoma tematami mają
 przełącznik zakładek taki jak w pasku bocznym Threads/Bots. Zakładki mieszczą się
@@ -11,6 +13,8 @@ w kilku wierszach na wąskim ekranie. W **Settings → Threads** domyślnie otwi
 **New threads**. **Thread list** zawiera ustawienia paska bocznego i potwierdzeń,
 **Conversation** grupuje ustawienia rozmowy, **Sandbox and subagents** zawiera
 profile sandboxa i uprawnienia subagentów, a **Archiving** obejmuje archiwizację i retencję.
+Wyszukanie pełnej nazwy zakładki otwiera ją także wtedy, gdy ta sama fraza
+występuje w opisie ustawienia na innej zakładce.
 
 Status (2026-11-28). Wiersze projektów oraz wyboru workera i źródła mają minimum
 48 dp wysokości i rosną wraz z tekstem. Wiersze ustawień mieszczą przełącznik obok opisu.
@@ -535,6 +539,11 @@ starą tożsamością do instalacji nowej binarki. Publiczną konfigurację moż
 w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
 ## Raport Usage
+
+Status (2026-11-28). Raport Usage animuje cyfry sumy, liczników tokenów, liczby raportów
+z niepełnym kosztem i wartości w podziale Activity. W nawigacji animują się liczniki
+pracy i nieprzeczytanych wiadomości, a w App updates procent pobrania aktualizacji.
+Systemowe ograniczenie ruchu wyłącza przejścia cyfr.
 
 Ikona tabeli obok Settings w stopce nawigacji otwiera osobny ekran **Usage**.
 Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
