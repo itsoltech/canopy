@@ -23,18 +23,22 @@ export class ComposerCompaction {
   needsInput = false;
   private travel = 0;
   private distance = 0;
+  /** A fold settled inside the end zone reopens from the distance where it actually folded. */
+  private reopenFrom = COMPACT_DISTANCE;
 
   expand() {
     this.compact = false;
     this.progress = 0;
     this.travel = 0;
+    this.reopenFrom = COMPACT_DISTANCE;
   }
 
   /** A thread reopened where the reader had scrolled up. */
-  fold() {
+  fold(distance = COMPACT_DISTANCE) {
     this.compact = true;
     this.progress = 1;
     this.travel = COMPACT_TRAVEL;
+    this.reopenFrom = Math.min(distance, COMPACT_DISTANCE);
   }
 
   focus(focused: boolean) {
@@ -60,22 +64,19 @@ export class ComposerCompaction {
 
     if (this.needsInput) return;
     this.travel = Math.min(COMPACT_TRAVEL, Math.max(0, this.travel + up));
-    const near = this.near();
+    this.reopenFrom = Math.min(COMPACT_DISTANCE, Math.max(this.reopenFrom, distance));
+    const near = clamp((distance - FEED_END_THRESHOLD) / (this.reopenFrom - FEED_END_THRESHOLD));
     this.progress = this.compact ? near : Math.min(near, this.travel / COMPACT_TRAVEL);
 
     if (this.progress >= 1) this.compact = true;
     else if (this.progress <= 0) this.expand();
   }
 
-  /** The reader stopped between the two states: fold only outside the end zone and past half way. */
+  /** Finish the nearer endpoint, including when the reader pauses on the way back to the end. */
   rest() {
     if (this.progress <= 0 || this.progress >= 1) return;
 
-    if (this.progress >= 0.5 && this.near() >= 1) this.fold();
+    if (this.progress >= 0.5) this.fold(this.distance);
     else this.expand();
-  }
-
-  private near() {
-    return clamp((this.distance - FEED_END_THRESHOLD) / (COMPACT_DISTANCE - FEED_END_THRESHOLD));
   }
 }

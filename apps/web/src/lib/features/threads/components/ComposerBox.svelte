@@ -438,7 +438,7 @@
         name="mentions"
         value={JSON.stringify(mentionsToWire(draft ? draft.wire(trimmed.mentions) : trimmed.mentions))}
       />{/if}
-    <ComposerFold open={!compact}>
+    <ComposerFold open={!compact} class="t-composer-tools">
       {#if shell}
         <p class="min-h-5 px-4 text-xs/5 text-rose-700 dark:text-rose-300" role="status">
           {#if shellMode}{shellUnavailable ?? "Runs as a shell command when delivered."}{/if}

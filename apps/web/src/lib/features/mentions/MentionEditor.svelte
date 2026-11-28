@@ -582,9 +582,11 @@
     >
       <span class="block truncate">{placeholder}</span>
       {#if hint?.length}
-        <span class="t-composer-hint block">
-          {#each hint as item, index (item)}{#if index > 0}{" · "}{/if}<span class="whitespace-nowrap">{item}</span
-            >{/each}
+        <span class="t-composer-hint">
+          <span
+            >{#each hint as item, index (item)}{#if index > 0}{" · "}{/if}<span class="whitespace-nowrap">{item}</span
+              >{/each}</span
+          >
         </span>
       {/if}
     </p>
