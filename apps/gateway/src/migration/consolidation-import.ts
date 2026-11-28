@@ -338,6 +338,9 @@ function checkPortability(sql: Database, input: ConsolidationInput) {
       FROM pg_temp.cc_projects s JOIN public.projects d ON d.owner_user_id=s.owner_user_id AND d.slug=s.slug
       WHERE s.archived_at IS NULL AND d.archived_at IS NULL AND s.id<>d.id
         AND NOT EXISTS (SELECT FROM pg_temp.cc_merge m WHERE m.table_name='projects' AND m.source_key=s.__source_key)
+    UNION ALL SELECT 'connector_accounts',s.__source_key,'local_github_agent_binding'
+      FROM pg_temp.cc_connector_accounts s WHERE s.connector_type='github_repository' OR EXISTS (
+        SELECT FROM public.connector_accounts d WHERE d.id=s.id AND d.connector_type='github_repository')
     UNION ALL SELECT 'connector_accounts',s.__source_key,'target_connector_namespace_collision'
       FROM pg_temp.cc_connector_accounts s JOIN public.connector_accounts d USING(namespace) WHERE d.id<>s.id
     UNION ALL SELECT 'github_accounts',s.__source_key,'target_github_identity_collision'

@@ -1,6 +1,7 @@
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import type { GatewayCore } from "../core/core.ts";
 import type { UiHandlers } from "./ui-service.ts";
+import { getAgentAccess, setAgentAccess } from "../github/agent-access.ts";
 import { githubFailure } from "../github/http.ts";
 import { githubClient } from "./github-client.ts";
 import { uuid } from "../github/records.ts";
@@ -23,6 +24,8 @@ export function githubHandlers(
 ): Pick<
   UiHandlers,
   | "listGitHubAccounts"
+  | "getGitHubAgentAccess"
+  | "setGitHubAgentAccess"
   | "beginGitHubDeviceAuth"
   | "getGitHubDeviceAuth"
   | "cancelGitHubDeviceAuth"
@@ -38,6 +41,15 @@ export function githubHandlers(
   return {
     getGitHubUpdateAccount: () => guard(() => updateAccount(core.github)),
     setGitHubUpdateAccount: (r) => guard(() => updateAccount(core.github, r)),
+    getGitHubAgentAccess: (r) => guard(() => getAgentAccess(core.github, r)),
+    setGitHubAgentAccess: (r) =>
+      guard(async () => {
+        const access = await setAgentAccess(core.github, r);
+        core.feeds.nudge(true);
+        await core.environment.changed();
+
+        return access;
+      }),
     listGitHubAccounts: () => guard(() => core.github.list()),
     beginGitHubDeviceAuth: (r, c) =>
       guard(() => core.github.device.begin({ ...r, clientBinding: binding(r.clientBinding, c) })),

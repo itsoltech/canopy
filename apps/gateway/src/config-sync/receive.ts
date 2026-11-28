@@ -1,3 +1,4 @@
+import { uuid } from "../agent-environment/composition.ts";
 import { computerLink as link } from "@canopy/contracts";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { Effect } from "effect";
@@ -167,6 +168,20 @@ export function receiveItem(ctx: ReceiveContext, received: Received, result: Rec
       return yield* Effect.fail(new ConnectError("Worker settings never carry secrets", Code.PermissionDenied));
 
     if (!(yield* checkItem(received.row, ctx.self))) return;
+
+    if (CONNECTOR_KINDS.has(received.row.kind)) {
+      if (received.row.fields["type"]?.value === "github_repository") return;
+
+      if (
+        received.row.kind === "connector" &&
+        uuid(received.row.global_id) &&
+        (yield* sql`SELECT id FROM connector_accounts
+        WHERE owner_user_id=${owner}::uuid AND id=${received.row.global_id}::uuid AND connector_type='github_repository'`)
+          .length
+      )
+        return;
+    }
+
     const placed = yield* place(sql, owner, key, received.row, received.plain);
     const incoming = encryptIncoming(key, placed.item, received.plain);
 

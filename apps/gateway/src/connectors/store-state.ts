@@ -10,7 +10,7 @@ import { connectorOAuthState } from "./store-oauth-state.ts";
 
 /** Tools, OAuth apps and state, disconnecting and the execution log. */
 export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, key: Buffer) {
-  const { owned, credentials, view, audit } = base;
+  const { editable, owned, credentials, view, audit } = base;
 
   return {
     ...connectorOAuthState(sql, base),
@@ -28,7 +28,7 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         sql,
         key,
         Effect.gen(function* () {
-          const row = yield* owned(user, id, true);
+          const row = yield* editable(user, id);
           const value = yield* credentials(row);
           yield* sql`UPDATE connector_accounts SET status='disconnected',error=NULL,credentials=NULL,slack_refresh_attempt=NULL,slack_refresh_started_at=NULL,legacy_headers='{}',tools='[]',revision=revision+1,updated_at=now() WHERE id=${row.id}::uuid`;
           yield* sql`UPDATE messenger_accounts SET status='disconnected',lease_until=NULL,lease_token=NULL,revision=revision+1
@@ -61,7 +61,7 @@ export function connectorState(sql: SqlClient.SqlClient, base: ConnectorBase, ke
         sql,
         key,
         Effect.gen(function* () {
-          const row = yield* owned(user, id, true);
+          const row = yield* editable(user, id);
 
           if (options.expectedRevision !== undefined && BigInt(row.revision) !== options.expectedRevision) {
             if (options.changedReceipt) yield* options.changedReceipt(sql);

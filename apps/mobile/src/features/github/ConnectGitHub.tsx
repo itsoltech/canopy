@@ -43,8 +43,8 @@ export function ConnectGitHub({
     <View style={[{ gap: 12, minWidth: 0 }, style]}>
       {!configured ? (
         <Text style={[type.body, { color: c.muted }]}>
-          GitHub account sign-in is not configured on this computer yet. Existing personal access tokens from Connectors
-          can be used here when available.
+          GitHub App sign-in is unavailable on this computer. To use a personal access token, open Advanced connections
+          in GitHub settings.
         </Text>
       ) : attempt?.state === "pending" ? (
         <GitHubDeviceCode key={attempt.id} attempt={attempt} busy={flow.busy} onCancel={() => void flow.cancel()} />

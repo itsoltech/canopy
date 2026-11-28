@@ -13,6 +13,7 @@
   import AccountDetail from "#lib/features/connectors/AccountDetail.svelte";
   import MessengerConnections from "#lib/features/connectors/MessengerConnections.svelte";
   import Alert from "#lib/shared/ui/Alert.svelte";
+  import ButtonLink from "#lib/shared/ui/ButtonLink.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import InsetList from "#lib/shared/ui/InsetList.svelte";
   import { decode } from "#lib/shared/wire.ts";
@@ -38,6 +39,7 @@
     untrack(() => decode(connectors.ListConnectorsResponseSchema, data.connections).accounts),
   );
 
+  const visibleAccounts = $derived(accounts.filter((account) => account.connectorType !== "github_repository"));
   let reloading = false;
   let reloadAgain = false;
   const CONNECTORS_FALLBACK_MS = 30_000;
@@ -68,6 +70,19 @@
     const next = decode(connectors.ListConnectorsResponseSchema, data.connections);
     catalog = next;
     accounts = next.accounts;
+  });
+
+  $effect(() => {
+    const advanced = route.url.searchParams.get("add");
+
+    if ((advanced === "github" || advanced === "custom") && catalog.types.some((entry) => entry.id === advanced)) {
+      void route.consumeQuery("add").then((consumed) => {
+        if (consumed) {
+          selected = advanced;
+          connecting = true;
+        }
+      });
+    }
   });
 
   // Route data refreshes on desktop returns, including when this page is already open.
@@ -201,22 +216,27 @@
     <h2 class="text-lg font-semibold text-balance">Add an account</h2>
     <div class="flex flex-wrap gap-2">
       {#each catalog.types as entry (entry.id)}
-        <Button
-          size="sm"
-          onclick={() => {
-            selected = entry.id;
-            connecting = true;
-          }}
-          class="max-w-full"
-          ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 truncate">{entry.name}</span></Button
-        >
+        {#if entry.id === "github"}
+          <ButtonLink size="sm" href="/settings/github#topic-connect" class="max-w-full">
+            <ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 truncate">{entry.name}</span>
+          </ButtonLink>
+        {:else if entry.id !== "github_repository"}<Button
+            size="sm"
+            onclick={() => {
+              selected = entry.id;
+              connecting = true;
+            }}
+            class="max-w-full"
+            ><ConnectorIcon type={entry.id} class="shrink-0" /><span class="min-w-0 truncate">{entry.name}</span
+            ></Button
+          >{/if}
       {/each}
     </div>
   </section>
   <section aria-label="Tool accounts" class="grid gap-4">
     <h2 class="text-lg font-semibold text-balance">Tool accounts</h2>
-    {#if accounts.length}<InsetList label="Tool accounts">
-        {#each accounts as account (account.id)}
+    {#if visibleAccounts.length}<InsetList label="Tool accounts">
+        {#each visibleAccounts as account (account.id)}
           {@const entry = catalog.types.find((t) => t.id === account.connectorType)}
           {#if entry}<li>
               <AccountDetail

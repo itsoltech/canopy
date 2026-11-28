@@ -43,7 +43,7 @@ export function githubDetectionFixture() {
 
     if (url.pathname === "/repos/fork-owner/canopy/pulls") return Response.json([]);
 
-    if (url.pathname === "/repos/itsoltech/canopy/pulls") {
+    if (url.pathname === "/repos/itsoltech/canopy/pulls" || url.pathname === "/repositories/777/pulls") {
       requests.push(url.search);
 
       return gate.then(() => {
@@ -66,7 +66,7 @@ export function githubDetectionFixture() {
       });
     }
 
-    const match = /^\/repos\/itsoltech\/canopy\/pulls\/(\d+)$/.exec(url.pathname);
+    const match = /^\/(?:repos\/itsoltech\/canopy|repositories\/777)\/pulls\/(\d+)$/.exec(url.pathname);
 
     if (match) {
       const pull = pulls.get(Number(match[1]));

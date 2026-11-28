@@ -13,9 +13,14 @@ import {
   supportsSlackDownload,
 } from "./slack-download-tool.ts";
 
+import { githubRepositoryTools } from "./github-repository-tools.ts";
+
 export const SLACK_POST_ACTION = "canopy.slack.post_message";
 
-type ToolAccount = Pick<AccountRow, "id" | "name" | "connector_type" | "namespace" | "auth_kind">;
+type ToolAccount = Pick<
+  AccountRow,
+  "id" | "name" | "connector_type" | "namespace" | "auth_kind" | "github_allow_writes"
+>;
 
 const channelPattern = /^[CDG][A-Z0-9]{1,31}$/;
 const timestampPattern = /^\d{1,16}\.\d{1,16}$/;
@@ -64,6 +69,8 @@ export function connectorToolCatalog(
   slackPost: boolean,
   slackDownload: boolean,
 ) {
+  if (row.connector_type === "github_repository") return githubRepositoryTools(row);
+
   const tools = remote.flatMap((tool) =>
     tool.remoteName === SLACK_POST_ACTION ||
     tool.remoteName === SLACK_DOWNLOAD_ACTION ||

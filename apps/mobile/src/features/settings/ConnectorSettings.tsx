@@ -5,6 +5,7 @@ import { Button, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsTopics } from "./SettingsTopics";
 import { ResourceState, useSettingsResource } from "./resource";
+import { useOpenSettingsSection } from "./navigation";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { SlackBotSettings } from "./SlackBotSettings";
 import { MessengerTokenBots } from "./MessengerTokenBots";
@@ -16,6 +17,7 @@ import { SettingsSkeletonRows } from "./SettingsSkeleton";
 import { useForegroundInterval } from "../../ui/interval";
 
 export function ConnectorSettings() {
+  const openSettings = useOpenSettingsSection();
   const { botsEnabled } = useAppearance();
 
   const capabilities = useSettingsResource(
@@ -32,7 +34,8 @@ export function ConnectorSettings() {
 
   useForegroundInterval(() => setNow(Date.now()), 30_000);
 
-  const account = resource.data?.accounts.find((entry) => entry.id === selected?.id);
+  const accounts = resource.data?.accounts.filter((entry) => entry.connectorType !== "github_repository");
+  const account = accounts?.find((entry) => entry.id === selected?.id);
   const type = resource.data?.types.find((entry) => entry.id === account?.connectorType);
 
   return (
@@ -52,14 +55,25 @@ export function ConnectorSettings() {
                 <SettingsGroup title="Add an account">
                   <SettingsSkeletonRows controls />
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {resource.data?.types.map((entry) => (
-                      <Button key={entry.id} size="sm" title={entry.name} onPress={() => setEditing({ type: entry })} />
-                    ))}
+                    {resource.data?.types
+                      .filter((entry) => entry.id !== "github_repository")
+                      .map((entry) => (
+                        <Button
+                          key={entry.id}
+                          size="sm"
+                          title={entry.name}
+                          onPress={() =>
+                            entry.id === "github"
+                              ? openSettings("github", { topic: "connect" })
+                              : setEditing({ type: entry })
+                          }
+                        />
+                      ))}
                   </View>
                 </SettingsGroup>
                 <SettingsGroup title="Tool accounts">
                   <SettingsSkeletonRows controls />
-                  {resource.data?.accounts.map((entry) => (
+                  {accounts?.map((entry) => (
                     <ConnectorAccountRow
                       key={entry.id}
                       account={entry}
@@ -72,7 +86,7 @@ export function ConnectorSettings() {
                       onActions={() => setSelected({ id: entry.id, view: "actions" })}
                     />
                   ))}
-                  {resource.data && !resource.data.accounts.length && (
+                  {accounts && !accounts.length && (
                     <SettingsRow title="No accounts yet" description="Pick an app above to connect one." />
                   )}
                 </SettingsGroup>

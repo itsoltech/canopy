@@ -74,18 +74,18 @@ function recordOwner(sql: SqlClient.SqlClient, key: Buffer, owner: string, node:
     const sealing = connectorSealing(sql, key);
 
     const accounts = yield* sql<AccountRow & { updated_at: Date }>`SELECT * FROM connector_accounts
-      WHERE owner_user_id=${owner}::uuid ORDER BY id`;
+      WHERE owner_user_id=${owner}::uuid AND connector_type<>'github_repository' ORDER BY id`;
 
     const grants = yield* sql<{ account_id: string; project_ids: string[] }>`SELECT g.account_id::text,
       array_agg(g.project_id::text ORDER BY g.project_id) AS project_ids
       FROM connector_project_grants g JOIN connector_accounts a ON a.id=g.account_id
-      WHERE a.owner_user_id=${owner}::uuid GROUP BY g.account_id`;
+      WHERE a.owner_user_id=${owner}::uuid AND a.connector_type<>'github_repository' GROUP BY g.account_id`;
 
     const byAccount = new Map(grants.map((grant) => [grant.account_id, grant.project_ids]));
     const projects = yield* projectIds(sql, owner);
 
     const apps = yield* sql<{ connector_type: string; credentials: Uint8Array; updated_at: Date }>`SELECT *
-      FROM connector_oauth_apps WHERE owner_user_id=${owner}::uuid ORDER BY connector_type`;
+      FROM connector_oauth_apps WHERE owner_user_id=${owner}::uuid AND connector_type<>'github_repository' ORDER BY connector_type`;
 
     const update = (kind: string, id: string, values: Values, plain: string | null, updated: Date) =>
       Effect.gen(function* () {

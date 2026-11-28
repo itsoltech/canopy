@@ -1,5 +1,7 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Settings → GitHub pozwala nadać projektom i botom dostęp do wybranego repozytorium. Dodawanie GitHuba w Connectors otwiera tę sekcję.
+
 Status (2026-11-28). Zdjęcia HEIC i HEIF w wiadomościach i szkicach otwierają się
 w przeglądarce obrazów, także gdy gateway zapisał je wcześniej jako zwykłe pliki.
 
@@ -1515,7 +1517,14 @@ lub zmiany w ustawieniach. To zmiana JS zgodna z OTA, bez nowych wejść fingerp
 Settings → GitHub ma tę samą obsługę kont co web/desktop: wybór domu, device flow
 z kopiowaniem kodu i otwarciem zweryfikowanego adresu, stany oczekiwania/sukcesu/
 wygaśnięcia/odmowy/anulowania, katalog instalacji i repozytoriów, Install Canopy,
-Manage repositories, jawny wybór PAT z Connectors oraz Disconnect z potwierdzeniem.
+Manage repositories oraz Disconnect z potwierdzeniem. Domyślnie konto łączy się przez GitHub App.
+W katalogu repozytoriów **Edit agent access** otwiera wybór projektów i botów z komputera
+konta. Zapis z pustym wyborem odbiera dostęp. Osobne **Allow changes on GitHub** pozwala
+na zapis w ramach istniejących reguł zatwierdzania. Domyślnie to pole jest wyłączone.
+**Repositories with agent access** pozwala ograniczyć lub usunąć wcześniejsze granty,
+również po usunięciu repozytorium z instalacji. W Settings → Connectors przycisk GitHub
+prowadzi do Settings → GitHub. Istniejące konta MCP nadal można edytować w Connectors.
+Sekcja **Advanced connections** udostępnia jawny wybór PAT oraz dodawanie konta MCP na bieżącym komputerze.
 `features/github/ConnectGitHub` jest osadzone także przy operacjach PR;
 sukces logowania niczego nie publikuje. SecureStore zachowuje wyłącznie identyfikatory
 próby/żądania przypisane do parowania i domu, bez kodu urządzenia ani tokenów GitHub.

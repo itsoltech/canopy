@@ -40,6 +40,7 @@ import { startAgentThread } from "./agent-thread-start.ts";
 
 export function createCoreConnectors(core: GatewayCore, options: GatewayCoreOptions): ConnectorsRuntime {
   return new ConnectorsRuntime({
+    github: core.github,
     runtime: options.runtime,
     userId: options.userId,
     attachmentLimits: () => core.attachmentLimits,

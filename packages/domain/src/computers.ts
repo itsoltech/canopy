@@ -8,6 +8,7 @@ export const REMOTE_THREADS = "remote_threads";
 
 /** Account auth only. PR read/write capabilities wait for their complete stages. */
 export const GITHUB_ACCOUNTS = "github_accounts_v1";
+export const GITHUB_AGENT_ACCESS = "github_agent_access_v1";
 export const GITHUB_PR = "github_pr_v1";
 export const GITHUB_COMMENTS = "github_pr_comments_v1";
 export const GITHUB_REVIEW = "github_pr_review_v1";

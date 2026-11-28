@@ -9,6 +9,7 @@ import botParkedInteractions from "./0228_bot_parked_interactions.sql" with { ty
 import botEventTriggers from "./0229_bot_event_triggers.sql" with { type: "text" };
 import botTriggerThreadEvents from "./0230_bot_trigger_thread_events.sql" with { type: "text" };
 import botTriggerMoreEvents from "./0231_bot_trigger_more_events.sql" with { type: "text" };
+import githubAgentAccess from "./0233_github_agent_access.sql" with { type: "text" };
 import botSkills from "./0232_bot_skills.sql" with { type: "text" };
 import { mobilePushDismissalMigrations } from "./mobile-push.ts";
 import { sqlFile } from "./run.ts";
@@ -28,4 +29,5 @@ export const recentMigrations = {
   "0230_bot_trigger_thread_events": sqlFile(botTriggerThreadEvents),
   "0231_bot_trigger_more_events": sqlFile(botTriggerMoreEvents),
   "0232_bot_skills": sqlFile(botSkills),
+  "0233_github_agent_access": sqlFile(githubAgentAccess),
 };

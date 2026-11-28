@@ -15,7 +15,7 @@ export function issueResults(response: ui.SearchIssuesResponse, query: string): 
     loading: false,
     error: response.warnings.join("\n") || undefined,
     empty: !response.connectedSources
-      ? "No threads match. Check access in Settings → GitHub or Settings → Connectors."
+      ? "No matches. Check repository access in Settings → GitHub, or Jira and Linear access in Settings → Connectors."
       : query
         ? undefined
         : "Search by title, key, number or URL.",

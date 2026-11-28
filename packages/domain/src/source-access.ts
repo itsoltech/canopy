@@ -58,21 +58,23 @@ export function eligibleSourceAccounts(
   if (!url) return [];
   const origin = new URL(url).origin;
 
-  const native = sourceGitHubRepository(url)
-    ? gitHubAccounts.flatMap((account) =>
-        account.status === "connected" && account.host === "github.com"
-          ? [{ id: gitHubSourceId(account.githubUserId), label: `@${account.login} · GitHub` }]
-          : [],
-      )
+  const github = sourceGitHubRepository(url)
+    ? gitHubAccounts.filter((account) => account.status === "connected" && account.host === "github.com")
     : [];
+
+  const linkedConnectors = new Set(github.map((account) => account.connectorAccountId));
 
   const connectors = accounts.flatMap((account) =>
     account.status === "connected" &&
+    !linkedConnectors.has(account.id) &&
     (account.authKind === "oauth" || account.headerNames.some((name) => name.toLowerCase() === "authorization")) &&
     matchesSourceOrigin(origin, account.connectorType, account.url)
       ? [{ id: account.id, label: `${account.name} · ${new URL(account.url).host}` }]
       : [],
   );
 
-  return [...native, ...connectors];
+  return [
+    ...github.map((account) => ({ id: gitHubSourceId(account.githubUserId), label: `@${account.login} · GitHub` })),
+    ...connectors,
+  ];
 }

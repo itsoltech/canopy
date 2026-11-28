@@ -16,6 +16,8 @@ message GitHubAccount {
   google.protobuf.Timestamp catalog_verified_at = 9;
   uint32 installation_count = 10;
   uint32 repository_count = 11;
+  // Repositories with explicit grants, including those removed from the installation.
+  repeated GitHubAgentRepository agent_repositories = 12;
 }
 message GitHubAccountsRequest {
   // Empty = this computer; otherwise the home marker qualified by the computer.
@@ -93,6 +95,32 @@ message GitHubRepositoriesResponse {
   repeated GitHubRepository repositories = 1;
   uint32 next_page = 2;
   uint32 total_count = 3;
+}
+
+message GitHubAgentRepository {
+  string repository_id = 1;
+  string repository_name = 2;
+}
+message GetGitHubAgentAccessRequest {
+  string account_id = 1;
+  string repository_name = 2;
+  // Required immutable identity, including when revoking after an uninstall.
+  string repository_id = 3;
+}
+message SetGitHubAgentAccessRequest {
+  string account_id = 1;
+  string repository_name = 2;
+  repeated string project_ids = 3;
+  repeated string bot_ids = 4;
+  uint64 expected_revision = 5;
+  string repository_id = 6;
+  bool allow_writes = 7;
+}
+message GitHubAgentAccessResponse {
+  repeated string project_ids = 1;
+  repeated string bot_ids = 2;
+  uint64 revision = 3;
+  bool allow_writes = 4;
 }
 
 message GitHubRepositoryAccountRequest {

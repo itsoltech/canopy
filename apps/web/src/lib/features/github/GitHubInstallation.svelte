@@ -10,10 +10,17 @@
 
   let {
     accountId,
+    onaccess,
     installation,
     installUrl,
     class: className,
-  }: { accountId: string; installation: github.GitHubInstallation; installUrl: string; class?: string } = $props();
+  }: {
+    accountId: string;
+    onaccess?: ((repositoryId: string, repositoryName: string) => void) | undefined;
+    installation: github.GitHubInstallation;
+    installUrl: string;
+    class?: string;
+  } = $props();
 
   let showLoading = $state(false);
   const bodySpacing = "pt-2 pr-2 pb-3 pl-8";
@@ -47,6 +54,7 @@
       </div>
     {:else}<GitHubRepositories
         {accountId}
+        {onaccess}
         installationId={installation.installationId}
         bind:showLoading
         class={bodySpacing}

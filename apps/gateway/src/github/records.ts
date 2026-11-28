@@ -31,6 +31,7 @@ export interface AccountRow {
   refresh_lease_until: Date | null;
   catalog_verified_at: Date | null;
   catalog_fingerprint: string;
+  agent_repositories?: { repositoryId: string; repositoryName: string }[];
   installation_count?: number;
   repository_count?: number;
 }
@@ -65,6 +66,7 @@ export const accountView = (row: AccountRow) =>
     connectorAccountId: row.connector_account_id ?? "",
     installationCount: row.installation_count ?? 0,
     repositoryCount: row.repository_count ?? 0,
+    agentRepositories: row.agent_repositories ?? [],
     ...(row.catalog_verified_at && { catalogVerifiedAt: timestampFromDate(new Date(row.catalog_verified_at)) }),
   });
 

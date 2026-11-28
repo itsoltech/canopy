@@ -84,7 +84,12 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
     if (!uuid(row.local_id)) return void (row.unsupported = NOT_SUPPORTED);
     const current = (yield* sql<AccountRow>`SELECT * FROM connector_accounts WHERE id=${row.local_id}::uuid`)[0];
 
-    if (current && current.owner_user_id !== owner) return void (row.unsupported = NOT_SUPPORTED);
+    if (
+      v["type"] === "github_repository" ||
+      current?.connector_type === "github_repository" ||
+      (current && current.owner_user_id !== owner)
+    )
+      return void (row.unsupported = NOT_SUPPORTED);
 
     if (!alive(row)) return yield* removeConnector(sql, owner, row.local_id);
     const columns = connectorColumns(v);
@@ -151,7 +156,7 @@ export function applyConnector(sql: SqlClient.SqlClient, owner: string, key: Buf
       slack_team_id=EXCLUDED.slack_team_id,
       slack_refresh_attempt=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.slack_refresh_attempt END,
       slack_refresh_started_at=CASE WHEN ${changed} THEN NULL ELSE connector_accounts.slack_refresh_started_at END,
-      revision=connector_accounts.revision+1,updated_at=now() WHERE connector_accounts.owner_user_id=${owner}::uuid
+      revision=connector_accounts.revision+1,updated_at=now() WHERE connector_accounts.owner_user_id=${owner}::uuid AND connector_accounts.connector_type<>'github_repository'
       RETURNING id`;
 
     if (!saved.length) return void (row.unsupported = NOT_SUPPORTED);

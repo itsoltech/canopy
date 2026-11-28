@@ -6,6 +6,7 @@ import { Chevron, Expand } from "../../ui/MotionViews";
 import { Notice } from "../../ui/components";
 import { useColors, useTypography } from "../../ui/theme";
 import { GitHubActions } from "./GitHubActions";
+import type { AgentAccessTarget } from "./GitHubAgentAccess";
 import { GitHubRepositories } from "./GitHubRepositories";
 
 import { createSettingsViewState } from "../settings/SettingsScroll";
@@ -16,10 +17,12 @@ export function GitHubInstallation({
   accountId,
   installation,
   installUrl,
+  onAccess,
 }: {
   accountId: string;
   installation: github.GitHubInstallation;
   installUrl: string;
+  onAccess?: ((target: AgentAccessTarget) => void) | undefined;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -58,7 +61,7 @@ export function GitHubInstallation({
         {installation.suspended ? (
           <Notice>This installation is suspended. Ask its administrator to restore access.</Notice>
         ) : (
-          <GitHubRepositories accountId={accountId} installationId={installation.installationId} />
+          <GitHubRepositories accountId={accountId} installationId={installation.installationId} onAccess={onAccess} />
         )}
       </Expand>
     </View>

@@ -202,6 +202,46 @@ describe.skipIf(!dockerAvailable)("GitHub detection races, replay and cleanup au
     expect(result.links.some((link) => [64, 65].includes(link.summary?.ref?.number ?? 0))).toBe(false);
   });
 
+  test("a repository grant supplies merge evidence until the project loses access", async () => {
+    fixture.pulls.clear();
+    const pull = detectionPull(63, branch, head, { state: "merged" });
+    fixture.pulls.set(63, pull);
+    const repo = { accountId: account, repositoryId: "777", repositoryName: "itsoltech/canopy" };
+
+    const proof = () =>
+      githubCleanupProof(f.gw.core.github, f.gw.userId, f.project.id, repo.repositoryName, branch, head);
+
+    expect(await proof()).toBe(false);
+    await f.sql(
+      (sql) =>
+        sql`DELETE FROM github_repository_accounts WHERE owner_user_id=${f.gw.userId}::uuid AND repository_id='777'`,
+    );
+    const access = await f.gw.api.setGitHubAgentAccess({ ...repo, projectIds: [f.project.id] });
+    expect(await proof()).toBe(true);
+    pull.base.repo.full_name = "itsoltech/renamed";
+    expect(await proof()).toBe(false);
+    pull.base.repo.full_name = repo.repositoryName;
+    const release = Promise.withResolvers<void>();
+    fixture.wait(release.promise);
+    const before = fixture.requests.length;
+    const pending = proof();
+
+    try {
+      const requests = await eventually(
+        async () => fixture.requests.length,
+        (count) => count > before,
+      );
+
+      expect(requests).toBeGreaterThan(before);
+      await f.gw.api.setGitHubAgentAccess({ ...repo, expectedRevision: access.revision });
+    } finally {
+      release.resolve();
+      await pending;
+    }
+
+    expect(await pending).toBe(false);
+  });
+
   test("cleanup needs the selected PAT's project grant and fresh exact merged proof", async () => {
     fixture.pulls.clear();
     fixture.pulls.set(63, detectionPull(63, branch, head, { state: "merged" }));

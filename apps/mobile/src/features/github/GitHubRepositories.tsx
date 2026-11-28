@@ -4,9 +4,18 @@ import { Badge } from "../../ui/Badge";
 import { Button, Notice } from "../../ui/components";
 import { SearchField } from "../../ui/SearchField";
 import { useColors, useTypography } from "../../ui/theme";
+import type { AgentAccessTarget } from "./GitHubAgentAccess";
 import { useGitHubRepositories } from "./useGitHubRepositories";
 
-export function GitHubRepositories({ accountId, installationId }: { accountId: string; installationId: string }) {
+export function GitHubRepositories({
+  accountId,
+  installationId,
+  onAccess,
+}: {
+  accountId: string;
+  installationId: string;
+  onAccess?: ((target: AgentAccessTarget) => void) | undefined;
+}) {
   const c = useColors();
   const type = useTypography();
   const [all, setAll] = useState(false);
@@ -31,19 +40,27 @@ export function GitHubRepositories({ accountId, installationId }: { accountId: s
       )}
       <ScrollView nestedScrollEnabled style={{ maxHeight: 288 }}>
         {shown.map((repo) => (
-          <View
-            key={repo.repositoryId}
-            style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 }}
-          >
-            <Text
-              numberOfLines={1}
-              ellipsizeMode="middle"
-              accessibilityLabel={repo.fullName}
-              style={[type.chrome, { color: c.text, minWidth: 0, flex: 1 }]}
-            >
-              {repo.fullName}
-            </Text>
-            <Badge>{repo.private ? "Private" : "Public"}</Badge>
+          <View key={repo.repositoryId} style={{ gap: 2, paddingVertical: 6 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="middle"
+                accessibilityLabel={repo.fullName}
+                style={[type.chrome, { color: c.text, minWidth: 0, flex: 1 }]}
+              >
+                {repo.fullName}
+              </Text>
+              <Badge>{repo.private ? "Private" : "Public"}</Badge>
+            </View>
+            {onAccess && (
+              <Button
+                title="Edit agent access"
+                label={`Edit agent access for ${repo.fullName}`}
+                size="sm"
+                variant="text"
+                onPress={() => onAccess({ accountId, repositoryId: repo.repositoryId, repositoryName: repo.fullName })}
+              />
+            )}
           </View>
         ))}
       </ScrollView>

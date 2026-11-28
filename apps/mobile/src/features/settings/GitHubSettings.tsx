@@ -1,11 +1,13 @@
-import { useEffect, useRef, type ComponentRef } from "react";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { AppState } from "react-native";
-import { GITHUB_ACCOUNTS, GITHUB_HOME, qualifyId } from "@canopy/domain/computers";
+import { GITHUB_ACCOUNTS, GITHUB_AGENT_ACCESS, GITHUB_HOME, qualifyId } from "@canopy/domain/computers";
 import { useOverview } from "../../state/overview";
 import { useSession } from "../../state/session";
-import { Button } from "../../ui/components";
+import { GitHubAgentAccess, type AgentAccessTarget } from "../github/GitHubAgentAccess";
+import { GitHubAdvancedConnections } from "./GitHubAdvancedConnections";
 import { ResourceState, useSettingsResource } from "./resource";
-import { SettingChoice, SettingsActions, SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingChoice, SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { ConnectGitHub } from "../github/ConnectGitHub";
 import { GitHubAccount } from "../github/GitHubAccount";
 
@@ -18,6 +20,7 @@ const useGitHubHome = createSettingsViewState("");
 export function GitHubSettings() {
   const { computers } = useOverview();
   const [homeId, setHomeId] = useGitHubHome();
+  const home = computers.find((computer) => qualifyId(GITHUB_HOME, computer.nodeId) === homeId);
 
   const homes = [
     { value: "", label: "This computer" },
@@ -43,15 +46,23 @@ export function GitHubSettings() {
           />
         </SettingsGroup>
       )}
-      <GitHubHome key={homeId} homeId={homeId} />
+      <GitHubHome
+        key={homeId}
+        homeId={homeId}
+        agentAccessHome={!homeId || !!home?.capabilities.includes(GITHUB_AGENT_ACCESS)}
+      />
     </>
   );
 }
 
-function GitHubHome({ homeId }: { homeId: string }) {
+function GitHubHome({ homeId, agentAccessHome }: { homeId: string; agentAccessHome: boolean }) {
   const { session } = useSession();
+  const { topic } = useLocalSearchParams<{ topic?: string }>();
   const topics = useRef<ComponentRef<typeof SettingsTopics>>(null);
   const resource = useSettingsResource(`ListGitHubAccounts:${homeId}`, (api) => api.listGitHubAccounts({ homeId }));
+  const capabilities = useSettingsResource("GetClientCapabilities", (api) => api.getClientCapabilities({}));
+  const agentAccess = agentAccessHome && capabilities.data?.methods.includes("SetGitHubAgentAccess");
+  const [editing, setEditing] = useState<{ target: AgentAccessTarget; removeOnly: boolean }>();
   const data = resource.data;
   const reload = resource.reload;
   useEffect(() => {
@@ -67,6 +78,7 @@ function GitHubHome({ homeId }: { homeId: string }) {
       {resource.initialLoading && <SettingsSkeletonGroups titles={["GitHub"]} />}
       {data && (
         <SettingsTopics
+          defaultTopic={topic}
           scopeKey={homeId}
           ref={topics}
           topics={[
@@ -82,6 +94,9 @@ function GitHubHome({ homeId }: { homeId: string }) {
                       account={account}
                       installUrl={data.installUrl}
                       onchanged={() => void reload()}
+                      onAccess={
+                        agentAccess ? (target, removeOnly = false) => setEditing({ target, removeOnly }) : undefined
+                      }
                     />
                   ))}
                 </SettingsGroup>
@@ -105,35 +120,32 @@ function GitHubHome({ homeId }: { homeId: string }) {
                       }}
                     />
                   </SettingsGroup>
-                  {!!data.patCandidates.length && (
-                    <SettingsGroup
-                      title="Use an existing personal access token"
-                      description="Choose a GitHub account from Connectors explicitly. Canopy checks its GitHub identity before using it."
-                    >
-                      <SettingsActions>
-                        {data.patCandidates.map((pat) => (
-                          <Button
-                            key={pat.connectorAccountId}
-                            title={`Use ${pat.name}`}
-                            disabled={resource.busy}
-                            onPress={async () => {
-                              if (
-                                await resource.run((api) =>
-                                  api.useGitHubPat({ homeId, connectorAccountId: pat.connectorAccountId }),
-                                )
-                              )
-                                topics.current?.selectTopic("accounts");
-                            }}
-                          />
-                        ))}
-                      </SettingsActions>
-                    </SettingsGroup>
-                  )}
+                  <GitHubAdvancedConnections
+                    local={!homeId}
+                    candidates={data.patCandidates}
+                    busy={resource.busy}
+                    onChanged={() => void reload()}
+                    onUse={async (connectorAccountId) => {
+                      if (await resource.run((api) => api.useGitHubPat({ homeId, connectorAccountId })))
+                        topics.current?.selectTopic("accounts");
+                    }}
+                  />
                   {!data.accounts.length && <SettingsRow title="No GitHub accounts connected on this computer" />}
                 </>
               ),
             },
           ]}
+        />
+      )}
+      {editing && (
+        <GitHubAgentAccess
+          target={editing.target}
+          removeOnly={editing.removeOnly}
+          onClose={() => setEditing(undefined)}
+          onSaved={() => {
+            setEditing((current) => (current === editing ? undefined : current));
+            void reload();
+          }}
         />
       )}
     </ResourceState>

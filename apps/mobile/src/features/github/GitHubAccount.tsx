@@ -6,6 +6,9 @@ import { Button, Notice } from "../../ui/components";
 import { Expand } from "../../ui/MotionViews";
 import { useColors, useTypography } from "../../ui/theme";
 import { confirmAction } from "../settings/resource";
+import type { AgentAccessTarget } from "./GitHubAgentAccess";
+import { SettingsDisclosure } from "../settings/SettingsDisclosure";
+import { SettingsRow } from "../settings/SettingsGroup";
 import { GitHubInstallation } from "./GitHubInstallation";
 import { GitHubAccountRow } from "./GitHubAccountRow";
 import { GitHubUpdateChoice } from "./GitHubUpdateChoice";
@@ -18,10 +21,12 @@ export function GitHubAccount({
   account,
   installUrl,
   onchanged,
+  onAccess,
 }: {
   account: github.GitHubAccount;
   installUrl: string;
   onchanged: () => void;
+  onAccess?: ((target: AgentAccessTarget, removeOnly?: boolean) => void) | undefined;
 }) {
   const c = useColors();
   const type = useTypography();
@@ -81,6 +86,17 @@ export function GitHubAccount({
       )}
       <Expand open={open} style={{ gap: 8, paddingTop: 8 }}>
         <GitHubUpdateChoice account={account} />
+        {onAccess && account.agentRepositories.length > 0 && (
+          <SettingsDisclosure title="Repositories with agent access">
+            {account.agentRepositories.map(({ repositoryId, repositoryName }) => (
+              <SettingsRow
+                key={repositoryId}
+                title={repositoryName}
+                onPress={() => onAccess({ accountId: account.id, repositoryId, repositoryName }, true)}
+              />
+            ))}
+          </SettingsDisclosure>
+        )}
         {account.status === "connected" &&
           (account.authKind === "pat" ? (
             <Text style={[type.meta, { color: c.muted }]}>
@@ -95,6 +111,7 @@ export function GitHubAccount({
                   accountId={account.id}
                   installation={installation}
                   installUrl={installUrl}
+                  onAccess={onAccess}
                 />
               ))}
               {loaded && !installations.length && (

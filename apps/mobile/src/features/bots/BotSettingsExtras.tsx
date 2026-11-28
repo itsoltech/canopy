@@ -59,6 +59,16 @@ export function BotSettingsExtras({
         <Text style={[styles.meta, { color: c.muted }]}>Loading connections…</Text>
       )}
       {connectionsError ? <Notice error>{connectionsError}</Notice> : null}
+      {list?.accounts.some((account) => account.connectorType === "github_repository") && (
+        <Button
+          title="Manage GitHub access"
+          disabled={disabled || busy}
+          onPress={() => {
+            onClose();
+            openSettingsSection("github");
+          }}
+        />
+      )}
       <Button
         title="Manage connector access"
         disabled={disabled || busy}

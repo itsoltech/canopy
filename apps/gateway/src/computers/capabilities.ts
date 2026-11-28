@@ -10,6 +10,8 @@ export const BOT_THREAD_ACCESS = "bot_thread_access_v1";
 /** A thread-panel write changes the thread's project grant. */
 export const PROJECT_CONNECTOR_ACCESS = "project_connector_access_v1";
 
+export { GITHUB_AGENT_ACCESS } from "@canopy/domain/computers";
+
 export const ISSUE_SEARCH = "issue_search_v1";
 
 /** This gateway classifies bot and thread callers before dispatch and checks the origin on forwarded calls. */

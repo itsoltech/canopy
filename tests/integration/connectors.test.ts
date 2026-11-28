@@ -381,6 +381,7 @@ describe.skipIf(!dockerAvailable)("connectors: OAuth, gateway grants and worker 
     const next = await thread(PermissionMode.ASK);
 
     const previous = new ConnectorsRuntime({
+      github: gw.core.github,
       userId: gw.userId,
       runtime: gw.runtime,
       interaction: async () => {

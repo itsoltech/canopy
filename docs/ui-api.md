@@ -1,5 +1,8 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-28). Web, desktop i telefon zarządzają dostępem projektów i botów
+do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
+
 Status (2026-11-28). Załączniki HEIC/HEIF mają podgląd w wątku. Gateway zachowuje oryginał zdjęcia.
 
 Aktualizacja (2026-11-27): modal i podgląd Usage w web i desktopie odświeżają
@@ -1187,12 +1190,17 @@ jawnie włączają obsługę obrazów PR we wspólnym rendererze;
 wątki agentów mają osobny importer lokalnych obrazów Markdown, a zewnętrzne URL
 pozostają linkami. Limity i cache: [github.md](github.md#obrazy-w-treści-pr).
 
-Settings → GitHub na web/desktop i mobile korzysta z ośmiu RPC opisanych w
+Settings → GitHub na web/desktop i mobile korzysta z RPC opisanych w
 `proto/canopy/ui/v1/github.proto`: konta, start/status/cancel device flow,
 disconnect, jawny wybór istniejącego PAT i stronicowane instalacje/repozytoria.
 Web używa POST `/api/github/{accounts,begin,status,cancel,disconnect,pat,installations,repositories}`.
 Odpowiedzi mają `Cache-Control: no-store`; sesję próby wiąże cookie HttpOnly BFF,
 które nie jest poświadczeniem GitHub. Mobile używa swojego odwoływalnego tokenu urządzenia.
+
+`GetGitHubAgentAccess` i `SetGitHubAgentAccess` obsługują projekty, boty i zgodę na zapis
+dla wskazanego konta i repozytorium. BFF udostępnia POST `/api/github/agent-access`
+i `/api/github/set-agent-access`. Zapis wymaga rewizji ostatniego odczytu. Po konflikcie
+klient pobiera aktualny wybór. Na połączonym komputerze dom konta wymaga `github_agent_access_v1`.
 
 `configured=false` oznacza brak publicznej konfiguracji GitHub App, bez błędu całego widoku.
 Kod użytkownika jest kopiowalny, a link otwiera tylko `https://github.com/login/device`.

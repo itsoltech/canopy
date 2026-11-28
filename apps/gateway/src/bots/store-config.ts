@@ -81,7 +81,16 @@ function botValidate(
           return yield* Effect.fail(new Invalid("choose a worker with this provider instance enabled"));
       }
 
-      for (const id of config.mcpServerIds) yield* server(user, id);
+      const mcpServerIds = new Set<string>();
+
+      for (const id of config.mcpServerIds) {
+        const account = yield* server(user, id);
+
+        if (account.connector_type === "github_repository")
+          return yield* Effect.fail(new Invalid("Manage repository access in Settings → GitHub."));
+        mcpServerIds.add(account.id);
+      }
+
       const catalog = yield* catalogs(user, config);
 
       if (
@@ -118,6 +127,7 @@ function botValidate(
 
       return create(bots.BotConfigurationSchema, {
         ...config,
+        mcpServerIds: [...mcpServerIds],
         name: config.name.trim().normalize("NFC"),
         color: config.color.toLowerCase(),
         approvalPolicy: config.approvalPolicy || "safe",

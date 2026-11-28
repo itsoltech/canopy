@@ -1,5 +1,9 @@
 # Worktrees (git)
 
+Status (2026-11-28): przy sprzątaniu worktree gateway może potwierdzić scalenie
+przez konto GitHub z dostępem do repozytorium przyznanym temu projektowi. Po odczycie
+weryfikuje grant oraz tożsamość repozytorium. [Dostęp GitHub](github.md#dostęp-projektu-i-bota-do-repozytorium)
+
 Status (2026-11-26): [okresowe sprzątanie worktree](#sprzątanie-etap-2) skanuje tylko kandydatów,
 współdzieli udany fetch podczas ich oceny i przerywa skan przy zamykaniu gatewaya.
 `start_thread` może utworzyć worktree w projekcie

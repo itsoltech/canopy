@@ -9,10 +9,17 @@
 
   let {
     accountId,
+    onaccess,
     installationId,
     showLoading = $bindable(false),
     class: className,
-  }: { accountId: string; installationId: string; showLoading?: boolean; class?: string } = $props();
+  }: {
+    accountId: string;
+    onaccess?: ((repositoryId: string, repositoryName: string) => void) | undefined;
+    installationId: string;
+    showLoading?: boolean;
+    class?: string;
+  } = $props();
 
   let repos = $state<github.GitHubRepository[]>([]);
   let next = $state(0);
@@ -82,9 +89,23 @@
     class={["grid min-w-0", (all || query) && "max-h-72 overflow-y-auto overscroll-contain"]}
   >
     {#each shown as repo (repo.repositoryId)}
-      <li class="flex min-w-0 items-center gap-2 py-1.5 text-base/5 sm:text-sm/5">
+      <li
+        class={[
+          "min-w-0 items-center gap-x-2 py-1.5 text-base/5 sm:text-sm/5",
+          onaccess ? "grid grid-cols-[minmax(0,1fr)_auto] @min-[27rem]:flex" : "flex",
+        ]}
+      >
         <MiddleTruncatedText text={repo.fullName} class="flex-1" />
         <Badge compact>{repo.private ? "Private" : "Public"}</Badge>
+        {#if onaccess}
+          <Button
+            size="sm"
+            variant="text"
+            class="col-span-2 justify-self-start"
+            aria-label={`Edit agent access for ${repo.fullName}`}
+            onclick={() => onaccess?.(repo.repositoryId, repo.fullName)}>Edit agent access</Button
+          >
+        {/if}
       </li>
     {/each}
   </ul>

@@ -21,6 +21,40 @@ describe.skipIf(!dockerAvailable)("schema on PostgreSQL 17", () => {
 
   afterAll(stopSchemaDb);
 
+  test("repository tool accounts bind one owner and immutable repository without stored credentials", async () => {
+    const { user } = await world();
+    const other = (await world()).user;
+    const github = id();
+    const connector = id();
+    await query(
+      "INSERT INTO github_accounts(id,owner_user_id,github_user_id,login,auth_kind,status) VALUES ($1,$2,'10','dev','device','disconnected')",
+      [github, user],
+    );
+
+    const insert = `INSERT INTO connector_accounts(id,owner_user_id,connector_type,name,namespace,url,transport,auth_kind,status,
+      github_account_id,github_repository_id,github_repository_name)
+      VALUES ($1::uuid,$2,'github_repository','dev/project',$1::uuid::text,'https://api.github.com','http','github_app','connected',$3,'123','dev/project')`;
+
+    expect(await failure(insert, [connector, other, github])).toContain("github_connector_owner");
+    await query(insert, [connector, user, github]);
+    expect(await failure(insert, [id(), user, github])).toContain("connector_github_repository");
+
+    for (const edit of [
+      "all_projects=true",
+      "no_project=true",
+      "all_bots=true",
+      "credentials='x'::bytea",
+      "url='https://example.test'",
+      "github_repository_name=NULL",
+    ])
+      expect(await failure(`UPDATE connector_accounts SET ${edit} WHERE id=$1`, [connector])).toContain(
+        "connector_account_binding",
+      );
+    expect(
+      await failure("UPDATE connector_accounts SET github_repository_id='999' WHERE id=$1", [connector]),
+    ).toContain("GitHub repository binding is immutable");
+  });
+
   test("bot skills have unique names per bot and their revision records follow bot deletion", async () => {
     const { user } = await world();
     const bot = id();

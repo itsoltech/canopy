@@ -3,7 +3,7 @@ import { type ConnectorTool, ui } from "@canopy/contracts";
 import { ConnectorSessionCatalog, connectorSessionCatalog } from "@canopy/domain/connector-session";
 import { Effect, Option, Schema } from "effect";
 import type { SqlClient } from "effect/sql";
-import { connectorType } from "./catalog.ts";
+import { connectorLabel } from "./catalog.ts";
 
 /**
  * Durable worker reports are read only after the caller has authorized this thread. A session's first
@@ -43,12 +43,12 @@ export function connectorSessionState(
 
     // Deleted accounts remain visible only until the session confirms their removal.
     for (const account of before)
-      if (!accounts.some((a) => a.accountId === account.accountId))
+      if (account.connectorType !== "github_repository" && !accounts.some((a) => a.accountId === account.accountId))
         accounts.push(
           create(ui.ThreadConnectorSchema, {
             accountId: account.accountId,
             accountLabel: account.accountName,
-            connectorName: connectorType(account.connectorType)?.name ?? account.connectorType,
+            connectorName: connectorLabel(account.connectorType),
             status: "disconnected",
           }),
         );

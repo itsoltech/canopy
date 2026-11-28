@@ -111,6 +111,8 @@ service GatewayService {
   rpc CancelGitHubDeviceAuth(GitHubDeviceAuthRequest) returns (GitHubDeviceAuthResponse);
   rpc DisconnectGitHubAccount(GitHubAccountRequest) returns (GitHubAccountResponse);
   rpc UseGitHubPat(UseGitHubPatRequest) returns (GitHubAccountResponse);
+  rpc GetGitHubAgentAccess(GetGitHubAgentAccessRequest) returns (GitHubAgentAccessResponse);
+  rpc SetGitHubAgentAccess(SetGitHubAgentAccessRequest) returns (GitHubAgentAccessResponse);
   rpc ListGitHubInstallations(GitHubCatalogueRequest) returns (GitHubInstallationsResponse);
   rpc ListGitHubRepositories(GitHubCatalogueRequest) returns (GitHubRepositoriesResponse);
   rpc GetDiagnostics(DiagnosticsRequest) returns (DiagnosticsSnapshot);
