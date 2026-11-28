@@ -297,6 +297,7 @@ test("bulk installation through sequential saves keeps revision checks and insta
 async function resolve(file: EnvironmentSkillStatus, action: string) {
   return gateway.api.resolveSkillDrift({
     workerId: linux.workerId,
+    skillId: file.skillId,
     targetId: file.targetId,
     action,
     observedChecksum: file.observedChecksum,
@@ -523,6 +524,7 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     await resolve(file, "keep");
     expect((await settled()).report?.skills.find((f) => f.targetId === file.targetId)?.status).toBe("kept");
     const stale = (await settled()).report!.skills.find((f) => f.targetId === file.targetId)!;
+    expect(await failure(resolve(stale, "keep-local-and-remove"))).toContain("skill changed");
     writeFileSync(path, original.replace("Review the patch carefully.", "New edit after preview."));
     await resolve(stale, "overwrite");
     expect((await settled()).report?.skills.find((f) => f.targetId === file.targetId)?.status).toBe("drift");
@@ -575,7 +577,7 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     expect(readFileSync(join(linux.deviceHomes.agents, "personal/SKILL.md"), "utf8")).toContain("Private user skill");
   });
 
-  test("existing folders cannot be adopted and assigned symlink conflicts can keep the local copy", async () => {
+  test("existing folders cannot be adopted and keeping local copies removes only Canopy installations", async () => {
     writeUserSkill(join(linux.deviceHomes.agents, "occupied"));
     await save(librarySkill(), skillFiles("occupied"));
     const status = (await settled()).report!.skills.find((f) => f.path === join(linux.deviceHomes.agents, "occupied"))!;
@@ -591,6 +593,8 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     writeUserSkill(target);
     const original = readFileSync(join(target, "SKILL.md"));
     symlinkSync(target, link);
+    const platformCopy = join(linux.dataDir, "codex-home/skills/linked");
+    writeUserSkill(platformCopy);
 
     const state = await save(librarySkill(), skillFiles("linked"));
     const skill = state.skills.find((s) => s.artifact?.name === "linked")!;
@@ -614,6 +618,48 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     expect(report.skills.find((f) => f.path === join(linux.deviceHomes.claude, "skills/linked"))?.status).toBe(
       "applied",
     );
+    const platformConflict = report.skills.find((f) => f.path === platformCopy)!;
+    expect(platformConflict).toMatchObject({ status: "drift", owned: false });
+    await resolve(platformConflict, "keep");
+    const reviewed = await settled();
+    const kept = reviewed.report!.skills.find((f) => f.targetId === platformConflict.targetId)!;
+    expect(kept.status).toBe("kept");
+
+    const request = {
+      skillId: skill.id,
+      workerId: linux.workerId,
+      targetId: kept.targetId,
+      observedChecksum: kept.observedChecksum,
+      expectedRevision: reviewed.desiredRevision,
+      action: "keep-local-and-remove",
+    };
+
+    for (const changed of [{ skillId: status.skillId }, { observedChecksum: environmentDigest("older folder") }])
+      expect(await failure(gateway.api.resolveSkillDrift({ ...request, ...changed }))).toContain("skill changed");
+
+    await settled(windows);
+    const managed = join(windows.deviceHomes.agents, "linked/SKILL.md");
+    expect(readFileSync(managed, "utf8")).toContain("Review the patch");
+    windows.link.close();
+    await windows.serving;
+
+    try {
+      const removed = await gateway.api.resolveSkillDrift(request);
+      expect(removed.skills.some((s) => s.id === skill.id)).toBe(false);
+      expect(removed.skills.some((s) => s.id === status.skillId)).toBe(true);
+      const local = (await settled()).report!.skills;
+      expect(local.find((f) => f.path === link)).toMatchObject({ status: "local", localLink: true, skillId: "" });
+      expect(local.some((f) => f.path === platformCopy)).toBe(false);
+      expect(readlinkSync(link)).toBe(target);
+      expect(readFileSync(join(target, "SKILL.md"))).toEqual(original);
+      expect(readFileSync(join(platformCopy, "SKILL.md"), "utf8")).toContain("Private user skill");
+      expect(existsSync(managed)).toBe(true);
+    } finally {
+      Object.assign(windows, await windows.connect());
+    }
+
+    await settled(windows);
+    expect(existsSync(managed)).toBe(false);
   });
 
   test("removing a locally edited skill waits for a fresh decision and preserves user additions", async () => {
@@ -669,7 +715,7 @@ describe("versioned skills across the gateway and actual worker homes", () => {
     skill.id = id;
     expect(await failure(save(skill))).toContain("not found");
 
-    for (const action of ["overwrite", "archive"])
+    for (const action of ["overwrite", "archive", "keep-local-and-remove"])
       expect(
         await failure(
           foreign.skills.resolve(

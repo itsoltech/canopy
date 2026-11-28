@@ -1,4 +1,5 @@
 import {
+  AGENT_CONFLICT_SKILL_IMPORT_CAPABILITY,
   AGENT_LOCAL_SKILL_IMPORT_CAPABILITY,
   AGENT_PREVIEW_FOLLOW_CAPABILITY,
   LOCAL_AUTOMATION_COMPLETION_CAPABILITY,
@@ -91,6 +92,7 @@ export function workerCapabilities(options: { localWorker: boolean; fullAccess: 
     ...(options.localWorker ? ["desktop_bundled"] : ["network_route_migration"]),
     "agent_environment_v1",
     "agent_skills_v1",
+    AGENT_CONFLICT_SKILL_IMPORT_CAPABILITY,
     AGENT_LOCAL_SKILL_IMPORT_CAPABILITY,
     ...(supportsSkillInstaller() ? [SKILL_INSTALLER_CAPABILITY] : []),
     "agent_plugins_v1",

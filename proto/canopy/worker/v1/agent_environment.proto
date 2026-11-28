@@ -6,6 +6,7 @@ message PreviewLocalSkill {
   string target_id = 1;
   string archive_token = 2;
   uint64 expected_revision = 3;
+  string skill_id = 4; // assigned copy, capability agent_conflict_skill_import_v1
 }
 
 // Capability agent_environment_v1. Complete desired state, never an outbox of stale commands.
@@ -19,7 +20,7 @@ message EnvironmentInstruction {
 
 message EnvironmentResolution {
   string target_id = 1;
-  string action = 2; // keep | overwrite | archive (device skills only)
+  string action = 2; // keep | overwrite | archive (reviewed skill copies)
   string observed_checksum = 3;
   string desired_checksum = 4;
 }
@@ -32,6 +33,7 @@ message AgentEnvironmentDesired {
   repeated EnvironmentResolution skill_resolutions = 5;
   repeated EnvironmentSkill plugins = 6; // capability agent_plugins_v1; validated plugin artifacts
   repeated EnvironmentResolution plugin_resolutions = 7;
+  bool platform_skill_archives = 8; // gateway accepts tokens for blocking copies in private platform homes
 }
 
 message SkillFile {
@@ -97,8 +99,8 @@ message EnvironmentSkillStatus {
   uint64 version = 12;
   repeated SkillFile desired_files = 13; // exact pinned version, only when comparing drift
   bool owned = 14;
-  string local_name = 15; // device skill directory entry, independent of library membership
-  string archive_token = 16; // opaque precondition for moving this device entry aside
+  string local_name = 15; // skill directory entry, independent of library membership
+  string archive_token = 16; // opaque precondition for moving this entry aside
   bool local_link = 17; // the directory entry itself is a link
 }
 

@@ -8,6 +8,7 @@ import {
   renameSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -129,6 +130,8 @@ describe("device skill inventory", () => {
     });
     expect(toJsonString(EnvironmentSkillStatusSchema, local)).not.toContain("private ");
     writeFileSync(join(f.path, "notes"), "changed attachment");
+    // The inventory compares metadata. Make this same-size edit observable on coarse timestamp filesystems.
+    utimesSync(join(f.path, "notes"), 1, 1);
     const stale = f.archive(local).skills.find((s) => s.path === f.path)!;
     expect(stale.detail).toContain("changed");
     expect(stale.archiveToken).not.toBe(local.archiveToken);
@@ -180,6 +183,28 @@ describe("device skill inventory", () => {
     expect(incomplete.scanned).toBe(false);
     expect(incomplete.skills[0]?.archiveToken).toBe("");
     expect(readFileSync(join(external, "original", f.name, "SKILL.md"), "utf8")).toBe("private local document");
+  });
+
+  test("a platform archive requires gateway support and a private home at the time of the move", () => {
+    const f = fixture();
+    f.assign();
+    const skill = f.desired.skills[0]!;
+    skill.deviceHome = false;
+    skill.platformHome = true;
+    const home = join(f.homes.dataDir, "claude-home");
+    const path = join(home, "canopy-environment", "skills", f.name);
+    f.add(path);
+    expect(f.refresh().skills[0]).toMatchObject({ path, status: "drift", archiveToken: "" });
+    f.desired.platformSkillArchives = true;
+    const conflict = f.refresh().skills[0]!;
+    expect(conflict.archiveToken).toHaveLength(64);
+
+    // A CLI home starts sharing the previously private location through an alias.
+    mkdirSync(f.homes.deviceHomes.codex, { recursive: true });
+    symlinkSync(dirname(path), join(f.homes.deviceHomes.codex, "skills"), "dir");
+    const shared = f.archive(conflict).skills.find((file) => file.path === path);
+    expect(shared).toMatchObject({ status: "drift", archiveToken: "", owned: false });
+    expect(readFileSync(join(path, "SKILL.md"), "utf8")).toBe("private local document");
   });
 
   test("migrates a previous keep decision, then reports it as a standalone copy when unassigned", () => {

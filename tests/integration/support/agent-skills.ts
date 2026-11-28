@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ProviderProfileKind, SkillFileSchema, ui } from "@canopy/contracts";
-import { AGENT_LOCAL_SKILL_IMPORT_CAPABILITY, ANTIGRAVITY_ACP_CAPABILITY } from "@canopy/domain/release/protocol";
+import {
+  AGENT_CONFLICT_SKILL_IMPORT_CAPABILITY,
+  AGENT_LOCAL_SKILL_IMPORT_CAPABILITY,
+  ANTIGRAVITY_ACP_CAPABILITY,
+} from "@canopy/domain/release/protocol";
 import { GatewayStore } from "@canopy/gateway/store";
 import { openGatewayLink } from "@canopy/worker/gateway-link";
 import { Journal } from "@canopy/worker/journal";
@@ -118,7 +122,9 @@ export async function skillMachine(
         capabilities: [
           "agent_environment_v1",
           ...(capable ? ["agent_skills_v1", "agent_plugins_v1"] : []),
-          ...(capable === true ? [ANTIGRAVITY_ACP_CAPABILITY, AGENT_LOCAL_SKILL_IMPORT_CAPABILITY] : []),
+          ...(capable === true
+            ? [ANTIGRAVITY_ACP_CAPABILITY, AGENT_LOCAL_SKILL_IMPORT_CAPABILITY, AGENT_CONFLICT_SKILL_IMPORT_CAPABILITY]
+            : []),
         ],
       },
     });

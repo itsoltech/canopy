@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { create } from "@bufbuild/protobuf";
   import { ui, type EnvironmentSkillStatus } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
-  import { encode } from "#lib/shared/wire.ts";
   import Alert from "#lib/shared/ui/Alert.svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import CopyButton from "#lib/shared/ui/CopyButton.svelte";
@@ -130,21 +128,8 @@
     if (decision.action === "disable" && environment) {
       const skill = decision.skill;
       const workerId = decision.workerId;
-      const existing = skill.overrides.find((o) => o.workerId === workerId);
 
-      const request = create(ui.SaveLibrarySkillRequestSchema, {
-        expectedRevision: decision.revision,
-        skill: {
-          ...skill,
-          artifact: undefined,
-          overrides: [
-            ...skill.overrides.filter((o) => o.workerId !== workerId),
-            create(ui.SkillMachineOverrideSchema, { workerId, disabled: true, version: existing?.version ?? 0n }),
-          ],
-        },
-      });
-
-      if (await environment.mutate("POST", "/skills", encode(ui.SaveLibrarySkillRequestSchema, request)))
+      if (await environment.excludeSkill(skill, [workerId], decision.revision))
         environment.notice = `Disabled “${skill.name}” on ${worker.name}.`;
     } else if (decision.action !== "disable") {
       await resolve(decision.file, decision.action);

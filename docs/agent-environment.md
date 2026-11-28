@@ -1,5 +1,8 @@
 # Środowisko agentów
 
+Status (2026-11-28): web i desktop rozstrzygają konflikt skilla z poziomu biblioteki.
+Jeden wybór obejmuje wskazane komputery i lokalizacje danego skilla.
+
 Aktualizacja (2026-11-28): prywatne skille i marketplace można importować przez konto
 z **Settings → GitHub** na webie, desktopie i telefonie.
 
@@ -127,14 +130,32 @@ jest offline. Szczegół błędu kompozycji widać w statusie komputera.
 Plugin z katalogu bez zatwierdzonego przypisania pokazuje **Review required**
 i akcję **Review**. Przypisanie nadal wymaga przeglądu i osobnego potwierdzenia checksumu.
 
-W **Skills** akcja **Resolve local conflict** pokazuje komputer, CLI i ścieżkę
-lokalnej kopii, która blokuje instalację. **Keep local copy** zachowuje folder lub
-dowiązanie w tej lokalizacji. **Use library version** wymaga potwierdzenia i odkłada
-lokalną kopię do archiwum. Po synchronizacji Canopy pokazuje ścieżkę odzyskania.
-Każda decyzja dotyczy jednej lokalizacji na jednym komputerze. Zachowaną kopię
-można ponownie otworzyć przez **Review kept copy**. Pozostałe błędy są dostępne
-w **Review sync error**, ze szczegółami i przejściem do komputera.
-Raporty dostępne tylko na gatewayu połączonego komputera są w zakładce **Computers**.
+W **Skills** akcja **Resolve local conflict** pokazuje, na których komputerach
+lokalne kopie blokują instalację. Dostępne decyzje zależą od raportu workera.
+
+- **Use the Canopy version** pozwala wybrać komputery. Jedno potwierdzenie
+  zleca odłożenie kolidujących kopii do archiwum i instalację wersji przypisanej
+  do każdego komputera. Wcześniej zachowane kopie można rozpatrzyć osobno przez
+  **Review kept copy** po rozwiązaniu aktywnych problemów.
+- **Use a local copy in Canopy** pozwala wybrać kolidujący folder w katalogu CLI,
+  przejrzeć jego pliki i zapisać nową wersję istniejącego skilla. Komputery
+  śledzące wersję biblioteki dostaną aktualizację. Dotychczasowe przypięcia
+  wersji pozostają w mocy. Zastąpienie lokalnego folderu na komputerze źródłowym
+  wymaga osobnego potwierdzenia i aktualnego raportu. Zapis własnej wersji
+  odłącza dotychczasowe źródło skilla i kończy pobieranie aktualizacji z tego źródła.
+- **Keep local copies** usuwa skill ze wspólnej biblioteki. Foldery i dowiązania
+  użytkownika pozostają na dysku. Canopy odinstalowuje swoje nieedytowane pliki
+  również na komputerach, które połączą się później. Lokalne zmiany w plikach
+  zarządzanych wymagają osobnej decyzji na komputerze.
+- **Exclude computers from sync** wyłącza przypisanie skilla na wskazanych
+  komputerach. Biblioteka zachowuje skill, a pozostałe komputery dalej go synchronizują.
+  Dla połączonego komputera dialog odczytuje przypisanie z jego gatewaya i tam
+  zapisuje wykluczenie z dotychczasowym przypięciem wersji.
+
+Ścieżki są w rozwijanych szczegółach. Przed instalacją można sprawdzić katalogi
+źródłowe i miejsca odzyskania. Po wysłaniu żądania dialog czeka na raport każdego
+workera i udostępnia ścieżki kopii zapasowych. **Review on computer** otwiera
+widok pojedynczego komputera z porównaniem plików i decyzjami dla jednej kopii.
 
 Checkboxy skilli pozwalają wybrać wiele pozycji i użyć **Install on…** albo
 **Remove from library**. Wszystkie skille bez pasującego komputera można
@@ -455,7 +476,9 @@ usunięcie własnych plików. Edycja lokalna blokuje również usunięcie; decyz
 dostępna mimo usunięcia definicji. Offline worker dostaje najnowszy pełny stan.
 
 `ResolveSkillDrift` przyjmuje worker/target ID, expected revision, obejrzany checksum
-i keep/overwrite/import/archive. Keep wiąże zachowanie plików z obserwowanym i oczekiwanym
+i akcję. Dla `keep-local-and-remove` wymagany jest też identyfikator skilla.
+Gateway usuwa definicję po potwierdzeniu aktualnej, niezarządzanej kopii i przypisania.
+Pozostałe akcje to keep/overwrite/import/archive. Keep wiąże zachowanie plików z obserwowanym i oczekiwanym
 stanem. Przy blokującym dowiązaniu raport ma status `error`. Keep jest wtedy
 dostępne dla przypisanej, niezarządzanej kopii urządzenia z tokenem archiwum
 zgodnym z obserwowanym checksumem. Overwrite wymaga aktualnego CAS oraz własności
@@ -474,7 +497,11 @@ lub raportu starszego workera. Worker pomija ukryte wpisy, ogranicza liczbę
 raportowanych lokalizacji do 512 i nie wystawia tokenu do przeniesienia kopii,
 której metadanych nie udało się sprawdzić w budżecie skanu.
 
-Import korzysta z `PreviewWorkerSkill` i capability `agent_local_skill_import_v1`.
+Import z inwentaryzacji korzysta z `PreviewWorkerSkill` i capability `agent_local_skill_import_v1`.
+Podgląd folderu blokującego już przypisany skill wymaga dodatkowej capability
+`agent_conflict_skill_import_v1` i identyfikatora skilla w żądaniu. Ta ścieżka
+dopuszcza niezarządzany folder w katalogu CLI urządzenia, z aktualnym tokenem
+i zgodnym przypisaniem. Dowiązania nie są źródłem takiej wersji.
 Gateway sprawdza właściciela, bieżące połączenie, rewizję raportu i token wybranej
 kopii. Po odczycie stanu sprawdza jeszcze ostatni zaakceptowany raport tego
 połączenia: musi mieć tę samą rewizję i ten sam token kopii. Raport w trakcie
@@ -489,15 +516,22 @@ te pliki jako wersję biblioteki, bez ponownego odczytu z dysku. Import nie prze
 lokalnej kopii. Na połączonym komputerze z włączonym udostępnianiem konfiguracji
 odczyt przechodzi przez gateway, który obsługuje tego workera.
 
-Archiwizacja wymaga potwierdzenia wybranej ścieżki i aktualnego tokenu
-`archive_token` wystawionego przez workera. Gateway sprawdza właściciela i raport z bieżącego połączenia. Wysyła
-decyzję jednorazowo do tego workera. Worker odkłada wpis do
-`.canopy-skill-archive/<token>/<nazwa>` obok katalogu `skills`.
+`UseLibrarySkillVersion` przyjmuje identyfikatory workera, skilla i raportu oraz
+rewizję biblioteki i listę par `target_id` / `archive_token`. Gateway sprawdza
+właściciela, przypisanie oraz raport z bieżącego połączenia. Zużywa tokeny wybranej
+grupy w jednej transakcji i wysyła jedno polecenie do tego workera. Worker ponownie
+sprawdza każdą kopię przed przeniesieniem. Zmiana jednej z nich podczas operacji
+wymaga ponownego przeglądu tej lokalizacji.
+Archiwum ma postać `.canopy-skill-archive/<token>/<nazwa>` obok katalogu `skills`.
+W prywatnym domu Claude archiwum znajduje się obok katalogu pluginu `canopy-environment`.
+Worker udostępnia archiwizację w wygenerowanych domach Canopy, gdy gateway przyjmuje
+tokeny dla takich lokalizacji. Katalogi CLI i prywatne domy agenta wskazane przez
+użytkownika zachowują dotychczasowe ograniczenia.
 Przy dowiązaniu przenosi sam wpis. Odłożenie lokalnej kopii zwalnia miejsce
 dla przypisanej wersji Canopy, jeśli przypisanie nadal obejmuje ten cel.
 Kopię można odzyskać, przenosząc ją z archiwum z powrotem pod wolną ścieżkę.
 
-BFF: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` (POST).
+BFF: `/api/agent-environment/skills` (POST/DELETE), `/skills/resolve` i `/skills/use-version` (POST).
 Foldery są kodowane base64 w JSON: produkcyjny web wymaga `BODY_SIZE_LIMIT=50M`
 (domyślne 512K ani 25M nie wystarczy dla folderu 25 MiB); proxy także musi przepuścić
 ten rozmiar. Upload ZIP pozostaje ograniczony do 10 MiB, pliki do 1 MiB,

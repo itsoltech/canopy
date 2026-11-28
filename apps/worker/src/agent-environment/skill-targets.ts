@@ -1,9 +1,10 @@
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { AgentEnvironmentDesired, EnvironmentSkill } from "@canopy/contracts";
 import { isHarness } from "@canopy/domain/harnesses";
 import { environmentDigest } from "@canopy/domain/agent-environment";
 import { instanceShadowHome } from "../config/remote.ts";
-import { antigravityHomeProblem } from "../providers/home-paths.ts";
+import { providerConfigurationPath } from "../providers/claude/configuration-homes.ts";
+import { antigravityHomeProblem, canonicalHome, pathsOverlap } from "../providers/home-paths.ts";
 import { providersOf } from "../providers/profiles.ts";
 import type { EnvironmentHomes } from "./targets.ts";
 import type { SkillLedger } from "./skill-ledger.ts";
@@ -16,6 +17,7 @@ export interface SkillTarget {
   readonly scope: string;
   readonly desired?: EnvironmentSkill;
   readonly problem?: string;
+  readonly privateHome?: string;
 }
 
 export const platformSkillRoot = (home: string, harness: string): string =>
@@ -40,6 +42,56 @@ export function deviceSkillInventoryRoots(homes: Pick<EnvironmentHomes, "deviceH
   return roots;
 }
 
+/** Only generated private homes are eligible. An explicit shadow, CLI login or configuration source
+ * can belong to another application, even when it aliases a generated path. */
+export function platformSkillArchiveHomes(
+  homes: EnvironmentHomes,
+  targets: readonly SkillTarget[],
+  ledger: SkillLedger,
+) {
+  const candidates = new Set<string>();
+
+  for (const target of targets) {
+    if (target.privateHome && !ledger.entries.get(target.targetId)?.owned) candidates.add(target.privateHome);
+  }
+
+  if (!candidates.size) return candidates;
+  const deviceRoots = [...deviceSkillInventoryRoots(homes).keys()];
+  const protectedPaths = new Set([...deviceRoots, ...deviceRoots.map(dirname)]);
+
+  try {
+    for (const { config } of homes.config?.profiles ?? []) {
+      const runtime = config.runtime;
+
+      for (const path of [runtime?.homePath, runtime?.shadowHomePath, runtime?.userConfiguration?.sourcePath]) {
+        if (!path) continue;
+        const home = providerConfigurationPath(path);
+        protectedPaths.add(home);
+        protectedPaths.add(join(home, "skills"));
+        protectedPaths.add(platformSkillRoot(home, "claude"));
+      }
+    }
+
+    // A symlink from a second provider's skills root also makes its destination shared.
+    for (const root of new Set(targets.map((target) => dirname(target.path)))) {
+      if (canonicalHome(root) !== resolve(root)) protectedPaths.add(root);
+    }
+
+    const normalized = (path: string) => canonicalHome(path).normalize("NFC").toLowerCase();
+    const protectedRoots = [...protectedPaths].map(normalized);
+
+    for (const home of candidates) {
+      const privateRoot = normalized(home);
+
+      if (protectedRoots.some((root) => pathsOverlap(privateRoot, root))) candidates.delete(home);
+    }
+  } catch {
+    return new Set<string>();
+  }
+
+  return candidates;
+}
+
 export function skillTargets(
   desired: AgentEnvironmentDesired,
   homes: EnvironmentHomes,
@@ -52,7 +104,7 @@ export function skillTargets(
     if (!skill.artifact) throw new Error("Missing skill artifact.");
     const name = skill.artifact.name;
 
-    const add = (root: string, harness: string, scope: string) => {
+    const add = (root: string, harness: string, scope: string, privateHome?: string) => {
       const path = join(root, name);
       const targetId = environmentDigest(`skill:${path}`);
       const previous = targets.get(targetId);
@@ -61,7 +113,15 @@ export function skillTargets(
         throw new Error("Two skills use the same destination. Review their assignments.");
 
       if (harness === "antigravity" && scope === "platform" && previous?.scope === "device") return;
-      targets.set(targetId, { targetId, skillId: skill.id, path, harness, scope, desired: skill });
+      targets.set(targetId, {
+        targetId,
+        skillId: skill.id,
+        path,
+        harness,
+        scope,
+        desired: skill,
+        ...(privateHome && { privateHome }),
+      });
     };
 
     for (const harness of skill.harnesses) {
@@ -70,13 +130,20 @@ export function skillTargets(
       if (skill.deviceHome) add(deviceRoots[harness], harness, "device");
 
       if (!skill.platformHome) continue;
-      add(platformSkillRoot(join(homes.dataDir, `${harness}-home`), harness), harness, "platform");
+      const home = join(homes.dataDir, `${harness}-home`);
+      add(platformSkillRoot(home, harness), harness, "platform", home);
 
       for (const profile of homes.config?.profiles ?? []) {
         if (!providersOf(profile.config).includes(harness)) continue;
-        const home = instanceShadowHome(homes.dataDir, harness, profile.config.id, profile.config.runtime);
+        const shadow = instanceShadowHome(homes.dataDir, harness, profile.config.id, profile.config.runtime);
 
-        if (home) add(platformSkillRoot(home, harness), harness, "platform");
+        if (shadow)
+          add(
+            platformSkillRoot(shadow, harness),
+            harness,
+            "platform",
+            profile.config.runtime?.shadowHomePath ? undefined : shadow,
+          );
       }
     }
   }

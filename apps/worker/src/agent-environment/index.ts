@@ -7,6 +7,7 @@ import {
   type PreviewLocalSkill,
 } from "@canopy/contracts";
 import { ENVIRONMENT_CONTENT_BYTES, environmentDigest } from "@canopy/domain/agent-environment";
+import { canPreviewSkillConflict } from "@canopy/domain/environment-library";
 import { isHarness } from "@canopy/domain/harnesses";
 import { InstructionLedger } from "./ledger.ts";
 import { instructionTargets, type EnvironmentHomes } from "./targets.ts";
@@ -27,7 +28,7 @@ export class WorkerAgentEnvironment {
   readonly plugins: WorkerPlugins;
   #desired: AgentEnvironmentDesired | undefined;
   #last = "";
-  #previousLocal: AgentEnvironmentReport["skills"] = [];
+  #deviceCopies: AgentEnvironmentReport["skills"] = [];
   #skillInventoryRevision: bigint | undefined;
   #timer: ReturnType<typeof setInterval>;
 
@@ -115,13 +116,14 @@ export class WorkerAgentEnvironment {
     this.refresh(true);
   }
 
-  previewLocalSkill({ targetId, archiveToken, expectedRevision }: PreviewLocalSkill) {
-    const status = this.#previousLocal.find((copy) => copy.targetId === targetId);
+  previewLocalSkill({ targetId, archiveToken, expectedRevision, skillId }: PreviewLocalSkill) {
+    const status = this.#deviceCopies.find((copy) => copy.targetId === targetId);
 
     if (
       this.#skillInventoryRevision !== expectedRevision ||
       !status ||
-      status.status !== "local" ||
+      status.skillId !== skillId ||
+      (skillId ? !canPreviewSkillConflict(status) : status.status !== "local") ||
       status.owned ||
       !archiveToken ||
       status.archiveToken !== archiveToken
@@ -158,10 +160,13 @@ export class WorkerAgentEnvironment {
     }
 
     try {
-      const inventory = inventorySkills(desired, this.options.homes(), this.skills, this.#previousLocal);
+      const unassigned = this.#deviceCopies.filter((copy) => !copy.skillId);
+      const inventory = inventorySkills(desired, this.options.homes(), this.skills, unassigned);
       report.skills = inventory.skills;
       report.skillInventoryScanned = inventory.scanned;
-      this.#previousLocal = report.skills.filter((status) => !status.skillId && status.scope === "device");
+      this.#deviceCopies = report.skills.filter(
+        (status) => status.scope === "device" && (!status.skillId || canPreviewSkillConflict(status)),
+      );
       this.#skillInventoryRevision = report.revision;
     } catch (error) {
       this.#skillInventoryRevision = undefined;

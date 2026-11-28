@@ -19,7 +19,7 @@ export function resolveLoginPath(path: string): string {
 }
 
 /** Resolve existing ancestors too, so aliases remain comparable before a home exists. */
-function canonicalHome(path: string): string {
+export function canonicalHome(path: string): string {
   const absolute = resolve(path);
 
   try {
@@ -51,16 +51,21 @@ export function providerHomeProblem(
   return undefined;
 }
 
+export function pathsOverlap(first: string, second: string) {
+  const nested = (path: string) => path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+
+  return nested(relative(first, second)) || nested(relative(second, first));
+}
+
 /** Check overlap even when a protected path is configured for a different, unavailable instance. */
 function homeOverlapProblem(privateHome: string, protectedHomes: readonly string[], label: string): string | undefined {
   try {
     const target = canonicalHome(privateHome);
-    const nested = (path: string) => path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 
     for (const source of new Set(protectedHomes)) {
       const root = canonicalHome(source);
 
-      if (nested(relative(target, root)) || nested(relative(root, target)))
+      if (pathsOverlap(target, root))
         return `Choose separate ${label} CLI and private home directories outside each other.`;
     }
   } catch {
