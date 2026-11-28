@@ -10,8 +10,8 @@ import { styles, useColors } from "../../ui/theme";
 import { useTone } from "../../ui/tone";
 import { mentionElements } from "../composer/MessageText";
 import { Markdown } from "../../ui/markdown";
+import { AgentSteer } from "./AgentSteer";
 import { AgentMessageBubble } from "./AgentMessageBubble";
-import { SenderLabel } from "./SenderLabel";
 import { MessageAttachments } from "../attachments/MessageAttachments";
 import { AttachmentViewer } from "../attachments/AttachmentViewer";
 import { MessageQuotes } from "../quotes/MessageQuotes";
@@ -48,6 +48,7 @@ export function UserMessageView({
   mentions = [],
   fromAgent = false,
   sender,
+  steerSourceId,
   onEdit,
 }: {
   text: string;
@@ -59,13 +60,15 @@ export function UserMessageView({
   mentions?: readonly Mention[];
   fromAgent?: boolean;
   sender?: ui.AgentSender | undefined;
+  steerSourceId?: string | undefined;
   onEdit?: (() => void) | undefined;
 }) {
   const c = useColors();
   const [selected, setSelected] = useState<ui.Attachment>();
   const violet = useTone("violet").text;
   const amber = useTone("amber").text;
-  const agent = fromAgent || Boolean(sender);
+  const agentSteer = Boolean(sender || steerSourceId);
+  const agent = fromAgent || agentSteer;
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
   const loose = attachments.filter((a) => a.kind === "image" || !placed.has(a.id));
   const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
@@ -80,30 +83,55 @@ export function UserMessageView({
     ) : null;
 
   const onAttachment = (id: string) => setSelected(attachments.find((file) => file.id === id));
+
   const hasContent = Boolean(body.trim() || quotes.length || onEdit);
+
+  const files = loose.length > 0 && <MessageAttachments files={loose} pending={pending} />;
+  const content = <AgentText text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} />;
+
+  const overlays = (
+    <>
+      {actions.menu}
+      {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
+    </>
+  );
+
+  if (agentSteer && note) {
+    return (
+      <>
+        <AgentSteer
+          sourceId={sender?.threadId || steerSourceId || ""}
+          sender={sender}
+          text={body.trim() || quotes[0]?.text || attachments[0]?.name || ""}
+          status={note.text}
+          pending={pending}
+          icon={icon}
+          actions={actions.trigger}
+          onActions={actions.available ? actions.openMenu : undefined}
+        >
+          {files}
+          {hasContent && (
+            <Pressable {...actions.trigger} disabled={!actions.available}>
+              {content}
+            </Pressable>
+          )}
+        </AgentSteer>
+        {overlays}
+      </>
+    );
+  }
 
   return (
     <View style={{ alignItems: "flex-end", gap: 4 }}>
       {agent || note ? (
         <View style={[styles.row, { gap: 4, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }]}>
-          {(agent || note) && !sender ? icon : null}
-          {sender ? (
-            <SenderLabel
-              verb="Message from"
-              threadId={sender.threadId}
-              sender={sender}
-              color={color}
-              leading={icon}
-              trailing={note?.text}
-            />
-          ) : agent || note ? (
-            <Text style={[styles.meta, { flexShrink: 1, color }]}>
-              {[agent && "From an agent", note?.text].filter(Boolean).join(" · ")}
-            </Text>
-          ) : null}
+          {icon}
+          <Text style={[styles.meta, { flexShrink: 1, color }]}>
+            {[agent && "From an agent", note?.text].filter(Boolean).join(" · ")}
+          </Text>
         </View>
       ) : null}
-      {loose.length > 0 && <MessageAttachments files={loose} pending={pending} />}
+      {files}
       {hasContent && agent ? (
         <AgentMessageBubble
           text={body || quotes[0]?.text || ""}
@@ -111,7 +139,7 @@ export function UserMessageView({
           dim={pending}
           actions={actions.trigger}
         >
-          <AgentText text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} />
+          {content}
         </AgentMessageBubble>
       ) : hasContent ? (
         <Pressable
@@ -129,8 +157,7 @@ export function UserMessageView({
           <MessageBody text={body} mentions={mentions} quotes={quotes} onAttachment={onAttachment} color={c.text} />
         </Pressable>
       ) : null}
-      {actions.menu}
-      {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
+      {overlays}
     </View>
   );
 }

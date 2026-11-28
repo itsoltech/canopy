@@ -61,7 +61,7 @@ function BodyRowContent({ row, steers, ended }: { row: BodyRow; steers: readonly
         mentions={steer?.mentions ?? content.value.mentions}
         attachments={steer?.attachments ?? []}
         note={STEERED}
-        fromAgent={Boolean(content.value.authorAgentId)}
+        steerSourceId={steer?.sourceThreadId || content.value.authorAgentId}
         sender={steer?.sender}
         quotes={steer?.quotes}
       />

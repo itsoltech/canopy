@@ -1,5 +1,12 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Dostarczony steer od agenta zajmuje na telefonie dwa wiersze.
+Nazwa nadawcy otwiera wątek lub czat bota. Dotknięcie podglądu albo strzałki
+rozwija treść, informacje o modelu i dostarczeniu, załączniki oraz akcje wiadomości.
+Podczas wysyłania i po przyjęciu przez dostawcę stan jest widoczny także w zwiniętym
+wierszu. Panel i strzałka używają ruchu sekcji osi czasu, a przy ograniczeniu ruchu
+przełączają się od razu.
+
 Status (2026-11-28). Na iOS i Androidzie sekcje ustawień z kilkoma tematami mają
 przełącznik zakładek taki jak w pasku bocznym Threads/Bots. Zakładki mieszczą się
 w kilku wierszach na wąskim ekranie. W **Settings → Threads** domyślnie otwiera się
