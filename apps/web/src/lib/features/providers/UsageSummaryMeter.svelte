@@ -1,50 +1,53 @@
 <script lang="ts">
-  import type { UsageTone } from "@canopy/domain/sidebar-usage";
-  import type { SummarySegment } from "@canopy/domain/usage-summary";
+  import { usageReset } from "@canopy/domain/provider-usage";
+  import {
+    fiveHourPlaceholderText,
+    percentLeftText,
+    type SummarySegment,
+    type SummaryWindow,
+  } from "@canopy/domain/usage-summary";
+  import { clock } from "#lib/shared/clock.svelte.ts";
+  import UsageAccountSegment from "./UsageAccountSegment.svelte";
 
-  /**
-   * One window of a usage summary row: a column per account, sized by plan units and in the same place in every
-   * window, and a caption below. An account without this window leaves its column empty.
-   */
   let {
     segments,
-    caption,
-    left,
-    leftTone = "neutral",
-  }: { segments: readonly SummarySegment[]; caption: string; left?: string; leftTone?: UsageTone } = $props();
+    window: reading,
+  }: {
+    segments: readonly SummarySegment[];
+    window?: SummaryWindow;
+  } = $props();
 
-  const fill = (value: number) =>
-    value <= 10
-      ? "bg-rose-600 dark:bg-rose-400"
-      : value <= 30
-        ? "bg-amber-600 dark:bg-amber-400"
-        : "bg-zinc-500 dark:bg-zinc-400";
+  const period = $derived(reading?.name ?? "5-hour");
+  const reset = $derived(reading && usageReset(reading, true, clock.now));
+  const left = $derived(reading ? percentLeftText(reading) : fiveHourPlaceholderText(segments));
 
-  const text = (tone: UsageTone) =>
-    tone === "danger"
-      ? "text-rose-600 dark:text-rose-400"
-      : tone === "warning"
-        ? "text-amber-700 dark:text-amber-400"
-        : "text-zinc-700 dark:text-zinc-300";
+  const showValues = $derived(
+    segments.length > 1 &&
+      (reading !== undefined || segments.some((segment) => segment.noLimit !== segments[0]?.noLimit)),
+  );
 </script>
 
-<div class="grid min-w-0 gap-1.5" aria-hidden="true">
-  <div class="flex h-1 gap-1">
-    {#each segments as segment, index (index)}
-      {#if segment.percentLeft === undefined}
-        <div class="min-w-1" style:flex={`${segment.units} 1 0%`}></div>
-      {:else}
-        <div
-          class="h-full min-w-1 overflow-hidden rounded-full bg-zinc-950/10 dark:bg-white/10"
-          style:flex={`${segment.units} 1 0%`}
-        >
-          <div class={["h-full rounded-full", fill(segment.percentLeft)]} style:width={`${segment.percentLeft}%`}></div>
-        </div>
-      {/if}
-    {/each}
+<div class="min-w-0">
+  <div class="flex items-baseline justify-between gap-2 text-sm/5 sm:text-xs/5">
+    <span class="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+      <span class="font-medium">{period}</span>
+      {#if reset}<span class="text-zinc-500 dark:text-zinc-400">{reset}</span>{/if}
+    </span>
+    <span
+      class={[
+        "shrink-0",
+        reading && reading.percentLeft <= 10
+          ? "text-rose-600 dark:text-rose-400"
+          : reading && reading.percentLeft <= 30
+            ? "text-amber-700 dark:text-amber-400"
+            : "text-zinc-700 dark:text-zinc-300",
+      ]}>{left}</span
+    >
   </div>
-  <div class="flex min-h-5 min-w-0 justify-between gap-2 text-sm/5 sm:text-xs/5">
-    <span class="min-w-0 truncate text-zinc-500 dark:text-zinc-400">{caption}</span>
-    {#if left}<span class={["shrink-0", text(leftTone)]}>{left}</span>{/if}
+  <!-- Keep room for the tracks even when a proxy supplies many accounts. -->
+  <div class="flex" style:column-gap={`min(0.25rem, ${20 / segments.length}%)`}>
+    {#each segments as segment, index (index)}
+      <UsageAccountSegment {segment} {index} {period} showValue={showValues} />
+    {/each}
   </div>
 </div>

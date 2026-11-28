@@ -4,6 +4,12 @@ import { proxyAccountMark, proxyPlanName } from "./proxy-accounts.ts";
 
 const Plan = ui.ProxyAccountPlan;
 
+interface PlanLimits {
+  readonly seven_day: number;
+  /** null means the provider confirms that this plan has no five-hour limit. */
+  readonly five_hour: number | null;
+}
+
 /**
  * Weekly (and five-hour) allowance relative to the provider's $20 plan, from the providers' own statements.
  * Reviewed 2026-11-15. Plans come only from provider identifiers; a proxy's own multiplier is never read.
@@ -21,28 +27,34 @@ const Plan = ui.ProxyAccountPlan;
  * Grok consumer pools (https://x.ai/pricing) do not describe proxy API limits. Every other
  * provider/plan/window combination counts as 1 and stays flagged as unknown.
  */
-const weights = new Map<string, number>([
-  [`CLAUDE:${Plan.PRO}:five_hour`, 1],
-  [`CLAUDE:${Plan.PRO}:seven_day`, 1],
-  [`CLAUDE:${Plan.MAX}:five_hour`, 5],
-  [`CLAUDE:${Plan.MAX}:seven_day`, 5],
-  [`CLAUDE:${Plan.MAX_5X}:five_hour`, 5],
-  [`CLAUDE:${Plan.MAX_5X}:seven_day`, 5],
-  [`CLAUDE:${Plan.TEAM}:five_hour`, 5],
-  [`CLAUDE:${Plan.TEAM}:seven_day`, 5],
-  [`CLAUDE:${Plan.MAX_20X}:seven_day`, 10],
-  [`CLAUDE:${Plan.ULTRA}:seven_day`, 10],
-  [`CODEX:${Plan.PLUS}:five_hour`, 1],
-  [`CODEX:${Plan.PLUS}:seven_day`, 1],
-  [`CODEX:${Plan.PRO_100}:seven_day`, 10],
-  [`CODEX:${Plan.PRO_200}:seven_day`, 20],
-  [`CODEX:${Plan.PRO_500}:seven_day`, 50],
-]);
+const limits: Record<ProxyCapacityGroup["mark"], ReadonlyMap<ui.ProxyAccountPlan, PlanLimits>> = {
+  CLAUDE: new Map([
+    [Plan.PRO, { seven_day: 1, five_hour: 1 }],
+    [Plan.MAX, { seven_day: 5, five_hour: 5 }],
+    [Plan.MAX_5X, { seven_day: 5, five_hour: 5 }],
+    [Plan.TEAM, { seven_day: 5, five_hour: 5 }],
+    [Plan.MAX_20X, { seven_day: 10, five_hour: null }],
+    [Plan.ULTRA, { seven_day: 10, five_hour: null }],
+  ]),
+  CODEX: new Map([
+    [Plan.PLUS, { seven_day: 1, five_hour: 1 }],
+    [Plan.PRO_100, { seven_day: 10, five_hour: null }],
+    [Plan.PRO_200, { seven_day: 20, five_hour: null }],
+    [Plan.PRO_500, { seven_day: 50, five_hour: null }],
+  ]),
+  GROK: new Map(),
+};
+
+export function proxyPlanLimits(account: Pick<ui.ProxyAccount, "provider" | "plan">) {
+  const mark = proxyAccountMark(account.provider);
+
+  return mark && limits[mark].get(account.plan);
+}
 
 export function proxyPlanWeight(account: ui.ProxyAccount, key = "seven_day") {
-  const units = weights.get(`${proxyAccountMark(account.provider)}:${account.plan}:${key}`);
+  const units = key === "seven_day" || key === "five_hour" ? proxyPlanLimits(account)?.[key] : undefined;
 
-  return { units: units ?? 1, unknown: units === undefined };
+  return { units: units ?? 1, unknown: units == null };
 }
 
 export function proxyAutomaticPlanLabel(account: ui.ProxyAccount) {
@@ -74,7 +86,7 @@ export function proxyPlanOptions(provider: string) {
 
   const plans = mark ? choices[mark] : [];
 
-  return plans.map(([plan, name]) => ({ plan, label: `${name} · ×${weights.get(`${mark}:${plan}:seven_day`)}` }));
+  return plans.map(([plan, name]) => ({ plan, label: `${name} · ×${proxyPlanLimits({ provider, plan })?.seven_day}` }));
 }
 
 export const supportedProxyAccounts = (accounts: readonly ui.ProxyAccount[]) =>
@@ -112,7 +124,8 @@ export interface ProxyCapacityGroup {
   readonly windows: readonly CapacityWindow[];
 }
 
-const eligible = (account: ui.ProxyAccount) => account.status === "active" || account.status === "cooling_down";
+export const eligibleProxyAccount = (account: ui.ProxyAccount) =>
+  account.status === "active" || account.status === "cooling_down";
 
 const current = (window: ProviderUsageWindow, now: number) =>
   (!window.resetsAt || timestampDate(window.resetsAt).getTime() > now) &&
@@ -156,7 +169,7 @@ function capacityWindow(
   let resetsAt: ProviderUsageWindow["resetsAt"];
   const segments: CapacitySegment[] = [];
 
-  for (const account of accounts.filter(eligible)) {
+  for (const account of accounts.filter(eligibleProxyAccount)) {
     const window = account.windows.find((w) => windowIdentity(w) === windowIdentity(sample) && current(w, now));
 
     if (!window) continue;
@@ -211,7 +224,7 @@ export function proxyCapacityGroups(accounts: readonly ui.ProxyAccount[], now = 
     if (!own.length) return [];
     const samples = new Map<string, ProviderUsageWindow>();
 
-    for (const account of own.filter(eligible)) {
+    for (const account of own.filter(eligibleProxyAccount)) {
       for (const window of account.windows.filter((w) => comparable(w) && current(w, now)))
         samples.set(windowIdentity(window), window);
     }
@@ -233,7 +246,7 @@ export function proxyCapacityGroups(accounts: readonly ui.ProxyAccount[], now = 
             Math.max(0, ...b.windows.map((w) => w.usedPercent ?? 0)) -
               Math.max(0, ...a.windows.map((w) => w.usedPercent ?? 0)) || a.id.localeCompare(b.id),
         ),
-        excluded: own.filter((account) => !eligible(account)).length,
+        excluded: own.filter((account) => !eligibleProxyAccount(account)).length,
         windows,
       },
     ];

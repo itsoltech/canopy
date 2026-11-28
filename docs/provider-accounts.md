@@ -1,5 +1,7 @@
 # Status kont dostawców
 
+Status (2026-11-28). W podglądzie **Provider limits** każde konto zachowuje swoją kolumnę w kolejnych oknach. Podpis nad paskiem podaje okres, reset i pozostały limit. Kreskowanie oznacza potwierdzony brak limitu 5 h w planie.
+
 Aktualizacja (2026-11-28): osobny odczyt okien użycia Codexa, powiązany z
 aktywnym kontem, zasila powiadomienia web/desktop o odnowieniu limitu.
 
@@ -334,21 +336,25 @@ raport konta nie zmienia historycznej karty. Szczegóły są w „Show details�
 Dolny pasek sidebara web/desktop i mobile rezerwuje stały slot na kompaktowy
 wskaźnik użycia. W web/desktop paski mają szerokość 2,5 rem (40 px przy domyślnej
 skali), a przycisk i rezerwowany slot mieszczą je z poziomym paddingiem bez zmiany
-wysokości. Każdy dostawca z danymi ma jeden pasek: wykorzystanie najbardziej
-ograniczającego okna z wiersza popovera. Poniżej 70% jest neutralny,
-od 70% ostrzegawczy, a od 90% alarmowy. Potwierdzone dodatkowe użycie ma fioletowy
-pasek z przerwą. Dostępność kredytów sama nie oznacza ich używania.
-Hover na desktopie lub dotknięcie otwiera proste podsumowanie
-(`@canopy/domain/usage-summary`): jeden wiersz na dostawcę z procentem pozostałej
-pojemności, paskiem głównego okna i najbliższym resetem. Bezpośrednie instancje ze wszystkich
-komputerów i konta używanych proxy CLIProxyAPI łączą się w tym wierszu; dla każdego okna
-zostaje niższy odczyt. Pasek dzieli się na odcinki, po jednym na konto z odczytem tego okna,
-od największego planu. Szerokość odcinka to udział jego jednostek planu w sumie grupy
-(`proxyPlanWeight`; np. konta x10 i x50 dają odcinki 10/60 i 50/60), a wypełnienie to
-pozostała część danego konta. Bezpośrednia instancja i nieznany plan liczą się jako 1.
-Przy więcej niż jednym koncie obok nazwy jest ich liczba („2 accounts”).
-Krótsze okno pojawia się tylko, gdy ogranicza bardziej niż główne.
-W web/desktop oba odczyty procentowe używają rozmiaru metadanych wiersza.
+wysokości. Wskaźnik w stopce pokazuje dla każdego dostawcy pozostałą część najdłuższego
+okna ogólnego. Kolor uwzględnia też krótsze okna: od 70% wykorzystania jest ostrzegawczy,
+od 90% alarmowy. Potwierdzone dodatkowe użycie ma fioletowy pasek z przerwą.
+Dostępność kredytów sama nie oznacza ich używania.
+
+W **Provider limits** każdy dostawca ma wiersz dla każdego raportowanego ogólnego okna,
+od najkrótszego. Nad paskiem są okres, dostępny czas do resetu i zbiorczy wynik.
+Dla kont proxy wynik uwzględnia jednostki planów; po zestawieniu go z odczytami
+instancji bezpośrednich dla danego okna zostaje niższa wartość.
+Podział paska jest taki sam dla wszystkich okien dostawcy. Szerokość segmentu wynika
+z jednostek planu w głównym oknie, a jego wypełnienie z procentu pozostałego na koncie.
+Bezpośrednia instancja i nieznany plan liczą się jako 1. Przy kilku kontach pod segmentem
+widać jego procent lub stan, jeśli podpis się mieści. Nazwa konta jest w szczegółach
+segmentu; tożsamość konta proxy korzysta z ochrony Sensitive.
+
+Ukośne kreski oznaczają plan bez limitu 5 h (**No limit**), przerywany obrys oznacza
+brak aktualnego odczytu (**No reading**), a pusty jednolity tor i **0%** — wyczerpany limit.
+Jeśli wszystkie konta widoczne w podsumowaniu mają plan bez limitu 5 h, pozostaje pełny kreskowany
+wiersz z podziałem na konta i wspólnym podpisem **No limit**.
 Kliknięcie paska w stopce otwiera Settings → Providers, gdzie sekcja **Proxy limits** pokazuje odczyty
 poszczególnych kont używanych proxy. Limity bezpośrednie są w statusie instancji
 ([proxies.md](proxies.md#konta-upstream-management-api-cliproxyapi)). Dostawca bez odczytu

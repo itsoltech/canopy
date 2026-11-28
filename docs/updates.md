@@ -149,7 +149,7 @@ pełny panel z opisami etapów, przyczynami niedostępności i błędami. Stopka
 **Update all**, **Retry failed** albo **Restart to update** dla pobranej lokalnej
 aplikacji. Akcje korzystają z tych samych warunków i potwierdzeń co ustawienia.
 **What's new** pokazuje nieobejrzane notatki.
-Pozostałe panele stopki (Usage, Workers i Provider usage) współdzielą z popoverem
+Pozostałe panele stopki (Usage, Workers i Provider limits) współdzielą z popoverem
 obsługę najechania i zamknięcia. Przy otwartym podglądzie Usage lub App updates
 ikona w stopce ukrywa własny tooltip.
 

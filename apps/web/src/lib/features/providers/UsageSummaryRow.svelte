@@ -1,13 +1,6 @@
 <script lang="ts">
-  import {
-    accountsText,
-    percentLeftText,
-    summaryWindowText,
-    usageSummaryLabel,
-    type UsageSummaryRow,
-  } from "@canopy/domain/usage-summary";
+  import { accountsText, type UsageSummaryRow } from "@canopy/domain/usage-summary";
   import type { UsageTone } from "@canopy/domain/sidebar-usage";
-  import { clock } from "#lib/shared/clock.svelte.ts";
   import { providerKeyOf } from "#lib/features/threads/providers.ts";
   import ProviderIcon from "#lib/features/models/ProviderIcon.svelte";
   import UsageSummaryMeter from "./UsageSummaryMeter.svelte";
@@ -27,12 +20,10 @@
         : tone === "warning"
           ? "text-amber-700 dark:text-amber-400"
           : "text-zinc-700 dark:text-zinc-300";
-
-  const toneOf = (left: number): UsageTone => (left <= 10 ? "danger" : left <= 30 ? "warning" : "neutral");
 </script>
 
-<li class="grid min-w-0 gap-1.5 tabular-nums" aria-label={usageSummaryLabel(row, clock.now)}>
-  <div class="flex min-w-0 items-center gap-2" aria-hidden="true">
+<li class="grid min-w-0 gap-1.5 tabular-nums">
+  <div class="flex min-w-0 items-center gap-2">
     {#if provider}<ProviderIcon {provider} size="sm" />{/if}
     <span class="flex min-w-0 flex-1 items-baseline gap-2">
       <span class="min-w-0 truncate text-base font-medium sm:text-sm">{row.name}</span>
@@ -44,20 +35,13 @@
   </div>
   {#if row.window}
     <div class="grid min-w-0 gap-2">
+      {#if row.fiveHourPlaceholder.length}
+        <UsageSummaryMeter segments={row.fiveHourPlaceholder} />
+      {/if}
       {#each row.shorter as meter (meter.window.minutes)}
-        <UsageSummaryMeter
-          segments={meter.segments}
-          caption={summaryWindowText(meter.window, clock.now)}
-          left={percentLeftText(meter.window)}
-          leftTone={toneOf(meter.window.percentLeft)}
-        />
+        <UsageSummaryMeter segments={meter.segments} window={meter.window} />
       {/each}
-      <UsageSummaryMeter
-        segments={row.segments}
-        caption={summaryWindowText(row.window, clock.now)}
-        left={percentLeftText(row.window)}
-        leftTone={toneOf(row.window.percentLeft)}
-      />
+      <UsageSummaryMeter segments={row.segments} window={row.window} />
     </div>
   {:else}
     <div class="h-1 w-full rounded-full bg-violet-600 dark:bg-violet-400" aria-hidden="true"></div>
