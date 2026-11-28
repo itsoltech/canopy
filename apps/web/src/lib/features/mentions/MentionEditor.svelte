@@ -34,7 +34,12 @@
   import { blockHtml, findFences, openingFence } from "./markdown.ts";
   import MentionList from "./MentionList.svelte";
   import MentionSuggestions from "./MentionSuggestions.svelte";
-  import { triggerPresentation, type MentionOption, type MentionSourceSet } from "./sources.svelte.ts";
+  import {
+    triggerPresentation,
+    type MentionOption,
+    type MentionResults,
+    type MentionSourceSet,
+  } from "./sources.svelte.ts";
   import { mentionsKey } from "./wire.ts";
   import type { QuoteDraft } from "#lib/features/quotes/quote.ts";
   import EditorCitations from "#lib/features/quotes/EditorCitations.svelte";
@@ -144,13 +149,6 @@
   const icons = new Map<string, string>();
   let trigger = $state<ActiveTrigger>();
 
-  /** The last trigger: the closing popup keeps its words. */
-  let lastChar = $state<TriggerChar>("/");
-
-  $effect(() => {
-    if (trigger) lastChar = trigger.char;
-  });
-
   let dismissed = $state<string>();
   let active = $state(0);
   let popupOpen = $state(false);
@@ -193,13 +191,20 @@
       untrack(() => sync(false));
   });
 
-  const results = $derived(sources?.results);
   const catalogTrigger = $derived(trigger?.char === "/" || trigger?.char === "$");
-  const options = $derived(trigger && results ? results.options : []);
-  const loading = $derived(catalogTrigger ? (sources?.catalogState?.loading ?? false) : (results?.loading ?? false));
-  const error = $derived(catalogTrigger ? sources?.catalogState?.error : results?.error);
 
-  const presentation = $derived(sources?.presentation?.[lastChar] ?? triggerPresentation[lastChar]);
+  // Keep the visible rows and status through dismissal, even when the source clears its query.
+  let list = $state.raw<MentionResults & { label: string; empty: string }>();
+
+  $effect.pre(() => {
+    if (!trigger || !sources) return;
+    const results = sources.results;
+    const status = catalogTrigger ? sources.catalogState : undefined;
+    const { label, empty } = sources.presentation?.[trigger.char] ?? triggerPresentation[trigger.char];
+    list = { ...results, ...status, label, empty: results.empty ?? empty };
+  });
+
+  const options = $derived(list?.options ?? []);
 
   // Catalog lists react to the catalog arriving.
   $effect(() => {
@@ -431,7 +436,7 @@
         return;
       }
 
-      if (event.key === "Enter" && plainKey && trigger.char === "#" && loading) {
+      if (event.key === "Enter" && plainKey && trigger.char === "#" && list?.loading) {
         event.preventDefault();
 
         return;
@@ -556,18 +561,16 @@
 <!-- The placeholder shares the text's grid cell and padding (`class`), so it sits exactly where typing starts. -->
 {#if sources}
   <MentionSuggestions bind:open={popupOpen} {anchor} label="{label}: suggestions" class={suggestionsClass}>
-    <MentionList
-      id="{id}-popup"
-      label={presentation.label}
-      {optionIcon}
-      {options}
-      {active}
-      {loading}
-      {error}
-      empty={results?.empty ?? presentation.empty}
-      onchoose={choose}
-      onactive={(index) => (active = index)}
-    />
+    {#if list}
+      <MentionList
+        id="{id}-popup"
+        {...list}
+        {optionIcon}
+        {active}
+        onchoose={choose}
+        onactive={(index) => (active = index)}
+      />
+    {/if}
   </MentionSuggestions>
 {/if}
 <div class={["relative grid min-w-0 grid-cols-1", containerClass]}>

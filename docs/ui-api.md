@@ -81,6 +81,9 @@ Status (2026-11-24): w web i desktopie lokalny wątek można przeciągnąć do P
 Status (2026-11-24): web i desktop zgłaszają odczyt, gdy wczytany koniec rozmowy
 jest widoczny. Sidebar aktualizuje etykietę po zmianie w overview.
 
+Status (2026-11-28). W web i desktopie lista podpowiedzi wzmianek zachowuje wyniki
+do końca animacji zamknięcia. Nazwa wybranego skilla może zawinąć się razem z tekstem szkicu.
+
 Status (2026-11-28): `#` umożliwia wybór wątku, zgłoszenia lub pull requestu w kompozytorze nowego i istniejącego wątku. Wyszukiwanie korzysta też z konta GitHub repozytorium workspace’u.
 
 Status (2026-11-23): karta pliku w web i desktopie odtwarza wideo przez HTTP Range.
@@ -2685,6 +2688,10 @@ odczytuje tekst także bez kolejnego `input`; Enter w czasie kompozycji nie wysy
 Na ekranach poniżej `40rem` lub z coarse pointer lista sugestii jest w przepływie
 kompozytora, z limitem 40% wysokości `visualViewport`. Wybór przez `pointerup`
 zachowuje fokus, a `pointercancel` i próg ruchu odróżniają przewijanie od wyboru.
+Na desktopie lista otwiera się i wygasa przy krawędzi kompozytora. Podczas zamykania
+zachowuje ostatnie wiersze i komunikat. W edytorze etykieta zwykłej wzmianki
+może przejść do następnego wiersza na przykład po łączniku. Ikona trzyma się
+początku nazwy, a usuwanie i przeciąganie nadal obejmuje całą wzmiankę.
 Po `execCommand("insertHTML")` trzeba przywrócić chipowi `contenteditable="false"`,
 ponieważ WebKit może usunąć ten atrybut i umożliwić edycję samej etykiety.
 

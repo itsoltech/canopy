@@ -162,16 +162,19 @@ function nodeInCopy(root: Node, copy: Node, node: Node): Node | undefined {
   return nodeInCopy(root, copy, parent)?.childNodes[index];
 }
 
+/** A wrapped chip starts and ends on different lines. */
+function elementEdge(element: Element, before: boolean) {
+  const boxes = element.getClientRects();
+  const rect = boxes.item(before ? 0 : boxes.length - 1);
+
+  return rect ? { x: before ? rect.left : rect.right, rect } : undefined;
+}
+
 /** An element boundary (beside a chip or at the end of a line) may have no collapsed range rect. */
 function caretRect(range: Range, event: DragEvent): { x: number; rect: DOMRect } | undefined {
   const chip = event.target instanceof Element && event.target.closest(CHIP_SELECTOR);
 
-  if (chip) {
-    const rect = chip.getBoundingClientRect();
-    const before = range.startContainer.childNodes[range.startOffset] === chip;
-
-    return { x: before ? rect.left : rect.right, rect };
-  }
+  if (chip) return elementEdge(chip, range.startContainer.childNodes[range.startOffset] === chip);
 
   const rect = range.getBoundingClientRect();
 
@@ -181,11 +184,7 @@ function caretRect(range: Range, event: DragEvent): { x: number; rect: DOMRect }
   const next = container.childNodes[offset];
   const adjacent = next ?? container.childNodes[offset - 1];
 
-  if (adjacent instanceof Element) {
-    const box = adjacent.getBoundingClientRect();
-
-    return { x: next ? box.left : box.right, rect: box };
-  }
+  if (adjacent instanceof Element) return elementEdge(adjacent, Boolean(next));
 
   if (adjacent instanceof Text) {
     const edge = document.createRange();
