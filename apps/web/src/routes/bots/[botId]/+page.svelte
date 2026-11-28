@@ -95,6 +95,7 @@
   let changingModel = $state(false);
   let detailsOpen = $state(true);
   let detailsLayout = $state<ReturnType<typeof BotDetailsLayout>>();
+  let chatView = $state<ReturnType<typeof ChatView>>();
   let detailsToggle: HTMLButtonElement | undefined;
 
   function closeDetails() {
@@ -444,11 +445,18 @@
       {#snippet panel()}<BotDetailsPanel
           {bot}
           routines={snapshot.routines}
+          triggers={snapshot.triggers}
+          waiting={snapshot.approvals.filter((a) => a.parked && a.status === "pending")}
+          onreveal={(id) => {
+            detailsLayout?.closeOverlay();
+            void chatView?.reveal(id);
+          }}
           reminders={snapshot.reminders}
           status={snapshot.statusLine}
           onclose={closeDetails}
         />{/snippet}
       <ChatView
+        bind:this={chatView}
         {composerDraft}
         {history}
         {conversation}

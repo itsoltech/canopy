@@ -4,10 +4,24 @@ import { styles, useColors } from "./theme";
 import { useLiveTime } from "./time";
 
 /**
- * Time left to answer a request with a known deadline, as on the web: "Expires in 1:45", amber in the last 25 s,
+ * Time left to answer a request with a known deadline, as on the web: "Expires in 1:45" (or "in 20 hours"), amber
+ * in the last 25 s,
  * "Expiring…" at zero until the gateway marks the request expired (the gateway decides, never this clock).
  * Ticks from the phone's clock once a second. The line keeps its size, so nothing moves when it changes.
  */
+/** Minutes and seconds within the last hour; whole hours before that (a parked card waits up to a day). */
+function countdownText(seconds: number) {
+  if (seconds <= 0) return "Expiring…";
+
+  if (seconds >= 3600) {
+    const hours = Math.floor(seconds / 3600);
+
+    return `Expires in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+
+  return `Expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function RequestCountdown({
   expiresAt,
   pending,
@@ -42,11 +56,7 @@ export function RequestCountdown({
         style,
       ]}
     >
-      {active
-        ? seconds > 0
-          ? `Expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-          : "Expiring…"
-        : ""}
+      {active ? countdownText(seconds) : ""}
     </Text>
   );
 }

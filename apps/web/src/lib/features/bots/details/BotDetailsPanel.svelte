@@ -15,6 +15,8 @@
   import MascotFace from "../components/MascotFace.svelte";
   import DetailsSection from "./DetailsSection.svelte";
   import RoutineRow from "./RoutineRow.svelte";
+  import TriggerRow from "./TriggerRow.svelte";
+  import WaitingRow from "./WaitingRow.svelte";
   import ReminderRow from "./ReminderRow.svelte";
   import BotHome from "../components/BotHome.svelte";
   import { useBotHome } from "../home.svelte.ts";
@@ -23,6 +25,9 @@
   let {
     bot,
     routines,
+    triggers = [],
+    waiting = [],
+    onreveal,
     reminders,
     status = "",
     onclose,
@@ -31,6 +36,10 @@
   }: {
     bot: bots.Bot;
     routines: readonly bots.BotRoutine[];
+    triggers?: readonly bots.BotTrigger[];
+    /** Parked cards of background runs that wait for the owner. */
+    waiting?: readonly bots.BotApproval[];
+    onreveal?: (approvalId: string) => void;
     reminders: readonly bots.BotReminder[];
     status?: string;
     onclose: () => void;
@@ -44,8 +53,9 @@
   const shape = $derived(mascotShapes.find((s) => s.id === config.shape)?.id);
   let busy = $state<Record<string, boolean>>({});
   let error = $state("");
-  let removing = $state<bots.BotRoutine>();
+  let removing = $state<{ kind: "routine" | "trigger"; id: string; title: string }>();
   let confirming = $state(false);
+  const noun = $derived(removing?.kind === "trigger" ? "trigger" : "routine");
 
   async function act<T>(id: string, action: () => Promise<T>) {
     if (busy[id]) return;
@@ -65,11 +75,20 @@
     void act(routine.id, () => requestJson("PUT", `/api/bots/${bot.id}/routines/${routine.id}`, { enabled }));
   }
 
+  function toggleTrigger(trigger: bots.BotTrigger, enabled: boolean) {
+    void act(trigger.id, () => requestJson("PUT", `/api/bots/${bot.id}/triggers/${trigger.id}`, { enabled }));
+  }
+
+  function confirmRemove(kind: "routine" | "trigger", item: { id: string; title: string }) {
+    removing = { kind, id: item.id, title: item.title };
+    confirming = true;
+  }
+
   async function remove() {
     if (!removing) return;
-    const routine = removing;
-    await act(routine.id, async () => {
-      await requestJson("DELETE", `/api/bots/${bot.id}/routines/${routine.id}`);
+    const item = removing;
+    await act(item.id, async () => {
+      await requestJson("DELETE", `/api/bots/${bot.id}/${item.kind}s/${item.id}`);
       confirming = false;
       removing = undefined;
     });
@@ -109,6 +128,15 @@
   </div>
 
   {#if error}<Alert tone="error">{error}</Alert>{/if}
+  {#if waiting.length && onreveal}
+    <DetailsSection title="Waiting for you" description="Your answer or decision starts a new background run.">
+      <ul role="list" class="divide-y divide-zinc-950/6 dark:divide-white/8">
+        {#each waiting as item (item.id)}
+          <WaitingRow {item} onreveal={() => onreveal(item.id)} />
+        {/each}
+      </ul>
+    </DetailsSection>
+  {/if}
   <DetailsSection title="Routines" description={routines.length ? "Your bot decides when to message you." : undefined}>
     {#if routines.length}
       <ul role="list" class="divide-y divide-zinc-950/6 dark:divide-white/8">
@@ -118,10 +146,7 @@
             busy={busy[routine.id] ?? false}
             disabled={bot.archived || Boolean(home.reason)}
             ontoggle={(enabled) => toggle(routine, enabled)}
-            ondelete={() => {
-              removing = routine;
-              confirming = true;
-            }}
+            ondelete={() => confirmRemove("routine", routine)}
           />
         {/each}
       </ul>
@@ -130,6 +155,31 @@
         <p class="text-pretty text-zinc-600 dark:text-zinc-300">Ask {participant.name} to set up a routine.</p>
         <p class="text-pretty text-zinc-500 dark:text-zinc-400">
           “Every Friday at 3, ask me what I want to work on next week.”
+        </p>
+      </div>
+    {/if}
+  </DetailsSection>
+  <DetailsSection
+    title="Event triggers"
+    description={triggers.length ? "Your bot runs when these events happen." : undefined}
+  >
+    {#if triggers.length}
+      <ul role="list" class="divide-y divide-zinc-950/6 dark:divide-white/8">
+        {#each triggers as trigger (trigger.id)}
+          <TriggerRow
+            item={trigger}
+            busy={busy[trigger.id] ?? false}
+            disabled={bot.archived || Boolean(home.reason)}
+            ontoggle={(enabled) => toggleTrigger(trigger, enabled)}
+            ondelete={() => confirmRemove("trigger", trigger)}
+          />
+        {/each}
+      </ul>
+    {:else}
+      <div class="grid gap-3 rounded-2xl bg-zinc-950/3 p-4 dark:bg-white/4">
+        <p class="text-pretty text-zinc-600 dark:text-zinc-300">Ask {participant.name} to watch for an event.</p>
+        <p class="text-pretty text-zinc-500 dark:text-zinc-400">
+          “When a turn fails in my Canopy project, tell me why.”
         </p>
       </div>
     {/if}
@@ -155,7 +205,7 @@
 
 <Dialog
   bind:open={confirming}
-  title="Delete routine?"
+  title={`Delete ${noun}?`}
   description={removing
     ? `“${removing.title}” will stop running. Ask your bot to set it up again if you change your mind.`
     : undefined}
@@ -163,9 +213,9 @@
 >
   <div class="flex justify-end gap-2 pt-5">
     <Button variant="secondary" disabled={removing ? busy[removing.id] : false} onclick={() => (confirming = false)}
-      >Keep routine</Button
+      >Keep {noun}</Button
     >
-    <Button variant="danger" loading={removing ? busy[removing.id] : false} onclick={remove}>Delete routine</Button>
+    <Button variant="danger" loading={removing ? busy[removing.id] : false} onclick={remove}>Delete {noun}</Button>
   </div>
   {#if error}<p role="alert" class="pt-3 text-base/6 text-rose-600 sm:text-sm/5 dark:text-rose-400">{error}</p>{/if}
 </Dialog>

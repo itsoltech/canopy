@@ -30,7 +30,8 @@ export function botNotice(bot: bots.Bot, event: BotEvent): Notice {
     };
   const { approval } = event;
   const headline = event.kind === "approval" ? "Needs your approval" : "Needs your answer";
-  const routine = approval.routineTitle ? `${headline} · From routine “${approval.routineTitle}”` : headline;
+  const origin = approval.routineKind === "trigger" ? "event trigger" : "routine";
+  const routine = approval.routineTitle ? `${headline} · From ${origin} “${approval.routineTitle}”` : headline;
 
   // An approval prompt is "Needs approval · <action>" plus argument lines: the notice shows only the action.
   const asked =

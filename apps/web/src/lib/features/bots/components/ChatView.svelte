@@ -151,6 +151,9 @@
   let timelineRegion = $state<HTMLElement>();
   let composer = $state<ReturnType<typeof BotComposer>>();
 
+  /** Scrolls a card or message of this conversation into view. */
+  export const reveal = (id: string) => timeline?.reveal(id) ?? Promise.resolve(false);
+
   provideCitationSource((quote) => {
     const chat = timeline;
 

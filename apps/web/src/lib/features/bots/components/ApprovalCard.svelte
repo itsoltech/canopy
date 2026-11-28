@@ -122,8 +122,8 @@
       </RequestHeader>
     </header>
     {#if approval.routineTitle}<p class="px-4 pt-1 text-sm/5 text-zinc-500 sm:text-xs/5 dark:text-zinc-400">
-        From routine “{approval.routineTitle}”{#if approval.parked}
-          · Your decision starts a new run{/if}
+        From {approval.routineKind === "trigger" ? "event trigger" : "routine"} “{approval.routineTitle}”{#if approval.parked}{" "}·
+          Your decision starts a new run{/if}
       </p>{/if}
     <h3
       id="{id}-title"

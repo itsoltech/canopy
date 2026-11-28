@@ -176,6 +176,12 @@ function BotConversation({ id, rule }: { id: string; rule: string }) {
         readOnly={!live}
         visible={chat.details || !!rule}
         selectedRule={rule}
+        onReveal={(approvalId) => {
+          setDetails(false);
+          const index = state.rows.latestFirst.findIndex((row) => row.id === approvalId);
+
+          if (index >= 0) following.list.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+        }}
         onClose={() => {
           setDetails(false);
 

@@ -7,6 +7,7 @@ import { Button, Notice } from "../../ui/components";
 import { confirm } from "../../ui/Confirm";
 import { styles, useColors } from "../../ui/theme";
 import { PanelRow } from "../threads/ThreadPanel";
+import { BotTriggers } from "./BotTriggers";
 
 export function BotSchedules({ conversation, readOnly }: { conversation: bots.BotConversation; readOnly: boolean }) {
   const c = useColors();
@@ -24,6 +25,7 @@ export function BotSchedules({ conversation, readOnly }: { conversation: bots.Bo
       ) : (
         <Text style={[styles.meta, { color: c.muted }]}>No routines</Text>
       )}
+      <BotTriggers botId={botId} triggers={conversation.triggers} readOnly={readOnly} />
       <Text style={[styles.heading, { color: c.text }]}>Reminders</Text>
       {conversation.reminders.length ? (
         conversation.reminders.map((reminder) => (
@@ -36,7 +38,7 @@ export function BotSchedules({ conversation, readOnly }: { conversation: bots.Bo
   );
 }
 
-function useScheduleAction(readOnly: boolean) {
+export function useScheduleAction(readOnly: boolean) {
   const { client, online } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
