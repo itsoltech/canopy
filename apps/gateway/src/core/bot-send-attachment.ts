@@ -130,21 +130,19 @@ export async function sendBotAttachment(ctx: ToolContext) {
     await actions.run(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        yield* sql`UPDATE attachments SET bot_id=${ctx.turn.bot_id}::uuid, bot_turn_id=${ctx.turn.id}::uuid
-        WHERE id=${attachment.id}::uuid AND owner_user_id=${ctx.options.userId}::uuid AND bot_id IS NULL AND thread_id IS NULL`;
         yield* sql`INSERT INTO bot_messages(id,bot_id,turn_id,message_key,sender_id,recipient_id,kind,text,attachments)
         VALUES (${Bun.randomUUIDv7()}::uuid,${ctx.turn.bot_id}::uuid,${ctx.turn.id}::uuid,${`attachment:${ctx.call.id}`},${ctx.turn.bot_id},'user','message',${caption},${JSON.stringify([storedBotImage(row)])}::jsonb)
         ON CONFLICT(turn_id,message_key) DO NOTHING`;
         yield* sql`INSERT INTO audit_log(id,actor_user_id,action,target_type,target_id,details)
         VALUES (${ctx.call.id}::uuid,${ctx.options.userId}::uuid,'bot.send_attachment','bot',${ctx.turn.bot_id}::uuid,
-        ${JSON.stringify({ attachment_id: attachment.id, name: row.name, size_bytes: Number(row.size_bytes), mime_type: row.mime_type })}::jsonb)
+        ${JSON.stringify({ attachment_id: row.id, name: row.name, size_bytes: Number(row.size_bytes), mime_type: row.mime_type })}::jsonb)
         ON CONFLICT(id) DO NOTHING`;
         yield* BotStore.use((s) => s.changed(ctx.turn.bot_id));
       }),
     );
 
     return {
-      attachment_id: attachment.id,
+      attachment_id: row.id,
       name: row.name,
       size_bytes: Number(row.size_bytes),
       mime_type: row.mime_type,
