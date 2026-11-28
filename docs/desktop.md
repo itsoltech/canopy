@@ -1,7 +1,7 @@
 # Canopy Desktop
 
-Status (2026-11-27): zwinięty **Activity notch** pokazuje nieruchomy pierścień
-pracy i wstrzymuje animacje etykiet ukrytych wierszy.
+Status (2026-11-28): w zwiniętym **Activity notch** pierścień pracy obraca się
+płynnie. Animacje etykiet ukrytych wierszy pozostają wstrzymane.
 
 Status (2026-11-26): kolory własnego motywu i wybrany akcent obejmują natywne tło okna,
 ekrany startowe oraz elementy powłoki korzystające z palety Desktopu.
@@ -534,8 +534,8 @@ razie w górę. W zwiniętym stanie ikona i liczba
 zajmują jego boczne skrzydła.
 Ikona oznacza stan o najwyższym priorytecie, a liczba obejmuje wszystkie
 widoczne w nakładce pozycje. Prośby o zgodę lub odpowiedź oznacza podniesiona
-dłoń, a trwającą pracę pierścień, który obraca się przy rozwiniętej
-nakładce i pozostaje nieruchomy przy zwiniętej. Ukończoną pracę
+dłoń, a trwającą pracę pierścień, który przy zwiniętej i rozwiniętej nakładce
+płynnie wykonuje jeden obrót na sekundę. Ukończoną pracę
 oznacza zielone koło z czarnym znacznikiem. Ikona ma kolor stanu, a liczba kolor
 tekstu. Etykieta stanu w wierszu jest pigułką w kolorze
 tego stanu. W rozwiniętej nakładce przy trwającej pracy przesuwa się po niej

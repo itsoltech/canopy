@@ -72,14 +72,15 @@ export const activityNotchProgressStyles = `
     opacity: 0;
     transition: opacity calc(var(--progress-fill-dur) * 0.7) ease;
   }
+  /* Rotate the painted arc on the compositor while the working badge is visible. */
+  @keyframes spin { from { transform: rotate(0turn); } to { transform: rotate(1turn); } }
   .progress-arc {
     transform-box: view-box;
     transform-origin: 50% 50%;
     animation: spin var(--spin-duration) linear infinite paused;
     transition: opacity var(--progress-revert-dur) var(--progress-revert-ease);
   }
-  /* Keep the compact overlay still between activity updates. */
-  .notch[data-open="true"] .active .progress[data-phase="spinning"] .progress-arc {
+  .active .progress[data-phase="spinning"] .progress-arc {
     animation-play-state: running;
   }
   .progress[data-phase="done"] .progress-arc {
