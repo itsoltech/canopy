@@ -109,8 +109,9 @@ Status (2026-11-24): powiadomienie po aktualizacji pokazuje numer wersji i akcj�
 Status (2026-11-24): szczegóły projektu pozwalają wybrać, wykadrować i usunąć zdjęcie
 projektu w natywnym kliencie iOS i Android.
 
-Status (2026-11-28): szczegóły projektu mają grupę Logins do dodawania, edycji i usuwania
-loginów projektu. Arkusz wątku pozwala zezwolić na login w trybie Ask each time albo odmówić.
+Status (2026-11-28): zakładka **Logins and secrets** w szczegółach projektu działa także przy
+pustej liście. W każdej grupie wpisy są posortowane według nazwy. Grupa Logins pozwala dodawać,
+edytować i usuwać loginy projektu. Arkusz wątku pozwala zezwolić na login w trybie Ask each time albo odmówić.
 
 Status (2026-11-24): szczegóły projektu mają grupę Secrets do dodawania, podmiany
 i usuwania sekretów projektu. Wartości nie da się odczytać. Szczegóły wątku oznaczają
