@@ -1,5 +1,9 @@
 # Powiadomienia
 
+Aktualizacja (2026-11-28): web/desktop obsługuje alerty o potwierdzonym
+odnowieniu limitu Codexa. Wiersz Groka informuje o braku odczytu, który można
+bezpiecznie powiązać z odnowieniem limitu konta.
+
 Aktualizacja (2026-11-27): odczyt wyniku lub rozstrzygnięcie prośby na komputerze
 wysyła na telefon cichy push. Telefon usuwa wtedy dostarczone powiadomienie także
 w tle, a iOS aktualizuje licznik na ikonie. Wymaga nowego buildu natywnego
@@ -44,7 +48,7 @@ tylko wątki główne i wątki boczne użytkownika. Toasty web/desktop są karta
 rogu. Powiadomienia z opisem mają osobny nagłówek zdarzenia, nazwę i akcję pod treścią. Opis dotyczy kodu; dostępność
 nightly/beta/stable określają [wydania](release.md).
 
-Web i desktop pokazują alerty systemowe o wątkach, botach i limitach Claude,
+Web i desktop pokazują alerty systemowe o wątkach, botach i limitach Claude i Codexa,
 gdy otwarte jest okno Canopy. Na telefonie push działa także poza otwartą aplikacją.
 Kod: `apps/web/src/lib/features/notifications`, `apps/desktop/src/notifications.ts`,
 `apps/gateway/src/store/thread-notice.ts`, `packages/domain/src/notice-preview.ts`.
@@ -121,6 +125,15 @@ z zapisanej rozmowy.
   Bezpośrednie logowanie otrzymuje dane przy kolejnej obserwacji SDK,
   CLIProxyAPI korzysta również z istniejących okresowych odczytów.
   [Źródła odczytów](provider-accounts.md#limity-planu-i-dodatkowe-użycie)
+- **Codex** używa tej samej ścieżki dostawy. Po włączeniu alertów albo po
+  ponownym połączeniu Canopy czeka na świeży odczyt wyczerpania przed terminem
+  odnowienia. Powiadamia w ciągu 10 min po terminie, gdy odczyt tego samego konta
+  i okna pokazuje mniej niż 100% wykorzystania oraz nowy, późniejszy koniec okna.
+  Bezpośredni odczyt musi też potwierdzać dostępność zwykłego użycia. W CLIProxyAPI
+  pierwszy odczyt danego poświadczenia stanowi bazę, a kolejne pochodzą z odpowiedzi
+  upstream. Cache, zmiana loginu albo łącza i niepełne odczyty nie potwierdzają
+  odnowienia. Każde konto, okno i termin odnowienia mają jeden wspólny klucz
+  alertu dla kart lub okien na tym urządzeniu.
 
 ## Toasty w aplikacji
 
@@ -231,7 +244,7 @@ a renderer nawiguje. Uprawnienie `notifications` w `window-permissions.ts` zosta
 rezerwą dla Notification API strony.
 
 Na macOS proces main odczytuje zgodę i prosi o nią przez `UNUserNotificationCenter`
-z paczki bieżącego kanału. Alerty o wątkach, botach, limitach Claude i aktualizacjach wymagają zgody,
+z paczki bieżącego kanału. Alerty o wątkach, botach, limitach dostawców i aktualizacjach wymagają zgody,
 więc zdarzenie w tle nie wywołuje okna systemowego.
 
 ## Ustawienia
@@ -239,7 +252,9 @@ więc zdarzenie w tle nie wywołuje okna systemowego.
 W webie i na desktopie **Settings → Notifications** zapisuje wybór na urządzeniu
 (`localStorage`). Włączone moduły mają osobne pola **Thread notifications** i **Bot notifications**
 z wyborem Off, Notifications lub Notifications with sound. Strona zawiera też
-**Claude usage limit resets** (domyślnie Off) oraz **In-app notifications**.
+**Claude usage limit resets** i **Codex usage limit resets** (domyślnie Off) oraz
+**In-app notifications**. **Grok usage limit resets** jest niedostępne bez
+wiarygodnego odczytu limitu konta. Natywne iOS i Android nie oferują alertów o odnowieniu limitu.
 Na macOS i Windows można tu włączyć **Activity notch**. Włączona nakładka ma wiersz
 **Position** z położeniami Notch, Edge i Floating, zapisanymi dla komputera
 ([szczegóły](desktop.md#activity-notch)).
@@ -248,7 +263,7 @@ Ustawienie **Notify agent about pull requests** w Threads → Conversation i w u
 projektu wysyła do agenta powiązanego wątku informacje o konfliktach i wynikach sprawdzeń.
 [Mapa ustawień](settings-map.md)
 
-Alerty Claude są ciche i respektują zgodę na
+Alerty o limitach są ciche i respektują zgodę na
 powiadomienia systemowe oraz **In-app notifications** dla toastów. Włączenie
 alertów o wątkach lub botach wymaga zgody przeglądarki w webie albo systemu na macOS.
 Canopy zapisuje nowy wybór po uzyskaniu zgody. Gdy macOS nadal czeka na decyzję,
@@ -350,6 +365,10 @@ Aplikacja odnawia 30-dniową ważność rejestracji, gdy użytkownik do niej wra
 [Budowanie aplikacji](mobile.md#powiadomienia-push) · [Uruchomienie relaya](deploy.md#relay-powiadomień-push)
 
 ## Weryfikacja
+
+- `packages/domain/src/provider-usage-resets.test.ts`: nowe okno Codexa, brak
+  alertu po odczycie z cache, przy zmianie konta lub łącza i po wygaśnięciu
+  czasu na potwierdzenie; deduplikacja odczytów i odnowienie pustego okna Claude.
 
 - `tests/integration/thread-reads.test.ts`: podgląd pytania, oczyszczona i zamaskowana
   odpowiedź, `interrupted_by_user`, czyszczenie po `MarkThreadSeen`.

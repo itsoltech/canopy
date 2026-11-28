@@ -1,4 +1,5 @@
 import { goto } from "$app/navigation";
+import type { ResetProvider } from "@canopy/domain/provider-usage-resets";
 import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
 import { toast, type ToastTone } from "#lib/shared/ui/toast.svelte.ts";
 import { playNotificationSound } from "./notification-sound.ts";
@@ -86,8 +87,13 @@ export async function deliver(notice: Notice, currentPath: string, allowed: () =
   if (choice !== "off" && (await claimNotice(notice.key)) && allowed()) showSystem(notice, sound);
 }
 
-export async function deliverClaudeReset(key: string, label: string, allowed: () => boolean): Promise<void> {
-  const title = "Claude usage limit reset";
+export async function deliverUsageReset(
+  provider: ResetProvider,
+  key: string,
+  label: string,
+  allowed: () => boolean,
+): Promise<void> {
+  const title = provider === "claude" ? "Claude usage limit reset" : "Codex usage limit reset";
   const path = "/settings/providers";
 
   const inApp = async () => {

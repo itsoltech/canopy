@@ -24,7 +24,9 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
   beforeAll(async () => {
     gate = providerUsageGate();
     f = await startInstanceFixture();
-    await f.save(Provider.CODEX, "usage-codex");
+    await f.save(Provider.CODEX, "usage-codex", ProviderProfileKind.NATIVE, "native", false, [
+      { name: "CODEX_QUOTA_FIXTURE", value: "1" },
+    ]);
     await f.save(Provider.CLAUDE, "usage-claude", ProviderProfileKind.NATIVE, "native", false, [
       { name: "USAGE_GATE_URL", value: gate.url },
     ]);
@@ -42,6 +44,15 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
 
     expect(initial?.creditsAvailable).toBe(true);
     expect(initial?.usingExtraUsage).toBeUndefined();
+    expect(initial?.codexQuota?.accountKey).toBe("cc16152a77520fd0ee81a749f91302434f076113a2427dc7410c29d78b2c9528");
+    expect(initial?.codexQuota?.linkEpoch).toBeGreaterThan(0n);
+    expect(initial?.codexQuota?.windows).toMatchObject([
+      {
+        key: "seven_day",
+        usedPercent: 20,
+        windowMinutes: 10080,
+      },
+    ]);
     const thread = await f.thread(Provider.CODEX);
     const abort = new AbortController();
     const updates: ui.OverviewUpdate[] = [];
@@ -65,6 +76,7 @@ describe.skipIf(!dockerAvailable)("official harness account limits over WorkerLi
       expect(usageWarnings(await usage(Provider.CODEX)).some((text) => text.includes("Weekly limit 8% left"))).toBe(
         true,
       );
+      expect((await usage(Provider.CODEX))?.codexQuota?.windows[0]?.usedPercent).toBe(20);
       const failed = await f.send(thread.id, "LIMIT:reached");
       const result = await f.finished(thread.id, failed.id);
       expect(result).toMatchObject({

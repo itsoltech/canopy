@@ -1,5 +1,8 @@
 # Mapa ustawień Canopy
 
+Status (2026-11-28): Notifications w web/desktop obejmuje potwierdzone odnowienia
+limitów Codexa i pokazuje stan dostępności alertów Groka.
+
 Status (2026-11-27): Threads pozwala ustawić pozycję sekcji Working na danym urządzeniu.
 
 Status (2026-11-25): web, desktop i mobile grupują sekcje według zadań.
@@ -146,7 +149,9 @@ są poza katalogiem. [Zgody i zakres](bots.md#harmonogramy-ustawienia-i-boty).
 | Notifications | Thread notifications | urządzenie | Off | Alert systemowy, gdy wątek kończy turę, ma błąd, zatrzymuje go system albo czeka na zgodę/odpowiedź; tytuł wątku, projekt/komputer i krótki podgląd; tylko gdy otwarte jest okno Canopy (na macOS zamknięte okno nie wysyła alertów); z dźwiękiem oglądany wątek gra tylko dźwięk; web wymaga zgody Notification API i pokazuje odmowę lub zamknięty monit, desktop używa natywnego `Notification` przez IPC ([notifications.md](notifications.md)) |
 | Notifications | Bot notifications | urządzenie | Off | Alert systemowy o wiadomości bota do użytkownika, karcie zgody lub pytaniu; nazwa bota i krótki podgląd; te same zasady zgody, fokusu, dźwięku i duplikatów co dla wątków |
 | Notifications | Claude usage limit resets | urządzenie | Off | Cichy alert o potwierdzonym odnowieniu wyczerpanego limitu bezpośredniego konta Claude lub konta z CLIProxyAPI, gdy okno Canopy jest otwarte |
-| Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota albo resecie limitu Claude przy fokusie aplikacji |
+| Notifications | Codex usage limit resets | urządzenie | Off | Cichy alert w web/desktop o potwierdzonym odnowieniu wyczerpanego limitu konta Codex z pełnym odczytem app-servera lub z datowanymi pomiarami CLIProxyAPI |
+| Notifications | Grok usage limit resets | web/desktop | Niedostępne | Informacja o braku odczytu pozwalającego potwierdzić odnowienie limitu Groka |
+| Notifications | In-app notifications | urządzenie | On | Toast o innym wątku lub rozmowie bota albo resecie limitu dostawcy przy fokusie aplikacji |
 | Sidebar | Project filter | urządzenie/gateway | All projects | Filtr listy aktywnej i archiwum, niezależny od pozostałych urządzeń |
 | Threads / Thread list / Sidebar | Group by | urządzenie/gateway | None | None / Project / Project & worktree; zwijane nagłówki z ikonami projektów i liczbą wątków w web/desktop oraz mobile. Zachowuje przypięcia i priorytet pytań; reset wyłącza oba poziomy |
 | Threads / Thread list / Sidebar | Project order | urządzenie/gateway | Latest activity | Kolejność grup według aktywności, nazwy lub utworzenia projektu; bez obietnicy ostatniej wiadomości użytkownika, której indeks nie udostępnia |

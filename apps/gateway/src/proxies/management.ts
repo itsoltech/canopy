@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { ui } from "@canopy/contracts";
 import { redactCredentials } from "@canopy/domain";
+import { codexQuotaAccountIdentity } from "@canopy/domain/provider-usage";
 import { Option, Schema } from "effect";
 import { ModelObservations, QuotaObservation, proxyObservations } from "./management-observations.ts";
 import { PlanFields, proxyAccountPlan } from "./management-plan.ts";
@@ -48,6 +49,7 @@ type AuthFile = typeof AuthFile.Type;
 const Listing = Schema.Struct({ files: Schema.Array(Schema.Unknown) });
 const decodeFile = Schema.decodeUnknownOption(AuthFile);
 const decodeListing = Schema.decodeUnknownOption(Listing);
+const decodeCodexClaims = Schema.decodeUnknownOption(Schema.Struct({ chatgpt_account_id: Text }));
 
 export type Redact = (text: string) => string;
 
@@ -112,6 +114,14 @@ function status(file: AuthFile, retry: Date | undefined, now: number) {
 
 const count = (value: number | null | undefined) => BigInt(Number.isSafeInteger(value) && value! > 0 ? value! : 0);
 
+function codexQuotaAccountKey(provider: string, file: AuthFile, redact: Redact) {
+  if (provider !== "codex" || file.account_type !== "oauth" || !file.email) return "";
+  const workspace = Option.getOrUndefined(decodeCodexClaims(file.id_token))?.chatgpt_account_id;
+  const identity = workspace && codexQuotaAccountIdentity(workspace, file.email);
+
+  return identity && redact(identity) === identity ? createHash("sha256").update(identity).digest("hex") : "";
+}
+
 /** One auth file as a typed, sanitized account; the provider name keeps only a short lower-case token. */
 export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = (text) => text): ui.ProxyAccount {
   const retry = time(file.next_retry_after);
@@ -142,6 +152,7 @@ export function proxyAccount(file: AuthFile, now = Date.now(), redact: Redact = 
     plan: proxyAccountPlan(provider, file, signals, redact),
     detectedPlan: proxyAccountPlan(provider, file, signals, redact),
     planKey,
+    codexQuotaAccountKey: codexQuotaAccountKey(provider, file, redact),
     successCount: count(file.success),
     failureCount: count(file.failed),
   });

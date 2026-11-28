@@ -1,5 +1,8 @@
 # Protokół gateway ↔ worker
 
+Aktualizacja (2026-11-28): raport użycia Codexa może zawierać zweryfikowany
+odczyt konta na potrzeby alertów o odnowieniu limitu.
+
 Aktualizacja (2026-11-26). Capability `skill_installer_pty_v1` włącza komendę
 `SkillInstallerRequest` na żywym łączu. `start` jest idempotentny dla ID sesji,
 `read` zwraca ograniczoną porcję wyjścia od kursora bajtowego (`output_truncated`
@@ -349,6 +352,10 @@ profil, wersję konfiguracji, niejawny klucz runtime/home i oczyszczony snapshot
 okien limitów. Nie zawiera salda, tokenów ani ścieżki CLI home. Gateway utrwala
 snapshot po sprawdzeniu właściciela, instancji i bieżącej wersji konfiguracji.
 Starsze gatewaye pomijają nowe pole; numer protokołu pozostaje bez zmian.
+`ProviderUsageSnapshot.codex_quota` (6) niesie ostatni pełny odczyt Codexa,
+skrót konta i identyfikator sesji odczytu. Gateway uzupełnia `link_epoch`
+przy odczycie z bieżącego łącza. Snapshot starszy od tego łącza zachowuje
+mierniki, ale nie dostarcza danych do alertu.
 Źródła, częstotliwość odczytów i ograniczenia kredytów: [provider-accounts.md](provider-accounts.md#limity-planu-i-dodatkowe-użycie).
 
 Harness Antigravity używa addytywnego `PROVIDER_ANTIGRAVITY = 4`, pola `WorkerConfig.antigravity` i capability `antigravity_acp_v1`. Gateway przekazuje konfigurację, komendy wątków i przypisania skilli Antigravity workerom z tą capability. Starsze workery nadal dostają przypisania dla obsługiwanych harnessów. Transport ACP i obsługa sesji są wspólne z Grokiem. [Adapter Antigravity](antigravity-adapter.md)

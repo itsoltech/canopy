@@ -1,12 +1,5 @@
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { isUsageResetPlausible } from "@canopy/domain/provider-usage";
-
-const periods = new Map([
-  [300, "five_hour"],
-  [1440, "one_day"],
-  [10080, "seven_day"],
-  [43200, "thirty_day"],
-]);
+import { codexQuotaPeriod, isUsageResetPlausible } from "@canopy/domain/provider-usage";
 
 const number = (value: string | undefined) =>
   value?.trim() && Number.isFinite(Number(value)) ? Number(value) : undefined;
@@ -39,11 +32,12 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
 
     if (usedPercent === undefined || (!windowMinutes && !resetsAt && usedPercent === 0)) continue;
     result.push({
-      key: periods.get(windowMinutes) ?? (windowMinutes ? "duration" : `${slot}_limit`),
+      key: codexQuotaPeriod(windowMinutes) ?? `${slot}_limit`,
       windowMinutes,
       usedPercent,
       resetsAt,
       reached: usedPercent >= 100,
+      observedAt: observed && timestampFromDate(observed),
     });
   }
 

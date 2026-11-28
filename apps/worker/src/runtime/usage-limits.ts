@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { create } from "@bufbuild/protobuf";
-import { ProviderUsageReportSchema, Provider, type ProviderUsageSnapshot } from "@canopy/contracts";
+import {
+  ProviderUsageReportSchema,
+  Provider,
+  type CodexQuotaObservation,
+  type ProviderUsageSnapshot,
+} from "@canopy/contracts";
 import { sanitizeProviderUsage, usageLimitCode } from "@canopy/domain/provider-usage";
 import type { ThreadEventInit } from "../journal/index.ts";
 import type { ResolvedProfile } from "../providers/profiles.ts";
@@ -8,7 +13,7 @@ import { instanceKey, wantedRuntimes } from "./instance-runtimes.ts";
 import type { HostContext } from "./host-context.ts";
 
 export interface UsageObserver {
-  report(snapshot: ProviderUsageSnapshot): void;
+  report(snapshot: ProviderUsageSnapshot, quota?: CodexQuotaObservation | null): void;
   failure(init: ThreadEventInit): ThreadEventInit;
 }
 
@@ -76,9 +81,12 @@ export function usageReporter(
   ctx.state.usageRefreshers.set(key, publish);
 
   const observer: UsageObserver = {
-    report: (snapshot: ProviderUsageSnapshot) => {
+    report: (snapshot, quota) => {
       if (!plan) return;
-      latest = sanitizeProviderUsage(snapshot);
+      latest = sanitizeProviderUsage({
+        ...snapshot,
+        codexQuota: quota === undefined ? latest?.codexQuota : (quota ?? undefined),
+      });
       publish();
     },
     failure: (init: ThreadEventInit) => usageFailure(latest, init),

@@ -1,5 +1,4 @@
 import { GoalDirective, type ForkSpec, type ThreadSpec, type UserInput } from "@canopy/contracts";
-import type { v2 } from "@canopy/codex-protocol";
 import { Context, Effect, Layer, Stream } from "effect";
 import { decodeJson, jsonObject, jsonString } from "../json.ts";
 import { Journal } from "../../journal/index.ts";
@@ -15,7 +14,7 @@ import { threadEvents, threadExit } from "./thread-events.ts";
 import { threadCatalog, threadTurnSettings } from "./thread-catalog.ts";
 import { threadSessions } from "./thread-sessions.ts";
 import { codexConnectorMcp } from "./connector-mcp.ts";
-import { codexUsage } from "../usage-limits.ts";
+import { trackCodexUsage } from "./account-usage.ts";
 import { codexThreadCommands } from "./thread-commands.ts";
 import { verifiedSandbox } from "./sandbox-profile.ts";
 import type { RewindThread } from "@canopy/contracts";
@@ -152,6 +151,7 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       }),
     );
     let processing = 0;
+    const scope = yield* Effect.scope;
     const settleAfterExit = threadExit(ctx);
     // Interrupted (before the process is killed) when the runtime closes on purpose.
     yield* Effect.forkScoped(
@@ -165,8 +165,17 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     yield* Effect.forkScoped(
       codex.notifications.pipe(
         Stream.runForEach((notification) => {
+          if (notification.method === "account/updated")
+            return Effect.sync(usage.accountChanged).pipe(
+              Effect.andThen(options.readQuota ? Effect.forkIn(usage.read, scope) : Effect.void),
+            );
+
           if (notification.method === "account/rateLimits/updated")
-            return Effect.sync(() => usage.update(notification.params.rateLimits));
+            return Effect.sync(() => usage.update(notification.params.rateLimits)).pipe(
+              Effect.flatMap((exhausted) =>
+                exhausted ? Effect.forkIn(usage.read, scope).pipe(Effect.asVoid) : Effect.void,
+              ),
+            );
 
           const threadId = jsonString(jsonObject(decodeJson(notification.params ?? null))?.["threadId"]);
           const entry = threadId ? ctx.byCodex.get(threadId) : undefined;
@@ -199,6 +208,8 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
     );
 
     if (options.onUsage) yield* Effect.forkScoped(usage.read);
+
+    if (options.readQuota) yield* Effect.forkScoped(usage.poll);
     setRoute(serverRequestHandler(ctx));
 
     // Read the launched config so explicit launch flags can override the effort configured in Canopy.
@@ -238,50 +249,3 @@ const make = (options: CodexThreadsOptions, setRoute: (handler: ServerRequestHan
       has: (threadId) => ctx.byPlatform.has(threadId),
     });
   });
-
-function trackCodexUsage({ codex, options }: CodexThreadContext) {
-  let usageRevision = 0;
-
-  const read = Effect.suspend(() => {
-    const revision = usageRevision;
-
-    return codex.request("account/rateLimits/read", { excludeResetCreditDetails: true }).pipe(
-      Effect.timeout("3 seconds"),
-      Effect.tap((result) =>
-        Effect.sync(() => {
-          if (usageRevision === revision && result.rateLimits) options.onUsage?.(codexUsage(result.rateLimits));
-        }),
-      ),
-      Effect.ignore,
-    );
-  });
-
-  return {
-    read,
-    update(rateLimits: v2.AccountRateLimitsUpdatedNotification["rateLimits"]) {
-      usageRevision++;
-      options.onUsage?.(codexUsage(rateLimits));
-    },
-    readAccount: () =>
-      codex.request("account/read", { refreshToken: false }).pipe(
-        Effect.tap(() => {
-          usageRevision = 0;
-
-          return options.onUsage ? read : Effect.void;
-        }),
-        Effect.map((result) =>
-          result.account?.type === "chatgpt"
-            ? { email: result.account.email ?? "", plan: result.account.planType }
-            : undefined,
-        ),
-        Effect.mapError(
-          () =>
-            new CodexThreadError({
-              threadId: "",
-              operation: "account/read",
-              message: "Could not read account metadata.",
-            }),
-        ),
-      ),
-  };
-}

@@ -1,14 +1,15 @@
 import { untrack } from "svelte";
 import { isThreadSnoozed } from "@canopy/domain/thread-snooze";
 import { botBadgeCount, maxNotificationBadge, threadBadgeCount } from "@canopy/domain/notification-badge";
+import { UsageResets, type ResetProvider } from "@canopy/domain/provider-usage-resets";
 import type { SettingsState } from "#lib/features/settings/settings-state.svelte.ts";
 import { botList } from "#lib/features/bots/bot-list.svelte.ts";
 import type { OverviewState } from "#lib/features/overview/overview-state.svelte.ts";
-import { devicePreferences } from "#lib/features/settings/device-preferences.svelte.ts";
+import { devicePreferences, limitResetDeviceKeys } from "#lib/features/settings/device-preferences.svelte.ts";
 import { sharedProxies } from "#lib/features/proxies/proxies.ts";
 import { botEvent, botNotice, botSeen, type BotSeen } from "./bot-notices.ts";
-import { ClaudeResets } from "./claude-resets.ts";
-import { connectNativeClicks, deliver, deliverClaudeReset } from "./deliver.ts";
+import { usageResetReadings } from "./usage-reset-readings.ts";
+import { connectNativeClicks, deliver, deliverUsageReset } from "./deliver.ts";
 import { trackViewing } from "./notice-claims.ts";
 import { connectNotificationSound } from "./notification-sound.ts";
 import { notificationEvent, threadNotice } from "./thread-notices.ts";
@@ -46,26 +47,39 @@ export function watchNotifications(
   });
 
   let known: ReadonlyMap<string, BotSeen> | undefined;
-  let claudeResets = new ClaudeResets();
-  let resyncs = overview.resyncs;
   const proxies = sharedProxies();
   const setBadge = window.canopyDesktop?.setNotificationBadge;
 
-  const claudeEnabled = () =>
-    overview.connection === "live" && devicePreferences.values.claudeLimitResetNotifications === "on";
-
   const offList = $effect.root(() => {
-    $effect(() => {
-      if (!claudeEnabled() || resyncs !== overview.resyncs) {
-        claudeResets = new ClaudeResets();
-        resyncs = overview.resyncs;
-      }
+    const watchResets = (provider: ResetProvider) => {
+      let resets: UsageResets | undefined;
+      let resyncs = overview.resyncs;
 
-      if (!claudeEnabled()) return;
+      const enabled = () =>
+        overview.connection === "live" && devicePreferences.values[limitResetDeviceKeys[provider]] === "on";
 
-      for (const { key, label } of claudeResets.observe(overview.workers, proxies.data?.proxies ?? []))
-        void untrack(() => deliverClaudeReset(key, label, claudeEnabled));
-    });
+      $effect(() => {
+        const synced = overview.resyncs;
+
+        if (!enabled()) {
+          resets = undefined;
+
+          return;
+        }
+
+        if (!resets || resyncs !== synced) resets = new UsageResets(provider, Date.now());
+        resyncs = synced;
+        const active = resets;
+        const readings = usageResetReadings(provider, overview.workers, proxies.data?.proxies ?? []);
+        const allowed = () => enabled() && overview.resyncs === synced && resets === active;
+
+        for (const { key, label } of active.observe(readings))
+          void untrack(() => deliverUsageReset(provider, key, label, allowed));
+      });
+    };
+
+    watchResets("claude");
+    watchResets("codex");
 
     $effect(() => {
       if (settings.loaded && settings.moduleEnabled("bots")) return untrack(() => botList.use());

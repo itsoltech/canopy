@@ -15,6 +15,7 @@ import { codexLimits, usageProbe } from "./provider-usage.ts";
 import { instanceCodexLogin } from "./instance-codex-login.ts";
 
 let usagePercent = 20;
+const quotaFixture = process.env["CODEX_QUOTA_FIXTURE"] === "1";
 
 if (process.argv.includes("--version")) {
   console.log("codex-cli 0.164.0");
@@ -276,6 +277,8 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (login?.handle(id, request.method, request.result ?? params ?? {})) continue;
 
   if (request.method === "initialize") send({ id, result: { userAgent: "instance-fixture" } });
+  else if (request.method === "account/read" && quotaFixture)
+    send({ id, result: { account: { type: "chatgpt", email: "codex@example.test", planType: "plus" } } });
   else if (request.method === "config/read")
     send({
       id,
@@ -286,12 +289,31 @@ for await (const line of createInterface({ input: process.stdin })) {
       },
     });
   else if (request.method === "configRequirements/read") send({ id, result: { requirements: null } });
-  else if (request.method === "account/rateLimits/read")
+  else if (request.method === "account/rateLimits/read") {
+    const rateLimits = codexLimits(usagePercent);
+
     send({
       id,
-      result: { rateLimits: codexLimits(usagePercent), rateLimitsByLimitId: null, rateLimitResetCredits: null },
+      result: {
+        rateLimits,
+        rateLimitsByLimitId: quotaFixture
+          ? {
+              codex: {
+                ...rateLimits,
+                secondary: {
+                  usedPercent: usagePercent,
+                  windowDurationMins: 10080,
+                  resetsAt: Math.floor(Date.now() / 1000) + 3600,
+                },
+              },
+            }
+          : null,
+        ordinaryUsageAllowed: quotaFixture ? usagePercent < 100 : null,
+        accountId: quotaFixture ? "fixture-workspace" : null,
+        rateLimitResetCredits: null,
+      },
     });
-  else if (request.method === "model/list") send({ id, result: { data: [], nextCursor: null } });
+  } else if (request.method === "model/list") send({ id, result: { data: [], nextCursor: null } });
   else if (["thread/start", "thread/resume", "thread/fork"].includes(request.method)) {
     const session = request.method === "thread/resume" ? params.threadId : crypto.randomUUID();
     const file = join(home, "sessions", `${session}.json`);

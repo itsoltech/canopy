@@ -14,6 +14,8 @@ interface UsageRow {
   provider: number;
   profile_id: string;
   snapshot: JsonValue;
+  link_epoch: bigint | null;
+  connected_at_seconds: number | null;
 }
 
 /**
@@ -31,8 +33,11 @@ export class ProviderUsage {
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
 
-        return yield* sql<UsageRow>`SELECT u.* FROM provider_usage u
+        return yield* sql<UsageRow>`SELECT u.*, wc.epoch AS link_epoch,
+          extract(epoch FROM wc.connected_at)::float8 AS connected_at_seconds
+        FROM provider_usage u
         JOIN workers w ON w.id=u.worker_id
+        LEFT JOIN worker_connections wc ON wc.worker_id=w.id
         JOIN worker_configs c ON c.worker_id=w.id AND c.version=u.config_version
         JOIN provider_instances i ON i.id=u.profile_id
           AND i.harness=CASE u.provider WHEN 1 THEN 'claude' WHEN 2 THEN 'codex' WHEN 3 THEN 'grok' END
@@ -45,10 +50,27 @@ export class ProviderUsage {
     );
 
     return new Map(
-      rows.map((row) => [
-        `${row.worker_id}/${row.provider}/${row.profile_id}`,
-        sanitizeProviderUsage(fromJson(ProviderUsageSnapshotSchema, row.snapshot, { ignoreUnknownFields: true })),
-      ]),
+      rows.map((row) => {
+        const snapshot = sanitizeProviderUsage(
+          fromJson(ProviderUsageSnapshotSchema, row.snapshot, { ignoreUnknownFields: true }),
+        );
+
+        const quota = snapshot.codexQuota;
+
+        // A worker can replay its last snapshot on reconnect. Keep its display values but never
+        // qualify a cached read from before this link as evidence of a reset.
+        if (
+          row.provider !== Provider.CODEX ||
+          !quota?.observedAt ||
+          !row.link_epoch ||
+          row.connected_at_seconds === null ||
+          Number(quota.observedAt.seconds) + quota.observedAt.nanos / 1e9 <= row.connected_at_seconds
+        )
+          snapshot.codexQuota = undefined;
+        else quota.linkEpoch = BigInt(row.link_epoch);
+
+        return [`${row.worker_id}/${row.provider}/${row.profile_id}`, snapshot];
+      }),
     );
   }
 
