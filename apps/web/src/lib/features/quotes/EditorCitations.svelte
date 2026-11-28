@@ -26,6 +26,7 @@
   } = $props();
 
   const revealSource = useCitationSource();
+  // Keep the hover preview unmounted until the editor's exit and focus restoration finish.
   let selected = $state<{ quote: QuoteDraft; anchor: HTMLElement }>();
   let open = $state(false);
   let excerpt = $state("");
@@ -59,6 +60,7 @@
     const quote = quoteOf(chip);
 
     if (!quote) return;
+    chip.removeAttribute("title");
     selected = { quote, anchor: chip };
     excerpt = quote.text;
     comment = quote.comment;
@@ -130,12 +132,15 @@
   }
 
   function closed() {
+    if (open || !selected) return;
+    const id = selected.quote.id;
+    selected = undefined;
     const root = editor?.root;
 
-    if (open || !returnToComposer || !root || !selected) return;
+    if (!returnToComposer || !root) return;
 
     const chip = [...root.querySelectorAll<HTMLElement>('[data-element="citation"]')].find(
-      (node) => quoteOf(node)?.id === selected?.quote.id,
+      (node) => quoteOf(node)?.id === id,
     );
 
     if (!chip) return;
@@ -168,7 +173,7 @@
   }
 </script>
 
-<EditorCitationPreview {editor} disabled={open} />
+{#if !selected}<EditorCitationPreview {editor} />{/if}
 
 <Popover
   bind:open
