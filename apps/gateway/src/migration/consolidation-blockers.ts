@@ -19,6 +19,12 @@ export function consolidationBlockers(sql: SqlClient.SqlClient, owner: string) {
     SELECT 'move' AS kind,m.id,'unfinished_move' AS reason FROM computer_moves m
       WHERE m.owner_user_id=${owner}::uuid AND m.state IN ('preparing','prepared','committed','aborting')
     UNION ALL
+    SELECT 'move',x.id,'unfinished_move' FROM thread_transfers x WHERE x.owner_user_id=${owner}::uuid
+      AND (x.state IN ('preparing','prepared','committed') OR x.cleanup_pending)
+    UNION ALL
+    SELECT 'move',f.move_id,'unfinished_move' FROM computer_move_files f
+      WHERE f.owner_user_id=${owner}::uuid AND f.state <> 'done'
+    UNION ALL
     SELECT 'thread',t.id,'active_work' FROM live_threads t
       WHERE t.status IN ('creating','running','waiting_input') OR t.rewind_pending_id IS NOT NULL
         OR EXISTS (SELECT 1 FROM turns u WHERE u.thread_id=t.id AND u.status IN ('queued','running'))

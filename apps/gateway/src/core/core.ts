@@ -267,14 +267,13 @@ export class GatewayCore {
   readonly copyJobs: WorkspaceCopyJobs;
 
   /** Moving threads with their sessions and files between workers (docs/thread-transfers.md). */
-  readonly threadTransfers: ThreadTransfers;
+  readonly threadTransfers = new ThreadTransfers(this);
 
   constructor(options: GatewayCoreOptions) {
     this.role = options.role ?? "server";
     this.offerOnboarding = options.offerOnboarding ?? false;
     this.imports = new CliImports(this);
     this.copyJobs = new WorkspaceCopyJobs(this);
-    this.threadTransfers = new ThreadTransfers(this);
     this[coreState].options = options;
     this.diagnostics = new Diagnostics(this, options);
     this[coreState].actions = new ActionContext(options.runtime);

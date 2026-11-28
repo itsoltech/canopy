@@ -179,7 +179,8 @@ adopcji zmienia manifest tylko, gdy jest wciąż tym, który zapisała.
 
 Przeniesienie wątku do [połączonego komputera](linked-computers.md#konkretny-protokół-etapu-8) (etap 8,
 **Move to…**) używa tych samych operacji workerów. Komputer ogłasza `move_native_sessions_v1`
-(`MOVE_NATIVE_SESSIONS`), gdy jego gateway obsługuje przenoszenie; ścieżkę natywną wybiera ta sama funkcja w
+(`MOVE_NATIVE_SESSIONS`, na końcu listy capability, poza 32 pozycjami czytanymi przez starsze wersje), gdy jego
+gateway obsługuje przenoszenie; ścieżkę natywną wybiera ta sama funkcja w
 podglądzie i przy ruchu: cel ją ogłasza, cała rodzina to Claude albo Codex z sesją w jednym folderze, a worker
 źródła ma `thread_transfer_v1`. Podgląd (`MovePreviewItem.native_files`) mówi wtedy przed potwierdzeniem, że przechodzą sesja agenta i zmiany
 wątku (niewypchnięte commity, edycje, nowe pliki), a zostają nowe pliki z sekretami, pliki ignorowane, zależności

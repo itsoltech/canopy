@@ -2350,7 +2350,9 @@ tylko wraz z workerem należącym do właściciela źródła. Worker zgłasza bi
 gałęzi po połączeniu z celem. Pierwotna baza zachowuje dane urządzeń, buforowane
 projekcje, szkice przypisane do urządzeń i zbiorczą historię użycia. Praca w toku,
 nieobsługiwane zależności, brak treści załączników lub kolizja identyfikatorów
-poza obsługiwanymi konfliktami konfiguracji blokują import. Procedurę operatora
+poza obsługiwanymi konfliktami konfiguracji blokują import. Praca w toku obejmuje też
+niezakończone [przeniesienie wątku](thread-transfers.md) między workerami (także ruch, który czeka na
+sprzątanie) i niezamkniętą rezerwację plików ruchu natywnego; ich tabele zostają w bazie źródłowej. Procedurę operatora
 opisuje [instrukcja wdrożenia](deploy.md).
 
 ## Konkretny protokół etapu 8

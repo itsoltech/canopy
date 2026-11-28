@@ -27,6 +27,8 @@ function seed(sql: SqlClient.SqlClient) {
     const schedule = Bun.randomUUIDv7();
     const newThreadSchedule = Bun.randomUUIDv7();
     const move = Bun.randomUUIDv7();
+    const transfer = Bun.randomUUIDv7();
+    const moveFiles = Bun.randomUUIDv7();
     const node = "a".repeat(64);
     const peer = "b".repeat(64);
     const relay = "c".repeat(64);
@@ -108,6 +110,15 @@ function seed(sql: SqlClient.SqlClient) {
       VALUES(${Bun.randomUUIDv7()}::uuid,${worker}::uuid,${thread}::uuid,'startTurn',${privateBytes},now()+interval '1 hour')`;
     yield* sql`INSERT INTO worker_commands(id,worker_id,kind,payload,expires_at)
       VALUES(${Bun.randomUUIDv7()}::uuid,${foreignWorker}::uuid,'runBotTurn',${privateBytes},now()+interval '1 hour')`;
+    // A thread moved between this gateway's workers that has not released its packages yet, and the files of a
+    // linked computer's move still held here (docs/thread-transfers.md).
+    yield* sql`INSERT INTO thread_transfers(owner_user_id,id,thread_id,family,source_worker_id,target_worker_id,
+        source_workspace_id,target_workspace_id,source_cwd,state)
+      VALUES(${owner}::uuid,${transfer}::uuid,${thread}::uuid,ARRAY[${thread}::uuid],${worker}::uuid,
+        ${sharedWorker}::uuid,${workspace}::uuid,${workspace}::uuid,'/private-fixture-root','committed')`;
+    yield* sql`INSERT INTO computer_move_files(owner_user_id,move_id,peer_node_id,token,workspace_id,worker_id,state)
+      VALUES(${owner}::uuid,${moveFiles}::uuid,${peer},${Bun.randomUUIDv7()}::uuid,${workspace}::uuid,
+        ${worker}::uuid,'receiving')`;
 
     return {
       owner,
@@ -125,6 +136,8 @@ function seed(sql: SqlClient.SqlClient) {
       schedule,
       newThreadSchedule,
       move,
+      transfer,
+      moveFiles,
       node,
       peer,
       relay,
@@ -207,6 +220,8 @@ test.skipIf(!dockerAvailable)(
         { kind: "bot", id: f.bot, reason: "active_work" },
         { kind: "bot", id: f.bot, reason: "worker_unavailable" },
         { kind: "move", id: f.move, reason: "unfinished_move" },
+        { kind: "move", id: f.transfer, reason: "unfinished_move" },
+        { kind: "move", id: f.moveFiles, reason: "unfinished_move" },
         { kind: "schedule", id: f.schedule, reason: "leased" },
         { kind: "thread", id: f.thread, reason: "active_work" },
         { kind: "thread", id: f.thread, reason: "commands_pending" },

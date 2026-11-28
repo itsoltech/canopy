@@ -143,7 +143,6 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
           : []),
         ...(this.config ? [CONFIG_SYNC] : []),
         ...(this.moves ? [MOVE_ITEMS] : []),
-        ...(this.moves && this.options.core ? [MOVE_NATIVE_SESSIONS] : []),
         ...(this.options.updates ? [REMOTE_APP_UPDATE] : []),
         // Keep the original protocol-1 capabilities first; older peers ignore the overflow field.
         ...(this.options.serve
@@ -171,6 +170,8 @@ export const computersPresenceMethods: ComputersPresenceMethods = {
               LINKED_SCHEDULE_SANDBOX_PROFILES,
             ]
           : []),
+        // Moving a thread with its session and files (docs/thread-transfers.md); past the 32-entry guard.
+        ...(this.moves && this.options.core ? [MOVE_NATIVE_SESSIONS] : []),
       ],
     });
 

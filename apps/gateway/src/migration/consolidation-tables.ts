@@ -18,6 +18,9 @@ export const SLACK_CONTEXT_MIGRATION = 220;
 /** Conversations record direct messages and the outbox records sent message IDs; both copy as plain values. */
 export const MESSENGER_PROVIDERS_MIGRATION = 224;
 
+/** Adds threads.transfer_pending_id: null whenever consolidation runs (an unfinished transfer blocks it). */
+export const THREAD_TRANSFERS_MIGRATION = 227;
+
 const owned = "s.owner_user_id=$1::uuid";
 
 const thread = (column = "thread_id") =>

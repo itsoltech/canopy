@@ -39,6 +39,10 @@ export const localOnlyTables = [
   "computer_revocations",
   "computer_relay_grants",
   "computer_moves",
+  // Moves with a thread's own session and files (docs/thread-transfers.md); unfinished ones block consolidation.
+  "computer_move_files",
+  "computer_move_file_sessions",
+  "thread_transfers",
   "computer_redirects",
   "computer_agent_calls",
   "computer_agent_events",
