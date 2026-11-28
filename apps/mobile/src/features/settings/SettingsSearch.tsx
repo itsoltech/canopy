@@ -5,7 +5,7 @@ import { settingsSearchWords } from "@canopy/ui/settings";
 import { SheetContent } from "../../ui/components";
 import { useColors } from "../../ui/theme";
 
-const Search = createContext<{ pattern: RegExp; style: TextStyle } | null>(null);
+const Search = createContext<{ query: string; pattern: RegExp; style: TextStyle } | null>(null);
 
 type MatchChange = { topic: string; words: string[]; delta: number };
 
@@ -25,10 +25,11 @@ export function SettingsSearch({ query, children }: { query: string; children: R
   const highlight = useMemo(
     () =>
       pattern && {
+        query: query.trim().toLowerCase(),
         pattern,
         style: { backgroundColor: palette.amber[dark ? 800 : 200], color: palette.amber[dark ? 50 : 950] },
       },
-    [pattern, dark],
+    [query, pattern, dark],
   );
 
   return <Search.Provider value={highlight}>{children}</Search.Provider>;
@@ -73,7 +74,7 @@ export function SettingsMatch({ text }: { text: string }) {
 
 /** Count distinct matched words per topic. Rows can arrive or disappear as section data loads. */
 export function useTopicMatches() {
-  const pattern = useSearch()?.pattern;
+  const search = useSearch();
 
   const [counts, report] = useReducer(
     (previous: Map<string, Map<string, number>>, { topic, words, delta }: MatchChange) => {
@@ -91,7 +92,7 @@ export function useTopicMatches() {
     new Map<string, Map<string, number>>(),
   );
 
-  return { pattern, counts, report };
+  return { query: search?.query, pattern: search?.pattern, counts, report };
 }
 
 export function SettingsTopicMatches({

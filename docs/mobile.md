@@ -6,6 +6,8 @@ w kilku wierszach na wąskim ekranie. W **Settings → Threads** domyślnie otwi
 **New threads**. **Thread list** zawiera ustawienia paska bocznego i potwierdzeń,
 **Conversation** grupuje ustawienia rozmowy, **Sandbox and subagents** zawiera
 profile sandboxa i uprawnienia subagentów, a **Archiving** obejmuje archiwizację i retencję.
+Wyszukanie pełnej nazwy zakładki otwiera ją także wtedy, gdy ta sama fraza
+występuje w opisie ustawienia na innej zakładce.
 
 Status (2026-11-28). Wiersze projektów oraz wyboru workera i źródła mają minimum
 48 dp wysokości i rosną wraz z tekstem. Wiersze ustawień mieszczą przełącznik obok opisu.
