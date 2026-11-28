@@ -55,19 +55,19 @@ export function isSteerMessage(entry: TimelineEntry): boolean {
   return content.case === "userMessage" && content.value.clientId !== "" && content.value.clientId !== entry.turnId;
 }
 
-/** The item a nested one sits under at the top level (its own row in the timeline); itself when not nested. */
-export function topLevelEntry(entries: readonly TimelineEntry[], entry: TimelineEntry): TimelineEntry {
+/** From the top-level virtual row down to the requested item, including nested subagent work. */
+export function itemPath(entries: readonly TimelineEntry[], entry: TimelineEntry): TimelineEntry[] {
+  if (!entry.item.parentItemId) return [entry];
   const byId = new Map(entries.map((e) => [e.id, e]));
-  let top = entry;
+  const path = [entry];
+  let parent = byId.get(entry.item.parentItemId);
 
-  for (let depth = 0; depth < 50; depth++) {
-    const parent = top.item.parentItemId ? byId.get(top.item.parentItemId) : undefined;
-
-    if (!parent || parent === top) break;
-    top = parent;
+  while (parent && !path.includes(parent)) {
+    path.push(parent);
+    parent = byId.get(parent.item.parentItemId);
   }
 
-  return top;
+  return path.reverse();
 }
 
 const TERMINAL = new Set(["completed", "interrupted", "failed", "cancelled"]);

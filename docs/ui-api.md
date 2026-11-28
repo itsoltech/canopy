@@ -9,6 +9,14 @@ do repozytoriów w ustawieniach konta GitHub. [Konto GitHub](#konto-github)
 
 Status (2026-11-28). Załączniki HEIC/HEIF mają podgląd w wątku. Gateway zachowuje oryginał zdjęcia.
 
+Status (2026-11-28). BFF udostępnia pełną listę opublikowanych materiałów wątku przez
+`GET /api/threads/[threadId]/artifacts`. Gateway sprawdza właściciela, wybiera manifesty
+z widocznych zakończonych tur tego wątku, pomija odziedziczone tury forka i przesyła
+wyniki od najnowszego w partiach gRPC `ListThreadArtifacts`. BFF zwraca jedną
+listę `items`. Zaimportowane obrazy Markdown
+zachowują identyfikator wiadomości. Dla połączonego komputera odczyt działa także
+z zatwierdzonego lustra po utracie połączenia.
+
 Aktualizacja (2026-11-27): modal i podgląd Usage w web i desktopie odświeżają
 dane w tle i animują cyfry w podsumowaniu.
 

@@ -217,18 +217,22 @@ export function foldTurns(
     if (!fold) continue;
     placed.add(turnId);
 
-    if (gaps.has(turnId)) {
+    const gap = gaps.has(turnId);
+
+    if (gap) {
       out.push({ kind: "work-gap", key: `work-gap:${turnId}`, turn: fold.turn });
 
-      // No items have arrived for this turn. Its duration is not evidence of an empty work section.
-      if (fold.body.length === 0) continue;
+      if (!fold.body.length && !results.has(turnId)) continue;
     }
 
-    const derived = fold.segments.flatMap((_, index) =>
-      segmentRows(fold, index, isOpen, groupOpen, tasksBySource, threadTitle),
-    );
+    // A partial page can contain a published result before its work has loaded.
+    if (!gap || fold.body.length) {
+      const derived = fold.segments.flatMap((_, index) =>
+        segmentRows(fold, index, isOpen, groupOpen, tasksBySource, threadTitle),
+      );
 
-    out.push(...recoverFoldRows(fold.body, derived, report));
+      out.push(...recoverFoldRows(fold.body, derived, report));
+    }
 
     for (const result of results.get(turnId) ?? []) {
       if (result.kind === "item" && !ends.has(turnId)) continue;

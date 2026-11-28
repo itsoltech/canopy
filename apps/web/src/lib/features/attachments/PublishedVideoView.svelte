@@ -4,11 +4,11 @@
   import VideoPlayer from "./VideoPlayer.svelte";
   import { attachmentUrl } from "./preview.ts";
 
-  let { video }: { video: PublishedVideo } = $props();
+  let { video, showCaption = true }: { video: PublishedVideo; showCaption?: boolean } = $props();
 </script>
 
 <div class="grid w-full max-w-2xl min-w-0 gap-2" data-quote-skip>
-  {#if video.caption}
+  {#if showCaption && video.caption}
     <p class="text-base/7 wrap-anywhere text-zinc-800 sm:text-sm/6 dark:text-zinc-200">{video.caption}</p>
   {/if}
   {#if video.attachment?.id}

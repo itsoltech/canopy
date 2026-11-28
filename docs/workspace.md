@@ -1,5 +1,7 @@
 # Zakładki wątku i panel Files/Diff/Preview
 
+Status (2026-11-28). Sekcja **Artifacts** w Thread details na webie i desktopie otwiera opublikowane obrazy, galerie, nagrania i interaktywne karty z całego bieżącego wątku.
+
 Status (2026-11-28). Przy otwieraniu i zamykaniu panelu Files w web i desktopie
 animacja Thread details podąża za prawą krawędzią obszaru wątku. Zwijana karta
 zaczyna ruch na wysokości, na której była widoczna przed otwarciem Files.
@@ -440,6 +442,18 @@ Funkcja dotyczy web/desktop; natywny mobile zachowuje dotychczasowe moduły.
 Dostępność nightly/beta/stable wynika z [promocji wydań](release.md).
 
 ### Podsumowanie wątku
+
+**Artifacts** pojawia się po pierwszej publikacji w bieżącym wątku, nad sekcją
+pull requestów. Nagłówek zwija listę i podaje jej liczność. W skróconym widoku
+widać trzy najnowsze pozycje. Przy dłuższej liście **Show all** otwiera pole
+wyszukiwania po tytule lub rodzaju oraz ograniczony wysokością obszar przewijania.
+Galeria zajmuje jeden wiersz. Nowa wersja visuala aktualizuje istniejący wpis.
+Obrazy i nagrania z dostępną miniaturą pokazują ją przy tytule.
+
+Kliknięcie wiersza otwiera podgląd nad rozmową. Przyciski nawigacji prowadzą
+po bieżących wynikach. Zamknięcie podglądu pozwala kontynuować czytanie
+w dotychczasowym miejscu. **Show in thread** otwiera źródło na osi czasu,
+w razie potrzeby doładowuje wcześniejsze wiadomości i wyróżnia wybrany element.
 
 W szerokim układzie web/desktop karta, zwinięta pigułka i mini Preview zajmują
 miejsce obok przewijanej osi. Jej górna krawędź i gradient pozostają pod nagłówkiem

@@ -63,6 +63,24 @@ test("bounded and persisted tails show a fetchable gap instead of an empty compl
   expect(rows.find((row) => row.key === "answer:latest")).toMatchObject({ row: { node: { entry: entries[3] } } });
 });
 
+test("a published result on the edge of an item page is reachable as soon as its turn ends", () => {
+  const publication: TimelineEntry = {
+    ...entries[2]!,
+    id: "gallery",
+    item: create(ItemSchema, { itemId: "gallery", content: { case: "imageGallery", value: { caption: "Preview" } } }),
+  };
+
+  const state = input([publication, entries[3]!], true);
+  const builder = new FeedBuilder();
+  const live = { ...turns[0]!, status: "running" };
+  const waiting = builder.build({ ...state, turns: [live, turns[1]!] });
+  expect(waiting.some((row) => row.key === "item:gallery")).toBe(false);
+
+  const ended = builder.build(state);
+  expect(ended.some((row) => row.key === "work-gap:earlier")).toBe(true);
+  expect(ended.find((row) => row.key === "item:gallery")).toMatchObject({ kind: "timeline", work: false });
+});
+
 test("paging replaces the gap with steer segments, collapsed summaries and the original answer", () => {
   const builder = new FeedBuilder();
   builder.build(input(entries.slice(-1), true));

@@ -418,6 +418,7 @@ service GatewayService {
   rpc GetThreadBlob(GetThreadBlobRequest) returns (GetThreadBlobResponse);
   // A version of a thread visual, owner-scoped (docs/agent-visuals.md). Capability thread_visuals_v1.
   rpc GetVisual(GetVisualRequest) returns (GetVisualResponse);
+  rpc ListThreadArtifacts(ListThreadArtifactsRequest) returns (stream ListThreadArtifactsResponse);
 
   // Kolejka (sekcja na końcu pliku): wiadomości czekające za turą w toku — kolejność, edycja, usunięcie
   // (z cofnięciem) i steer do tury w toku. Działa tylko na turach queued, których gateway jeszcze nie wystartował.
@@ -3589,4 +3590,13 @@ message ReadThreadDiffRequest {
 message ModuleSettings {
   // One or both of "threads" and "bots", without duplicates. Older settings default to both in that order.
   repeated string enabled = 1;
+}
+
+message ListThreadArtifactsRequest {
+  string thread_id = 1;
+}
+
+// Bounded batches of published manifests, newest first across the visible history.
+message ListThreadArtifactsResponse {
+  repeated canopy.worker.v1.Item items = 1;
 }

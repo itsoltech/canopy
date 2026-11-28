@@ -12,6 +12,7 @@ import { WorkerHost, serveLink } from "@canopy/worker/runtime";
 import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol";
 import { ManagedRuntime } from "effect";
 import { SqlClient } from "effect/sql";
+import { listArtifacts } from "./support/thread-artifacts.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { codexFixtureHomes } from "./support/codex-device.ts";
 import { pruneDatabase } from "../../apps/gateway/src/maintenance/prune.ts";
@@ -214,6 +215,15 @@ describe.skipIf(!dockerAvailable)("image replies through the real WorkerHost and
   test("fork history retains the same immutable image after maintenance without copying its attachment", async () => {
     const result = await reply("![Inherited image](screen.png)");
     const original = images(result.item)[0]!;
+    expect(await listArtifacts(gw.api, result.threadId)).toMatchObject([
+      {
+        itemId: result.item.itemId,
+        content: {
+          case: "imageGallery",
+          value: { images: [{ attachmentId: original.attachmentId }], sourceItemId: result.item.itemId },
+        },
+      },
+    ]);
     const fork = (await gw.api.createThread({ forkThreadId: result.threadId, forkAtTurnId: result.turnId })).thread!;
 
     expect(
@@ -229,6 +239,7 @@ describe.skipIf(!dockerAvailable)("image replies through the real WorkerHost and
     const inherited = snapshot.items.find((row) => row.item?.itemId === result.item.itemId);
 
     expect(inherited?.inherited).toBe(true);
+    expect(await listArtifacts(gw.api, fork.id)).toEqual([]);
     expect(images(inherited!.item!)[0]?.attachmentId).toBe(original.attachmentId);
     expect((await gw.api.getAttachment({ attachmentId: original.attachmentId })).data.length).toBeGreaterThan(0);
   }, 30_000);
@@ -406,5 +417,6 @@ describe.skipIf(!dockerAvailable)("image replies through the real WorkerHost and
     expect(await host.flush(5_000)).toBe(true);
     const snapshot = await gw.runtime.runPromise(GatewayStore.use((s) => s.snapshot(result.threadId)));
     expect(images(snapshot.items.find((row) => row.item?.itemId === result.item.itemId)!.item!)).toHaveLength(0);
+    expect(await listArtifacts(gw.api, result.threadId)).toEqual([]);
   }, 30_000);
 });

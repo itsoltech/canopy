@@ -8,6 +8,8 @@ import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol
 import { Effect } from "effect";
 import { SqlClient } from "effect/sql";
 import sharp from "sharp";
+import { localThreadArtifacts } from "../../apps/gateway/src/store/thread-artifacts.ts";
+import { listArtifacts } from "./support/thread-artifacts.ts";
 import { eventually, startTestGateway, type TestGateway } from "./support/gateway.ts";
 import { mp4 } from "./support/video-fixtures.ts";
 
@@ -58,7 +60,7 @@ describe.skipIf(!dockerAvailable)("durable image publication over WorkerLink", (
 
   beforeAll(async () => {
     gw = await startTestGateway({
-      worker: { hello: { capabilities: [THREAD_IMAGE_REPLIES_CAPABILITY] } },
+      worker: { hello: { capabilities: [THREAD_IMAGE_REPLIES_CAPABILITY, "thread_rewind_v1"] } },
       attachmentLimits: { maxFileBytes: 300_000, maxMessageBytes: 400_000, maxFiles: 3 },
     });
     worker = gw.worker;
@@ -161,6 +163,38 @@ describe.skipIf(!dockerAvailable)("durable image publication over WorkerLink", (
       ]),
     ).toHaveLength(1);
     files.delete(path);
+    worker.emit(source.threadId, source.turnId, {
+      case: "itemCompleted",
+      value: {
+        item: {
+          itemId: "viewed-privately",
+          status: ItemStatus.COMPLETED,
+          content: { case: "image", value: { source: "view_image", path: "screens/after.png" } },
+        },
+      },
+    });
+    const gallery = json(await show(source));
+    worker.finish(source.threadId, source.turnId);
+    expect(
+      (
+        await eventually(
+          () => listArtifacts(gw.api, source.threadId),
+          (items) => items.length === 2,
+        )
+      ).map((item) => item.itemId),
+    ).toEqual([gallery.item_id, published.item_id]);
+    await expect(gw.runtime.runPromise(localThreadArtifacts(Bun.randomUUIDv7(), source.threadId))).rejects.toThrow(
+      "thread not found",
+    );
+
+    const rewind = await gw.api.rewindThread({ ...source, clientRequestId: "hide-publications" });
+    expect(rewind.status).toBe("completed");
+    expect(await listArtifacts(gw.api, source.threadId)).toEqual([]);
+    await gw.api.restoreThreadRewind({ threadId: source.threadId, rewindId: rewind.rewindId });
+    expect((await listArtifacts(gw.api, source.threadId)).map((item) => item.itemId)).toEqual([
+      gallery.item_id,
+      published.item_id,
+    ]);
   });
 
   test("copies normalized bytes, thumbnail and a small gateway manifest, then replays once after restart", async () => {

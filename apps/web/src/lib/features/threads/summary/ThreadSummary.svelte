@@ -37,7 +37,7 @@
     floating: boolean;
     /** The right gutter beside the chat column holds the card. */
     docked: boolean;
-    children: Snippet;
+    children: Snippet<[closeOverlay: () => void]>;
     preview?: Snippet;
     pillWidth?: number;
   } = $props();
@@ -52,6 +52,7 @@
   let cardHeight = $state(0);
   let pillHeight = $state(0);
   let previewHeight = $state(0);
+  const threadId = $derived(thread.id);
   const pinned = $derived(docked && !device.view.threadPanelCollapsed);
   const open = $derived(pinned || (floating && popover));
   const subagents = $derived(tree?.sides.filter((side) => side.spawnedByAgent).length ?? 0);
@@ -63,16 +64,12 @@
     void tick().then(refreshActivities);
   });
 
-  // A popover is transient: another thread or another placement closes it.
+  // Transient details belong to the thread and placement that opened them.
   $effect(() => {
-    void thread.id;
+    void threadId;
     void docked;
     void floating;
-    popover = false;
-  });
-
-  $effect(() => {
-    if (floating) sheet = false;
+    closeOverlay();
   });
 
   // The Files column moves this containing block throughout the morph.
@@ -135,12 +132,17 @@
     if (returnFocus && focused) pill?.focus();
   }
 
-  // Open popovers handle Escape at the Svelte event root, after this listener.
+  function closeOverlay() {
+    popover = false;
+    sheet = false;
+  }
+
+  // Nested dialogs and pickers get the first Escape.
   const escapeCloses: Attachment<HTMLElement> = (node) => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
 
-      if (event.target instanceof Element && event.target.closest(":popover-open")) return;
+      if (event.target instanceof Element && event.target.closest(":popover-open, dialog:modal")) return;
 
       event.preventDefault();
       void hide(true);
@@ -220,7 +222,9 @@
       {@attach escapeCloses}
     >
       <ThreadSummaryHeader docked={cardDocked} controls={id} onclose={() => void hide(true)} />
-      <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">{@render children()}</div>
+      <div class="min-h-0 scroll-stable-both overflow-y-auto overscroll-contain px-1 pb-1">
+        {@render children(closeOverlay)}
+      </div>
     </section>
   {/if}
   {#if preview}
@@ -239,6 +243,6 @@
 
 {#if !floating}
   <Dialog bind:open={sheet} title="Thread details" sheet>
-    {#if sheet}{@render children()}{/if}
+    {#if sheet}{@render children(closeOverlay)}{/if}
   </Dialog>
 {/if}

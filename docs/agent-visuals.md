@@ -1,5 +1,7 @@
 # Obrazy, filmy i interaktywne visuals w odpowiedziach
 
+Status (2026-11-28). Opublikowane materiały mają także listę i podgląd w sekcji [Artifacts w podsumowaniu wątku](workspace.md#podsumowanie-wątku) na webie i desktopie. Lista sięga do wcześniejszych tur niezależnie od załadowanego fragmentu osi czasu.
+
 Status (2026-11-28): odtwarzacz w rozmowie zachowuje ustawienia dźwięku przy
 przechodzeniu na pełny ekran i po powrocie do wątku na webie i desktopie.
 
