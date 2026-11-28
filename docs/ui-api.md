@@ -154,7 +154,7 @@ Kompozytor web/desktop utrzymuje dostępne potwierdzenie Full access podczas nad
 Prywatny czat bota pokazuje aktywność tur ze Slacka i rutyn.
 Właściciel ustawia kolejność zakładek i może zatrzymać pracę wybranego modułu.
 Po zamknięciu panelu PR zaplanowane odświeżenie awatarów wykonuje się
-tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Usage, Workers, Updates i Provider usage,
+tylko wtedy, gdy inny otwarty widok nadal ich potrzebuje. Stopka sidebara pokazuje tylko jeden z paneli Usage, Workers, Updates i Provider limits,
 ma osobne ikony Settings i Usage oraz samą kropkę statusu połączenia;
 web/desktop wysyła „Continue” jednym kliknięciem z pustego kompozytora istniejącego wątku między turami;
 `InstallCli` przyjmuje opcjonalne UUID próby do korelacji raportów;
@@ -458,10 +458,13 @@ Ikona Usage otwiera pełny raport nad bieżącą stroną. Najechanie na nią pok
 tokenów i kosztu w USD za ostatnie 30 dni kalendarzowych UTC. Panel pobiera dane przy
 otwarciu i co 10 sekund w widocznej karcie. Cyfry obu liczników animują się przy
 otwarciu i przy zmianie wartości, zgodnie z ustawieniem ograniczonego ruchu.
-Najechanie myszą w oknie szerszym niż 40 rem na Usage, Workers, Updates lub Provider usage pokazuje
+Najechanie myszą w oknie szerszym niż 40 rem na Usage, Workers, Updates lub Provider limits pokazuje
 jeden panel naraz, bez przenoszenia fokusu. Kliknięcie ikony otwiera pełny widok: raport Usage,
 Settings → Workers, Settings → App updates albo Settings → Providers. Panele nie mają osobnego
-przycisku przejścia. Dotyk i klawiatura od razu otwierają pełny widok.
+przycisku przejścia. Stuknięcie lub Enter na skrócie otwiera pełny widok.
+Na skrócie **Provider limits** strzałka w dół otwiera podgląd z klawiatury,
+a przytrzymanie otwiera go na ekranie dotykowym. Segment pokazuje szczegóły konta
+po najechaniu, przy fokusie klawiatury lub po stuknięciu.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
 nie pokazuje ikony Usage.

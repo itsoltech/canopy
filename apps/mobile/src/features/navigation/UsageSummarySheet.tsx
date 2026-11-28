@@ -33,13 +33,13 @@ export function UsageSummarySheet({
   }
 
   return (
-    <Overlay visible={open} onClose={onClose} label="Provider usage">
+    <Overlay visible={open} onClose={onClose} label="Provider limits">
       <View style={{ padding: 12, gap: 12, minHeight: 0, flexShrink: 1 }}>
         <SheetDragArea style={[styles.row, { justifyContent: "space-between" }]}>
           <Text accessibilityRole="header" style={[type.section, { color: c.muted, flex: 1 }]}>
-            Provider usage
+            Provider limits
           </Text>
-          <SheetCloseButton label="Close provider usage" />
+          <SheetCloseButton label="Close provider limits" />
         </SheetDragArea>
         <ScrollView
           style={{ maxHeight: Math.min(384, height * 0.5), minHeight: 0, flexGrow: 0, flexShrink: 1 }}

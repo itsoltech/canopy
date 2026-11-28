@@ -147,7 +147,7 @@ pokazuje wersje, postęp i akcje poszczególnych instalacji. Stopka udostępnia
 **Update all**, **Retry failed** albo **Restart to update** dla pobranej lokalnej
 aplikacji. Akcje korzystają z tych samych warunków i potwierdzeń co ustawienia.
 **What's new** pokazuje nieobejrzane notatki. Bez akcji i notatek stopki nie ma.
-Pozostałe panele stopki (Usage, Workers i Provider usage) współdzielą z popoverem
+Pozostałe panele stopki (Usage, Workers i Provider limits) współdzielą z popoverem
 obsługę najechania i zamknięcia. Przy otwartym podglądzie Usage lub App updates
 ikona w stopce ukrywa własny tooltip.
 

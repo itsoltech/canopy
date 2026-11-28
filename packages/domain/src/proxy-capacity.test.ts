@@ -3,7 +3,7 @@ import { create } from "@bufbuild/protobuf";
 import { timestampFromMs } from "@bufbuild/protobuf/wkt";
 import { ui, ProviderUsageWindowSchema } from "@canopy/contracts";
 import { proxyCapacityGroups, proxyPlanWeight, supportedProxyAccounts } from "./proxy-capacity.ts";
-import { usageSummary, usageSummaryGlance } from "./usage-summary.ts";
+import { segmentValueText, usageSummary, usageSummaryGlance, usageSummaryLabel } from "./usage-summary.ts";
 
 const now = 1_800_000_000_000;
 const future = timestampFromMs(now + 3_600_000);
@@ -16,6 +16,14 @@ const account = (id: string, plan: ui.ProxyAccountPlan, percent: number, status 
     plan,
     status,
     windows: [{ key: "seven_day", usedPercent: percent, resetsAt: future }],
+  });
+
+const proxy = (name: string, accounts: ui.ProxyAccount[]) =>
+  create(ui.ProxySchema, {
+    name,
+    kind: "cliproxyapi",
+    usedBy: ["claude/native"],
+    accounts: { state: "ok", accounts },
   });
 
 describe("proxy subscription capacity", () => {
@@ -101,6 +109,59 @@ describe("proxy subscription capacity", () => {
     expect(group.windows[0]).toMatchObject({ total: 60, remaining: 55, unknown: 0 });
   });
 
+  test("only confirmed plans describe an unmeasured five-hour window", () => {
+    const weekly = account("weekly", Plan.PRO_200, 24);
+    const missing = { ...account("no-reading", Plan.PRO_500, 0), windows: [] };
+
+    const codex = (accounts: ui.ProxyAccount[]) =>
+      usageSummary(
+        [],
+        [
+          proxy(
+            "Source",
+            accounts.map((a) => ({ ...a, provider: "codex" })),
+          ),
+        ],
+        now,
+      );
+
+    const all = codex([weekly, missing])[0]!;
+    expect(all.window?.percentLeft).toBe(76);
+    expect(all.fiveHourPlaceholder.map((s) => [s.units, segmentValueText(s)])).toEqual([
+      [50, "No limit"],
+      [20, "No limit"],
+    ]);
+    expect(all.segments.map(segmentValueText)).toEqual(["No reading", "76%"]);
+    expect(usageSummaryLabel(all, now)).toContain("5-hour: No limit");
+    expect(codex([missing])).toEqual([]);
+
+    expect(codex([{ ...weekly, plan: Plan.PLUS }])[0]?.fiveHourPlaceholder.map(segmentValueText)).toEqual([
+      "No reading",
+    ]);
+
+    for (const provider of ["claude", "grok", "codex"]) {
+      const mismatchedPlan = provider === "codex" ? Plan.ULTRA : Plan.PRO_500;
+      const row = usageSummary([], [proxy("Source", [{ ...weekly, provider, plan: mismatchedPlan }])], now)[0];
+      expect(row?.fiveHourPlaceholder).toEqual([]);
+    }
+  });
+
+  test("real five-hour readings win over plan rules without marking other missing windows as unlimited", () => {
+    const ultra = account("ultra", Plan.ULTRA, 0);
+    const legacy = account("legacy", Plan.MAX_20X, 0);
+    legacy.windows = [];
+    ultra.windows.push(create(ProviderUsageWindowSchema, { key: "five_hour", usedPercent: 100 }));
+    const pro = account("pro", Plan.PRO, 20);
+    pro.windows.push(create(ProviderUsageWindowSchema, { key: "one_day", usedPercent: 14.9 }));
+    const row = usageSummary([], [proxy("Source", [ultra, legacy, pro])], now)[0]!;
+    expect(row.fiveHourPlaceholder).toEqual([]);
+    expect(row.shorter.map((meter) => [meter.window.name, meter.segments.map(segmentValueText)])).toEqual([
+      ["5-hour", ["0%", "No limit", "No reading"]],
+      ["Daily", ["No reading", "No reading", "85%"]],
+    ]);
+    expect(row.shorter[0]?.segments[0]?.noLimit).toBe(false);
+  });
+
   test("filters unsupported identities and combines cached connections into a provider indicator", () => {
     const unsupported = create(ui.ProxyAccountSchema, {
       ...account("hidden", Plan.ULTRA, 100),
@@ -110,17 +171,9 @@ describe("proxy subscription capacity", () => {
     expect(supportedProxyAccounts([unsupported])).toEqual([]);
     expect(proxyCapacityGroups([unsupported], now)).toEqual([]);
 
-    const proxy = (id: string, accounts: ui.ProxyAccount[]) =>
-      create(ui.ProxySchema, {
-        id,
-        kind: "cliproxyapi",
-        usedBy: ["claude/native"],
-        accounts: { state: "ok", accounts },
-      });
-
     const proxies = [
-      proxy("one", [account("a", Plan.MAX_5X, 50), unsupported]),
-      proxy("two", [account("b", Plan.ULTRA, 0)]),
+      proxy("One", [{ ...account("a", Plan.MAX_5X, 50), label: "Work" }, unsupported]),
+      proxy("Two", [{ ...account("a", Plan.ULTRA, 0), label: "Home" }]),
     ];
 
     const rows = usageSummary([], proxies, now);
@@ -129,9 +182,16 @@ describe("proxy subscription capacity", () => {
     expect(glance[0]?.percentLeft).toBeCloseTo(83.333333);
     // One bar per account across proxies, largest plan first, each filled to what it has left.
     expect(rows[0]?.segments).toEqual([
-      { units: 10, percentLeft: 100 },
-      { units: 5, percentLeft: 50 },
+      { label: "Home · Two", sensitiveLabel: true, units: 10, noLimit: false, percentLeft: 100 },
+      { label: "Work · One", sensitiveLabel: true, units: 5, noLimit: false, percentLeft: 50 },
     ]);
+    expect(
+      rows[0]?.fiveHourPlaceholder.map((segment) => [segment.label, segment.units, segmentValueText(segment)]),
+    ).toEqual([
+      ["Home · Two", 10, "No limit"],
+      ["Work · One", 5, "No reading"],
+    ]);
+    expect(glance[0]?.label).toContain("5-hour: No reading");
     expect(
       usageSummary(
         [],
