@@ -1,3 +1,4 @@
+import { duration } from "#lib/shared/ui/motion.ts";
 import { motionPreferences } from "#lib/shared/ui/motion-preferences.svelte.ts";
 import { flushSync } from "svelte";
 import type { FooterFold } from "../../../shared/ui/virtual/footer-reserve.ts";
@@ -5,12 +6,12 @@ import type { FooterFold } from "../../../shared/ui/virtual/footer-reserve.ts";
 type Publish = (compact: boolean, fold: FooterFold) => void;
 
 interface HeldTransition {
-  animation: Animation;
+  animation: CSSTransition;
   end: number;
 }
 
 /** Decorative animations in the subtree keep their own playback, including infinite spinners. */
-function pendingTransition(animation: Animation): boolean {
+function pendingTransition(animation: Animation): animation is CSSTransition {
   return (
     animation instanceof CSSTransition &&
     animation.pending &&
@@ -19,166 +20,110 @@ function pendingTransition(animation: Animation): boolean {
 }
 
 /** Pause once per scroll segment. Its length includes the delay so all transitions share the same progress. */
-function holdTransition(animation: Animation): HeldTransition {
+function holdTransition(animation: CSSTransition): HeldTransition {
   const effect = animation.effect;
 
   if (effect && effect.getTiming().easing !== "linear") effect.updateTiming({ easing: "linear" });
-  animation.playbackRate = 1;
   animation.pause();
 
   return { animation, end: Number(effect?.getComputedTiming().endTime ?? 0) };
 }
 
-/**
- * Folds and opens the composer with its own CSS transitions, either at their natural pace or held at
- * a scroll progress. Each change flips `compact` once; subsequent scroll frames only seek the
- * paused transitions. Under reduced motion the composer switches state only at either end.
- * The thread rows keep the feed's end reserve throughout.
- */
+/** One displayed progress for the whole fold, including reversals and interrupted settles. */
 export class ComposerMorph {
-  #root: () => HTMLElement | undefined;
-  #publish: Publish;
-  #compact = false;
-  /** While moving: the state the running transitions lead to. */
+  readonly #root: () => HTMLElement | undefined;
+  readonly #publish: Publish;
+  #progress = 0;
+  #target = 0;
   #toward: boolean | undefined;
-  #animations: Animation[] = [];
-  #held: HeldTransition[] | undefined;
+  #held: HeldTransition[] = [];
   #frame = 0;
-  #request: { progress: number } | { settle: boolean } | undefined;
-  #run = 0;
+  #lastFrame = 0;
 
   constructor(root: () => HTMLElement | undefined, publish: Publish) {
     this.#root = root;
     this.#publish = publish;
   }
 
-  /** Holds the composer at scroll progress (0 full, 1 compact), applied in the next frame. */
   follow(progress: number) {
-    this.#schedule({ progress });
+    this.#target = progress;
+
+    if (motionPreferences.reduced) {
+      if (progress === 0 || progress === 1) this.set(progress === 1);
+
+      return;
+    }
+
+    if (this.#frame || this.#progress === progress) return;
+    this.#lastFrame = performance.now();
+    this.#frame = requestAnimationFrame(this.#advance);
   }
 
-  /** Finishes in a state at the transitions' own pace, from wherever the composer is. */
   settle(compact: boolean) {
-    if (this.#toward === undefined && this.#compact === compact && !this.#request) return;
-    this.#schedule({ settle: compact });
+    this.follow(compact ? 1 : 0);
   }
 
-  /** Without motion (a thread opening as it was left). */
+  /** A thread reopening at its saved position skips the fold entirely. */
   set(compact: boolean) {
-    this.#reset();
-    this.#compact = compact;
+    this.dispose();
+    this.#target = this.#progress = compact ? 1 : 0;
     this.#publish(compact, compact ? "folded" : "open");
   }
 
   dispose() {
-    this.#reset();
-  }
-
-  #reset() {
     cancelAnimationFrame(this.#frame);
     this.#frame = 0;
-    this.#request = undefined;
-    this.#run++;
 
-    for (const animation of this.#animations) animation.cancel();
-    this.#animations = [];
-    this.#held = undefined;
+    for (const { animation } of this.#held) animation.cancel();
+    this.#held = [];
     this.#toward = undefined;
   }
 
-  #schedule(request: { progress: number } | { settle: boolean }) {
-    this.#request = request;
-    this.#frame ||= requestAnimationFrame(() => {
-      this.#frame = 0;
-      const next = this.#request;
-      this.#request = undefined;
+  #advance = (now: number) => {
+    this.#frame = 0;
+    const delta = this.#target - this.#progress;
 
-      if (next && "settle" in next) this.#settle(next.settle);
-      else if (next) this.#hold(next.progress);
-    });
-  }
+    if (!delta && this.#toward === undefined) return;
 
-  #hold(progress: number) {
-    if (motionPreferences.reduced) {
-      if (progress >= 1 || progress <= 0) this.set(progress >= 1);
+    if (motionPreferences.reduced) return this.set(this.#target >= 0.5);
 
-      return;
-    }
+    // Small scroll deltas track the reader directly. A wheel notch or a jump across the entire
+    // end zone travels from the last painted position, at most one full fold per quick transition.
+    const step = Math.max(0, now - this.#lastFrame) / duration("quick");
+    this.#lastFrame = now;
 
-    this.#run++;
-    const toward = this.#toward ?? this.#leaving(progress);
+    if (this.#toward === undefined) this.#start(this.#progress === 0);
+    this.#progress = Math.abs(delta) <= step ? this.#target : this.#progress + Math.sign(delta) * step;
 
-    if (toward === undefined) return;
+    const fraction = this.#toward ? this.#progress : 1 - this.#progress;
 
-    if (this.#toward === undefined) this.#start(toward);
-    const fraction = toward ? progress : 1 - progress;
+    for (const { animation, end } of this.#held) animation.currentTime = fraction * end;
 
-    if (fraction >= 1) return this.#end(toward);
+    if (this.#progress !== this.#target) this.#frame = requestAnimationFrame(this.#advance);
+    else if (fraction === 0 || fraction === 1) this.#end(this.#progress === 1);
+  };
 
-    if (fraction <= 0) return this.#end(!toward);
-
-    const held = (this.#held ??= this.#animations.map(holdTransition));
-
-    for (const { animation, end } of held) animation.currentTime = fraction * end;
-  }
-
-  /** The state a progress away from the current one leads to; undefined when it matches. */
-  #leaving(progress: number): boolean | undefined {
-    if (!this.#compact && progress > 0) return true;
-
-    return this.#compact && progress < 1 ? false : undefined;
-  }
-
-  #settle(compact: boolean) {
-    if (motionPreferences.reduced) return this.set(compact);
-
-    if (this.#toward === undefined) {
-      if (this.#compact === compact) return;
-      this.#start(compact);
-    }
-
-    const run = ++this.#run;
-    const forward = this.#toward === compact;
-    this.#held = undefined;
-
-    for (const animation of this.#animations) {
-      animation.playbackRate = forward ? 1 : -1;
-      animation.play();
-    }
-
-    void Promise.all(this.#animations.map((animation) => animation.finished)).then(
-      () => run === this.#run && this.#end(compact),
-      () => {},
-    );
-  }
-
-  /** Flips the state once and keeps the transitions that flip started. */
   #start(compact: boolean) {
     this.#toward = compact;
     flushSync(() => this.#publish(compact, "moving"));
-    // Reading the animations resolves style once: the transitions this flip started are still pending.
-    this.#animations = (this.#root()?.getAnimations({ subtree: true }) ?? []).filter(pendingTransition);
+    const animations = this.#root()?.getAnimations({ subtree: true }) ?? [];
+    this.#held = animations.filter(pendingTransition).map(holdTransition);
   }
 
   #end(compact: boolean) {
-    const animations = this.#animations;
+    const held = this.#held;
     const reverted = compact !== this.#toward;
-    this.#animations = [];
-    this.#held = undefined;
+    this.#held = [];
     this.#toward = undefined;
-    this.#compact = compact;
     flushSync(() => this.#publish(compact, compact ? "folded" : "open"));
 
-    if (!reverted) {
-      for (const animation of animations) animation.finish();
+    // Resolve the restored CSS state while its transitions are still held at their start values.
+    // Canceling them first exposes the opposite endpoint and starts a second, unrequested fold.
+    if (reverted) this.#root()?.getAnimations({ subtree: true });
 
-      return;
+    for (const { animation } of held) {
+      if (reverted) animation.cancel();
+      else animation.finish();
     }
-
-    // Back where it started: the paused transitions and any reversal they cause end on the start values.
-    for (const animation of animations) animation.cancel();
-
-    for (const animation of this.#root()?.getAnimations({ subtree: true }) ?? [])
-      if (pendingTransition(animation)) animation.cancel();
   }
 }

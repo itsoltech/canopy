@@ -750,7 +750,11 @@
                   {/snippet}
                   {#snippet footer()}
                     <!-- What comes and goes above the composer grows in and out (each carries its own gap below). -->
-                    <div class="grid grid-cols-1 pt-2" bind:this={feedFooter}>
+                    <div
+                      class="grid grid-cols-1 pt-2"
+                      data-composer-moving={composer.footer === "moving" || undefined}
+                      bind:this={feedFooter}
+                    >
                       {#if view.secrets.some((s) => s.status === "pending")}
                         <GrowIn overlay class="pb-3"
                           ><ThreadSecretsPanel
