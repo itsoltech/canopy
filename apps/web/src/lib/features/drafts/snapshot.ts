@@ -20,7 +20,7 @@ export function snapshotComposer(draft: WebComposerDraft): ComposerSnapshot {
   return {
     text: draft.text,
     mentions: draft.mentions.map((mention) => ({ ...mention })),
-    files: draft.files.attached.map((file) => ({ ...file, localUrl: undefined })),
+    files: draft.files.attached.map((file) => ({ ...file, localUrl: undefined, localHeic: undefined })),
     quotes: useQuoteDrafts()
       .list(draft.quoteKey)
       .map((quote) => ({ ...quote })),
@@ -38,7 +38,7 @@ export function restoreComposer(draft: WebComposerDraft, snapshot: ComposerSnaps
   // Hydrate once so a later mount cannot restore stale citations over the replacement.
   draft.activate();
   draft.files.clear();
-  draft.files.files = snapshot.files.map((file) => ({ ...file, localUrl: undefined }));
+  draft.files.files = snapshot.files.map((file) => ({ ...file, localUrl: undefined, localHeic: undefined }));
   draft.text = snapshot.text;
   draft.mentions = snapshot.mentions.map((mention) => ({ ...mention }));
   useQuoteDrafts().place(

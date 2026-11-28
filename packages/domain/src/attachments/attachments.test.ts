@@ -18,12 +18,14 @@ describe("sniff: the content decides, not the name", () => {
     expect(sniff(text("RIFF\0\0\0\0WEBPVP8 "), "x").mimeType).toBe("image/webp");
   });
 
-  test("HEIC, AVIF and TIFF are converted, a truncated video header stays a file", () => {
+  test("HEIC, AVIF and TIFF use content signatures, a truncated video header stays a file", () => {
     expect(sniff(text("\0\0\0\x18ftypheic\0\0\0\0"), "IMG_1.HEIC")).toMatchObject({
       kind: "convertible",
       mimeType: "image/heic",
     });
     expect(sniff(text("\0\0\0\x18ftypavif\0\0\0\0")).mimeType).toBe("image/avif");
+    expect(sniff(text("\0\0\0\x18ftypmif1\0\0\0\0mif1avif")).mimeType).toBe("image/avif");
+    expect(sniff(text("\0\0\0\x14ftypmif1\0\0\0\0heicavif")).mimeType).toBe("image/heic");
     expect(sniff(bytes(0x49, 0x49, 0x2a, 0x00)).kind).toBe("convertible");
     expect(sniff(text("\0\0\0\x18ftypisom\0\0\0\0"), "clip.mp4")).toMatchObject({
       kind: "file",

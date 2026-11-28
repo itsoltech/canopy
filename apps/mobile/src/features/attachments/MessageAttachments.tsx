@@ -7,7 +7,7 @@ import { ImagePreview } from "./ImagePreview";
 import { AttachmentViewer } from "./AttachmentViewer";
 import { ImageViewer } from "./ImageViewer";
 import { VideoAttachment } from "./VideoAttachment";
-import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
+import { storedAttachmentKind } from "./attachment-display";
 
 /** Images open in one viewer, so a message's images swipe from one to the next. */
 export function MessageAttachments({ files, pending }: { files: readonly ui.Attachment[]; pending: boolean }) {
@@ -18,7 +18,7 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
   const images = useMemo(
     () =>
       files
-        .filter((file) => file.kind === "image" && attachmentPreviewKind(file) !== "video")
+        .filter((file) => storedAttachmentKind(file) === "image")
         .map((file) => ({ key: file.id, source: { kind: "attachment" as const, file }, name: file.name })),
     [files],
   );
@@ -30,10 +30,12 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
         { flexWrap: "wrap", justifyContent: "flex-end", gap: 4, opacity: pending ? 0.7 : 1, maxWidth: "100%" },
       ]}
     >
-      {files.map((file) =>
-        attachmentPreviewKind(file) === "video" ? (
+      {files.map((file) => {
+        const kind = storedAttachmentKind(file);
+
+        return kind === "video" ? (
           <VideoAttachment key={file.id} file={file} />
-        ) : file.kind === "image" ? (
+        ) : kind === "image" ? (
           <ImagePreview
             key={file.id}
             source={{ kind: "attachment", file }}
@@ -55,8 +57,8 @@ export function MessageAttachments({ files, pending }: { files: readonly ui.Atta
               {file.name}
             </Text>
           </Pressable>
-        ),
-      )}
+        );
+      })}
       {selected && <AttachmentViewer file={selected} onClose={() => setSelected(undefined)} />}
       {image !== undefined && images[image] ? (
         <ImageViewer images={images} index={image} onIndexChange={setImage} onClose={() => setImage(undefined)} />

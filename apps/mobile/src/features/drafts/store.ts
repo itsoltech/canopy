@@ -11,6 +11,7 @@ import {
 import { Code, ConnectError, type Client } from "@connectrpc/connect";
 import * as Crypto from "expo-crypto";
 import type { DraftFile } from "../attachments/useAttachmentDraft";
+import { storedAttachmentKind } from "../attachments/attachment-display";
 import type { MessageValue } from "../composer/message-value";
 import type { ComposerChoices } from "../composer/draft-snapshot";
 import { recoverDraft } from "./recovery";
@@ -61,7 +62,11 @@ export class MobileComposerState {
         key: f.key,
         name: f.name,
         size: Number(f.size),
-        kind: f.kind === "image" || f.kind === "video" ? f.kind : "file",
+        kind: f.attachment
+          ? storedAttachmentKind(f.attachment)
+          : f.kind === "image" || f.kind === "video"
+            ? f.kind
+            : "file",
         attachment: f.attachment,
         contextScope: f.contextScope || undefined,
         error: f.attachment ? undefined : "Upload interrupted. Remove this file and add it again.",
@@ -347,7 +352,7 @@ export class MobileComposerState {
       key: a.id,
       name: a.name,
       size: Number(a.sizeBytes),
-      kind: a.kind === "image" || a.kind === "video" ? a.kind : "file",
+      kind: storedAttachmentKind(a),
       attachment: a,
     }));
     this.choices = {

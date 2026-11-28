@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import type { ClassValue } from "svelte/elements";
   import Icon from "#lib/shared/ui/Icon.svelte";
+  import { attachmentIcon } from "#lib/features/mentions/kinds.ts";
   import type { ui } from "@canopy/contracts";
   import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
   import AttachmentPreview from "./AttachmentPreview.svelte";
@@ -31,11 +32,12 @@
 
   let anchor = $state<HTMLElement>();
   let open = $state(false);
+  const kind = $derived(file ? attachmentPreviewKind(file) : "file");
 </script>
 
 {#snippet body()}
   <Icon
-    name={failed ? "exclamation-circle" : file && attachmentPreviewKind(file) === "video" ? "play" : "document-text"}
+    name={failed ? "exclamation-circle" : attachmentIcon(kind)}
     class={["shrink-0", failed ? "text-rose-600 dark:text-rose-400" : "fill-zinc-400 dark:fill-zinc-500"]}
   />
   <div class="min-w-0">
@@ -53,7 +55,7 @@
   {@render trailing?.()}
 {/snippet}
 
-{#if file && attachmentPreviewKind(file) !== "file"}
+{#if file && kind !== "file"}
   <button
     type="button"
     bind:this={anchor}

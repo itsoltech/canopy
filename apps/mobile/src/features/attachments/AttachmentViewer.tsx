@@ -15,11 +15,14 @@ import { readAttachmentPreview } from "./preview";
 import { attachmentFailure } from "./failure";
 import { useAttachmentConnection } from "./useAttachmentConnection";
 import { VideoSummary } from "./VideoSummary";
+import { storedAttachmentKind } from "./attachment-display";
 
 export function AttachmentViewer({ file, onClose }: { file: ui.Attachment; onClose: () => void }) {
-  if (attachmentPreviewKind(file) === "video") return <VideoSummary file={file} onClose={onClose} />;
+  const kind = storedAttachmentKind(file);
 
-  return file.kind === "image" ? (
+  if (kind === "video") return <VideoSummary file={file} onClose={onClose} />;
+
+  return kind === "image" ? (
     <ImageViewer images={[{ key: file.id, source: { kind: "attachment", file }, name: file.name }]} onClose={onClose} />
   ) : (
     <FileViewer file={file} onClose={onClose} />

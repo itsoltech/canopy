@@ -1,11 +1,12 @@
 import type { ui } from "@canopy/contracts";
 import type { Client } from "@connectrpc/connect";
 import { MAX_ATTACHMENT_FILE_BYTES } from "@canopy/domain";
+import { isHeicAttachment } from "@canopy/domain/attachment-preview";
 
 export type ImageSource =
   | { kind: "thread"; threadId: string; sha256: string; sizeBytes: bigint }
   | { kind: "attachment"; file: ui.Attachment }
-  | { kind: "local"; uri: string };
+  | { kind: "local"; uri: string; mimeType?: string };
 
 const THREAD_IMAGE_BYTES = 20 * 1024 ** 2;
 export const rasterImage = /^image\/(png|jpeg|gif|webp)$/i;
@@ -43,8 +44,8 @@ export async function readImage(
           { signal },
         );
 
-  if (!rasterImage.test(response.mimeType) || response.data.length > maxBytes)
-    throw new ImageReadError("This file cannot be shown as an image. Attach a PNG, JPEG, GIF or WebP image.");
+  if ((!rasterImage.test(response.mimeType) && !isHeicAttachment(response.mimeType)) || response.data.length > maxBytes)
+    throw new ImageReadError("Could not open this image. Attach a PNG, JPEG, GIF, WebP, HEIC or HEIF image.");
 
   return response;
 }

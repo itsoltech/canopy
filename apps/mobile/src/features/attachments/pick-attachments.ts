@@ -1,6 +1,7 @@
 import { Alert } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { isHeicAttachment } from "@canopy/domain/attachment-preview";
 import { clipboardImage } from "./clipboard-image";
 import { attachmentKind, type AttachmentKind } from "./attachment-display";
 
@@ -39,10 +40,11 @@ export async function pickPhotos(upload: Upload, slots: number, imagesOnly = fal
 
     for (const asset of result.assets) {
       const video = asset.type === "video" || attachmentKind(asset.fileName ?? "", asset.mimeType) === "video";
+      const photoExtension = asset.mimeType && isHeicAttachment(asset.mimeType) ? asset.mimeType.slice(6) : "jpg";
 
       void upload({
         uri: asset.uri,
-        name: asset.fileName || (video ? `video-${Date.now()}.mp4` : `photo-${Date.now()}.jpg`),
+        name: asset.fileName || (video ? `video-${Date.now()}.mp4` : `photo-${Date.now()}.${photoExtension}`),
         size: asset.fileSize ?? 0,
         kind: video ? "video" : "image",
         mimeType: asset.mimeType,

@@ -19,6 +19,8 @@
     detail = "",
     download,
     entityId,
+    localHeic,
+    onload,
     video = false,
     poster,
     alt,
@@ -32,6 +34,8 @@
     detail?: string;
     download?: string | undefined;
     entityId?: string;
+    localHeic?: Blob | undefined;
+    onload?: (width: number, height: number) => void;
     video?: boolean;
     poster?: string | undefined;
     alt?: string;
@@ -98,6 +102,8 @@
             {src}
             alt={alt || name}
             {entityId}
+            {localHeic}
+            {onload}
             class={[
               "text-white *:pointer-events-auto",
               zoomed

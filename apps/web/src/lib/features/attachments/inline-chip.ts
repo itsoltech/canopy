@@ -1,6 +1,14 @@
 import { MentionKind } from "@canopy/contracts";
 import { formatSize, formatVideoDuration } from "@canopy/domain";
-import { CHIP_CLASS, escape, iconSvg, kindLook, type MentionData } from "#lib/features/mentions/kinds.ts";
+import { attachmentPreviewKind } from "@canopy/domain/attachment-preview";
+import {
+  CHIP_CLASS,
+  attachmentIcon,
+  escape,
+  iconSvg,
+  kindLook,
+  type MentionData,
+} from "#lib/features/mentions/kinds.ts";
 import type { DraftFile } from "./draft.svelte.ts";
 
 /**
@@ -51,10 +59,10 @@ export function showUploads(root: ParentNode, file: (key: string) => DraftFile |
     chip.dataset["status"] = draft.status;
     chip.style.setProperty("--progress", String(draft.progress));
     const icon = chip.querySelector("svg");
-    const kind = draft.attachment?.kind ?? (draft.video ? "video" : draft.image ? "image" : "file");
+    const kind = draft.attachment ? attachmentPreviewKind(draft.attachment) : chipOf(draft).source;
 
     if (icon && icon.dataset["attachmentKind"] !== kind) {
-      const glyph = kindLook({ kind: MentionKind.ATTACHMENT, source: kind, isDir: false }).icon;
+      const glyph = attachmentIcon(kind);
       icon.outerHTML = iconSvg(glyph, KIND_ICON).replace("<svg ", `<svg data-attachment-kind="${kind}" `);
     }
 

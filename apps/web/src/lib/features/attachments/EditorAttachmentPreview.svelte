@@ -73,8 +73,8 @@
 {#if selected}
   {#if stored && attachmentPreviewKind(stored) !== "file"}
     <AttachmentPreview file={stored} anchor={selected.anchor} bind:open />
-  {:else if file?.image && file.localUrl && file.status !== "failed"}
-    <Lightbox bind:open src={file.localUrl} name={file.name} />
+  {:else if file?.status === "uploading" && file.localUrl}
+    <Lightbox bind:open src={file.localUrl} download={file.localUrl} name={file.name} localHeic={file.localHeic} />
   {:else if file || stored}
     {#if stored}<AttachmentPreview file={stored} anchor={selected.anchor} />{/if}
     <AttachmentChipCard

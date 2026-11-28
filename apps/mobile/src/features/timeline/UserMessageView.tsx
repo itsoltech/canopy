@@ -13,6 +13,7 @@ import { Markdown } from "../../ui/markdown";
 import { AgentSteer } from "./AgentSteer";
 import { AgentMessageBubble } from "./AgentMessageBubble";
 import { MessageAttachments } from "../attachments/MessageAttachments";
+import { storedAttachmentKind } from "../attachments/attachment-display";
 import { AttachmentViewer } from "../attachments/AttachmentViewer";
 import { MessageQuotes } from "../quotes/MessageQuotes";
 import { useMessageActions } from "./useMessageActions";
@@ -70,7 +71,7 @@ export function UserMessageView({
   const agentSteer = Boolean(sender || steerSourceId);
   const agent = fromAgent || agentSteer;
   const placed = new Set(mentions.flatMap((m) => (m.kind === MentionKind.ATTACHMENT ? [m.name] : [])));
-  const loose = attachments.filter((a) => a.kind === "image" || !placed.has(a.id));
+  const loose = attachments.filter((a) => !placed.has(a.id) || storedAttachmentKind(a) === "image");
   const body = !mentions.length && hasPlatformNote(text) ? withoutIds(text) : text;
   const actions = useMessageActions(body, agent ? "agent_message" : undefined, !pending, onEdit);
   const color = note?.tone === "amber" ? amber : agent ? violet : c.muted;

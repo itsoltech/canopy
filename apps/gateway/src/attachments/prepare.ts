@@ -8,7 +8,8 @@ import {
   type AttachmentKind,
   type AttachmentLimits,
 } from "@canopy/domain";
-import sharp from "sharp";
+import { MAX_ATTACHMENT_IMAGE_PIXELS, isHeicAttachment } from "@canopy/domain/attachment-preview";
+import sharp, { type Metadata } from "sharp";
 import { Match } from "effect";
 import { AttachmentRejected } from "./rejected.ts";
 import { boundedImageOutput } from "./encoded-output.ts";
@@ -20,7 +21,7 @@ export { AttachmentRejected } from "./rejected.ts";
  * - the type comes from the content (sniff), never from the browser's MIME type or the extension,
  * - native programs are refused, everything else is a file,
  * - PNG, JPEG and WebP are re-encoded upright without metadata (EXIF, GPS, XMP), GIF is kept as it is,
- * - HEIC/HEIF, AVIF and TIFF become JPEG or PNG when this build can decode them, else they stay files,
+ * - uploaded HEIC/HEIF photos retain their original bytes; AVIF and TIFF become JPEG or PNG if decodable,
  * - images get a small WebP thumbnail for the UI.
  */
 
@@ -36,8 +37,6 @@ export interface PreparedAttachment {
   readonly thumbnail?: { readonly data: Uint8Array; readonly sha256: string };
 }
 
-/** Decoded pixels an upload may have (a 10000 x 10000 image); more is refused before decoding. */
-const MAX_PIXELS = 100_000_000;
 const THUMBNAIL_EDGE = 512;
 
 export const sha256Hex = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
@@ -89,11 +88,14 @@ export async function prepareAttachment(
   let image: { data: Uint8Array; mimeType: string; width: number; height: number };
 
   try {
-    image = await normalize(data, sniffed.mimeType, options.replyKind === "image", limits.maxFileBytes, name);
+    const meta = await imageMetadata(data);
+
+    if (isHeicAttachment(sniffed.mimeType) && !options.replyKind) return { ...file(), ...meta.autoOrient };
+    image = await normalize(data, meta, sniffed.mimeType, options.replyKind === "image", limits.maxFileBytes, name);
   } catch (error) {
     if (error instanceof AttachmentRejected) throw error;
 
-    // A HEIC this build cannot decode (no HEVC) or a damaged TIFF is still a file; a damaged PNG is not an image.
+    // A convertible image with unreadable metadata or an unavailable codec stays downloadable.
     if (sniffed.kind === "convertible") return file();
     throw new AttachmentRejected(`${name} could not be read as an image`);
   }
@@ -102,7 +104,7 @@ export async function prepareAttachment(
     name = withExtension(name, image.mimeType === "image/png" ? "png" : "jpg");
 
   const thumbnail = new Uint8Array(
-    await sharp(image.data, { limitInputPixels: MAX_PIXELS })
+    await sharp(image.data, { limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS })
       .resize({ width: THUMBNAIL_EDGE, height: THUMBNAIL_EDGE, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 75 })
       .toBuffer(),
@@ -124,27 +126,33 @@ const videoPoster = sharp({ create: { width: 320, height: 180, channels: 3, back
   .webp({ quality: 60 })
   .toBuffer();
 
+async function imageMetadata(data: Uint8Array) {
+  const meta = await sharp(data, { limitInputPixels: false }).metadata();
+  const width = meta.width ?? 0;
+  const height = meta.pageHeight ?? meta.height ?? 0;
+
+  if (width * height > MAX_ATTACHMENT_IMAGE_PIXELS)
+    throw new AttachmentRejected(
+      `the image is ${Math.round((width * height) / 1e6)} megapixels; up to ${MAX_ATTACHMENT_IMAGE_PIXELS / 1e6} are accepted`,
+    );
+
+  return meta;
+}
+
 async function normalize(
   data: Uint8Array,
+  meta: Metadata,
   mimeType: string,
   firstFrame: boolean,
   maxBytes: number,
   name: string,
 ): Promise<{ data: Uint8Array; mimeType: string; width: number; height: number }> {
-  const meta = await sharp(data, { limitInputPixels: false }).metadata();
-  const width = meta.width ?? 0;
-  const height = meta.pageHeight ?? meta.height ?? 0;
-
-  if (width * height > MAX_PIXELS)
-    throw new AttachmentRejected(
-      `the image is ${Math.round((width * height) / 1e6)} megapixels; up to ${MAX_PIXELS / 1e6} are accepted`,
-    );
-
   // GIF: kept byte for byte (animation; no EXIF to strip).
-  if (mimeType === "image/gif" && !firstFrame) return { data, mimeType, width, height };
+  if (mimeType === "image/gif" && !firstFrame)
+    return { data, mimeType, width: meta.width, height: meta.pageHeight ?? meta.height };
   const animated = !firstFrame && mimeType === "image/webp" && (meta.pages ?? 1) > 1;
   // rotate(): upright by its EXIF orientation; the output carries no metadata (sharp drops it unless asked).
-  const pipeline = sharp(data, { limitInputPixels: MAX_PIXELS, animated }).rotate();
+  const pipeline = sharp(data, { limitInputPixels: MAX_ATTACHMENT_IMAGE_PIXELS, animated }).rotate();
 
   const encoded =
     mimeType === "image/png" || mimeType === "image/tiff" || mimeType === "image/gif"

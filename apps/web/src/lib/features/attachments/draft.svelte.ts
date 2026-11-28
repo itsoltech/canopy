@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { MentionKind, MentionSchema, ui, type Mention } from "@canopy/contracts";
 import { DEFAULT_ATTACHMENT_LIMITS, extensionOf, formatSize, type AttachmentLimits } from "@canopy/domain";
+import { isHeicAttachment } from "@canopy/domain/attachment-preview";
 import { isJsonObject, isString, type JsonValue } from "#lib/shared/json.ts";
 import { decode } from "#lib/shared/wire.ts";
 
@@ -26,6 +27,8 @@ export interface DraftFile {
   readonly video?: boolean;
   /** Object URL of the local file (images only); revoked on removal. */
   readonly localUrl: string | undefined;
+  /** Read directly for the decoder while uploading. Desktop only allows HTTP fetches to its own origin. */
+  readonly localHeic?: File | undefined;
   status: DraftStatus;
   /** 0..1 while uploading. */
   progress: number;
@@ -221,7 +224,12 @@ export class AttachmentDraft {
 
   #start(file: File, name: string): DraftFile {
     const key = crypto.randomUUID();
-    const image = /^image\/(png|jpeg|gif|webp)$/.test(file.type);
+
+    const heic =
+      isHeicAttachment(file.type) ||
+      ((!file.type || file.type === "application/octet-stream") && /\.hei[cf]$/i.test(name));
+
+    const image = heic || /^image\/(png|jpeg|gif|webp)$/.test(file.type);
 
     // What the badge needs at once (the reactive copy in `files` follows the upload).
     const added: DraftFile = {
@@ -231,6 +239,7 @@ export class AttachmentDraft {
       image,
       video: /^video\/(mp4|webm|quicktime)$/.test(file.type),
       localUrl: image ? URL.createObjectURL(file) : undefined,
+      localHeic: heic ? file : undefined,
       status: "uploading",
       progress: 0,
       error: undefined,
