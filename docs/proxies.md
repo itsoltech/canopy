@@ -333,8 +333,8 @@ Tożsamość konta jest wyśrodkowana w pionie względem znaku providera; ukryci
 i odsłonięcie wartości zachowuje to samo wyrównanie, także po skróceniu długiej nazwy.
 W panelu **Provider limits** okres, reset i zbiorczy procent pojawiają się nad paskiem.
 Podział odzwierciedla proporcje planów i zachowuje pozycję kont we wszystkich oknach.
-Wypełnienie segmentu i procent pod nim dotyczą jednego konta. Szczegóły segmentu
-zawierają nazwę konta; tożsamość proxy odsłania się kontrolką Sensitive. Brak limitu
+Wypełnienie segmentu i procent pod nim dotyczą jednego konta. Dane konta można
+sprawdzić w ustawieniach dostawcy. Brak limitu
 5 h w planie ma kreskowany segment, a brak odczytu osobny przerywany obrys.
 [Okna i sposób liczenia pojemności](provider-accounts.md#limity-planu-i-dodatkowe-użycie).
 Niska pojemność to kolor liczby i paska oraz jedno słowo „Low” w nagłówku wiersza. Wskaźnik

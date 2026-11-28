@@ -7,7 +7,7 @@ import { useUsageTypography } from "../providers/usage-typography";
 import { usageColor } from "./usage-color";
 import { UsageSummaryMeter } from "./UsageSummaryMeter";
 
-/** A provider's limit windows share an account order, including the five-hour row for uncapped plans. */
+/** A provider's limit windows share an account order. */
 export function UsageSummaryRow({ row, now }: { row: Row; now: number }) {
   const c = useColors();
   const type = useUsageTypography();

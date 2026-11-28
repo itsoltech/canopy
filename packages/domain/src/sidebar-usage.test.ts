@@ -185,8 +185,8 @@ describe("sidebar usage overview projection", () => {
     // The five-hour bar has the weekly bar's columns; only the Max 5x account reports that window, so the
     // unknown plan's column stays empty there.
     expect(rows[0]?.segments).toEqual([
-      { label: "Account 1 · Team", sensitiveLabel: false, units: 5, noLimit: false, percentLeft: 60 },
-      { label: "Account 2 · Team", sensitiveLabel: false, units: 1, noLimit: false, percentLeft: 100 },
+      { units: 5, noLimit: false, percentLeft: 60 },
+      { units: 1, noLimit: false, percentLeft: 100 },
     ]);
     expect(rows[0]?.shorter).toHaveLength(1);
     expect(rows[0]?.shorter[0]?.window.name).toBe("5-hour");
@@ -210,7 +210,7 @@ describe("sidebar usage overview projection", () => {
     const mixed = usageSummary(sidebarUsageAccounts(workers, now), proxies, now);
     expect(mixed).toHaveLength(1);
     expect(mixed[0]?.window?.percentLeft).toBe(10);
-    expect(mixed[0]?.segments.at(-1)).toMatchObject({ label: "Device login · Studio", sensitiveLabel: false });
+    expect(mixed[0]?.segments.at(-1)).toEqual({ units: 1, noLimit: false, percentLeft: 10 });
     expect(mixed[0]?.fiveHourPlaceholder).toEqual([]);
 
     expect(usageSummaryNotes(proxies)).toEqual([

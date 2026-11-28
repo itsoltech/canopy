@@ -657,7 +657,8 @@ nie przesuwa przycisków stopki. W wąskiej stopce licznik workerów i tekst sta
 połączenia są dostępne dla czytnika ekranu, a widoczne pozostają ikona i kropka.
 Osobny arkusz **Provider limits** zachowuje pełną szerokość
 telefonu i kartę do 420 dp na tablecie, kompaktowy tekst zgodny z preferencjami
-fontu i rozmiaru interfejsu oraz zawijanie statusów i resetu. Stuknięcie segmentu pokazuje szczegóły konta.
+fontu i rozmiaru interfejsu oraz zawijanie statusów i resetu. Segmenty mają statyczne
+etykiety dla czytnika ekranu z numerem konta i pozostałym limitem.
 [Stany i proporcje pasków](provider-accounts.md#limity-planu-i-dodatkowe-użycie). Konta proxy pokazują
 pace i steady-use target tak jak web. Limit osiągnięty oznacza 0% pozostałego
 limitu również bez liczby użytego procentu.

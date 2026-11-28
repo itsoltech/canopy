@@ -483,8 +483,8 @@ jeden panel naraz, bez przenoszenia fokusu. Kliknięcie ikony otwiera pełny wid
 Settings → Workers, Settings → App updates albo Settings → Providers. Panele nie mają osobnego
 przycisku przejścia. Stuknięcie lub Enter na skrócie otwiera pełny widok.
 Na skrócie **Provider limits** strzałka w dół otwiera podgląd z klawiatury,
-a przytrzymanie otwiera go na ekranie dotykowym. Segment pokazuje szczegóły konta
-po najechaniu, przy fokusie klawiatury lub po stuknięciu.
+a przytrzymanie otwiera go na ekranie dotykowym. Paski w podglądzie mają statyczne
+etykiety dostępności z numerem konta, okresem i pozostałym limitem.
 Host modalu pozostaje w AppShell niezależnie od szerokości sidebara;
 otwarcie na telefonie zamyka nawigację. Starszy gateway bez `GetUsageStats`
 nie pokazuje ikony Usage.

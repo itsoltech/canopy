@@ -40,7 +40,7 @@
     panel.setOpen(true);
     await tick();
 
-    if (content) focusables(content)[0]?.focus();
+    if (content) (focusables(content)[0] ?? content).focus();
   }
 </script>
 
@@ -65,9 +65,13 @@
             />{/if}
         </a>
       {/snippet}
-      <div bind:this={content} class="grid gap-3 p-3">
+      <div class="grid gap-3 p-3">
         <h2 class="text-sm font-medium text-zinc-500 sm:text-xs dark:text-zinc-400">Provider limits</h2>
-        <div class="grid max-h-[min(24rem,50dvh)] min-w-0 gap-3 overflow-y-auto overscroll-contain">
+        <div
+          bind:this={content}
+          tabindex="-1"
+          class="grid max-h-[min(24rem,50dvh)] min-w-0 gap-3 overflow-y-auto overscroll-contain"
+        >
           {#if rows.length}
             <ul role="list" class="grid min-w-0 gap-3">
               {#each rows as row (row.provider)}<UsageSummaryRow {row} />{/each}

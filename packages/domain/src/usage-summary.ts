@@ -23,9 +23,6 @@ export interface SummaryWindow {
  * every bar. When there is no reading, only a confirmed plan rule can set `noLimit`.
  */
 export interface SummarySegment {
-  readonly label: string;
-  /** Proxy account identities are masked until explicitly revealed. */
-  readonly sensitiveLabel: boolean;
   readonly noLimit: boolean;
   readonly units: number;
   readonly percentLeft: number | undefined;
@@ -55,7 +52,7 @@ export interface UsageSummaryRow {
    * accounts without a reading retain their columns.
    */
   readonly shorter: readonly SummaryMeter[];
-  /** Aligned account columns when there is no current 5-hour reading but the plans describe that window. */
+  /** Aligned columns when a plan has a five-hour cap but no account reports a current reading. */
   readonly fiveHourPlaceholder: readonly SummarySegment[];
   readonly tone: UsageTone;
   readonly word: "Low" | "Extra usage" | undefined;
@@ -116,8 +113,6 @@ function add(
 type ColumnAccount = ui.ProxyAccount | SidebarUsageAccount;
 
 interface AccountColumn {
-  readonly label: string;
-  readonly sensitiveLabel: boolean;
   readonly plan: ReturnType<typeof proxyPlanLimits>;
   readonly readings: Map<number, { units: number; left: number }>;
 }
@@ -126,10 +121,8 @@ interface AccountColumn {
 class Columns {
   private readonly list = new Map<ColumnAccount, AccountColumn>();
 
-  include(account: ColumnAccount, label: string) {
+  include(account: ColumnAccount) {
     this.list.set(account, {
-      label,
-      sensitiveLabel: "plan" in account && Boolean(account.label),
       plan: "plan" in account ? proxyPlanLimits(account) : undefined,
       readings: new Map(),
     });
@@ -148,13 +141,11 @@ class Columns {
 
   bar(main: SummaryWindow, minutes: number): SummarySegment[] {
     return [...this.list.values()]
-      .map(({ label, sensitiveLabel, plan, readings }) => {
+      .map(({ plan, readings }) => {
         const percentLeft = readings.get(minutes)?.left;
         const mainUnits = readings.get(main.minutes)?.units ?? (main.minutes === oneWeek ? plan?.seven_day : undefined);
 
         return {
-          label,
-          sensitiveLabel,
           noLimit: minutes === fiveHours && percentLeft === undefined && plan?.five_hour === null,
           units: mainUnits ?? readings.values().next().value?.units ?? 1,
           percentLeft,
@@ -164,11 +155,10 @@ class Columns {
   }
 
   fiveHourPlaceholder(main: SummaryWindow, windows: ReadonlyMap<number, SummaryWindow>): SummarySegment[] {
-    const applicable = [...this.list.values()].some(
-      ({ plan }) => plan && (plan.five_hour === null || windows.has(oneWeek)),
-    );
+    if (windows.has(fiveHours)) return [];
+    const hasCappedPlan = [...this.list.values()].some(({ plan }) => plan?.five_hour != null);
 
-    return !windows.has(fiveHours) && applicable ? this.bar(main, fiveHours) : [];
+    return hasCappedPlan ? this.bar(main, fiveHours) : [];
   }
 }
 
@@ -195,17 +185,8 @@ export function usageSummary(
   proxies: readonly ui.Proxy[],
   now = Date.now(),
 ): UsageSummaryRow[] {
-  const sources = proxies.flatMap((proxy) =>
-    proxyAccounts(proxy).map((account, index) => ({
-      account,
-      label: [account.label || `Account ${index + 1}`, proxy.name].filter(Boolean).join(" · "),
-    })),
-  );
-
-  const groups = proxyCapacityGroups(
-    sources.map(({ account }) => account),
-    now,
-  );
+  const accounts = proxies.flatMap(proxyAccounts);
+  const groups = proxyCapacityGroups(accounts, now);
 
   return providers.flatMap(({ provider, mark, name }) => {
     const own = direct.filter((account) => account.provider === provider);
@@ -215,8 +196,8 @@ export function usageSummary(
     const windows = new Map<number, SummaryWindow>();
     const columns = new Columns();
 
-    for (const { account, label } of sources)
-      if (proxyAccountMark(account.provider) === mark && eligibleProxyAccount(account)) columns.include(account, label);
+    for (const account of accounts)
+      if (proxyAccountMark(account.provider) === mark && eligibleProxyAccount(account)) columns.include(account);
 
     // Lowest first, so an account in two proxy windows of the same length keeps that window's units.
     for (const window of group?.windows ?? []) {
@@ -229,7 +210,7 @@ export function usageSummary(
     }
 
     for (const account of own) {
-      columns.include(account, [account.label || "Device login", account.computer].filter(Boolean).join(" · "));
+      columns.include(account);
 
       for (const window of activeUsageWindows(account.usage, now)) {
         if (!window.reached && window.usedPercent === undefined) continue;
@@ -283,11 +264,11 @@ export const segmentValueText = (segment: SummarySegment): string =>
       ? "No limit"
       : "No reading";
 
-export const fiveHourPlaceholderText = (segments: readonly SummarySegment[]): string =>
-  segments.length > 0 && segments.every((segment) => segment.noLimit) ? "No limit" : "No reading";
+export const segmentUsageLabel = (segment: SummarySegment, index: number, period: string) =>
+  `Account ${index + 1}, ${period}, ${segmentValueText(segment)}${segment.percentLeft === undefined ? "" : " left"}`;
 
-/** "44% left". */
-export const percentLeftText = (window: SummaryWindow) => `${whole.format(window.percentLeft)}% left`;
+export const percentLeftText = (window?: SummaryWindow) =>
+  window ? `${whole.format(window.percentLeft)}% left` : "No reading";
 
 /** "Weekly · Resets in 2 d 6 h": the window the bar shows and its reset. */
 export const summaryWindowText = (window: SummaryWindow, now = Date.now()) =>
@@ -307,7 +288,7 @@ export function usageSummaryLabel(row: UsageSummaryRow, now = Date.now()) {
     row.window ? `${row.name}: ${percentLeftText(row.window)}` : row.name,
     accountsText(row),
     row.window ? summaryWindowText(row.window, now) : "",
-    row.fiveHourPlaceholder.length ? `5-hour: ${fiveHourPlaceholderText(row.fiveHourPlaceholder)}` : "",
+    row.fiveHourPlaceholder.length ? "5-hour: No reading" : "",
     ...row.shorter.map((meter) => shorterText(meter.window, now)),
     row.word ?? "",
   ];
