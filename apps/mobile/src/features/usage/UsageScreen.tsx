@@ -35,7 +35,7 @@ export function UsageScreen() {
   const [group, setGroup] = useState<UsageGroup>("workers");
   const request = useMemo(() => ({ days, provider }), [days, provider]);
   const report = useUsageReport(request);
-  const response = report.status === "ready" ? report.data : undefined;
+  const response = "data" in report ? report.data : undefined;
   const data = useMemo(() => response && usageReport(response, { legacyReportedCost: true }), [response]);
   const loading = report.status === "loading";
   const c = useColors();
@@ -77,7 +77,7 @@ export function UsageScreen() {
             <Text style={[type.small, { color: c.muted }]}>Periods include today and use UTC.</Text>
           </View>
         )}
-        {loading && (
+        {loading && !data && (
           <View
             accessibilityRole="progressbar"
             accessibilityLabel="Loading usage"

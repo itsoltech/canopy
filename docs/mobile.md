@@ -540,6 +540,11 @@ w `apps/mobile` przez `CANOPY_CHANNEL=nightly bunx expo config --type public`.
 
 ## Raport Usage
 
+Status (2026-11-28). Raport Usage animuje cyfry sumy, liczników tokenów, liczby raportów
+z niepełnym kosztem i wartości w podziale Activity. W nawigacji animują się liczniki
+pracy i nieprzeczytanych wiadomości, a w App updates procent pobrania aktualizacji.
+Systemowe ograniczenie ruchu wyłącza przejścia cyfr.
+
 Ikona tabeli obok Settings w stopce nawigacji otwiera osobny ekran **Usage**.
 Raport pokazuje koszt i liczbę tokenów dla dzisiaj lub ostatnich 7, 30 albo
 90 dni kalendarzowych UTC. Można wybrać dostawcę i przełączyć podział według
@@ -559,7 +564,8 @@ Dotknięcie wykresu lub użycie strzałek wybiera dzień i pokazuje jego sumę o
 wartości poszczególnych dostawców. Brak znanego kosztu powoduje przerwę w linii.
 
 Telefon pobiera raport przez `GetUsageStats` po otwarciu ekranu, zmianie filtrów
-lub ręcznym odświeżeniu. Przerywa odczyt po opuszczeniu ekranu lub przejściu
+lub ręcznym odświeżeniu. Podczas ręcznego odświeżania tego samego raportu poprzednie
+wartości pozostają widoczne do nadejścia odpowiedzi. Przerywa odczyt po opuszczeniu ekranu lub przejściu
 aplikacji w tło. Gdy gateway nie obsługuje metody, ekran wskazuje konieczność
 aktualizacji gatewaya i pozwala ponownie sprawdzić dostępność. Błąd połączenia
 pokazuje akcję ponowienia. Starsza wersja API statystyk pokazuje tylko kompletne

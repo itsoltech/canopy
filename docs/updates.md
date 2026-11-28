@@ -8,8 +8,8 @@ Aktualizacja (2026-11-24): instalator workera obsługuje macOS Intel. Feed Deskt
 Status: opis zaimplementowanego kodu (2026-11-28), w tym ponownego wiązania
 kanału aktualizacji desktopu po parowaniu oraz przerywania okresowego skanu
 worktree przy zamykaniu gatewaya oraz postępu pobierania binarek
-workerów i samodzielnego gatewaya w web i Electronie, animacji cyfr procentu
-pobierania aplikacji desktopowej, szybkich akcji w popoverze
+workerów i samodzielnego gatewaya w web, Electronie i na telefonie, animacji cyfr procentu
+pobierania w mobilnym App updates i przy aktualizacji aplikacji desktopowej, szybkich akcji w popoverze
 web i Electron oraz wspólnej sekcji App updates w web, Electronie i na telefonie,
 kolejkowania tur od przyjęcia aktualizacji
 gatewaya, przekazania nadzoru gatewaya przed obsługą klientów i workerów oraz diagnostyki przerwanych aktualizacji
@@ -242,7 +242,9 @@ zakończone kroki Update all.
 
 W wierszu pobierania bieżącej aplikacji desktopowej zmieniające się cyfry procentu
 wysuwają się do góry, a nowe sprężyście wskakują od dołu. Etykieta i znak
-procentu pozostają na miejscu. Przy ograniczonym ruchu procent odświeża się od razu.
+procentu pozostają na miejscu. Na iOS i Androidzie wiersz w App updates pokazuje
+animowany procent po otrzymaniu pomiaru dla telefonu, komputera, binarnego workera
+lub samodzielnego gatewaya. Przy ograniczonym ruchu procent odświeża się od razu.
 
 Zamrożony `canopy.update.v1` przenosi procent jako `N%` w istniejącym polu `reason`
 raportu `downloading`. Gateway przyjmuje rosnący postęp bieżącego polecenia

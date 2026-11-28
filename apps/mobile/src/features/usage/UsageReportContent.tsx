@@ -3,15 +3,19 @@ import {
   count,
   metricValue,
   shortCount,
+  totalTokens,
   type UsageAmounts,
   type UsageData,
   type UsageView,
 } from "@canopy/domain/usage-report";
+import { AnimatedNumber } from "../../ui/AnimatedNumber";
 import { EmptyState, Notice } from "../../ui/components";
 import { font, styles, useColors, useTypography } from "../../ui/theme";
 import { UsageBreakdown, type UsageGroup } from "./UsageBreakdown";
 import { UsageChart } from "./UsageChart";
 import { UsageSources } from "./UsageSources";
+
+const costNotice = "Usage costs may include estimates and may differ from your bill.";
 
 export function UsageReportContent({
   data,
@@ -58,16 +62,30 @@ function UsageTotals({ totals, view }: { totals: UsageAmounts; view: UsageView }
         <Text accessibilityRole="header" style={[type.body, { fontFamily: font.semibold, color: c.text }]}>
           {view === "cost" ? "Total cost" : "Total tokens"}
         </Text>
-        <Text selectable style={[styles.title, { color: c.text, fontVariant: ["tabular-nums"] }]}>
-          {metricValue(totals, view)}
-        </Text>
-        {view === "cost" && (
-          <Notice>
-            Usage costs may include estimates and may differ from your bill.
-            {totals.unknownEffectiveCostReports > 0n &&
-              ` ${count(totals.unknownEffectiveCostReports)} ${totals.unknownEffectiveCostReports === 1n ? "report lacks" : "reports lack"} a complete cost.`}
-          </Notice>
-        )}
+        <AnimatedNumber
+          key={view}
+          value={metricValue(totals, view)}
+          amount={view === "cost" ? totals.effectiveCost : totalTokens(totals)}
+          selectable
+          style={[styles.title, { color: c.text }]}
+        />
+        {view === "cost" &&
+          (totals.unknownEffectiveCostReports > 0n ? (
+            <AnimatedNumber
+              accessibilityLiveRegion="polite"
+              value={count(totals.unknownEffectiveCostReports)}
+              amount={totals.unknownEffectiveCostReports}
+              prefix={`${costNotice} `}
+              suffix={
+                totals.unknownEffectiveCostReports === 1n
+                  ? " report lacks a complete cost."
+                  : " reports lack a complete cost."
+              }
+              style={[type.small, { color: c.muted }]}
+            />
+          ) : (
+            <Notice>{costNotice}</Notice>
+          ))}
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {counters.map(({ label, value }) => (
@@ -76,9 +94,12 @@ function UsageTotals({ totals, view }: { totals: UsageAmounts; view: UsageView }
             style={{ flexBasis: 116, flexGrow: 1, gap: 4, padding: 10, borderRadius: 8, backgroundColor: c.recess }}
           >
             <Text style={[type.small, { color: c.muted }]}>{label}</Text>
-            <Text selectable style={[type.body, { color: c.text, fontVariant: ["tabular-nums"] }]}>
-              {shortCount(value)}
-            </Text>
+            <AnimatedNumber
+              value={shortCount(value)}
+              amount={value}
+              selectable
+              style={[type.body, { color: c.text }]}
+            />
           </View>
         ))}
       </View>

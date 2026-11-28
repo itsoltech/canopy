@@ -4,7 +4,7 @@ Aktualizacja (2026-11-25): raporty tokenów Antigravity z odpowiedzi ACP
 `session/prompt` zawierają szacunki według cenników API Google i Anthropic
 dla rozpoznanych modeli. [Adapter Antigravity](antigravity-adapter.md)
 
-Status (2026-11-27): zaimplementowane agregaty zużycia w gatewayu, raporty
+Status (2026-11-28): zaimplementowane agregaty zużycia w gatewayu, raporty
 harnessów, niezależne szacunki według stawek API modeli, wybór kosztu per licznik,
 API `GetUsageStats`, synchronizacja źródeł połączonych komputerów oraz modal
 Usage z jedną kwotą kosztu i podziałem według workera, aktywności oraz poszczególnych botów,
@@ -17,6 +17,9 @@ W web/desktop data wybrana na wykresie ma oznaczenie UTC. Dla jednego dnia oś n
 Otwarty modal i podgląd w stopce sidebara w web i desktopie samodzielnie
 odświeżają dane. Cyfry kosztu i sumy tokenów w podglądzie oraz cyfry w podsumowaniu
 modalu animują się przy otwarciu i przy zmianie wyświetlonej wartości.
+Na iOS i Androidzie cyfry w podsumowaniu raportu i w podziale według aktywności
+korzystają z natywnych animacji Reanimated. Ręczne odświeżenie tego samego raportu
+animuje zmienione wartości po otrzymaniu odpowiedzi.
 Dostępność nightly/beta/stable według [release.md](release.md).
 
 ## Co mierzymy

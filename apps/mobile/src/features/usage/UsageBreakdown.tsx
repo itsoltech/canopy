@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { compareUsage, metricValue, type UsageData, type UsageRow, type UsageView } from "@canopy/domain/usage-report";
+import {
+  compareUsage,
+  metricValue,
+  totalTokens,
+  type UsageData,
+  type UsageRow,
+  type UsageView,
+} from "@canopy/domain/usage-report";
+import { AnimatedNumber } from "../../ui/AnimatedNumber";
 import { Button, Notice } from "../../ui/components";
 import { font, useColors, useTypography } from "../../ui/theme";
 import { UsageChoice } from "./UsageChoice";
@@ -54,15 +62,25 @@ export function UsageBreakdown({
       {data.hasUnattributedUsage && (group === "activities" || group === "bots") && (
         <Notice>Some usage has no recorded activity.</Notice>
       )}
-      <UsageRows key={group} rows={sorted} view={view} />
+      <UsageRows key={group} rows={sorted} view={view} group={group} />
     </View>
   );
 }
 
-function UsageRows({ rows, view }: { rows: UsageRow[]; view: UsageView }) {
+function UsageRows({ rows, view, group }: { rows: UsageRow[]; view: UsageView; group: UsageGroup }) {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const c = useColors();
   const type = useTypography();
+
+  const valueStyle = [
+    type.small,
+    {
+      textAlign: "right" as const,
+      color: c.text,
+      fontFamily: font.medium,
+      fontVariant: ["tabular-nums" as const],
+    },
+  ];
 
   if (rows.length === 0) return <Notice>No usage in this breakdown.</Notice>;
 
@@ -90,21 +108,21 @@ function UsageRows({ rows, view }: { rows: UsageRow[]; view: UsageView }) {
               </Text>
             )}
           </View>
-          <Text
-            selectable
-            style={[
-              type.small,
-              {
-                maxWidth: "50%",
-                textAlign: "right",
-                color: c.text,
-                fontFamily: font.medium,
-                fontVariant: ["tabular-nums"],
-              },
-            ]}
-          >
-            {amounts.reports === 0n && view === "cost" ? "No reports" : metricValue(amounts, view)}
-          </Text>
+          {group === "activities" && (amounts.reports > 0n || view === "tokens") ? (
+            <View style={{ maxWidth: "50%" }}>
+              <AnimatedNumber
+                key={view}
+                value={metricValue(amounts, view)}
+                amount={view === "cost" ? amounts.effectiveCost : totalTokens(amounts)}
+                selectable
+                style={valueStyle}
+              />
+            </View>
+          ) : (
+            <Text selectable style={[valueStyle, { maxWidth: "50%" }]}>
+              {amounts.reports === 0n && view === "cost" ? "No reports" : metricValue(amounts, view)}
+            </Text>
+          )}
         </View>
       ))}
       {rows.length > limit && (

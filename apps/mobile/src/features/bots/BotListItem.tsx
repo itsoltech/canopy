@@ -8,7 +8,7 @@ import { formatAge } from "@canopy/domain/format";
 import { font, styles, useColors } from "../../ui/theme";
 import Animated from "react-native-reanimated";
 import { useMotion } from "../../ui/motion";
-import { Swap } from "../../ui/MotionViews";
+import { AnimatedNumber } from "../../ui/AnimatedNumber";
 import { useComputerHome } from "../computers/presence";
 import { useState } from "react";
 import { BotActions } from "./BotActions";
@@ -31,6 +31,7 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${bot.configuration?.name ?? "Bot"}${home.away ? `, Read-only, ${home.reason}` : ""}`}
+        accessibilityValue={bot.unreadCount ? { text: `${bot.unreadCount} unread` } : undefined}
         accessibilityState={{ selected: active }}
         onPress={() => layout.open({ pathname: "/bot/[id]", params: { id: bot.id } })}
         onLongPress={() => setActions(true)}
@@ -65,11 +66,13 @@ export function BotListItem({ bot }: { bot: bots.Bot }) {
             </Text>
             {bot.unreadCount > 0 && (
               <Animated.View entering={pop.entering} exiting={pop.exiting} style={{ maxWidth: "60%" }}>
-                <Swap value={String(bot.unreadCount)}>
-                  <Text numberOfLines={1} style={[type.caption, { color: c.accent }]}>
-                    {bot.unreadCount}
-                  </Text>
-                </Swap>
+                <AnimatedNumber
+                  value={String(bot.unreadCount)}
+                  amount={bot.unreadCount}
+                  numberOfLines={1}
+                  animateOnMount={false}
+                  style={[type.caption, { color: c.accent }]}
+                />
               </Animated.View>
             )}
           </View>
