@@ -23,6 +23,6 @@
 <span
   class={["block min-w-0 truncate", className]}
   {@attach clipped((fit) => (full = fit.clipped))}
-  {@attach tooltip(full ?? hint)}
+  {@attach tooltip(full ?? (hint !== text ? hint : undefined))}
   >{#if children}{@render children()}{:else}{text}{/if}</span
 >

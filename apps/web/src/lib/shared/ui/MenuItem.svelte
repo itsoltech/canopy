@@ -19,6 +19,7 @@
     href,
     shortcut,
     description,
+    wrapLabel = false,
     disabled = false,
     danger = false,
     current = false,
@@ -31,6 +32,8 @@
     href?: string | undefined;
     shortcut?: string | undefined;
     description?: string | undefined;
+    /** Show up to three lines inline when choosing the item opens its full details. */
+    wrapLabel?: boolean;
     disabled?: boolean;
     danger?: boolean;
     current?: boolean;
@@ -63,7 +66,7 @@
       ><Icon name={icon} class={danger ? "text-rose-600 dark:text-rose-400" : menuIconClasses} /></span
     >
   {/if}
-  <MenuItemText {description}>{@render children()}</MenuItemText>
+  <MenuItemText {description} {wrapLabel}>{@render children()}</MenuItemText>
   {#if shortcut}<span class="flex h-lh items-center"><Kbd hotkey={shortcut} /></span>{/if}
   {#if current}<span class={menuGlyphClasses}><Icon name="check" class="text-brand-600 dark:text-brand-400" /></span
     >{/if}
