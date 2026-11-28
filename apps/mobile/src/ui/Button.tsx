@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import type { IconName } from "@canopy/ui/icons";
 import { Icon } from "./Icon";
 import { Skeleton, useSkeleton } from "./Skeleton";
@@ -82,11 +82,12 @@ export function Button({
   const s = sizes[size];
   const l = look(variant, c);
   const lead = Boolean(icon || busy);
+  const compactSetting = settings && size === "sm";
+  const alignSelf = StyleSheet.flatten(style)?.alignSelf;
+  const labelType = size === "md" ? type.body : type.small;
 
   return (
-    <Skeleton
-      style={settings ? { maxWidth: "100%", alignSelf: StyleSheet.flatten(style)?.alignSelf ?? alignment } : undefined}
-    >
+    <Skeleton style={settings ? { maxWidth: "100%", alignSelf: alignSelf ?? alignment } : undefined}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label ?? title}
@@ -95,40 +96,50 @@ export function Button({
         disabled={disabled || busy}
         onPress={onPress}
         hitSlop={settings ? 2 : s.slop}
-        style={({ pressed }) => [
-          {
-            minHeight: settings ? 44 : s.height,
-            minWidth: settings ? 44 : undefined,
-            paddingLeft: variant === "text" ? 0 : lead ? s.iconPadding : s.padding,
-            paddingRight: variant === "text" ? 0 : s.padding,
-            alignSelf: variant === "text" ? "flex-start" : undefined,
-            borderRadius: s.radius,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: s.gap,
-            opacity: disabled || busy ? 0.5 : 1,
-            backgroundColor: pressed ? l.pressed : l.background,
-          },
-          l.ring && raised(c),
-          style,
-        ]}
+        style={{
+          alignSelf: alignSelf ?? (variant === "text" ? "flex-start" : undefined),
+          justifyContent: "center",
+          minHeight: compactSetting ? 48 : undefined,
+          minWidth: compactSetting ? 48 : undefined,
+        }}
       >
-        {busy ? (
-          <ActivityIndicator size="small" color={l.icon} style={{ width: 16, height: 16 }} />
-        ) : icon ? (
-          <Icon name={icon} color={l.icon} />
-        ) : null}
-        <Text
-          numberOfLines={multiline || settings ? undefined : 1}
-          style={[
-            settings || size === "md" ? type.body : type.small,
-            settings ? weightedFont(type.body.fontFamily, "medium") : { fontFamily: font.medium },
-            { color: l.text, flexShrink: 1, textAlign: "center" },
-          ]}
-        >
-          {title}
-        </Text>
+        {({ pressed }) => (
+          <View
+            style={[
+              {
+                minHeight: settings && size === "md" ? 44 : s.height,
+                minWidth: settings ? 44 : undefined,
+                paddingLeft: variant === "text" ? 0 : lead ? s.iconPadding : s.padding,
+                paddingRight: variant === "text" ? 0 : s.padding,
+                borderRadius: s.radius,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: s.gap,
+                opacity: disabled || busy ? 0.5 : 1,
+                backgroundColor: pressed ? l.pressed : l.background,
+              },
+              l.ring && raised(c),
+              style,
+            ]}
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color={l.icon} style={{ width: 16, height: 16 }} />
+            ) : icon ? (
+              <Icon name={icon} color={l.icon} />
+            ) : null}
+            <Text
+              numberOfLines={multiline || settings ? undefined : 1}
+              style={[
+                labelType,
+                settings ? weightedFont(labelType.fontFamily, "medium") : { fontFamily: font.medium },
+                { color: l.text, flexShrink: 1, textAlign: "center" },
+              ]}
+            >
+              {title}
+            </Text>
+          </View>
+        )}
       </Pressable>
     </Skeleton>
   );

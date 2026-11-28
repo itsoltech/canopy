@@ -33,7 +33,7 @@ export function ProjectSettings() {
       >
         {!loaded ? (
           <SkeletonScope loading>
-            <Skeleton style={{ height: 64, width: "100%" }} />
+            <Skeleton style={{ height: 48, width: "100%" }} />
           </SkeletonScope>
         ) : projects.length ? (
           projects.map((project) => (

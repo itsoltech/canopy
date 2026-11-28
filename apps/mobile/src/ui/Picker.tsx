@@ -311,6 +311,7 @@ export function SelectField({
   tone,
   hideLabel = false,
   expanded,
+  compact = false,
 }: {
   label: string;
   value: string;
@@ -320,6 +321,7 @@ export function SelectField({
   tone?: PickerOption<unknown>["tone"];
   hideLabel?: boolean;
   expanded?: boolean;
+  compact?: boolean;
 }) {
   const c = useColors();
   const settings = useSettingsDensity();
@@ -346,27 +348,37 @@ export function SelectField({
           accessibilityState={{ disabled, expanded }}
           disabled={disabled}
           onPress={onPress}
-          style={({ pressed }) => [
-            styles.row,
-            {
-              minHeight: touchTarget,
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: c.line,
-              backgroundColor: disabled ? c.sidebar : pressed ? c.inset : c.surface,
-            },
-          ]}
+          style={compact && { minWidth: 48, minHeight: Math.max(48, touchTarget), justifyContent: "center" }}
         >
-          {leading}
-          <Text
-            numberOfLines={1}
-            style={[type.body, { flex: 1, color: disabled ? c.muted : (toneColor(c, tone) ?? c.text) }]}
-          >
-            {value}
-          </Text>
-          <Icon name="chevron-up-down" color={c.icon} />
+          {({ pressed }) => (
+            <View
+              style={[
+                styles.row,
+                {
+                  minHeight: compact ? 32 : touchTarget,
+                  paddingVertical: compact ? 4 : 8,
+                  paddingHorizontal: compact ? 8 : 12,
+                  gap: compact ? 4 : 8,
+                  borderRadius: compact ? 6 : 8,
+                  borderWidth: 1,
+                  borderColor: c.line,
+                  backgroundColor: disabled ? c.sidebar : pressed ? c.inset : c.surface,
+                },
+              ]}
+            >
+              {leading}
+              <Text
+                numberOfLines={compact ? 2 : 1}
+                style={[
+                  compact ? type.small : type.body,
+                  { flexGrow: 1, flexShrink: 1, color: disabled ? c.muted : (toneColor(c, tone) ?? c.text) },
+                ]}
+              >
+                {value}
+              </Text>
+              <Icon name="chevron-up-down" size={compact ? 14 : 16} color={c.icon} />
+            </View>
+          )}
         </Pressable>
       </Skeleton>
     </View>

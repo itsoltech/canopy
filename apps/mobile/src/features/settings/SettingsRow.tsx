@@ -71,7 +71,7 @@ export function SettingsRowContent({
   control?: ReactNode;
   reset?: ReactNode;
   soon?: boolean;
-  inlineControl?: boolean;
+  inlineControl?: boolean | "wrap";
   controlWidth?: number;
   chevron?: boolean;
 }) {
@@ -79,17 +79,22 @@ export function SettingsRowContent({
   const [wide, setWide] = useState(false);
   const loading = useSkeleton();
   const beside = inlineControl || wide || !control;
+  const wrap = inlineControl === "wrap";
 
   return (
     <View
       onLayout={control && !inlineControl ? (event) => setWide(event.nativeEvent.layout.width >= 552) : undefined}
       style={{
         flexDirection: beside ? "row" : "column",
+        flexWrap: wrap ? "wrap" : "nowrap",
         alignItems: beside ? "center" : "stretch",
         gap: beside ? 16 : 8,
+        ...(wrap && { rowGap: 0 }),
       }}
     >
-      <View style={{ minWidth: 0, flex: beside ? 1 : undefined }}>{copy}</View>
+      <View style={wrap ? { minWidth: 0, flexGrow: 1, flexBasis: 144 } : { minWidth: 0, flex: beside ? 1 : undefined }}>
+        {copy}
+      </View>
       {control ? (
         <View
           pointerEvents={soon || loading ? "none" : "auto"}
@@ -100,7 +105,8 @@ export function SettingsRowContent({
             alignItems: "center",
             gap: 8,
             opacity: soon ? 0.5 : 1,
-            maxWidth: beside ? "55%" : "100%",
+            maxWidth: beside && !wrap ? "55%" : "100%",
+            marginStart: wrap ? "auto" : undefined,
           }}
         >
           {beside && reset}
@@ -139,7 +145,7 @@ export function SettingsRow({
   soon?: boolean;
   style?: StyleProp<ViewStyle>;
   accessory?: ReactNode;
-  inlineControl?: boolean;
+  inlineControl?: boolean | "wrap";
   controlWidth?: number;
 }) {
   const c = useColors("settings");

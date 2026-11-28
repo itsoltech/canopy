@@ -211,10 +211,11 @@ export function SettingChoice<T extends string | number>({
       title={title}
       description={description}
       accessory={accessory}
-      controlWidth={192}
+      inlineControl="wrap"
       control={
         <>
           <SelectField
+            compact
             hideLabel
             expanded={!!open}
             label={title}
@@ -248,11 +249,11 @@ export function SettingToggle({
     <SettingsRow
       title={title}
       description={description}
-      controlWidth={44}
+      inlineControl
       accessory={accessory}
       control={
-        <View style={{ minHeight: 44, justifyContent: "center" }}>
-          <Switch label={title} value={value} onChange={onChange} disabled={disabled} />
+        <View style={{ width: 48, minHeight: 48, alignItems: "center", justifyContent: "center" }}>
+          <Switch size="sm" label={title} value={value} onChange={onChange} disabled={disabled} />
         </View>
       }
     />

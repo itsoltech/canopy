@@ -1,5 +1,12 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Wiersze projektów oraz wyboru workera i źródła mają minimum
+48 dp wysokości i rosną wraz z tekstem. Wiersze ustawień mieszczą przełącznik obok opisu.
+Pola wyboru w wierszach ustawień dopasowują szerokość do wartości i przechodzą
+pod opis, kiedy brakuje miejsca. Obramowanie ma minimum 32 dp wysokości,
+tekst domyślnie 14 dp, a pole dotyku co najmniej 48 × 48 dp.
+Ekran parowania pokazuje ikonę i nazwę aplikacji w jednym wierszu.
+
 Status (2026-11-26): Skills w Agent environment obsługuje interaktywne instalatory na workerze i przegląd wykrytego skilla.
 
 Status (2026-11-25): Code w pull requestach używa kompaktowych wierszy. Tryb Automatic
@@ -1293,7 +1300,7 @@ nie jest instalacją przypisaną do kanału wydania.
 
 Obok nazwy Canopy w nagłówku sidebara widnieje kafelek kanału o boku 32 dp,
 dopasowany do widocznej wysokości nazwy i podpisu w domyślnej skali tekstu.
-Ekran parowania używa tego samego kafelka w rozmiarze 72 dp. **Stable** ma
+Podczas parowania kafelek 44 dp stoi obok nazwy aplikacji i podpisu. **Stable** ma
 ciemnozielone drzewo na szałwiowym tle, **Beta** kasztanowe drzewo i dwa liście
 na bursztynowym tle, **Nightly** lawendowe drzewo z księżycem i gwiazdami na
 ciemnym fiolecie, a **Dev** jasny obrys drzewa na niebieskiej siatce. W nagłówku
@@ -1775,12 +1782,13 @@ OKLCH → sRGB jest konieczna dla natywnego parsera kolorów; `gen:check` wykryw
 i wersji Tailwind. CSS web nadal używa Tailwind; zmiany jego skali typografii/radii
 trzeba przenosić do wspólnych tokenów świadomie.
 
-Kit `src/ui` odpowiada `apps/web/src/lib/shared/ui`: `Button` (primary, secondary, ghost, danger;
-`md` 40 dp, `sm` 32 dp, w Settings 44 dp; nagłówki grup i banery dają `sm`), `IconButton`,
-`Alert` (info, warning, danger, error, wariant banner), `Notice` (wyciszony tekst, błąd jako `Alert`),
-`EmptyState`, `Switch`, `Checkbox`, `SearchField`, `Segmented`, `Field`, `Sheet` i jedno okno
-potwierdzenia `confirm()` zamiast natywnego `Alert.alert`. Cel dotyku 44 dp daje `hitSlop`,
-wymiary widoczne zostają jak w web.
+Kit `src/ui` odpowiada `apps/web/src/lib/shared/ui`. Zawiera `Button` (primary, secondary, ghost, danger),
+`IconButton`, `Alert` (info, warning, danger, error i wariant banner), `Notice` (wyciszony tekst, błąd jako `Alert`),
+`EmptyState`, `Switch`, `Checkbox`, `SearchField`, `Segmented`, `Field`, `Sheet` i wspólne okno
+potwierdzenia `confirm()` w miejsce natywnego `Alert.alert`.
+Przycisk `md` ma wysokość 40 dp, a w Settings 44 dp. Wariant `sm` używany m.in. w nagłówkach grup
+i banerach ma wysokość 32 dp i tekst 14 dp. W ustawieniach jego pole dotyku ma minimum 48 dp wysokości. Przełącznik w wierszu ustawienia ma tor
+32 × 18 dp i pole dotyku 48 × 48 dp. Osobna akcja resetu zajmuje miejsce po jego lewej stronie.
 
 Typography przechowuje na urządzeniu osobny wybór fontu interfejsu i kodu. Presety
 pozostają na początku wyszukiwanego pickera; nazwy mają podgląd we własnym kroju.
