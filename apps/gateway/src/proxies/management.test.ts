@@ -100,7 +100,7 @@ describe("proxy account observations", () => {
       [1794823200n, "Resets in 2 d 0 h"],
       [1794661200n, "Resets in 3 h"],
     ]);
-    expect(codex.windows.map((w) => w.observedAt?.seconds)).toEqual([BigInt(now / 1000), BigInt(now / 1000)]);
+    expect(codex.windows.map((w) => w.observedAt?.seconds)).toEqual([BigInt(now / 1000), undefined]);
     expect(claude.windows.map((w) => [w.resetsAt?.seconds, usageReset(w, true, now)])).toEqual([
       [1794661200n, "Resets in 3 h"],
       [1794823200n, "Resets in 2 d 0 h"],

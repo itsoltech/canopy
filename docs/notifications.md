@@ -131,7 +131,7 @@ z zapisanej rozmowy.
   i okna pokazuje mniej niż 100% wykorzystania oraz nowy, późniejszy koniec okna.
   Bezpośredni odczyt musi też potwierdzać dostępność zwykłego użycia. W CLIProxyAPI
   pierwszy odczyt danego poświadczenia stanowi bazę, a kolejne pochodzą z odpowiedzi
-  upstream. Cache, zmiana loginu albo łącza i niepełne odczyty nie potwierdzają
+  upstream z bezwzględnym terminem resetu. Cache, zmiana loginu albo łącza i niepełne odczyty nie potwierdzają
   odnowienia. Każde konto, okno i termin odnowienia mają jeden wspólny klucz
   alertu dla kart lub okien na tym urządzeniu.
 

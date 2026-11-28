@@ -25,9 +25,10 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
       duration && Number.isSafeInteger(duration) && duration > 0 && duration <= 525600 ? duration : 0;
 
     const after = number(signals.get(`${prefix}reset-after-seconds`));
+    const absoluteReset = reset(number(signals.get(`${prefix}reset-at`)), now);
 
     const resetsAt =
-      reset(number(signals.get(`${prefix}reset-at`)), now) ??
+      absoluteReset ??
       (observed && after !== undefined && after >= 0 ? reset(observed.getTime() / 1000 + after, now) : undefined);
 
     if (usedPercent === undefined || (!windowMinutes && !resetsAt && usedPercent === 0)) continue;
@@ -37,7 +38,9 @@ export function proxyUsageWindows(signals: ReadonlyMap<string, string>, observed
       usedPercent,
       resetsAt,
       reached: usedPercent >= 100,
-      observedAt: observed && timestampFromDate(observed),
+      // An estimated deadline can be displayed, but only the upstream epoch identifies
+      // the same renewal across both proxy and direct reads.
+      observedAt: absoluteReset && observed && timestampFromDate(observed),
     });
   }
 

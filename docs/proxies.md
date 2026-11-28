@@ -231,6 +231,9 @@ pasywnego raportu lub początku aktywnego odczytu Anthropic. W starszych odczyta
 przy braku daty pasywnego raportu pole pozostaje puste.
 Do alertów Codexa wymagamy konta OAuth z emailem i `id_token.chatgpt_account_id`
 z listy kont. Gateway tworzy taki sam skrót konta jak dla bezpośredniego logowania.
+Odczyt do alertu musi zawierać bezwzględne `reset-at`. Wyliczenie z
+`reset-after-seconds` służy do wyświetlania terminu, ponieważ może przesunąć
+identyfikator tego samego odnowienia względem bezpośredniego odczytu.
 Zmiana limitu pojawia się dopiero, gdy CLIProxyAPI otrzyma i udostępni datowaną
 odpowiedź upstream z wartościami dla tego okna. Grok przez CLIProxyAPI oraz
 pozostałe rodzaje proxy nie zapewniają odczytu spełniającego te warunki.
