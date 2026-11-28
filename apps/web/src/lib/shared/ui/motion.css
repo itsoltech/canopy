@@ -542,14 +542,18 @@
 .t-composer-slot .t-composer-fold > * {
   min-width: 0;
   overflow: visible;
-  translate: 0 var(--distance-base);
-  transition:
-    opacity var(--duration-medium) var(--ease-smooth-out),
-    translate var(--duration-medium) var(--ease-smooth-out);
 }
-.t-composer-slot .t-composer-fold[data-open] > * {
-  translate: 0 0;
-  transition-duration: var(--duration-slow);
+/* Clip the moving rows, leaving room for popovers and focus rings once open. */
+[data-composer-moving] .t-composer-fold,
+.t-composer-slot .t-composer-fold:not([data-open]) {
+  overflow: clip;
+}
+.t-composer-tools {
+  align-content: end;
+}
+.t-composer-tools > * {
+  display: grid;
+  align-content: end;
 }
 .t-composer-slot [aria-label="Quotes"] {
   max-height: min(--spacing(48), 20dvh);
@@ -560,23 +564,25 @@
   max-height: min(--spacing(72), 25dvh);
 }
 .t-composer-hint {
+  display: grid;
+  grid-template-rows: 1fr;
   opacity: 1;
-  translate: 0 0;
   transition:
-    opacity var(--duration-slow) var(--ease-smooth-out),
-    translate var(--duration-slow) var(--ease-smooth-out);
+    grid-template-rows var(--duration-slow) var(--ease-smooth-out),
+    opacity var(--duration-slow) var(--ease-smooth-out);
 }
-.t-composer-placeholder[data-single-line] {
-  height: --spacing(6);
+.t-composer-hint > * {
+  min-height: 0;
+  overflow: clip;
 }
 .t-composer-placeholder[data-single-line] .t-composer-hint {
+  grid-template-rows: 0fr;
   opacity: 0;
-  translate: 0 var(--distance-base);
   transition-duration: var(--duration-medium);
 }
 .t-composer-editor {
   padding: --spacing(3.5) --spacing(4) 0;
-  transition: padding-block var(--duration-slow) var(--ease-smooth-out);
+  transition: padding var(--duration-slow) var(--ease-smooth-out);
 }
 [data-compact] > .t-composer-editor {
   padding-right: calc(var(--composer-send-width) + --spacing(6));
@@ -609,6 +615,9 @@
   text-overflow: ellipsis;
   white-space: pre;
   transition-duration: var(--duration-medium);
+}
+[data-composer-moving] .t-composer-input[data-single-line] {
+  white-space: pre-wrap;
 }
 .t-composer-fold {
   display: grid;

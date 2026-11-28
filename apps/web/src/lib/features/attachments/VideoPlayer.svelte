@@ -38,7 +38,7 @@
   let time = $state(0);
   let mediaDuration = $state(0);
   let buffered = $state<{ start: number; end: number }[]>([]);
-  let muted = $state(false);
+  let muted = $derived(placement === "lightbox");
   let volume = $state(1);
   let waiting = $state(false);
   let awake = $state(true);
@@ -159,17 +159,14 @@
   }
 
   function setVolume(value: number) {
-    if (!video) return;
-    video.volume = value;
-    video.muted = value === 0;
+    volume = value;
+    muted = value === 0;
     wake();
   }
 
   function toggleMute() {
-    if (!video) return;
-
-    if (video.volume === 0) setVolume(0.5);
-    else video.muted = !video.muted;
+    if (volume === 0) setVolume(0.5);
+    else muted = !muted;
 
     wake();
   }
@@ -261,11 +258,12 @@
       bind:currentTime={time}
       bind:duration={mediaDuration}
       bind:buffered
+      bind:muted
+      bind:volume
       src={placement !== "chat" || hasBeenVisible ? src : undefined}
       {poster}
       playsinline
       preload="metadata"
-      muted={lightbox}
       onplay={wake}
       onwaiting={() => (waiting = true)}
       oncanplay={() => (waiting = false)}
@@ -273,17 +271,7 @@
         waiting = false;
         failed = false;
       }}
-      onvolumechange={() => {
-        if (!video) return;
-        muted = video.muted;
-        volume = video.volume;
-      }}
-      onloadedmetadata={() => {
-        if (!video) return;
-        muted = video.muted;
-        volume = video.volume;
-        failed = false;
-      }}
+      onloadedmetadata={() => (failed = false)}
       onerror={() => (failed = true)}
     ></video>
 

@@ -2,8 +2,8 @@
   import type { ClassValue } from "svelte/elements";
   import type { DesktopUpdatesState } from "#lib/features/desktop/desktop-updates.svelte.ts";
   import Button from "#lib/shared/ui/Button.svelte";
+  import { tooltip } from "#lib/shared/ui/tooltip.ts";
   import { whatsNew } from "#lib/features/updates/whats-new.svelte.ts";
-  import { isRateLimitMessage } from "@canopy/domain/release/http";
   import { bulkUpdatesAvailable } from "@canopy/domain/release/update-plan";
   import type { UpdatesState } from "./updates.svelte.ts";
   import { updatesHeadline } from "./updates-headline.ts";
@@ -27,10 +27,6 @@
 
   const headline = $derived(updatesHeadline(updates, app, checking));
 
-  const error = $derived(
-    (updates.readable && (updates.error || (!updates.gatewayTransition && snapshot?.checkError))) || "",
-  );
-
   const stopped = $derived(
     snapshot?.run && ["failed", "blocked"].includes(snapshot.run.state) ? snapshot.run : undefined,
   );
@@ -41,16 +37,6 @@
       updates.run?.state !== "running" &&
       !(snapshot && bulkUpdatesAvailable(snapshot)),
   );
-
-  // Whether the footer has an action to show (UpdateActionButton shows only when one of these holds).
-  const footerAction = $derived(
-    restartInFooter ||
-      (!updates.gatewayTransition &&
-        ((!!stopped && updates.run?.state !== "running") ||
-          updates.run?.state === "running" ||
-          (!!updates.optimistic && !!updates.pending && updates.pending !== "check") ||
-          (!!snapshot && bulkUpdatesAvailable(snapshot)))),
-  );
 </script>
 
 <section class={["flex max-h-[min(70dvh,32rem)] min-h-0 flex-col", className]} aria-label="App updates">
@@ -59,10 +45,11 @@
       <h2 class="text-sm/5 font-semibold">App updates</h2>
       <p
         class={[
-          "break-anywhere text-xs/5 tabular-nums",
+          "truncate text-xs/5 tabular-nums",
           headline.tone === "rose" ? "text-rose-600 dark:text-rose-400" : headline.tone === "muted" && "text-muted",
         ]}
         role="status"
+        title={headline.text}
       >
         {headline.text}
       </p>
@@ -75,50 +62,45 @@
       />{/if}
   </header>
   <div class="min-h-0 scroll-py-1 scroll-stable overflow-y-auto overscroll-contain px-3">
-    {#if error}
-      <p
-        class={[
-          "break-anywhere py-2 text-xs/5",
-          isRateLimitMessage(error) ? "text-muted" : "text-rose-600 dark:text-rose-400",
-        ]}
-        role="status"
-      >
-        {error}
-      </p>
-    {/if}
     <UpdateRows {updates} {app} compact {restartInFooter} />
   </div>
-  {#if whatsNew.notice || footerAction}<footer
-      class="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-divider px-3 py-1 text-xs/5 text-muted"
-    >
+  <footer class="flex min-h-11 shrink-0 items-center gap-3 border-t border-divider px-3 py-1 text-xs/4 text-muted">
+    <div class="flex min-w-0 flex-wrap items-center gap-x-3">
+      <a
+        class="rounded whitespace-nowrap focus-ring hover:text-ink"
+        href="/settings/app-updates#topic-status"
+        onclick={onclose}>View details</a
+      >
       {#if whatsNew.notice}
         <button
           type="button"
-          class="rounded focus-ring hover:text-ink desktop:cursor-pointer"
+          class="rounded whitespace-nowrap focus-ring hover:text-ink desktop:cursor-pointer"
           onclick={() => {
             onclose?.();
             whatsNew.show();
           }}>What's new</button
         >
       {/if}
-      <div class="ml-auto">
-        {#if stopped && updates.run?.state !== "running"}
-          <UpdateActionButton
-            {updates}
-            variant="primary"
-            request={{ action: "retry_failed", desktopRequestId: stopped.id }}
-          />
-        {:else if restartInFooter}
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={!!app.status?.changingChannel || (updates.writable && updates.active)}
-            loading={app.restarting}
-            onclick={() => void app.run()}>Restart to update</Button
-          >
-        {:else}
-          <UpdateActionButton {updates} variant="primary" />
-        {/if}
-      </div>
-    </footer>{/if}
+    </div>
+    <div class="ml-auto shrink-0">
+      {#if stopped && updates.run?.state !== "running"}
+        <UpdateActionButton
+          {updates}
+          variant="primary"
+          request={{ action: "retry_failed", desktopRequestId: stopped.id }}
+        />
+      {:else if restartInFooter}
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!!app.status?.changingChannel || (updates.writable && updates.active)}
+          loading={app.restarting}
+          {@attach tooltip("Restarting stops the agents running on this computer.")}
+          onclick={() => void app.run()}>Restart to update</Button
+        >
+      {:else}
+        <UpdateActionButton {updates} variant="primary" />
+      {/if}
+    </div>
+  </footer>
 </section>

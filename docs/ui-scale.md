@@ -9,8 +9,8 @@ Karta zużycia kontekstu composera używa skali nakładek (15 / 13). Zakotwiczon
 Przycisk Continue używa skali Steer/Queue i zachowuje etykietę na telefonie.
 Aktualizacja (2026-11-24): pickery fontów wczytują zainstalowane rodziny przy otwarciu, jeśli klient ma do nich dostęp.
 Aktualizacja (2026-11-25): tekst w wyszukiwarce sidebara zaczyna się w tym samym miejscu w Threads i Bots.
-Aktualizacja (2026-11-26): composer w web/desktop ustawia czasy przejść raz na
-odcinek ruchu sterowany przewijaniem.
+Aktualizacja (2026-11-28): podczas przewijania w web/desktop pasek narzędzi pozostaje
+wyrównany do przycisku wysyłania, a szybka zmiana kierunku odwraca trwające zwijanie.
 Aktualizacja (2026-11-26): listy sidebara web/desktop mają mniejszy odstęp po prawej
 i zachowują szerokość po pojawieniu się paska przewijania.
 Aktualizacja (2026-11-28): zakładki tematów ustawień mają na desktopie 28 px zamiast 32 px.
@@ -229,8 +229,10 @@ natywne działanie przeglądarki na zaznaczalnych obszarach.
   liniowo, krok po kroku; zwinięty zostaje zwinięty, a w ostatnich 192 px przed końcem
   rozwija się w takt powrotu. Przejścia CSS composera są wstrzymywane raz przy
   rozpoczęciu ruchu sterowanego przewijaniem. Kolejne klatki ustawiają tylko
-  pozycję w tych przejściach (bez układu wierszy). Po zatrzymaniu (240 ms)
-  kończy się bliższy stan; fokus i pisanie rozwijają composer we własnym tempie.
+  wspólny postęp na podstawie przewinięcia. Małe ruchy od razu przesuwają pole,
+  a przy dużym skoku pełne przejście zajmuje co najmniej `duration.quick`.
+  Po zatrzymaniu (240 ms) composer domyka się do bliższego stanu. Jeśli zwinął się
+  w ostatnich 192 px, rozwijanie zaczyna się od miejsca zatrzymania. Fokus i pisanie rozwijają pole.
   Przy `prefers-reduced-motion` stan przełącza się tylko na krańcach, bez animacji. Fade nad stopką tylko imituje cień composera:
   przechodzi od przezroczystości dokładnie do tła wątku (token `surface`, ten sam co
   obszar wątku), bez widocznej krawędzi pasa. Ma 12,5% wysokości stopki (minimum

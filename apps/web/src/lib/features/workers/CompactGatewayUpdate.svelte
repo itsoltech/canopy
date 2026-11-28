@@ -14,7 +14,12 @@
     updateTargetKey,
   } from "@canopy/domain/release/update-status";
 
-  let { updates, class: className }: { updates: UpdatesState; class?: ClassValue } = $props();
+  let {
+    updates,
+    compact = false,
+    class: className,
+  }: { updates: UpdatesState; compact?: boolean; class?: ClassValue } = $props();
+
   const snapshot = $derived(updates.snapshot);
   const current = $derived(!!snapshot && gatewayCurrent(snapshot));
   const external = $derived(snapshot?.gatewayInstallKind !== "binary");
@@ -55,6 +60,7 @@
 {#if snapshot}
   <UpdateItem
     name="Gateway"
+    {compact}
     icon="server"
     current={snapshot.gatewayVersion}
     target={updates.gatewayTransition ? "" : gatewayRowTarget(snapshot)}
