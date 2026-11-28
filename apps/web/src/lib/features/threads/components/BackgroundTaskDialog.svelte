@@ -57,6 +57,7 @@
       {#if task.stopReason}<p>{task.stopReason}</p>{/if}
     {/snippet}
     <Terminal
+      {embedded}
       {title}
       cwd={command?.cwd || cwd}
       command={text}
