@@ -1,5 +1,5 @@
 <script lang="ts">
-  import UsageNumber from "./UsageNumber.svelte";
+  import AnimatedNumber from "#lib/shared/ui/AnimatedNumber.svelte";
   import {
     count,
     effectiveCost,
@@ -30,7 +30,7 @@
         title={view === "tokens" ? count(totalTokens(totals)) : undefined}
       >
         {#key view}
-          <UsageNumber
+          <AnimatedNumber
             value={view === "cost" ? effectiveCost(totals) : shortCount(totalTokens(totals))}
             amount={view === "cost" ? totals.effectiveCost : totalTokens(totals)}
           />
@@ -40,7 +40,10 @@
     {#if view === "cost"}
       {#if hasPartialCost(totals)}
         <p class="text-sm/5 text-zinc-500 tabular-nums dark:text-zinc-400">
-          <UsageNumber value={count(totals.unknownEffectiveCostReports)} amount={totals.unknownEffectiveCostReports} />
+          <AnimatedNumber
+            value={count(totals.unknownEffectiveCostReports)}
+            amount={totals.unknownEffectiveCostReports}
+          />
           {totals.unknownEffectiveCostReports === 1n ? "report" : "reports"} without cost data
         </p>
       {/if}
@@ -56,7 +59,7 @@
       <div class="min-w-0 rounded-xl border border-divider p-3">
         <dt class="text-sm/5 text-zinc-500 dark:text-zinc-400">{counter.label}</dt>
         <dd class="mt-1 text-base/6 font-medium wrap-anywhere tabular-nums select-text" title={count(counter.value)}>
-          <UsageNumber value={shortCount(counter.value)} amount={counter.value} />
+          <AnimatedNumber value={shortCount(counter.value)} amount={counter.value} />
         </dd>
       </div>
     {/each}

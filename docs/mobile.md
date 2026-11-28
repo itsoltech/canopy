@@ -1,5 +1,8 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Wskaźnik kontekstu w kompozytorze ma nowy tryb **Percentage**.
+W trybach **Text** i **Percentage** zmieniające się cyfry pojawiają się z animacją.
+
 Status (2026-11-28). Sekcja **Archived** pozostaje przy dolnej krawędzi listy wątków,
 nad stopką, również podczas chowania i odsłaniania nazwy Canopy. Po rozwinięciu
 wiersze archiwum przewijają się pod jego nagłówkiem.
@@ -309,9 +312,13 @@ lub nadpisać tę regułę. **Notify agent about pull requests** jest domyślnie
 w **Settings → Threads**. W szczegółach projektu **Use my default** dziedziczy wartość
 konta, a **On** i **Off** ją nadpisują.
 
-W **Appearance** wybór **Context display** decyduje,
-czy przy kompozytorze pokazać pierścień, wartości tokenów albo pasek. Dotknięcie
-wskaźnika pokazuje dokładny pomiar zgłoszony przez dostawcę.
+W **Settings → Appearance → Interface** opcja **Context display** określa sposób
+wyświetlania ostatniego pomiaru dostawcy przy kompozytorze. Domyślnie jest wyłączona.
+**Circle** pokazuje pierścień, **Text** liczbę użytych tokenów i limit w skróconym
+zapisie, **Bar** pasek z procentem, a **Percentage** sam procent użycia zaokrąglony
+w dół. Dotknięcie wskaźnika otwiera arkusz z tym samym procentem i dokładną liczbą
+tokenów. Do pierwszego pomiaru kompozytor rezerwuje miejsce na wybrany wskaźnik.
+W **Text** i **Percentage** cyfry zmieniają się od razu przy systemowym ograniczeniu ruchu.
 
 Settings → Threads → Archiving → Archived threads zawiera przełącznik automatycznego
 usuwania i dowolną liczbę dni (1–36500); domyślnie jest wyłączony. Edycja tworzy

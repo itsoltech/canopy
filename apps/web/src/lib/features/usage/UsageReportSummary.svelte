@@ -2,7 +2,7 @@
   import { getAbortSignal } from "svelte";
   import Button from "#lib/shared/ui/Button.svelte";
   import Skeleton from "#lib/shared/ui/Skeleton.svelte";
-  import UsageNumber from "./UsageNumber.svelte";
+  import AnimatedNumber from "#lib/shared/ui/AnimatedNumber.svelte";
   import { loadUsage, subscribeUsageRefresh } from "./api.ts";
   import { count, effectiveCost, hasPartialCost, shortCount, totalTokens, type UsageData } from "./format.ts";
 
@@ -43,7 +43,7 @@
     <dt class="text-sm/5 text-muted sm:text-xs/5">{label}</dt>
     <dd class="grid min-h-6 content-center leading-6 font-semibold wrap-anywhere tabular-nums select-text" {title}>
       {#if amount !== undefined && value !== undefined}
-        <UsageNumber {value} {amount} />
+        <AnimatedNumber {value} {amount} />
       {:else}
         <Skeleton class="h-3 w-12 max-w-full" />
       {/if}

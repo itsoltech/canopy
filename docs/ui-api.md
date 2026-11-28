@@ -1,5 +1,7 @@
 # API dla UI i architektura frontendu
 
+Status (2026-11-28). Wskaźnik kontekstu web/desktop ma tryb Percentage. Text i Percentage animują zmiany cyfr.
+
 Status (2026-11-28). Web i desktop wybierają sposób rozwiązania konfliktu skilla w bibliotece. [Środowisko agentów](#agent-environment)
 
 Status (2026-11-28). W kompozytorze web i desktopu kliknięcie cytatu od razu zastępuje podgląd edytorem.
@@ -205,7 +207,7 @@ Lokalne zmiany przy przełączaniu wymagają potwierdzenia stash & pop, także w
 Web/desktop zapisuje wybór uprawnień Codexa w ustawieniach wątku również podczas pracy.
 Zmiana uprawnień bieżącej tury Claude działa bez restartu,
 a picker i dialog uprawnień ukrywają Full auto dla Claude na workerze Windows;
-opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar w Appearance,
+opcjonalny wskaźnik kontekstu composera ma tryby Off / Circle / Text / Bar / Percentage w Appearance,
 zachowuje ostatni pełny pomiar podczas wznowionej tury Claude, a pickery modelu i wysiłku
 dopasowują się do dostępnej szerokości;
 lokalne preferencje sidebara zachowują zakres po restarcie gatewaya desktopu na innym porcie;
@@ -413,7 +415,10 @@ Opis przekazywania możliwości harnessom: [worker-config.md](worker-config.md).
 
 Appearance → Interface → Context display steruje wszystkimi composerami istniejących
 wątków web/desktop na urządzeniu. Domyślne Off ukrywa wskaźnik; Circle pokazuje
-pierścień zajętości, Text liczbę użytych tokenów i limit, Bar pasek z procentem.
+pierścień zajętości, Text liczbę użytych tokenów i limit, a Bar pasek z procentem.
+Percentage pokazuje sam procent zaokrąglony w dół, zgodnie z kartą szczegółów.
+W trybach Text i Percentage zmienione cyfry pojawiają się z animacją number pop-in.
+Przy ograniczonym ruchu wartość zmienia się od razu. Przycisk obejmuje cały tekst z bocznymi odstępami.
 Preferencja używa istniejącego magazynu urządzenia, reaguje na zmiany w innych kartach
 i ma reset pola oraz strony Appearance. Wyszukiwarka ustawień znajduje ją przez
 `context`, `window` i `tokens`.

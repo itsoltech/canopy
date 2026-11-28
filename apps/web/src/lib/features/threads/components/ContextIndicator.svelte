@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ContextUsage } from "@canopy/contracts";
   import type { ClassValue } from "svelte/elements";
+  import AnimatedNumber from "#lib/shared/ui/AnimatedNumber.svelte";
   import HoverCard from "#lib/shared/ui/HoverCard.svelte";
   import TouchTarget from "#lib/shared/ui/TouchTarget.svelte";
 
@@ -36,7 +37,10 @@
   <div
     class={[
       "flex shrink-0 items-center justify-center",
-      mode === "text" ? "w-22 @max-[24rem]/composer:w-16" : mode === "bar" ? "w-20 @max-[24rem]/composer:w-16" : "w-8",
+      mode === "text" && "min-w-28 @max-[24rem]/composer:min-w-17",
+      mode === "percentage" && "min-w-12",
+      mode === "bar" && "w-20 @max-[24rem]/composer:w-16",
+      mode === "circle" && "w-8",
       className,
     ]}
     data-context-indicator={mode}
@@ -50,6 +54,7 @@
             aria-label={measurement.label}
             class={[
               "relative flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-xs/4 tabular-nums focus-ring hover:bg-zinc-950/5 dark:hover:bg-white/5",
+              (mode === "text" || mode === "percentage") && "px-2",
               measurement.percent >= 95
                 ? "text-rose-700 dark:text-rose-400"
                 : measurement.percent >= 80
@@ -62,9 +67,13 @@
                 aria-hidden="true"
                 class="flex gap-1 whitespace-nowrap @max-[24rem]/composer:flex-col @max-[24rem]/composer:gap-0 @max-[24rem]/composer:leading-3.5"
               >
-                <span>{compact.format(measurement.used)}</span>
-                <span>/ {compact.format(measurement.limit)}</span>
+                <AnimatedNumber value={compact.format(measurement.used)} updateAnimation="pop-in" />
+                <span>/ <AnimatedNumber value={compact.format(measurement.limit)} updateAnimation="pop-in" /></span>
               </span>
+            {:else if mode === "percentage"}
+              <span aria-hidden="true"
+                ><AnimatedNumber value={`${measurement.percent}%`} updateAnimation="pop-in" /></span
+              >
             {:else if mode === "bar"}
               <span
                 aria-hidden="true"

@@ -17,11 +17,15 @@ interface Reading {
   amount?: number | bigint;
 }
 
-interface Props extends Reading, Pick<TextProps, "selectable" | "numberOfLines" | "accessibilityLiveRegion"> {
+interface Props
+  extends
+    Reading,
+    Pick<TextProps, "selectable" | "numberOfLines" | "adjustsFontSizeToFit" | "accessibilityLiveRegion"> {
   prefix?: string;
   suffix?: string;
   style?: StyleProp<TextStyle>;
   animateOnMount?: boolean;
+  updateAnimation?: "subtle" | "pop-in";
 }
 
 const digit = /\p{Nd}/u;
@@ -29,7 +33,8 @@ const digit = /\p{Nd}/u;
 // Android Fabric reserves packed color 0 for inheritance. Transparent white keeps a real foreground span.
 const hidden = { color: "#ffffff00" };
 
-function transition(next: Reading, previous?: Reading) {
+function transition(next: Reading, previous?: Reading, updateAnimation?: Props["updateAnimation"]) {
+  const popIn = !previous || updateAnimation === "pop-in";
   const characters = Array.from(next.value);
   const lastDigit = characters.findLastIndex((character) => digit.test(character));
   const old = Array.from(previous?.value ?? "");
@@ -42,7 +47,7 @@ function transition(next: Reading, previous?: Reading) {
   const slots = characters.map((character, index) => {
     const before = sameShape ? old[index] : alignUnits ? old[old.length - characters.length + index] : undefined;
     const changed = digit.test(character) && character !== before;
-    const group = changed ? (previous ? 0 : Math.max(0, 2 + index - lastDigit)) : -1;
+    const group = changed ? (popIn ? Math.max(0, 2 + index - lastDigit) : 0) : -1;
 
     return { character, before, group };
   });
@@ -54,7 +59,7 @@ function transition(next: Reading, previous?: Reading) {
   return {
     slots,
     groups,
-    opening: !previous,
+    popIn,
     direction: previous?.amount !== undefined && next.amount !== undefined && next.amount < previous.amount ? -1 : 1,
   };
 }
@@ -69,7 +74,7 @@ function maskedValue(change: Transition, group: number, prefix: string, suffix: 
     <>
       {prefix && <Text style={literal}>{prefix}</Text>}
       {change.slots.map(({ character, before, group: slot }, index) => {
-        const visible = group === slot && (!outgoing || before !== undefined);
+        const visible = outgoing ? slot >= 0 && before !== undefined : group === slot;
 
         return (
           <Text key={index} style={visible ? undefined : hidden}>
@@ -82,7 +87,7 @@ function maskedValue(change: Transition, group: number, prefix: string, suffix: 
   );
 }
 
-interface LayerProps extends Pick<Props, "style" | "numberOfLines"> {
+interface LayerProps extends Pick<Props, "style" | "numberOfLines" | "adjustsFontSizeToFit"> {
   change: Transition;
   prefix: string;
   suffix: string;
@@ -95,21 +100,23 @@ function DigitLayer({
   suffix,
   elapsed,
   numberOfLines,
+  adjustsFontSizeToFit,
   group,
   outgoing = false,
 }: LayerProps & { elapsed: SharedValue<number>; group: number; outgoing?: boolean }) {
-  const { opening, direction } = change;
+  const popIn = change.popIn && !outgoing;
+  const { direction } = change;
   const em = StyleSheet.flatten(style)?.fontSize ?? 14;
 
   const animated = useAnimatedStyle(() => {
     const progress = Math.min(
       1,
-      Math.max(0, (elapsed.get() - group * motion.stagger) / (opening ? motion.verySlow : motion.slow)),
+      Math.max(0, (elapsed.get() - group * motion.stagger) / (popIn ? motion.verySlow : motion.slow)),
     );
 
     const eased = smoothOut(progress);
 
-    if (opening) {
+    if (popIn) {
       const split = 0.48;
 
       const offset =
@@ -127,7 +134,12 @@ function DigitLayer({
   });
 
   return (
-    <Animated.Text accessible={false} numberOfLines={numberOfLines} style={[styles.layer, style, animated]}>
+    <Animated.Text
+      accessible={false}
+      numberOfLines={numberOfLines}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      style={[styles.layer, style, animated]}
+    >
       {maskedValue(change, group, prefix, suffix, outgoing)}
     </Animated.Text>
   );
@@ -135,7 +147,7 @@ function DigitLayer({
 
 function DigitLayers({ change, onFinish, ...props }: LayerProps & { onFinish: () => void }) {
   const elapsed = useSharedValue(0);
-  const duration = change.opening ? motion.verySlow + Math.max(...change.groups) * motion.stagger : motion.slow;
+  const duration = change.popIn ? motion.verySlow + Math.max(...change.groups) * motion.stagger : motion.slow;
 
   useLayoutEffect(() => {
     elapsed.set(
@@ -155,7 +167,7 @@ function DigitLayers({ change, onFinish, ...props }: LayerProps & { onFinish: ()
       importantForAccessibility="no-hide-descendants"
       style={StyleSheet.absoluteFill}
     >
-      {!change.opening && change.slots.some(({ before, group }) => group >= 0 && before !== undefined) && (
+      {change.slots.some(({ before, group }) => group >= 0 && before !== undefined) && (
         <DigitLayer {...props} change={change} group={0} elapsed={elapsed} outgoing />
       )}
       {change.groups.map((group) => (
@@ -173,8 +185,10 @@ export function AnimatedNumber({
   style,
   selectable,
   numberOfLines,
+  adjustsFontSizeToFit,
   accessibilityLiveRegion,
   animateOnMount = true,
+  updateAnimation = "subtle",
 }: Props) {
   const reduced = useReducedMotion();
 
@@ -185,7 +199,11 @@ export function AnimatedNumber({
   }));
 
   if (value !== reading.value) {
-    setReading({ value, amount, change: reduced ? undefined : transition({ value, amount }, reading) });
+    setReading({
+      value,
+      amount,
+      change: reduced ? undefined : transition({ value, amount }, reading, updateAnimation),
+    });
   } else if (reduced && reading.change) {
     setReading({ value, amount, change: undefined });
   }
@@ -199,10 +217,11 @@ export function AnimatedNumber({
   const textStyle = [styles.number, style];
 
   return (
-    <View>
+    <View style={adjustsFontSizeToFit && styles.fit}>
       <Text
         selectable={selectable}
         numberOfLines={numberOfLines}
+        adjustsFontSizeToFit={adjustsFontSizeToFit}
         accessibilityLiveRegion={accessibilityLiveRegion}
         style={textStyle}
       >
@@ -213,6 +232,7 @@ export function AnimatedNumber({
           key={value}
           change={change}
           numberOfLines={numberOfLines}
+          adjustsFontSizeToFit={adjustsFontSizeToFit}
           style={textStyle}
           prefix={prefix}
           suffix={suffix}
@@ -224,6 +244,7 @@ export function AnimatedNumber({
 }
 
 const styles = StyleSheet.create({
+  fit: { maxWidth: "100%" },
   number: { fontVariant: ["tabular-nums"] },
   layer: { position: "absolute", top: 0, left: 0, right: 0 },
 });
