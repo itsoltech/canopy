@@ -29,6 +29,7 @@ export function Switch({
   const reduced = useReducedMotion();
   const width = size === "sm" ? 32 : 44;
   const height = size === "sm" ? 18 : 24;
+  const target = Math.max(48, touchTarget);
   const thumb = height - 4;
   const travel = width - height;
   const position = mixed ? 0.5 : value ? 1 : 0;
@@ -60,49 +61,49 @@ export function Switch({
       accessibilityState={{ checked: mixed ? "mixed" : value, disabled }}
       disabled={disabled}
       onPress={() => onChange(mixed || !value)}
-      hitSlop={
-        size === "sm"
-          ? {
-              top: (Math.max(48, touchTarget) - height) / 2,
-              bottom: (Math.max(48, touchTarget) - height) / 2,
-              left: (Math.max(48, touchTarget) - width) / 2,
-              right: (Math.max(48, touchTarget) - width) / 2,
-            }
-          : Math.max(10, (touchTarget - height) / 2)
-      }
+      hitSlop={size === "md" ? Math.max(10, (touchTarget - height) / 2) : undefined}
       style={{
-        width,
-        height,
-        // The ring and padding each take 1 dp on either side (web: p-0.5 inset-ring).
-        padding: 1,
-        borderRadius: height / 2,
-        backgroundColor: mixed ? `${c.brand}59` : value ? c.brand : c.track,
-        borderWidth: 1,
-        borderColor: c.dark ? "#ffffff1a" : "#18181b0d",
+        width: size === "sm" ? target : width,
+        height: size === "sm" ? target : height,
+        alignItems: "center",
         justifyContent: "center",
         opacity: disabled ? 0.5 : 1,
       }}
     >
-      <Animated.View
+      <View
         style={{
-          width: thumb,
-          height: thumb,
-          borderRadius: thumb / 2,
-          backgroundColor: value && !mixed ? c.onControl : "#ffffff",
-          justifyContent: "center",
-          alignItems: "center",
+          width,
+          height,
+          // The ring and padding each take 1 dp on either side (web: p-0.5 inset-ring).
+          padding: 1,
+          borderRadius: height / 2,
+          backgroundColor: mixed ? `${c.brand}59` : value ? c.brand : c.track,
           borderWidth: 1,
-          borderColor: "#18181b0d",
-          shadowColor: "#000000",
-          shadowOpacity: 0.08,
-          shadowRadius: 1,
-          shadowOffset: { width: 0, height: 1 },
-          elevation: 1,
-          transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }) }],
+          borderColor: c.dark ? "#ffffff1a" : "#18181b0d",
+          justifyContent: "center",
         }}
       >
-        {mixed && <View style={{ width: 6, height: 1, backgroundColor: c.faint }} />}
-      </Animated.View>
+        <Animated.View
+          style={{
+            width: thumb,
+            height: thumb,
+            borderRadius: thumb / 2,
+            backgroundColor: value && !mixed ? c.onControl : "#ffffff",
+            justifyContent: "center",
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: "#18181b0d",
+            shadowColor: "#000000",
+            shadowOpacity: 0.08,
+            shadowRadius: 1,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 1,
+            transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }) }],
+          }}
+        >
+          {mixed && <View style={{ width: 6, height: 1, backgroundColor: c.faint }} />}
+        </Animated.View>
+      </View>
     </Pressable>
   );
 }

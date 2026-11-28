@@ -24,6 +24,7 @@ export function WorkerCliRow({
 
   return (
     <SettingsRow
+      inlineControl="wrap"
       title={`${providerName(item.tool?.provider ?? 0)} · ${item.tool?.version || "Not installed"}`}
       description={[
         item.tool?.path,

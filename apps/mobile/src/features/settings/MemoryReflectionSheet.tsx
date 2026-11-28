@@ -9,9 +9,9 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { useOverview } from "../../state/overview";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { View } from "react-native";
-import { PickerSheet, SelectField } from "../../ui/Picker";
+import { PickerSheet } from "../../ui/Picker";
 import { Checkbox } from "../../ui/Checkbox";
-import { SettingChoice, SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
+import { SettingChoice, SettingSelectRow, SettingsGroup, SettingToggle } from "./SettingsGroup";
 import { MemoryReflectionModelFields } from "./MemoryReflectionModelFields";
 
 const intervals = [
@@ -216,43 +216,36 @@ function HabitProjects({
   const summary = all ? "All projects" : selected.length ? `${selected.length} selected` : "Choose projects";
 
   return (
-    <SettingsRow
+    <SettingSelectRow
       title="Projects"
       description={description}
-      control={
-        <>
-          <SelectField
-            hideLabel
-            label="Projects"
-            value={summary}
-            expanded={open}
-            disabled={busy || !options.length}
-            onPress={() => setOpen(true)}
-          />
-          <PickerSheet
-            title="Projects"
-            search="Find a project"
-            visible={open}
-            selected={selected}
-            sections={[{ options }]}
-            header={
-              !!projects.length && (
-                <View style={{ paddingHorizontal: 16 }}>
-                  <Checkbox
-                    label="All projects"
-                    checked={all}
-                    onChange={(checked) => onChange(checked ? projects.map((project) => project.id) : [])}
-                  />
-                </View>
-              )
-            }
-            onSelect={(id) =>
-              onChange(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
-            }
-            onClose={() => setOpen(false)}
-          />
-        </>
-      }
-    />
+      value={summary}
+      expanded={open}
+      disabled={busy || !options.length}
+      onPress={() => setOpen(true)}
+    >
+      <PickerSheet
+        title="Projects"
+        search="Find a project"
+        visible={open}
+        selected={selected}
+        sections={[{ options }]}
+        header={
+          !!projects.length && (
+            <View style={{ paddingHorizontal: 16 }}>
+              <Checkbox
+                label="All projects"
+                checked={all}
+                onChange={(checked) => onChange(checked ? projects.map((project) => project.id) : [])}
+              />
+            </View>
+          )
+        }
+        onSelect={(id) =>
+          onChange(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
+        }
+        onClose={() => setOpen(false)}
+      />
+    </SettingSelectRow>
   );
 }

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import type { Provider, ui } from "@canopy/contracts";
 import type { ReflectionModelChoice } from "@canopy/domain/reflection-models";
-import { SelectField } from "../../ui/Picker";
 import { ModelPickerSheet, EffortPickerSheet } from "../models/ModelPicker";
 import { providerName } from "../models/catalog";
 import { useEffortLabel } from "./display";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingSelectRow, SettingsGroup } from "./SettingsGroup";
 
 type PickerChoice = ReflectionModelChoice & { key: string; name: string };
 
@@ -67,36 +66,26 @@ export function MemoryReflectionModelFields({
   return (
     <>
       <SettingsGroup>
-        <SettingsRow
+        <SettingSelectRow
           title="Model"
           description={hint}
-          control={
-            <SelectField
-              label="Model"
-              hideLabel
-              value={selected?.label || draft.model || (draft.provider ? "Auto" : "Choose a model")}
-              disabled={busy || !choices.length}
-              onPress={() => setPicker("model")}
-            />
-          }
+          value={selected?.label || draft.model || (draft.provider ? "Auto" : "Choose a model")}
+          expanded={picker === "model"}
+          disabled={busy || !choices.length}
+          onPress={() => setPicker("model")}
         />
         {selected && (selected.efforts.length || draft.effort) ? (
-          <SettingsRow
+          <SettingSelectRow
             title="Reasoning effort"
             description={
               draft.effort && !selected.efforts.includes(draft.effort)
                 ? "Choose an available effort or use Auto."
                 : undefined
             }
-            control={
-              <SelectField
-                label="Reasoning effort"
-                hideLabel
-                value={draft.effort ? effortLabel(draft.effort) : "Auto"}
-                disabled={busy}
-                onPress={() => setPicker("effort")}
-              />
-            }
+            value={draft.effort ? effortLabel(draft.effort) : "Auto"}
+            expanded={picker === "effort"}
+            disabled={busy}
+            onPress={() => setPicker("effort")}
           />
         ) : null}
       </SettingsGroup>

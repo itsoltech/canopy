@@ -165,6 +165,7 @@ function ThisComputer({
       </SettingsGroup>
       <SettingsGroup title="Network access">
         <SettingsRow
+          inlineControl="wrap"
           title={data?.listenerEnabled ? "Remote access is on" : "Remote access is off"}
           description={data?.self?.addresses.join(" · ")}
           control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}

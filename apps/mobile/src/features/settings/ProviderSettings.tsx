@@ -14,7 +14,7 @@ import { InstanceDetail } from "../providers/InstanceDetail";
 import { InstanceRow } from "../providers/InstanceRow";
 import { ProviderProxyLimits } from "../providers/ProviderProxyLimits";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
-import { SettingChoice, SettingsGroup } from "./SettingsGroup";
+import { SettingChoice, SettingsActions, SettingsGroup } from "./SettingsGroup";
 import { ResourceState, useSettingsResource } from "./resource";
 
 import { createSettingsViewState } from "./SettingsScroll";
@@ -193,7 +193,7 @@ export function ProviderSettings() {
         title="Providers"
         description={refresh?.busy ? "Checking…" : refresh?.checked ? "Checked just now" : undefined}
         actions={
-          <>
+          <SettingsActions>
             <IconButton
               icon="arrow-path"
               label="Refresh providers"
@@ -207,7 +207,7 @@ export function ProviderSettings() {
               disabled={!!readOnly}
               onPress={() => setAdding(true)}
             />
-          </>
+          </SettingsActions>
         }
       >
         {instances.map((instance) => (

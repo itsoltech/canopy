@@ -4,12 +4,11 @@ import { Provider, ui } from "@canopy/contracts";
 import { useOverview } from "../../state/overview";
 import { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
-import { SettingsGroup, SettingsRow, SettingChoice } from "./SettingsGroup";
+import { SettingsGroup, SettingSelectRow, SettingChoice } from "./SettingsGroup";
 import { useSettingsResource } from "./resource";
 import { DefaultModels } from "./SettingsModels";
 import { PullRequestSettings } from "./PullRequestSettings";
 import { DefaultResets } from "./DefaultResets";
-import { SelectField } from "../../ui/Picker";
 import { availablePermission, PermissionPickerSheet, permissionLabel } from "../threads/permissions";
 import { useWorkerOptions } from "../computers/worker-options";
 
@@ -86,22 +85,17 @@ export function ProjectDefaults({ project, resource }: { project: ui.Project; re
           {value.useLastAgent !== true && !!value.provider && (
             <DefaultModels disabled={resource.busy} value={value} onChange={save} />
           )}
-          <SettingsRow
+          <SettingSelectRow
             title="Permissions"
             description="New threads of this project use this approval policy."
-            control={
-              <SelectField
-                label="Permissions"
-                hideLabel
-                disabled={resource.busy}
-                value={
-                  value.permissionMode
-                    ? permissionLabel(value.permissionMode)
-                    : `Use my default (${permissionLabel(settings.user?.threadDefaults?.permissionMode)})`
-                }
-                onPress={() => setPermission(true)}
-              />
+            disabled={resource.busy}
+            value={
+              value.permissionMode
+                ? permissionLabel(value.permissionMode)
+                : `Use my default (${permissionLabel(settings.user?.threadDefaults?.permissionMode)})`
             }
+            expanded={permission}
+            onPress={() => setPermission(true)}
           />
           <PermissionPickerSheet
             provider={value.useLastAgent ? undefined : value.provider}

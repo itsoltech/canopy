@@ -1,11 +1,10 @@
-import { Text, View } from "react-native";
+import { Text } from "react-native";
 import { create } from "@bufbuild/protobuf";
 import { ui } from "@canopy/contracts";
 import { useAppearance } from "../../state/appearance";
-import { Switch } from "../../ui/Switch";
 import { useColors, useTypography } from "../../ui/theme";
 import { ResetSetting } from "./ResetSetting";
-import { SettingsRow } from "./SettingsGroup";
+import { SettingToggle } from "./SettingsGroup";
 
 /**
  * The connected computer's opt-in: its gateway starts Update all once its owner's work is quiet (docs/updates.md).
@@ -23,10 +22,12 @@ export function AutoUpdateSetting({ computerName }: { computerName: string }) {
     void settings.update({ appUpdates: create(ui.AppUpdateSettingsSchema, { autoUpdate }) });
 
   return (
-    <SettingsRow
+    <SettingToggle
       title="Automatic updates"
       description={`Canopy runs Update all on ${target} after no turn or background task has run for 5 minutes.`}
-      inlineControl
+      value={enabled}
+      disabled={disabled}
+      onChange={change}
       accessory={
         <ResetSetting
           label="Reset automatic updates to default"
@@ -35,13 +36,8 @@ export function AutoUpdateSetting({ computerName }: { computerName: string }) {
           onReset={() => change(false)}
         />
       }
-      control={
-        <View style={{ minHeight: 44, justifyContent: "center" }}>
-          <Switch label="Automatic updates" value={enabled} disabled={disabled} onChange={change} />
-        </View>
-      }
     >
       {enabled && <Text style={[type.meta, { color: c.muted }]}>Computers restart without asking first.</Text>}
-    </SettingsRow>
+    </SettingToggle>
   );
 }

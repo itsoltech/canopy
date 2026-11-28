@@ -2,9 +2,9 @@ import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { PermissionMode, ui } from "@canopy/contracts";
 import type { useAppearance } from "../../state/appearance";
-import { PickerSheet, SelectField } from "../../ui/Picker";
+import { PickerSheet } from "../../ui/Picker";
 import { permissionLabel, permissionLook, permissionModes, pickPermission } from "../threads/permissions";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingSelectRow, SettingsGroup } from "./SettingsGroup";
 import { ResetSetting } from "./ResetSetting";
 
 export function SubagentPermissionSettings({ settings }: { settings: ReturnType<typeof useAppearance> }) {
@@ -25,8 +25,9 @@ export function SubagentPermissionSettings({ settings }: { settings: ReturnType<
         title="Subagents"
         description="New subagents keep their mode when the parent’s permissions change."
       >
-        <SettingsRow
+        <SettingSelectRow
           title="Permissions"
+          label="Subagent permissions"
           description="A fixed mode can limit access, up to the parent’s current permissions."
           accessory={
             <ResetSetting
@@ -36,15 +37,10 @@ export function SubagentPermissionSettings({ settings }: { settings: ReturnType<
               onReset={() => save(PermissionMode.UNSPECIFIED)}
             />
           }
-          control={
-            <SelectField
-              label="Subagent permissions"
-              hideLabel
-              value={value === PermissionMode.UNSPECIFIED ? "Same as parent" : permissionLabel(value)}
-              onPress={() => setOpen(true)}
-              disabled={disabled}
-            />
-          }
+          value={value === PermissionMode.UNSPECIFIED ? "Same as parent" : permissionLabel(value)}
+          expanded={open}
+          onPress={() => setOpen(true)}
+          disabled={disabled}
         />
       </SettingsGroup>
       <PickerSheet

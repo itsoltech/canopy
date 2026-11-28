@@ -2,13 +2,13 @@ import { useState } from "react";
 import { create } from "@bufbuild/protobuf";
 import { Provider, ui } from "@canopy/contracts";
 import type { useAppearance } from "../../state/appearance";
-import { PickerSheet, SelectField } from "../../ui/Picker";
+import { PickerSheet } from "../../ui/Picker";
 import { ProviderIcon } from "../../ui/ProviderIcon";
 import { providerName } from "../models/catalog";
 import { availablePermission, permissionLabel, permissionLook, PermissionPickerSheet } from "../threads/permissions";
 import { DefaultModels } from "./SettingsModels";
 import { DefaultResets } from "./DefaultResets";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingSelectRow, SettingsGroup } from "./SettingsGroup";
 import { useOverview } from "../../state/overview";
 import { useWorkerLabel } from "../computers/presence";
 import { useWorkerOptions } from "../computers/worker-options";
@@ -143,55 +143,36 @@ function NewThreadSettings({ settings }: { settings: Settings }) {
             />
           }
         >
-          <SettingsRow
+          <SettingSelectRow
             title="Project and worker"
             description="Where new threads start, unless you start them from a project."
-            control={
-              <SelectField
-                label="Project and worker"
-                hideLabel
-                value={workspace ? `${project?.name ?? "Project"} · ${workerName(workspace.workerId)}` : "Last used"}
-                onPress={() => setPicker("workspace")}
-                disabled={disabled}
-              />
-            }
+            value={workspace ? `${project?.name ?? "Project"} · ${workerName(workspace.workerId)}` : "Last used"}
+            expanded={picker === "workspace"}
+            onPress={() => setPicker("workspace")}
+            disabled={disabled}
           />
-          <SettingsRow
+          <SettingSelectRow
             title="Agent"
             description="Use the last agent and model settings, or set a default."
-            control={
-              <SelectField
-                label="Agent"
-                hideLabel
-                value={
-                  useLastAgent ? "Last used" : defaults.provider ? providerName(defaults.provider) : "Any available"
-                }
-                leading={
-                  !useLastAgent && defaults.provider ? (
-                    <ProviderIcon provider={defaults.provider} size={16} />
-                  ) : undefined
-                }
-                onPress={() => setPicker("agent")}
-                disabled={disabled}
-              />
+            value={useLastAgent ? "Last used" : defaults.provider ? providerName(defaults.provider) : "Any available"}
+            leading={
+              !useLastAgent && defaults.provider ? <ProviderIcon provider={defaults.provider} size={16} /> : undefined
             }
+            expanded={picker === "agent"}
+            onPress={() => setPicker("agent")}
+            disabled={disabled}
           />
           {!useLastAgent && !!defaults.provider && (
             <DefaultModels disabled={disabled} value={defaults} onChange={save} />
           )}
-          <SettingsRow
+          <SettingSelectRow
             title="Permissions"
             description="New threads use this approval policy unless the project overrides it."
-            control={
-              <SelectField
-                label="Permissions"
-                hideLabel
-                value={permissionLabel(defaults.permissionMode)}
-                tone={look.tone}
-                onPress={() => setPicker("permission")}
-                disabled={disabled}
-              />
-            }
+            value={permissionLabel(defaults.permissionMode)}
+            tone={look.tone}
+            expanded={picker === "permission"}
+            onPress={() => setPicker("permission")}
+            disabled={disabled}
           />
         </SettingsGroup>
       </DefaultResets>

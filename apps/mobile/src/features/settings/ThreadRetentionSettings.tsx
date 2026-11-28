@@ -5,9 +5,8 @@ import { ui } from "@canopy/contracts";
 import type { useAppearance } from "../../state/appearance";
 import { Button } from "../../ui/components";
 import { TextInput } from "../../ui/TextInput";
-import { Switch } from "../../ui/Switch";
 import { styles, useColors, useTypography } from "../../ui/theme";
-import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
 import { ResetSetting } from "./ResetSetting";
 
 export function ThreadRetentionSettings({ settings }: { settings: ReturnType<typeof useAppearance> }) {
@@ -43,10 +42,12 @@ export function ThreadRetentionSettings({ settings }: { settings: ReturnType<typ
       title="Archived threads"
       description="Permanently deletes threads and their history after this many days in the archive."
     >
-      <SettingsRow
+      <SettingToggle
         title="Auto-delete archived threads"
         description="Applies to existing archived threads."
-        inlineControl
+        value={value.enabled}
+        disabled={disabled}
+        onChange={(enabled) => setDraft({ enabled, days: validDays ? value.days : "14" })}
         accessory={
           <ResetSetting
             label="Reset auto-delete archived threads to default"
@@ -54,16 +55,6 @@ export function ThreadRetentionSettings({ settings }: { settings: ReturnType<typ
             disabled={disabled}
             onReset={() => setDraft({ enabled: false, days: "14" })}
           />
-        }
-        control={
-          <View style={{ minHeight: 44, justifyContent: "center" }}>
-            <Switch
-              label="Auto-delete archived threads"
-              value={value.enabled}
-              disabled={disabled}
-              onChange={(enabled) => setDraft({ enabled, days: validDays ? value.days : "14" })}
-            />
-          </View>
         }
       />
       <SettingsRow

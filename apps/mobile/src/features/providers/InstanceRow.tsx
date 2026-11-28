@@ -103,6 +103,7 @@ export function InstanceRow({
         </View>
       </Pressable>
       <Switch
+        size="sm"
         label={`${name} on ${worker?.name ?? "all workers"}`}
         value={enabled}
         disabled={busy || disabled}
