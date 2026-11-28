@@ -1,5 +1,7 @@
 # Boty
 
+Status (2026-11-28): wątek założony przez bota może dołączyć wybrane pliki z workspace’u do wiadomości dla tego bota. Bot może udostępnić załącznik w bieżącej rozmowie. Szczegóły w sekcji [Połączenie z wątkami](#połączenie-z-wątkami). Dostępność w kanałach określa [promocja wydań](release.md).
+
 Status (2026-11-28): właściciel może przydzielić botowi dostęp do konkretnego repozytorium GitHub. Odczyt i opcjonalny zapis korzystają z konta GitHub w domu bota oraz z jego polityki zatwierdzeń. [Dostęp do repozytorium](github.md#dostęp-projektu-i-bota-do-repozytorium)
 
 Status (2026-11-28): bot może uczyć się procedur w prywatnej rozmowie, poprawiać je po uwagach właściciela i stosować w kolejnych zadaniach. Opis działania znajduje się w sekcji [Umiejętności bota](#umiejętności-bota). Dostępność w kanałach określa [promocja wydań](release.md).
@@ -184,13 +186,30 @@ i przy stałej regule dla `send_message`. Odbiorcy z dostępem do historii wątk
 mogą zobaczyć wysłaną treść. Rozmowy zewnętrzne i automatyczne kontynuacje nadal
 korzystają z zakresu swojej delegacji.
 
-W wątku uruchomionym przez bota agent może wywołać `message_delegating_bot({text})`,
+W wątku uruchomionym przez bota agent może wywołać `message_delegating_bot({text, attachment_paths?})`,
 gdy potrzebuje przekazać pytanie, ustalenie lub wynik. Gateway ustala odbiorcę
 na podstawie zapisanej relacji z botem, który założył wątek. Jeśli bieżąca tura
 ma jednoznaczne źródło delegowania od tego bota, wiadomość trafia do źródłowej
 rozmowy lub rutyny. Przy zgłoszeniu ze Slacka odpowiedź do uczestników przekazuje bot
 zgodnie z ustawieniami Messages. Wiadomość z późniejszej tury bez własnego źródła
 delegowania trafia do prywatnego czatu bota.
+
+Opcjonalne `attachment_paths` wskazuje konkretne zwykłe pliki w przypiętym
+workspace’ie wątku. Gateway sprawdza aktualną turę, właściciela, bota, moduły,
+ustawienie **Files** i źródło rozmowy przed eksportem oraz przed zapisem. Odmawia
+przy mieszanych źródłach. Pliki przechodzą wspólną walidację i limity załączników
+oraz limit eksportu workera 20 MiB na plik. Cała wiadomość z plikami jest
+zatwierdzana atomowo. Kolejkuje nową turę bota, która może odczytać załączniki
+przez ten sam potok co przy wiadomości użytkownika. W prywatnym czacie załączniki
+pojawiają się przy wiadomości wątku. W turze komunikatora pozostają w jej
+rozmowie i wymagają osobnego `send_attachment`, by trafić do zewnętrznej
+odpowiedzi.
+
+Wątek i bot mogą używać różnych workerów tego samego gatewaya. Wywołania do bota
+na połączonym komputerze i powroty do rutyny przyjmują tekst. Automatyczny raport
+końcowy nadal przesyła tekst. Galeria `show_images` i nagranie `show_video`
+publikują w wątku. Aby dostarczyć plik do bota, agent jawnie wskazuje go w osobnej
+wiadomości narzędziem `message_delegating_bot`.
 
 Zwykły wpis agenta w trakcie pracy pozostaje w historii wątku. Bot obserwujący
 turę dostaje jej wynik automatycznie. Przy pracy poza obserwowaną turą agent
@@ -729,20 +748,28 @@ HTTPS zachowuje oryginalny hostname dla SNI i walidacji certyfikatu. Brak takiej
 możliwości oznacza odmowę, nie fallback do zwykłego fetch. URL-i i treści
 błędów transportu nie zapisujemy w audycie ani nie ujawniamy jako diagnostyki hosta.
 
-`send_attachment(path, caption?)` przyjmuje wyłącznie zwykły plik należący do
-scratch bieżącej rozmowy. Worker odrzuca traversal, ścieżki absolutne spoza
+`send_attachment` przyjmuje `path` albo `attachment_id` oraz opcjonalny `caption`.
+`path` wskazuje zwykły plik należący do scratch bieżącej rozmowy. Worker
+odrzuca traversal, ścieżki absolutne spoza
 katalogu, dowiązania i pliki specjalne; kontrola oraz otwarcie muszą być odporne
-na podmianę ścieżki między sprawdzeniem a odczytem. Gateway autoryzuje
+na podmianę ścieżki między sprawdzeniem a odczytem. `attachment_id` wskazuje
+istniejący załącznik wiadomości z bieżącego zakresu rozmowy. Gateway zapisuje
+nową referencję do tych samych blobów po sprawdzeniu właściciela, bota i zakresu
+źródłowej wiadomości, razem z aktualnymi limitami. Izolowana prywatna tura ma
+dostęp do załączników swojej wiadomości. Gateway autoryzuje
 właściciela, bota, workera, aktywną turę, lease i aktualne Files przed uploadem
 oraz zatwierdzeniem wiadomości. Używa istniejącego storage blobów i załączników,
 bez ścieżki workera w publicznym API. Zapis wiadomości, powiązanie załącznika,
 audyt i wynik narzędzia są atomowe i deduplikowane po call id; reconnect nie
 wysyła drugiej kopii. Zwykła polityka zgód pozostaje egzekwowana w gatewayu.
 
-Załącznik pojawia się jako wiadomość bota w web, desktop i mobile: nazwa,
-rozmiar, ikona typu, pobranie i obsługiwany podgląd. W rozmowie Slack, Telegram
+Załącznik pojawia się jako wiadomość bota w web, desktop i mobile. Wspólny
+widok otwiera obsługiwane obrazy, odtwarza obsługiwane wideo i pokazuje ograniczony
+podgląd tekstu. Inne pliki są dostępne do pobrania. Odczyt z poziomu modelu
+zależy od typu i możliwości harnessu. W rozmowie Slack, Telegram
 lub Discord plik dołącza do odpowiedzi tury przez adapter komunikatora
-([Pliki w odpowiedziach](#pliki-w-odpowiedziach)). Sam grant konta MCP nie tworzy
+([Pliki w odpowiedziach](#pliki-w-odpowiedziach)), a jego podgląd zależy od
+komunikatora. Sam grant konta MCP nie tworzy
 kanału dostarczania.
 Brak obsługi plików daje jawną informację; plik nadal jest dostępny w rozmowie
 Canopy. Sekrety kanałów i connectorów pozostają w gatewayu, nigdy w scratch,

@@ -92,7 +92,7 @@ export async function busExecute(
       return spawnSideThread(hostContext[busState].host, source, caller, call.args, target, hops);
 
     case "message_delegating_bot":
-      return hostContext[busState].host.messageDelegatingBot(source, call.args.text);
+      return hostContext[busState].host.messageDelegatingBot(source, caller, call.args);
 
     case "send_message": {
       const sent = await store((s) => s.send({ source, caller, args: call.args, hops }));

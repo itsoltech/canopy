@@ -37,7 +37,7 @@ export class BotsState {
 }
 
 /** Registers beforeAll/afterAll for the enclosing describe and returns the state plus bot helpers. */
-export function botsSuite() {
+export function botsSuite(options: Pick<NonNullable<Parameters<typeof startTestGateway>[0]>, "worker"> = {}) {
   const suite = new BotsState();
   let fixture: ReturnType<typeof Bun.serve> | undefined;
   let closeRestartedLink = async () => {};
@@ -106,7 +106,7 @@ export function botsSuite() {
   };
 
   beforeAll(async () => {
-    suite.gw = await startTestGateway({ botModel: (input) => suite.model(input) });
+    suite.gw = await startTestGateway({ ...options, botModel: (input) => suite.model(input) });
     suite.current = suite.gw.core;
     suite.currentWorker = suite.gw.worker;
     suite.current.bots.start();

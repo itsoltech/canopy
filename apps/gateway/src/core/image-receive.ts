@@ -8,14 +8,14 @@ export async function receiveThreadImage(
   query: (operation: string, offset: bigint) => Promise<ThreadImageExport>,
   maxBytes: number,
   deadline: number,
-  media: "image" | "video",
+  media: "image" | "video" | "file",
 ) {
   try {
     const meta = await query("probe", 0n);
     const size = Number(meta.sizeBytes);
 
     if (!Number.isSafeInteger(size) || size <= 0 || size > maxBytes || meta.data.length !== 0)
-      throw new Invalid(`This ${media} exceeds the remaining ${media} limit. Choose a smaller ${media}.`);
+      throw new Invalid(`This ${media} exceeds the remaining size limit. Choose a smaller ${media}.`);
     const data = Buffer.alloc(size);
     let offset = 0;
     let digest = "";

@@ -6,8 +6,12 @@ import type { SqlClient } from "effect/sql";
 import type { PreparedAttachment } from "../attachments/prepare.ts";
 import { AttachmentStore, toUiAttachment } from "./attachments.ts";
 import { insertCall } from "./agent-bus-queries.ts";
-import { lockImageSource, type ImageLease, type ImagePublication } from "./image-publications.ts";
-import { Invalid } from "./store.ts";
+import {
+  commitThreadFileTransfer,
+  lockImageSource,
+  type ImageLease,
+  type ImagePublication,
+} from "./image-publications.ts";
 import { imageMessageItem, writeMediaItem, type ImageMessageSource } from "./image-message.ts";
 
 export type ThreadMediaRequest =
@@ -26,14 +30,7 @@ export function commitThreadMedia(
   return sql.withTransaction(
     Effect.gen(function* () {
       yield* lockImageSource(sql, input);
-
-      const held = yield* sql`SELECT call_id FROM thread_image_publications
-        WHERE call_id=${input.source.callId}::uuid AND lease_token=${lease.token}::uuid
-          AND state='reserved' AND expires_at>now() FOR UPDATE`;
-
-      if (!held.length || chargedBytes <= 0 || chargedBytes > lease.budget)
-        return yield* Effect.fail(new Invalid("The attachment transfer expired or exceeded its limit. Try again."));
-
+      yield* commitThreadFileTransfer(sql, input.source.callId, lease, chargedBytes);
       const attachments = yield* Effect.forEach(files, (file) => bindAttachment(sql, input, file));
 
       const item =
@@ -50,8 +47,6 @@ export function commitThreadMedia(
 
       const itemId = item.itemId;
       const { seq, event } = yield* writeMediaItem(sql, input.source, item);
-      yield* sql`UPDATE thread_image_publications SET state='committed',size_bytes=${chargedBytes}
-        WHERE call_id=${input.source.callId}::uuid AND lease_token=${lease.token}::uuid`;
 
       const result: JsonValue = {
         delivered: true,

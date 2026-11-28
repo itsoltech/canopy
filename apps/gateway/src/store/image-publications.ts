@@ -98,6 +98,19 @@ export function reserveImages(sql: SqlClient.SqlClient, input: ImagePublication)
   );
 }
 
+export function commitThreadFileTransfer(sql: SqlClient.SqlClient, callId: string, lease: ImageLease, bytes: number) {
+  return Effect.gen(function* () {
+    if (bytes <= 0 || bytes > lease.budget)
+      return yield* Effect.fail(new Invalid("The attachment transfer exceeded its limit. Send smaller files."));
+
+    const committed = yield* sql`UPDATE thread_image_publications SET state='committed',size_bytes=${bytes}
+      WHERE call_id=${callId}::uuid AND lease_token=${lease.token}::uuid AND state='reserved' AND expires_at>now()
+      RETURNING call_id`;
+
+    if (!committed.length) return yield* Effect.fail(new Invalid("The attachment transfer expired. Try again."));
+  });
+}
+
 export function releaseImages(sql: SqlClient.SqlClient, callId: string, token: string) {
   return sql`DELETE FROM thread_image_publications WHERE call_id=${callId}::uuid
     AND lease_token=${token}::uuid AND state='reserved'`.pipe(Effect.asVoid);

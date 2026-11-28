@@ -62,6 +62,11 @@ o zadaniach w tle. Lokalny gateway zachowuje oczekujące dostarczenia i wznawia
 ich obsługę po włączeniu Threads. Dostępność w kanałach według [release.md](release.md).
 [Zachowanie botów, oczekujące zgody i wyniki delegowania](bots.md#połączenie-z-wątkami).
 
+Aktualizacja (2026-11-28): `message_delegating_bot` w tej samej instancji
+gatewaya przyjmuje opcjonalne `attachment_paths` z workspace’u wątku i zapisuje
+je przy wiadomości dla bota. Udostępnienie wymaga jawnego wyboru plików.
+Dostępność w kanałach według [release.md](release.md).
+
 Status błędów tworzenia worktree (2026-11-21): zaimplementowane w kodzie;
 dostępność nightly/beta/stable wynika z promocji wydań.
 `spawn_thread` zwraca komunikaty dla rozpoznanych błędów Git i łącza workera.
@@ -211,7 +216,7 @@ Jedna definicja w Effect Schema (`AGENT_BUS_TOOLS`). Z niej powstaje JSON Schema
 | `spawn_thread` | ✓ | | subagent = nowy wątek boczny: `title`, `prompt`, `instructions?` (rola), `provider?`, `model?`, `effort?`, `fork?`, `notify?`, `interactions?` (`parent` domyślnie, `human`), `workspace_mode?` i `base_ref?`; zwraca od razu `thread_id`, `turn_id` i ustawienia dziecka (`provider`, `model`, `effort`, `permission_mode`) |
 | `start_thread` | ✓ | | samodzielny wątek z pierwszą turą w wybranym projekcie i na wybranym workerze. [Argumenty i raport](#uruchamianie-samodzielnych-wątków) |
 | `send_message` | ✓ | ✓ | wiadomość do wątku z drzewa albo dowolnego wątku właściciela: `delivery` `queue`/`steer`, `notify?` |
-| `message_delegating_bot` | tylko w wątku bota | tylko w wątku bota | wiadomość do bota, który uruchomił wątek. Automatyczny wynik wraca przy obserwowanej turze. |
+| `message_delegating_bot` | tylko w wątku bota | tylko w wątku bota | Wiadomość do bota, który uruchomił wątek, z opcjonalnymi `attachment_paths` w tej samej instancji gatewaya. Automatyczny wynik obserwowanej tury przesyła tekst. |
 | `wait_threads` | ✓ | ✓ | czekanie na wątki (`any`/`all`, ≤ 300 s, ponawialne); zwraca status i wynik ostatniej tury każdego, wcześniej także pytania lub skierowane do wywołującego wiadomości (`messages`) |
 | `get_thread` / `read_thread` / `list_threads` | ✓ | ✓ | status (z dostawcą, modelem, wysiłkiem, uprawnieniami, `last_turn`, projektem i workerem), transkrypt, lista (`children`, `tree`, `all` z `query` i `limit`) |
 | `interrupt_thread` / `close_thread` | ✓ | | sterowanie potomkami |

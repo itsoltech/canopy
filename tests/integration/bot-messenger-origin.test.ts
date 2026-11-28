@@ -1,21 +1,33 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { create } from "@bufbuild/protobuf";
-import { InteractionKind, Provider, ui } from "@canopy/contracts";
+import { createHash } from "node:crypto";
+import { create, isMessage } from "@bufbuild/protobuf";
+import { ExportThreadImageSchema, InteractionKind, Provider, ui } from "@canopy/contracts";
 import { dockerAvailable } from "@canopy/db/testing";
+import { botEntries } from "@canopy/domain/bot-chat";
+import { THREAD_IMAGE_REPLIES_CAPABILITY } from "@canopy/domain/release/protocol";
 import { Effect, Schema } from "effect";
 import { SqlClient } from "effect/sql";
+import sharp from "sharp";
 import { MessengerStore, type OutboundResult } from "../../apps/gateway/src/messengers/store.ts";
 import { conversationFiles } from "../../apps/gateway/src/core/bot-files.ts";
 import { botPlatform } from "../../apps/gateway/src/bots/platform.ts";
 import { coreState } from "../../apps/gateway/src/core/core-context.ts";
+import { botImageInput } from "../../apps/gateway/src/core/bot-images.ts";
+import { withSlackBotInput } from "../../apps/gateway/src/core/bot-slack-input.ts";
 import { areaTool } from "../../apps/gateway/src/bots/tools/index.ts";
 import type { BotTurn } from "../../apps/gateway/src/bots/types.ts";
 import { failAfterCommentary } from "./support/agent-report.ts";
 import { botsSuite } from "./support/bots.ts";
 import { eventually } from "./support/gateway.ts";
+import { mp4 } from "./support/video-fixtures.ts";
 
 describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
-  const { suite, add, read } = botsSuite();
+  const { suite, add, read } = botsSuite({
+    worker: {
+      hello: { capabilities: [THREAD_IMAGE_REPLIES_CAPABILITY, "bot_workspace_v1", "bot_files_v1", "bot_images_v1"] },
+    },
+  });
+
   const ids: string[] = [];
 
   const query = <A extends object>(text: string, values: string[] = []) =>
@@ -30,6 +42,7 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
   });
   afterEach(async () => {
     suite.currentWorker.holdTurns = false;
+    suite.currentWorker.handlers.delete("exportThreadImage");
 
     for (const id of ids.splice(0)) await suite.current.bots.remove(id);
   });
@@ -105,11 +118,13 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
       ),
     );
 
-    const active = await read(turn.bot_id);
-    expect(active.statusLine).toContain("Starting a thread");
-    expect(active.statusLine).toContain("Slack");
-    expect(active.statusLine).not.toContain("PRIVATE_EXTERNAL_ARGUMENT");
-    expect(active.working).toBe(false);
+    if (turn.conversation_id) {
+      const active = await read(turn.bot_id);
+      expect(active.statusLine).toContain("Starting a thread");
+      expect(active.statusLine).toContain("Slack");
+      expect(active.working).toBe(false);
+      expect(active.statusLine).not.toContain("PRIVATE_EXTERNAL_ARGUMENT");
+    }
 
     const started = await suite.current.startBotThread(
       turn,
@@ -143,6 +158,166 @@ describe.skipIf(!dockerAvailable)("messenger work callback origin", () => {
     suite.currentWorker.finish(threadId, turnId, "Login repair is ready");
     await expectStatus(turnId, "completed");
   }
+
+  function exportFiles(files: ReadonlyMap<string, Uint8Array>) {
+    suite.currentWorker.handlers.set("exportThreadImage", (request, reply) => {
+      if (!isMessage(request, ExportThreadImageSchema)) return reply(false);
+
+      if (request.operation === "release") return reply(true, { threadImageExport: {} });
+      const data = files.get(request.path);
+
+      if (!data) return reply(false, { errorMessage: "The selected file is unavailable." });
+      reply(true, {
+        threadImageExport: {
+          name: request.path,
+          sizeBytes: BigInt(data.length),
+          sha256: createHash("sha256").update(data).digest("hex"),
+          data: request.operation === "probe" ? new Uint8Array() : data.subarray(Number(request.offset)),
+        },
+      });
+    });
+  }
+
+  async function relayFile(turn: BotTurn, id: string) {
+    const { current: core } = suite;
+    const tool = areaTool.get("send_attachment")!.spec;
+
+    const call = await core.bots.run((s) =>
+      s.planCall(turn, crypto.randomUUID(), tool, { attachment_id: id, caption: "Shared file" }),
+    );
+
+    return botPlatform(core, core[coreState].options, turn, call);
+  }
+
+  test("a delegated thread sends selected workspace files as a private bot message", async () => {
+    const botId = (await add("Private artifacts")).id;
+    ids.push(botId);
+    const { bots } = suite.current;
+    const { userId } = suite.gw;
+    await bots.run((s) => s.enqueue(userId, botId, "Prepare a demo", crypto.randomUUID()));
+    const work = await delegated((await bots.run((s) => s.claim(userId)))!);
+    await expectStatus(work.turnId, "running");
+
+    const png = await sharp({ create: { width: 24, height: 16, channels: 3, background: "#4499aa" } })
+      .png()
+      .toBuffer();
+
+    const text = new TextEncoder().encode("Representative fixture notes");
+    const binary = Uint8Array.of(0, 2, 4, 6, 8, 255);
+
+    const files = new Map<string, Uint8Array>([
+      ["result.png", png],
+      ["demo.mp4", mp4],
+      ["notes.txt", text],
+      ["data.bin", binary],
+    ]);
+
+    exportFiles(files);
+
+    const message = (paths: string[], callId = crypto.randomUUID()) =>
+      suite.currentWorker.callTool({
+        ...work,
+        tool: "message_delegating_bot",
+        args: { text: "The demo files", attachment_paths: paths },
+        callId,
+      });
+
+    const denied = await message(["result.png", "unavailable.txt"]);
+    expect(denied).toMatchObject({ isError: true, content: "The selected file is unavailable." });
+    expect(await bots.run((s) => s.claim(userId))).toBeUndefined();
+
+    const callId = crypto.randomUUID();
+    const sent = await message([...files.keys()], callId);
+    expect(sent.isError).toBe(false);
+    expect((await message([...files.keys()], callId)).content).toBe(sent.content);
+    const callback = (await bots.run((s) => s.claim(userId)))!;
+
+    const entry = botEntries(await read(botId)).find(
+      (entry) => entry.kind === "message" && entry.message.text === "The demo files",
+    );
+
+    const attachments = entry?.kind === "message" ? entry.message.attachments! : [];
+    expect(attachments.map((a) => [a.name, a.kind, a.mimeType])).toEqual([
+      ["result.png", "image", "image/png"],
+      ["demo.mp4", "video", "video/mp4"],
+      ["notes.txt", "file", "text/plain"],
+      ["data.bin", "file", "application/octet-stream"],
+    ]);
+    expect(attachments[0]).toMatchObject({ width: 24, height: 16, hasThumbnail: true });
+    expect(attachments[1]?.durationMs).toBe(2000);
+    expect((await suite.gw.api.getAttachment({ attachmentId: attachments[3]!.id })).data).toEqual(binary);
+
+    expect(await relayFile(callback, attachments[2]!.id)).toMatchObject({ delivered: true });
+    const outgoing = (await read(botId)).messages.find((m) => m.text === "Shared file")!.attachments[0]!;
+    expect(outgoing.id).not.toBe(attachments[2]!.id);
+    expect((await suite.gw.api.getAttachment({ attachmentId: outgoing.id })).data).toEqual(text);
+    await bots.run((s) => s.finish(callback, "completed", ""));
+
+    await finishTarget(work.threadId, work.turnId);
+    await bots.run((s) => s.deliver(userId));
+    const report = (await bots.run((s) => s.claim(userId)))!;
+    expect(report.input).toContain("Login repair is ready");
+    expect((await read(botId)).messages.at(-1)).toMatchObject({ kind: "event", attachments: [] });
+    await bots.run((s) => s.finish(report, "completed", ""));
+  });
+
+  test("a Slack callback passes its file to bot input and only that conversation can share it", async () => {
+    const f = await external();
+    const work = await delegated(f.turn);
+    await expectStatus(work.turnId, "running");
+    const { current: core, gw } = suite;
+    const { bots } = core;
+    exportFiles(new Map([["report.txt", new TextEncoder().encode("A synthetic report")]]));
+
+    const sent = await suite.currentWorker.callTool({
+      threadId: work.threadId,
+      turnId: work.turnId,
+      tool: "message_delegating_bot",
+      args: { text: "The requested report", attachment_paths: ["report.txt"] },
+    });
+
+    expect(sent.isError).toBe(false);
+
+    const callback = (await bots.run((s) => s.claim(gw.userId)))!;
+    expect(callback.conversation_id).toBe(f.turn.conversation_id);
+    const messages = await bots.run((s) => s.history(callback, true, false));
+
+    const input = await withSlackBotInput(
+      core,
+      {
+        messages,
+        configuration: (await read(f.botId)).bot!.configuration!,
+        instructions: "",
+        tools: [],
+        signal: new AbortController().signal,
+      },
+      gw.workerId,
+      callback,
+    );
+
+    const workerInput = await botImageInput(core, f.botId, gw.workerId, input);
+    expect(workerInput.input).not.toContain("attachments were unavailable");
+    expect(workerInput.attachments.map((a) => a.name)).toEqual(["report.txt"]);
+    const id = workerInput.attachments[0]!.attachmentId;
+    expect(await relayFile(callback, id)).toMatchObject({ queued_for_reply: 1 });
+    await bots.run((s) => s.finish(callback, "completed", "The report is attached"));
+
+    const reply = (await messenger((s) => s.outbound(gw.userId, f.lease, new Date()))).find(
+      (o) => o.text === "The report is attached",
+    )!;
+
+    expect(reply.threadId).toBe("100.1");
+    expect(await messenger((s) => s.outboundFiles(gw.userId, reply.id))).toMatchObject([{ name: "report.txt" }]);
+
+    await bots.run((s) => s.enqueue(gw.userId, f.botId, "Share another file", crypto.randomUUID()));
+    const privateTurn = (await bots.run((s) => s.claim(gw.userId)))!;
+    expect(await relayFile(privateTurn, id)).toEqual({
+      error: "This file is unavailable in the current conversation.",
+    });
+    expect((await read(f.botId)).messages.every((m) => !m.attachments.length)).toBe(true);
+    await bots.run((s) => s.finish(privateTurn, "completed", ""));
+    await finishTarget(work.threadId, work.turnId);
+  });
 
   test("a delegated thread reports once into the originating external conversation", async () => {
     const f = await external();

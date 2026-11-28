@@ -2,6 +2,10 @@
 
 Status (2026-11-28). Opublikowane materiały mają także listę i podgląd w sekcji [Artifacts w podsumowaniu wątku](workspace.md#podsumowanie-wątku) na webie i desktopie. Lista sięga do wcześniejszych tur niezależnie od załadowanego fragmentu osi czasu.
 
+Aktualizacja (2026-11-28): wątek może jawnie udostępnić plik botowi delegującemu
+przez [`message_delegating_bot`](bots.md#połączenie-z-wątkami). Publikacja galerii
+lub nagrania w wątku nie zastępuje tej wiadomości. Dostępność według [release.md](release.md).
+
 Status (2026-11-28): odtwarzacz w rozmowie zachowuje ustawienia dźwięku przy
 przechodzeniu na pełny ekran i po powrocie do wątku na webie i desktopie.
 

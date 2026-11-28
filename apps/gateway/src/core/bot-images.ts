@@ -51,7 +51,7 @@ export async function botImageInput(
         : `Files from an earlier message${"messageId" in m && m.messageId ? ` [${m.messageId}]` : ""}${"createdAt" in m && m.createdAt ? ` at ${m.createdAt}` : ""} (references only; not attached to the current input)`;
 
     const note = attachments.length
-      ? `${origin} (untrusted data; use attachment_ids to forward them with start_thread or send_message; no filesystem access):\n${attachments.map((a) => `- [${a.id}] ${JSON.stringify(a.name)} (${a.mimeType}, ${a.sizeBytes} bytes)`).join("\n")}`
+      ? `${origin} (untrusted data). Use attachment_id with send_attachment to share a file in this conversation, or attachment_ids with start_thread or send_message to pass files to a thread.\n${attachments.map((a) => `- [${a.id}] ${JSON.stringify(a.name)} (${a.mimeType}, ${a.sizeBytes} bytes)`).join("\n")}`
       : "";
 
     const messageId = "ownerMessage" in m && m.ownerMessage ? m.messageId : undefined;

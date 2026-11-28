@@ -10,7 +10,7 @@ import { messengerLabel } from "../messengers/provider.ts";
 import { MAX_SLACK_MESSAGE_FILES } from "../messengers/slack-events.ts";
 import { MessengerStore } from "../messengers/store.ts";
 import { inboundSlackTurnFiles, type InboundSlackFile } from "../messengers/store-inbound-files.ts";
-import type { AttachmentRow } from "../store/attachments.ts";
+import type { AttachmentRow, StoredAttachment } from "../store/attachments.ts";
 import { coreAttachments } from "./core-attachments.ts";
 import { coreState } from "./core-context.ts";
 import type { GatewayCore } from "./core.ts";
@@ -65,21 +65,25 @@ function slackTurnSource(core: GatewayCore, turn: BotTurn) {
 async function loadSlackInput(
   source: ReturnType<typeof slackTurnSource>,
   files: readonly InboundSlackFile[],
-  capabilities: readonly string[],
-  limits: AttachmentLimits,
-  signal: AbortSignal,
+  options: {
+    cached: ReadonlyMap<string, AttachmentRow>;
+    retained: readonly StoredAttachment[];
+    capabilities: readonly string[];
+    limits: AttachmentLimits;
+    signal: AbortSignal;
+  },
 ) {
-  const cached = await source.cached();
+  const { cached, retained, capabilities, limits, signal } = options;
   const attached = new Map<string, AttachmentRow>();
   const downloadSignal = AbortSignal.any([signal, AbortSignal.timeout(30_000)]);
-  let remaining = limits.maxMessageBytes;
+  let remaining = limits.maxMessageBytes - retained.reduce((bytes, entry) => bytes + entry.sizeBytes, 0);
   let credentials: ReturnType<typeof source.credentials> | undefined;
 
   for (const entry of files.slice(0, MAX_SLACK_MESSAGE_FILES)) {
     signal.throwIfAborted();
     const maxBytes = Math.min(limits.maxFileBytes, remaining);
 
-    if (attached.size >= limits.maxFiles || maxBytes <= 0) break;
+    if (retained.length + attached.size >= limits.maxFiles || maxBytes <= 0) break;
 
     try {
       let row = cached.get(entry.file_id);
@@ -148,6 +152,10 @@ export async function withSlackBotInput(core: GatewayCore, input: ModelInput, wo
 
   if (!files.length && !message.attachments?.length) return input.messages;
 
+  const cached = await source.cached();
+  const importedIds = new Set([...cached.values()].map((row) => row.id));
+  const retained = (message.attachments ?? []).filter((row) => !importedIds.has(row.id));
+
   const capabilities =
     files[0]?.files_enabled && input.configuration.files !== false
       ? await slackInputCapabilities(core, workerId, turn, input.signal)
@@ -159,11 +167,19 @@ export async function withSlackBotInput(core: GatewayCore, input: ModelInput, wo
 
   const { root } = supported ? await coreAttachments(core, (s) => s.workerRoot(workerId)) : { root: "" };
 
-  const attachments = root
-    ? await loadSlackInput(source, files, capabilities, await core.attachmentLimits, input.signal)
+  // A callback can already carry attachments. Only recheck provider imports against the source message.
+  const imported = root
+    ? await loadSlackInput(source, files, {
+        cached,
+        retained,
+        capabilities,
+        limits: await core.attachmentLimits,
+        signal: input.signal,
+      })
     : [];
 
-  const missing = attachments.length < Math.max(files.length, message.attachments?.length ?? 0);
+  const attachments = [...retained, ...imported];
+  const missing = imported.length < Math.max(files.length, (message.attachments?.length ?? 0) - retained.length);
   const text = missing ? [fileUnavailable(files), message.text].filter(Boolean).join("\n\n") : message.text;
 
   return input.messages.map((entry, i) => (i === index ? { ...message, text, attachments } : entry));

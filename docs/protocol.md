@@ -506,6 +506,11 @@ Obsługiwane wejście i ograniczenia backendów: [automation-tools.md](automatio
 
 ### Trwałe odpowiedzi obrazami
 
+Aktualizacja (2026-11-28): `message_delegating_bot` używa tego samego
+ograniczonego eksportu bajtów dla jawnie wybranych plików z workspace’u. Gateway
+nie dopuszcza dodatkowych katalogów i wiąże pliki z kolejką bota w tej samej
+transakcji co zatwierdzenie transferu. Dostępność według [release.md](release.md).
+
 Status (2026-11-19): publikacja, jawny eksport z Temp profilu Windows przez
 wbudowanego workera w trybie lokalnym i szybki błąd po utracie połączenia
 podczas `show_images` są zaimplementowane. Dostępność kanałów wynika
@@ -518,7 +523,7 @@ zamrożone `update/v1` nie zmienia się. Starszy worker dostaje jawną odmowę
 „Update this computer to show images in Canopy.”, bez wysłania nieznanej komendy.
 
 Gateway sprawdza ownera, przypięcie workera i aktywną turę. Rezerwuje budżet
-przed alokacją: 1 transfer na wątek, 2 na worker, 100 obrazów / 200 MiB na turę.
+przed alokacją: 1 transfer na wątek, 2 na worker, 100 plików / 200 MiB na turę.
 Wywołanie obejmuje 1–10 obrazów, maks. 20 MiB na plik i 50 MiB łącznie;
 niższe limity załączników właściciela mają pierwszeństwo. Liczymy większy
 z rozmiarów wejścia i wyniku normalizacji. Rezerwacja ma lease 60 s i token
