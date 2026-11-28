@@ -3,6 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-nat
 import Reanimated from "react-native-reanimated";
 import type { IconName } from "@canopy/ui/icons";
 import { updateBadge, type UpdateStatus } from "@canopy/domain/release/update-status";
+import { AnimatedNumber } from "../../ui/AnimatedNumber";
 import { Badge } from "../../ui/Badge";
 import { IconButton } from "../../ui/Button";
 import { ProgressBar } from "../../ui/ProgressBar";
@@ -69,6 +70,7 @@ export function UpdateRow({
 
   const installed = version || "Version unknown";
   const versions = target && target !== version ? `${installed} → ${target}` : installed;
+  const percent = busy && progress !== undefined ? Math.max(0, Math.min(100, Math.round(progress))) : undefined;
 
   return (
     <View style={[{ paddingVertical: 10 }, style]}>
@@ -83,9 +85,21 @@ export function UpdateRow({
               <UpdateBadge status={status} />
             </View>
           </View>
-          <Text selectable style={[styles.overlayMeta, { color: c.muted, fontVariant: ["tabular-nums"] }]}>
-            {versions}
-          </Text>
+          <View style={styles.row}>
+            <Text selectable style={[styles.overlayMeta, { flex: 1, color: c.muted, fontVariant: ["tabular-nums"] }]}>
+              {versions}
+            </Text>
+            {percent !== undefined && (
+              <View aria-hidden style={{ alignItems: "flex-end", minWidth: 48 }}>
+                <AnimatedNumber
+                  value={`${percent}%`}
+                  amount={percent}
+                  animateOnMount={false}
+                  style={[styles.overlayMeta, { color: c.muted }]}
+                />
+              </View>
+            )}
+          </View>
           {error ? (
             <Pressable
               accessibilityRole="button"
@@ -120,10 +134,10 @@ export function UpdateRow({
           )}
         </View>
       </View>
-      {busy && progress !== undefined && (
+      {percent !== undefined && (
         <Reanimated.View entering={m.rise.entering} style={{ position: "absolute", left: 0, right: 52, bottom: 3 }}>
           <ProgressBar
-            done={BigInt(Math.round(progress))}
+            done={BigInt(percent)}
             total={100n}
             label={`${name}: ${updateBadge(status).label}`}
             style={{ height: 2 }}

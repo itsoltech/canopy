@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { motion, smoothOut, useMotion, useReducedMotion } from "./motion";
-import { Swap } from "./MotionViews";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { font, styles, useColors, useTypography } from "./theme";
 import { WorkingSpinner } from "./WorkingSpinner";
 
@@ -128,7 +128,7 @@ export function Segmented<T extends string>({
                 </Text>
                 {!!unread && <SegmentBadge count={unread} />}
                 {attention && (
-                  <View style={[marker.trailing, { justifyContent: "center" }]}>
+                  <View style={marker.trailing}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.warning }} />
                   </View>
                 )}
@@ -141,22 +141,21 @@ export function Segmented<T extends string>({
   );
 }
 
-/** An unread count that pops in beside its label and swaps its number as it changes (web `pop`, `swap`). */
+/** The badge handles its entrance and exit. Only its digits move while it stays visible. */
 function SegmentBadge({ count }: { count: number }) {
   const c = useColors();
   const { pop } = useMotion();
   const label = count > 99 ? "99+" : String(count);
 
   return (
-    <Animated.View
-      entering={pop.entering}
-      exiting={pop.exiting}
-      style={[marker.trailing, { justifyContent: "center" }]}
-    >
+    <Animated.View entering={pop.entering} exiting={pop.exiting} style={marker.trailing}>
       <View style={{ borderRadius: 999, overflow: "hidden", backgroundColor: c.accent, paddingHorizontal: 6 }}>
-        <Swap value={label}>
-          <Text style={[styles.caption, { color: c.onAccent, fontVariant: ["tabular-nums"] }]}>{label}</Text>
-        </Swap>
+        <AnimatedNumber
+          value={label}
+          amount={count}
+          animateOnMount={false}
+          style={[styles.caption, { color: c.onAccent }]}
+        />
       </View>
     </Animated.View>
   );
@@ -172,7 +171,12 @@ function SegmentWorking({ count, narrow }: { count: number; narrow: boolean }) {
     <Animated.View entering={pop.entering} exiting={pop.exiting} style={[marker.leading, { width, left: -width - 4 }]}>
       <WorkingSpinner size={narrow ? 12 : 14} color={c.working.indicator} />
       {!narrow && (
-        <Text style={[styles.caption, { color: c.working.text, fontVariant: ["tabular-nums"] }]}>{label}</Text>
+        <AnimatedNumber
+          value={label}
+          amount={count}
+          animateOnMount={false}
+          style={[styles.caption, { color: c.working.text }]}
+        />
       )}
     </Animated.View>
   );
@@ -188,5 +192,14 @@ const marker = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 2,
   },
-  trailing: { position: "absolute", left: "100%", top: 0, bottom: 0, marginLeft: 6 },
+  // Give Yoga room to measure the badge outside the label, just like the leading spinner.
+  trailing: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    right: -54,
+    width: 48,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
 });

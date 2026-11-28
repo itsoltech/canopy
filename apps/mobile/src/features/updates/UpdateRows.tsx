@@ -102,6 +102,7 @@ function GatewayRow({ snapshot }: { snapshot: ui.UpdatesSnapshot }) {
             : undefined
       }
       busy={updateInProgress(status)}
+      progress={status === "downloading" ? snapshot.gatewayDownloadProgress : undefined}
       action={
         binary && status === "failed" && step < 0 && snapshot.gatewayUpdateAvailable
           ? {
@@ -212,7 +213,7 @@ function WorkerRows({ home, name, nodeId }: { home: ui.UpdatesSnapshot; name: st
             }
             error={status === "failed" ? run?.steps[step]?.reason || reason || "The update did not finish." : undefined}
             busy={updateInProgress(status)}
-            progress={app?.phase === "downloading" ? app.progress : undefined}
+            progress={app ? (app.phase === "downloading" ? app.progress : undefined) : worker.downloadProgress}
             style={!connected && !updateInProgress(status) ? { opacity: 0.5 } : undefined}
             action={
               request && step < 0 && !updateInProgress(status)

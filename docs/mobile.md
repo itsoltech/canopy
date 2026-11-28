@@ -1,5 +1,10 @@
 # Canopy na iOS i Android
 
+Status (2026-11-28). Raport Usage animuje cyfry sumy, liczników tokenów, liczby raportów
+z niepełnym kosztem i wartości w podziale Activity. W nawigacji animują się liczniki
+pracy i nieprzeczytanych wiadomości, a w App updates procent pobrania aktualizacji.
+Systemowe ograniczenie ruchu wyłącza przejścia cyfr.
+
 Status (2026-11-28). Wiersze projektów oraz wyboru workera i źródła mają minimum
 48 dp wysokości i rosną wraz z tekstem. Wiersze ustawień mieszczą przełącznik obok opisu.
 Pola wyboru w wierszach ustawień dopasowują szerokość do wartości i przechodzą
@@ -543,7 +548,8 @@ Dotknięcie wykresu lub użycie strzałek wybiera dzień i pokazuje jego sumę o
 wartości poszczególnych dostawców. Brak znanego kosztu powoduje przerwę w linii.
 
 Telefon pobiera raport przez `GetUsageStats` po otwarciu ekranu, zmianie filtrów
-lub ręcznym odświeżeniu. Przerywa odczyt po opuszczeniu ekranu lub przejściu
+lub ręcznym odświeżeniu. Podczas ręcznego odświeżania tego samego raportu poprzednie
+wartości pozostają widoczne do nadejścia odpowiedzi. Przerywa odczyt po opuszczeniu ekranu lub przejściu
 aplikacji w tło. Gdy gateway nie obsługuje metody, ekran wskazuje konieczność
 aktualizacji gatewaya i pozwala ponownie sprawdzić dostępność. Błąd połączenia
 pokazuje akcję ponowienia. Starsza wersja API statystyk pokazuje tylko kompletne
