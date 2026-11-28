@@ -13,6 +13,7 @@ import { useWorkerPresence } from "../computers/presence";
 import { AgentToolDefaults } from "./AgentToolDefaults";
 import { AgentToolWorkerRow } from "./AgentToolWorkerRow";
 import { useOpenSettingsSection } from "./navigation";
+import { SettingsTopics } from "./SettingsTopics";
 import { ResourceState, useSettingsResource } from "./resource";
 import { SettingsGroup, SettingsGroupHeader, SettingsRow } from "./SettingsGroup";
 import { createSettingsViewState } from "./SettingsScroll";
@@ -60,6 +61,37 @@ function useToolWorkers() {
 }
 
 export function AgentToolsSettings() {
+  const { user } = useAppearance();
+  const c = useColors();
+  const type = useTypography();
+
+  return (
+    <SettingsTopics
+      topics={[
+        { id: "access", label: "Worker access", content: <WorkerAccess /> },
+        {
+          id: "defaults",
+          label: "Session defaults",
+          hidden: !user?.agentToolDefaults,
+          content: (
+            <>
+              <Text style={[type.meta, { color: c.muted }]}>
+                These defaults apply to new sessions across your workers.
+              </Text>
+              {agentTools.map(({ tool, name }) => (
+                <SettingsGroup key={tool} title={name}>
+                  <AgentToolDefaults tool={tool} />
+                </SettingsGroup>
+              ))}
+            </>
+          ),
+        },
+      ]}
+    />
+  );
+}
+
+function WorkerAccess() {
   const openSettingsSection = useOpenSettingsSection();
   const { workers, records, loaded } = useToolWorkers();
   const [expanded, setExpanded] = useExpandedTools();
@@ -239,7 +271,6 @@ function ToolCard({
             }
           />
         ))}
-        <AgentToolDefaults tool={tool} />
       </Expand>
       {action.notice ? <Notice error={action.failed}>{action.notice}</Notice> : null}
     </View>

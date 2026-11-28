@@ -8,7 +8,7 @@ import { useAppActive } from "../../ui/active";
 import { useForegroundInterval } from "../../ui/interval";
 
 /** Persist only attempt/request identifiers, scoped to pairing and home. Tokens never leave the gateway. */
-export function useGitHubSignIn(homeId: string, onconnected?: () => void) {
+export function useGitHubSignIn(homeId: string, onconnected?: (justConnected: boolean) => void) {
   const { client, session } = useSession();
   const foreground = useAppActive();
   const [attempt, setAttempt] = useState<github.GitHubDeviceAuth>();
@@ -34,6 +34,7 @@ export function useGitHubSignIn(homeId: string, onconnected?: () => void) {
       const value = await action();
 
       if (!active.current) return;
+      const wasPending = current.current?.state === "pending";
       current.current = value.attempt;
       setAttempt(value.attempt);
 
@@ -41,7 +42,7 @@ export function useGitHubSignIn(homeId: string, onconnected?: () => void) {
 
       if (value.attempt?.state === "connected" && notified.current !== value.attempt.id) {
         notified.current = value.attempt.id;
-        connected.current?.();
+        connected.current?.(wasPending);
       }
     } catch {
       if (active.current) setError("Could not check GitHub sign-in. Check the connection, then retry.");

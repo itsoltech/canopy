@@ -7,6 +7,7 @@ import { Button, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow, SettingToggle } from "./SettingsGroup";
 import { SettingsInput } from "./SettingsInput";
 import { SettingsValue } from "./SettingsValue";
+import { SettingsTopics } from "./SettingsTopics";
 import { ResourceState, confirmAction, useSettingsResource } from "./resource";
 import { ComputerPairing } from "./ComputerPairing";
 import { ComputerMove } from "./ComputerMove";
@@ -20,7 +21,6 @@ import { presenceTime } from "../computers/presence";
 type Operation = MessageInitShape<typeof ui.ComputerOperationRequestSchema>;
 
 export function ComputerSettings() {
-  const openSettingsSection = useOpenSettingsSection();
   const resource = useSettingsResource("GetComputers", (api) => api.getComputers({}));
   const [pairing, setPairing] = useState(false);
   const [moving, setMoving] = useState<ui.LinkedComputer>();
@@ -33,68 +33,88 @@ export function ComputerSettings() {
   const bulkMove = useAppearance().modules.length > 1;
   const change = async (operation: Operation) => !!(await resource.run((api) => api.manageComputer(operation)));
 
+  const direct = data?.peers.filter((computer) => !computer.viaNodeId) ?? [];
+
   return (
     <ResourceState resource={resource}>
-      <Notice>Connect your own computers. Each keeps its own gateway and data.</Notice>
-      <Button
-        variant="primary"
-        title="Link a computer"
-        disabled={!data || resource.busy}
-        onPress={() => setPairing(true)}
+      <SettingsTopics
+        topics={[
+          {
+            id: "computers",
+            label: "Linked computers",
+            content: (
+              <>
+                <Notice>Connect your own computers. Each keeps its own gateway and data.</Notice>
+                <Button
+                  variant="primary"
+                  title="Link a computer"
+                  disabled={!data || resource.busy}
+                  onPress={() => setPairing(true)}
+                />
+                <SettingsGroup
+                  title="Linked computers"
+                  description="Pairing grants full access between your computers. Only link computers you own."
+                >
+                  <SettingsSkeletonRows controls />
+                  {data?.peers.map((computer) => (
+                    <ComputerDetails
+                      key={computer.nodeId}
+                      computer={computer}
+                      peers={data.peers}
+                      busy={resource.busy}
+                      change={change}
+                      {...(bulkMove && { onMove: () => setMoving(computer) })}
+                    />
+                  ))}
+                  {data && !data.peers.length && (
+                    <SettingsRow
+                      title="No computers linked yet"
+                      description="Generate a code here, or enter a code from your other computer."
+                    />
+                  )}
+                </SettingsGroup>
+              </>
+            ),
+          },
+          {
+            id: "this-computer",
+            label: "This computer",
+            content: (
+              <ThisComputer data={data} busy={resource.busy} loading={resource.initialLoading} change={change} />
+            ),
+          },
+          {
+            id: "sharing",
+            label: "Configuration sharing",
+            hidden: !direct.length && !names.length && !data?.configNotices.length,
+            content: (
+              <>
+                {data && (
+                  <SettingsRow
+                    title={
+                      names.length
+                        ? `Shares configuration with ${names.join(", ")}`
+                        : "Configuration stays on this computer."
+                    }
+                  />
+                )}
+                {direct.map((computer) => (
+                  <SettingsGroup key={computer.nodeId} title={computer.displayName || computer.name}>
+                    <ComputerConfigSharing
+                      computer={computer}
+                      busy={resource.busy}
+                      onChange={(enabled) => void change({ action: "share_config", nodeId: computer.nodeId, enabled })}
+                    />
+                  </SettingsGroup>
+                ))}
+                {!!data?.configNotices.length && (
+                  <SharedConfiguration notices={data.configNotices} onChanged={() => void resource.reload()} />
+                )}
+              </>
+            ),
+          },
+        ]}
       />
-      <SettingsGroup title="This computer">
-        {resource.initialLoading && (
-          <ComputerDetails computer={create(ui.LinkedComputerSchema, { name: " " })} self busy change={change} />
-        )}
-        {data?.self && <ComputerDetails computer={data.self} self busy={resource.busy} change={change} />}
-        <SettingToggle
-          title="Find linked computers on this network"
-          description={data?.lanDiscoveryNote || "Discover routes to computers you have already linked."}
-          value={data?.lanDiscoveryEnabled ?? false}
-          disabled={!data || resource.busy}
-          onChange={(enabled) => void change({ action: "lan_discovery", enabled })}
-        />
-        <SettingsValue title="Network discovery" value={data?.lanDiscoveryState} />
-      </SettingsGroup>
-      {data && (
-        <SettingsRow
-          title={
-            names.length ? `Shares configuration with ${names.join(", ")}` : "Configuration stays on this computer."
-          }
-        />
-      )}
-      <SettingsGroup title="Network access">
-        <SettingsRow
-          title={data?.listenerEnabled ? "Remote access is on" : "Remote access is off"}
-          description={data?.self?.addresses.join(" · ")}
-          control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
-        />
-      </SettingsGroup>
-      <SettingsGroup
-        title="Linked computers"
-        description="Pairing grants full access between your computers. Only link computers you own."
-      >
-        <SettingsSkeletonRows controls />
-        {data?.peers.map((computer) => (
-          <ComputerDetails
-            key={computer.nodeId}
-            computer={computer}
-            peers={data.peers}
-            busy={resource.busy}
-            change={change}
-            {...(bulkMove && { onMove: () => setMoving(computer) })}
-          />
-        ))}
-        {data && !data.peers.length && (
-          <SettingsRow
-            title="No computers linked yet"
-            description="Generate a code here, or enter a code from your other computer."
-          />
-        )}
-      </SettingsGroup>
-      {!!data?.configNotices.length && (
-        <SharedConfiguration notices={data.configNotices} onChanged={() => void resource.reload()} />
-      )}
       {pairing && (
         <ComputerPairing
           onClose={() => {
@@ -111,6 +131,46 @@ export function ComputerSettings() {
         {moving && bulkMove && <ComputerMove nodeId={moving.nodeId} />}
       </Sheet>
     </ResourceState>
+  );
+}
+
+function ThisComputer({
+  data,
+  busy,
+  loading,
+  change,
+}: {
+  data?: ui.ComputersSnapshot;
+  busy: boolean;
+  loading: boolean;
+  change: (operation: Operation) => Promise<boolean>;
+}) {
+  const openSettingsSection = useOpenSettingsSection();
+
+  return (
+    <>
+      <SettingsGroup title="This computer">
+        {loading && (
+          <ComputerDetails computer={create(ui.LinkedComputerSchema, { name: " " })} self busy change={change} />
+        )}
+        {data?.self && <ComputerDetails computer={data.self} self busy={busy} change={change} />}
+        <SettingToggle
+          title="Find linked computers on this network"
+          description={data?.lanDiscoveryNote || "Discover routes to computers you have already linked."}
+          value={data?.lanDiscoveryEnabled ?? false}
+          disabled={!data || busy}
+          onChange={(enabled) => void change({ action: "lan_discovery", enabled })}
+        />
+        <SettingsValue title="Network discovery" value={data?.lanDiscoveryState} />
+      </SettingsGroup>
+      <SettingsGroup title="Network access">
+        <SettingsRow
+          title={data?.listenerEnabled ? "Remote access is on" : "Remote access is off"}
+          description={data?.self?.addresses.join(" · ")}
+          control={<Button title="Manage network access" onPress={() => openSettingsSection("network")} />}
+        />
+      </SettingsGroup>
+    </>
   );
 }
 
@@ -171,11 +231,6 @@ function ComputerDetails({
             value=""
             busy={busy}
             onSave={(address) => change({ action: "add_route", nodeId: computer.nodeId, address })}
-          />
-          <ComputerConfigSharing
-            computer={computer}
-            busy={busy}
-            onChange={(enabled) => void change({ action: "share_config", nodeId: computer.nodeId, enabled })}
           />
           {(computer.capabilities.includes("relay") || computer.shareOnwardNodeIds.length > 0) && (
             <Button title="Share onward" onPress={() => setSharing(true)} />

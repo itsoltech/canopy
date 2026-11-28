@@ -3,6 +3,7 @@ import type { connectors } from "@canopy/contracts";
 import { View } from "react-native";
 import { Button, Notice, Sheet } from "../../ui/components";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { SettingsTopics } from "./SettingsTopics";
 import { ResourceState, useSettingsResource } from "./resource";
 import { ConfigNoticesFor } from "./ConfigNoticesFor";
 import { SlackBotSettings } from "./SlackBotSettings";
@@ -41,39 +42,57 @@ export function ConnectorSettings() {
         onChanged={resource.reload}
       />
       {!!notice && <Notice>{notice}</Notice>}
-      <SettingsGroup title="Add an account">
-        <SettingsSkeletonRows controls />
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {resource.data?.types.map((entry) => (
-            <Button key={entry.id} size="sm" title={entry.name} onPress={() => setEditing({ type: entry })} />
-          ))}
-        </View>
-      </SettingsGroup>
-      <SettingsGroup title="Tool accounts">
-        <SettingsSkeletonRows controls />
-        {resource.data?.accounts.map((entry) => (
-          <ConnectorAccountRow
-            key={entry.id}
-            account={entry}
-            now={now}
-            provider={
-              resource.data?.types.find((provider) => provider.id === entry.connectorType)?.name ?? entry.connectorType
-            }
-            onPress={() => setSelected({ id: entry.id, view: "access" })}
-            onActions={() => setSelected({ id: entry.id, view: "actions" })}
-          />
-        ))}
-        {resource.data && !resource.data.accounts.length && (
-          <SettingsRow title="No accounts yet" description="Pick an app above to connect one." />
-        )}
-      </SettingsGroup>
-      {botsEnabled && capabilities.data?.methods.includes("ListMessengerAccounts") && resource.data && (
-        <>
-          <SlackBotSettings users={resource.data.accounts.filter((entry) => entry.connectorType === "slack")} />
-          <MessengerTokenBots provider="telegram" />
-          <MessengerTokenBots provider="discord" />
-        </>
-      )}
+      <SettingsTopics
+        topics={[
+          {
+            id: "accounts",
+            label: "Tool accounts",
+            content: (
+              <>
+                <SettingsGroup title="Add an account">
+                  <SettingsSkeletonRows controls />
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {resource.data?.types.map((entry) => (
+                      <Button key={entry.id} size="sm" title={entry.name} onPress={() => setEditing({ type: entry })} />
+                    ))}
+                  </View>
+                </SettingsGroup>
+                <SettingsGroup title="Tool accounts">
+                  <SettingsSkeletonRows controls />
+                  {resource.data?.accounts.map((entry) => (
+                    <ConnectorAccountRow
+                      key={entry.id}
+                      account={entry}
+                      now={now}
+                      provider={
+                        resource.data?.types.find((provider) => provider.id === entry.connectorType)?.name ??
+                        entry.connectorType
+                      }
+                      onPress={() => setSelected({ id: entry.id, view: "access" })}
+                      onActions={() => setSelected({ id: entry.id, view: "actions" })}
+                    />
+                  ))}
+                  {resource.data && !resource.data.accounts.length && (
+                    <SettingsRow title="No accounts yet" description="Pick an app above to connect one." />
+                  )}
+                </SettingsGroup>
+              </>
+            ),
+          },
+          {
+            id: "messaging",
+            label: "Messaging",
+            hidden: !botsEnabled || !capabilities.data?.methods.includes("ListMessengerAccounts") || !resource.data,
+            content: resource.data && (
+              <>
+                <SlackBotSettings users={resource.data.accounts.filter((entry) => entry.connectorType === "slack")} />
+                <MessengerTokenBots provider="telegram" />
+                <MessengerTokenBots provider="discord" />
+              </>
+            ),
+          },
+        ]}
+      />
       {account && type && selected && (
         <ConnectorAccountDetails
           key={account.id}

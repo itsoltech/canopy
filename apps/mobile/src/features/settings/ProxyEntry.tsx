@@ -9,11 +9,10 @@ import { font, styles, useColors } from "../../ui/theme";
 import { SettingsActions } from "./SettingsGroup";
 import { SettingsDisclosure } from "./SettingsDisclosure";
 import { confirmAction, useSettingsResource } from "./resource";
-import { ProxyAccounts } from "./ProxyAccounts";
 import { ProxyMappings } from "./ProxyMappings";
 
 /**
- * One saved proxy (web: ProxyEntry): name, masked address, secret badge, kind and users, its accounts, how agents
+ * One saved proxy (web: ProxyEntry): name, masked address, secret badge, kind and users, how agents
  * use it, and Test connection / Edit / Delete with the test result under the card.
  */
 export function ProxyEntry({ proxy, onEdit }: { proxy: ui.Proxy; onEdit: () => void }) {
@@ -46,9 +45,6 @@ export function ProxyEntry({ proxy, onEdit }: { proxy: ui.Proxy; onEdit: () => v
       <Text style={[styles.chrome, { color: c.muted }]}>
         {kind} · {proxy.usedBy.length ? `Used by ${proxy.usedBy.join(", ")}` : "No profiles yet"}
       </Text>
-      {proxy.kind === "cliproxyapi" && proxy.id ? (
-        <ProxyAccounts proxy={proxy} onRead={() => void resource.reload()} />
-      ) : null}
       <SettingsDisclosure title="How agents use this proxy" viewKey={`proxy-mappings:${proxy.id}`}>
         <ProxyMappings kind={proxy.kind} baseUrl={proxy.baseUrl} />
       </SettingsDisclosure>

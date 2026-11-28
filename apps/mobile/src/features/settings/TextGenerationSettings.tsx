@@ -10,11 +10,10 @@ import { useTypography, useColors } from "../../ui/theme";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
 import { SettingsModel } from "./SettingsModels";
 import { AccountConfigNotices } from "./AccountConfigNotices";
+import { SettingsTopics } from "./SettingsTopics";
 
 export function TextGenerationSettings() {
   const settings = useAppearance();
-  const c = useColors();
-  const type = useTypography();
   const value = create(ui.TextGenerationSettingsSchema, settings.user?.textGeneration);
   const disabled = !settings.user || settings.saving;
 
@@ -23,43 +22,65 @@ export function TextGenerationSettings() {
 
   return (
     <>
-      <SettingsGroup
-        title="Text generation"
-        description="Account"
-        actions={
-          <Button
-            title="Reset to default"
-            icon="arrow-path"
-            disabled={!value.model || disabled}
-            onPress={() => void save({ provider: Provider.UNSPECIFIED, profileId: "", model: "", effort: "" })}
-          />
-        }
-      >
-        <SettingsRow
-          title="Text generation model"
-          description="Generate thread titles and branch names with this model."
-        >
-          <SettingsModel
-            localWorkersOnly
-            allowProvider={supportsIsolatedRuns}
-            hideLabel
-            value={value}
-            disabled={disabled}
-            resetEffort={() => void save({ effort: "" })}
-            onChange={(c, effort) =>
-              void save({ provider: c.provider, profileId: c.profileId, model: c.model, effort })
-            }
-          />
-          {!value.model && <Text style={[type.meta, { color: c.muted }]}>{automaticTextGenerationDescription}</Text>}
-        </SettingsRow>
-      </SettingsGroup>
-      <TitleInstructions
-        value={value.threadTitleInstructions}
-        disabled={disabled}
-        save={(text) => save({ threadTitleInstructions: text })}
+      <SettingsTopics
+        topics={[
+          { id: "model", label: "Model", content: <ModelSettings value={value} disabled={disabled} save={save} /> },
+          {
+            id: "title-instructions",
+            label: "Title instructions",
+            content: (
+              <TitleInstructions
+                value={value.threadTitleInstructions}
+                disabled={disabled}
+                save={(text) => save({ threadTitleInstructions: text })}
+              />
+            ),
+          },
+        ]}
       />
       <AccountConfigNotices sections={["textGeneration"]} />
     </>
+  );
+}
+
+function ModelSettings({
+  value,
+  disabled,
+  save,
+}: {
+  value: ui.TextGenerationSettings;
+  disabled: boolean;
+  save: (patch: Partial<ui.TextGenerationSettings>) => Promise<boolean>;
+}) {
+  const c = useColors();
+  const type = useTypography();
+
+  return (
+    <SettingsGroup
+      title="Text generation model"
+      description="Account"
+      actions={
+        <Button
+          title="Reset to default"
+          icon="arrow-path"
+          disabled={!value.model || disabled}
+          onPress={() => void save({ provider: Provider.UNSPECIFIED, profileId: "", model: "", effort: "" })}
+        />
+      }
+    >
+      <SettingsRow title="Model and effort" description="Generate thread titles and branch names with this model.">
+        <SettingsModel
+          localWorkersOnly
+          allowProvider={supportsIsolatedRuns}
+          hideLabel
+          value={value}
+          disabled={disabled}
+          resetEffort={() => void save({ effort: "" })}
+          onChange={(c, effort) => void save({ provider: c.provider, profileId: c.profileId, model: c.model, effort })}
+        />
+        {!value.model && <Text style={[type.meta, { color: c.muted }]}>{automaticTextGenerationDescription}</Text>}
+      </SettingsRow>
+    </SettingsGroup>
   );
 }
 
@@ -95,7 +116,7 @@ function TitleInstructions({
 
   return (
     <SettingsGroup
-      title="Advanced"
+      title="Thread titles"
       description="Account"
       actions={
         !!value && (

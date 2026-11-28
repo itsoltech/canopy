@@ -123,7 +123,7 @@ function EnvironmentSyncStatus({ worker, pending }: { worker: ui.EnvironmentWork
           title="Edit tags"
           variant="text"
           size="sm"
-          onPress={() => openSettingsSection("workers", { workerId: worker.workerId })}
+          onPress={() => openSettingsSection("workers", { workerId: worker.workerId, workerTopic: "tags" })}
         />
       }
     >

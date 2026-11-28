@@ -61,7 +61,7 @@ function ImportHistory({ thread, disabled }: { thread: ui.Thread; disabled: bool
         disabled={disabled || !online}
         onPress={() => void continueHere()}
       />
-      <Button title="Manage imports" onPress={() => openSettingsSection("import")} />
+      <Button title="Manage imports" onPress={() => openSettingsSection("import", { topic: "activity" })} />
       {error ? <Notice error>{error}</Notice> : null}
     </View>
   );

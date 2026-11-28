@@ -10,9 +10,38 @@ import { ConfirmationSettings } from "./ThreadListSettings";
 import { ModuleSettings } from "./ModuleSettings";
 import { AccountConfigNotices } from "./AccountConfigNotices";
 import { UsagePingSettings } from "./UsagePingSettings";
+import { SettingsTopics } from "./SettingsTopics";
 
 export function GeneralSettings() {
   const settings = useAppearance();
+
+  return (
+    <>
+      <SettingsTopics
+        topics={[
+          {
+            id: "modules",
+            label: "Modules",
+            hidden: !!settings.user && !settings.user.modules,
+            content: <ModuleSettings />,
+          },
+          { id: "device", label: "Device", content: <GeneralDeviceSettings /> },
+          {
+            id: "confirmations",
+            label: "Confirmations",
+            hidden: settings.threadsEnabled,
+            content: <ConfirmationSettings />,
+          },
+        ]}
+      />
+      <AccountConfigNotices
+        sections={settings.threadsEnabled ? ["modules", "timezone"] : ["modules", "timezone", "general", "sidebar"]}
+      />
+    </>
+  );
+}
+
+function GeneralDeviceSettings() {
   const device = useDevicePreferences();
   const c = useColors();
 
@@ -38,23 +67,18 @@ export function GeneralSettings() {
           onPress={() => device.reset(["timeFormat"])}
         />
       </View>
-      <ModuleSettings />
-      {!settings.threadsEnabled && <ConfirmationSettings />}
-      <DisplaySettings />
+      <TimeSettings />
       <UsagePingSettings />
-      <AccountConfigNotices
-        sections={settings.threadsEnabled ? ["modules", "timezone"] : ["modules", "timezone", "general", "sidebar"]}
-      />
     </View>
   );
 }
 
-function DisplaySettings() {
+function TimeSettings() {
   const settings = useAppearance();
   const c = useColors();
 
   return (
-    <SettingsGroup title="Display" description="This device unless marked Account">
+    <SettingsGroup title="Time" description="This device unless marked Account">
       <DeviceChoiceRow
         preference="timeFormat"
         title="Time format"
